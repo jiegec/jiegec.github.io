@@ -409,7 +409,7 @@
 <p>在分析的中途遇到了很多坑，最后才终于理清了内存池的工作原理。这里直接解释结论吧。以下代码均摘自 Nginx 1.13.7 ，代码都可以在官方仓库找到。</p>
 
 <p>首先分析一下创建一个内存池的函数：</p>
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="n">ngx_pool_t</span> <span class="o">*</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ngx_pool_t</span> <span class="o">*</span>
 <span class="nf">ngx_create_pool</span><span class="p">(</span><span class="kt">size_t</span> <span class="n">size</span><span class="p">,</span> <span class="n">ngx_log_t</span> <span class="o">*</span><span class="n">log</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="n">ngx_pool_t</span>  <span class="o">*</span><span class="n">p</span><span class="p">;</span>
@@ -435,12 +435,11 @@
 
     <span class="k">return</span> <span class="n">p</span><span class="p">;</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>现在开始分段分析这个函数：在这里，一个内存池用一个 <code class="highlighter-rouge">ngx_pool_t (aka struct ngx_pool_s)</code> 类型的数据进行包装，所有的关于内存池的操作都基于相应的内存池对象。 <code class="highlighter-rouge">ngx_log_t</code> 表示输出信息的对象，与内存池无关，后面也不会讨论它。</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code>    <span class="n">p</span> <span class="o">=</span> <span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">log</span><span class="p">);</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="n">p</span> <span class="o">=</span> <span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">log</span><span class="p">);</span>
     <span class="k">if</span> <span class="p">(</span><span class="n">p</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
         <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
     <span class="p">}</span>
@@ -449,12 +448,11 @@
     <span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="n">u_char</span> <span class="o">*</span><span class="p">)</span> <span class="n">p</span> <span class="o">+</span> <span class="n">size</span><span class="p">;</span>
     <span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
     <span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>这里通过调用 <code class="highlighter-rouge">ngx_memalign</code> 分配一段（能对齐就对齐，不能对齐就放弃的）以 size 为大小的内存，做为这个内存池第一个块的内存，这个块的头是完整的，其中 <code class="highlighter-rouge">p-&gt;d.last</code> 和 <code class="highlighter-rouge">p-&gt;d.end</code> 分别表示可用于分配对象的内存段的开始和结束，在用 <code class="highlighter-rouge">p-&gt;d.next</code> 连接起来的链表中，每个链表实际上只有 <code class="highlighter-rouge">d</code> 是存储了数据，后面的各个域都不再使用。这里的 <code class="highlighter-rouge">p-&gt;d.failed</code> 涉及到链表的优化，在以后会接触到。</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code>    <span class="n">size</span> <span class="o">=</span> <span class="n">size</span> <span class="o">-</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="n">size</span> <span class="o">=</span> <span class="n">size</span> <span class="o">-</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
     <span class="n">p</span><span class="o">-&gt;</span><span class="n">max</span> <span class="o">=</span> <span class="p">(</span><span class="n">size</span> <span class="o">&lt;</span> <span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">)</span> <span class="o">?</span> <span class="n">size</span> <span class="o">:</span> <span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">;</span>
 
     <span class="n">p</span><span class="o">-&gt;</span><span class="n">current</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
@@ -464,14 +462,13 @@
     <span class="n">p</span><span class="o">-&gt;</span><span class="n">log</span> <span class="o">=</span> <span class="n">log</span><span class="p">;</span>
 
     <span class="k">return</span> <span class="n">p</span><span class="p">;</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>这里的 <code class="highlighter-rouge">size</code> 计算出实际用于对象分配的内存大小， <code class="highlighter-rouge">p-&gt;max</code> 存储了当前这个块最大能容纳的对象的大小， <code class="highlighter-rouge">p-&gt;current</code> 会和上面的 <code class="highlighter-rouge">p-&gt;d.failed</code> 合在一起对链表进行优化。 <code class="highlighter-rouge">p-&gt;chain</code> 与其他功能关系较密切，不会在本文中展开，而 <code class="highlighter-rouge">p-&gt;cleanup</code> 允许外部注册一些清理函数，实现起来并不难。</p>
 
 <p>接下来，由于 <code class="highlighter-rouge">ngx_pnalloc</code> 和 <code class="highlighter-rouge">ngx_pcalloc</code> 都和 <code class="highlighter-rouge">ngx_palloc</code> 相近，这里只对 <code class="highlighter-rouge">ngx_palloc</code> 进行分析：</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span> <span class="o">*</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">void</span> <span class="o">*</span>
 <span class="nf">ngx_palloc</span><span class="p">(</span><span class="n">ngx_pool_t</span> <span class="o">*</span><span class="n">pool</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">size</span><span class="p">)</span>
 <span class="p">{</span>
 <span class="cp">#if !(NGX_DEBUG_PALLOC)
@@ -482,12 +479,11 @@
 </span>
     <span class="k">return</span> <span class="n">ngx_palloc_large</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span> <span class="n">size</span><span class="p">);</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>这里分了两种情况，如果要分配的内存大于一个块的最大值，那么这段内存必须要单独分配单独维护，所以调用了 <code class="highlighter-rouge">ngx_palloc_large</code> ，下面对其分析：</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span> <span class="o">*</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span> <span class="o">*</span>
 <span class="nf">ngx_palloc_large</span><span class="p">(</span><span class="n">ngx_pool_t</span> <span class="o">*</span><span class="n">pool</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">size</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="kt">void</span>              <span class="o">*</span><span class="n">p</span><span class="p">;</span>
@@ -524,14 +520,13 @@
 
     <span class="k">return</span> <span class="n">p</span><span class="p">;</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>这里的 <code class="highlighter-rouge">ngx_alloc</code> 就是对 <code class="highlighter-rouge">malloc</code> 的简单封装，直接分配一段内存，然后向 <code class="highlighter-rouge">pool-&gt;large</code> 中以 <code class="highlighter-rouge">ngx_pool_large_t</code> 组成的链表中插入。这里有一个小优化：因为 <code class="highlighter-rouge">ngx_pool_large_t</code> 本身也要占用内存，为了复用已经被释放的 <code class="highlighter-rouge">ngx_pool_large_t</code> ，尝试链表的前几项，如果几项中都没有空的位置，因为 <code class="highlighter-rouge">ngx_pool_large_t</code> 本身是一个很小的对象，自然可以复用自己在内存池中分配对象的方法 <code class="highlighter-rouge">ngx_palloc_small</code> ，然后把它加入到 <code class="highlighter-rouge">pool-&gt;large</code> 的链表的第一向前。如果很大的内存都在分配后很快释放，这种方法可以复用很多的 <code class="highlighter-rouge">ngx_pool_large_t</code> 。</p>
 
 <p>接下来分析 <code class="highlighter-rouge">ngx_palloc_small</code> ：</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="n">ngx_inline</span> <span class="kt">void</span> <span class="o">*</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">static</span> <span class="n">ngx_inline</span> <span class="kt">void</span> <span class="o">*</span>
 <span class="nf">ngx_palloc_small</span><span class="p">(</span><span class="n">ngx_pool_t</span> <span class="o">*</span><span class="n">pool</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">size</span><span class="p">,</span> <span class="n">ngx_uint_t</span> <span class="n">align</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="n">u_char</span>      <span class="o">*</span><span class="n">m</span><span class="p">;</span>
@@ -558,12 +553,11 @@
 
     <span class="k">return</span> <span class="n">ngx_palloc_block</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span> <span class="n">size</span><span class="p">);</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>首先，从 <code class="highlighter-rouge">pool-&gt;current</code> 遍历（这样做的原因下面会提到）已有的各个块，寻找有没有哪个块能容纳下现在需要的大小，如果能就可以调整 <code class="highlighter-rouge">p-&gt;d.last</code> 返回，否则就分配一个新的块到内存池中，再从新的块中分配需要的大小的内存。需要一提的是，在设计中，小的对象是随着整个内存池的销毁而被一起释放的，不会在中途被释放，而大的对象尽量要用完即释放。接下来分析 <code class="highlighter-rouge">ngx_palloc_block</code> ：</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span> <span class="o">*</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span> <span class="o">*</span>
 <span class="nf">ngx_palloc_block</span><span class="p">(</span><span class="n">ngx_pool_t</span> <span class="o">*</span><span class="n">pool</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">size</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="n">u_char</span>      <span class="o">*</span><span class="n">m</span><span class="p">;</span>
@@ -597,12 +591,11 @@
 
     <span class="k">return</span> <span class="n">m</span><span class="p">;</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>为了节省内存，结构体中并没有记录实际分配的内存块的大小，于是根据第一个块的大小分配当前的块，虽然这里用的也是一个类型为 <code class="highlighter-rouge">ngx_pool_t</code> 结构体，实际上只用到了 <code class="highlighter-rouge">new-&gt;d</code> 中的内容维护块组成的链表和块内的分配情况。然后从 <code class="highlighter-rouge">pool-&gt;current</code> 开始找块的链表的结尾，找到节尾后把当前的块加到结尾的后面，然后把刚才需要分配的小对象的地址返回。与此同时，由于调用这个函数的时候，一定是当前的对象在已有的从 <code class="highlighter-rouge">pool-&gt;current</code> 开始的块中都放不下了，我们给这些块的 <code class="highlighter-rouge">p-&gt;d.failed</code> 进行自增，意思是说这个块在分配新的对象的时候又一次放不下了，如果放不下的次数比较多，我们可以认为这个块已经装得比较满了，那么，我们把 <code class="highlighter-rouge">pool-&gt;current</code> 设为它的后继，以后在分配新的对象的时候就会自动跳过这些比较满的块，从而提高了效率。</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="n">ngx_int_t</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ngx_int_t</span>
 <span class="nf">ngx_pfree</span><span class="p">(</span><span class="n">ngx_pool_t</span> <span class="o">*</span><span class="n">pool</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="n">ngx_pool_large_t</span>  <span class="o">*</span><span class="n">l</span><span class="p">;</span>
@@ -620,12 +613,11 @@
 
     <span class="k">return</span> <span class="n">NGX_DECLINED</span><span class="p">;</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>从 <code class="highlighter-rouge">ngx_pfree</code> 的实现可以看出，只有大的对象才会要求尽快释放，小的对象和没有被手动释放的大的对象都会随着内存池生命周期的结束而一起释放。如 <code class="highlighter-rouge">ngx_destroy_pool</code> 中的实现：</p>
 
-<div class="language-c highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">void</span>
 <span class="nf">ngx_destroy_pool</span><span class="p">(</span><span class="n">ngx_pool_t</span> <span class="o">*</span><span class="n">pool</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="n">ngx_pool_t</span>          <span class="o">*</span><span class="n">p</span><span class="p">,</span> <span class="o">*</span><span class="n">n</span><span class="p">;</span>
@@ -676,8 +668,7 @@
         <span class="p">}</span>
     <span class="p">}</span>
 <span class="p">}</span>
-</code></pre>
-</div>
+</code></pre></div></div>
 
 <p>这个函数首先调用了一系列用户定义的 <code class="highlighter-rouge">pool-&gt;cleanup</code> 链表中的函数，允许自定义回收一些特定的资源。然后对每一个 <code class="highlighter-rouge">pool-&gt;large</code> 链表中的内容分别释放，最后再把各个块中所有的内存整块释放。注意 <code class="highlighter-rouge">ngx_large_block_t</code> 也是存在块中的，所以顺序不能反了。</p>
 
