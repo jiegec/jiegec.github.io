@@ -3,7 +3,7 @@
  <title>Tag - OS</title>
  <link href="https://jiegec.github.io/tag/os/index.xml" rel="self"/>
  <link href="https://jiegec.github.io/tag/OS.html"/>
- <updated>2018-03-03T11:25:41+08:00</updated>
+ <updated>2018-03-04T16:43:47+08:00</updated>
  <id>https://jiegec.github.io/tag/OS.html</id>
  <author>
    <name>Jiege Chen</name>
@@ -11,9 +11,9 @@
  
  <entry>
    <title>近来做 Stanford CS140e 的一些进展和思考（5）</title>
-   <link href="https://jiegec.github.io/programming/2018/03/02/thoughts-on-stanford-cs140e-5/"/>
-   <updated>2018-03-02T11:07:30+08:00</updated>
-   <id>https://jiegec.github.io/programming/2018/03/02/thoughts-on-stanford-cs140e-5</id>
+   <link href="https://jiegec.github.io/programming/2018/03/03/thoughts-on-stanford-cs140e-5/"/>
+   <updated>2018-03-03T11:07:30+08:00</updated>
+   <id>https://jiegec.github.io/programming/2018/03/03/thoughts-on-stanford-cs140e-5</id>
    <content type="html">&lt;p&gt;在&lt;a href=&quot;/programming/2018/02/27/thoughts-on-stanford-cs140e-4/&quot;&gt;上一篇文章&lt;/a&gt;之后，作者多次延期跳票之后（again），终于放出了 &lt;code class=&quot;highlighter-rouge&quot;&gt;Assignment 2 Phase 3: Saddle Up&lt;/code&gt; 。这次，我们要做的变成了把已经写好的（错漏百出）的 &lt;code class=&quot;highlighter-rouge&quot;&gt;fat32&lt;/code&gt; 的驱动搬到树莓派里面去，然后实现一些基本的 &lt;code class=&quot;highlighter-rouge&quot;&gt;shell&lt;/code&gt; 命令： &lt;code class=&quot;highlighter-rouge&quot;&gt;ls&lt;/code&gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;cat&lt;/code&gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;cd&lt;/code&gt; 等等。作者首先更新了老版本的新的测试样例，放了一些映像然后提供了预期的结果，结果发现，这里的 &lt;code class=&quot;highlighter-rouge&quot;&gt;fat32&lt;/code&gt; 有一些不同，主要的就是 &lt;code class=&quot;highlighter-rouge&quot;&gt;bytes_per_sector&lt;/code&gt; 不是 &lt;code class=&quot;highlighter-rouge&quot;&gt;512&lt;/code&gt; 了，意味着物理的扇区和逻辑扇区并不一致。同时， &lt;code class=&quot;highlighter-rouge&quot;&gt;sectors_per_cluster&lt;/code&gt; 也不是 &lt;code class=&quot;highlighter-rouge&quot;&gt;1&lt;/code&gt; 了，需要考虑多个扇区的情况。同时， &lt;code class=&quot;highlighter-rouge&quot;&gt;read_cluster&lt;/code&gt; 传入的 &lt;code class=&quot;highlighter-rouge&quot;&gt;offset&lt;/code&gt; 也可能不再是第一个 &lt;code class=&quot;highlighter-rouge&quot;&gt;sector&lt;/code&gt; 中的，所以需要做一个处理。对于物理和逻辑扇区的问题，作者推荐的方案是，把 &lt;code class=&quot;highlighter-rouge&quot;&gt;fat32&lt;/code&gt; 之外的扇区保持不变，把其内的扇区视为逻辑扇区。这样，其它代码都可以透明地工作，而不用到处更改，这就体现了封装的威力。接着，作者提供了一个写好了的 &lt;code class=&quot;highlighter-rouge&quot;&gt;libsd&lt;/code&gt; 和一些导出的函数，使用这些函数即可。不过，在错误处理和 &lt;code class=&quot;highlighter-rouge&quot;&gt;timeout&lt;/code&gt; 上也遇到了一些坑。后面，把东西搬到树莓派上运行，问题就出现了：读取了第一个扇区（即 &lt;code class=&quot;highlighter-rouge&quot;&gt;MBR&lt;/code&gt; 所在的扇区）之后，直接就死掉了。想了半天都没找到方案，突然想起可以利用 &lt;code class=&quot;highlighter-rouge&quot;&gt;panic!&lt;/code&gt; 对错误语句进行二分查找。查找了大概有七八个小时之后，终于发现，问题出现在读取一个 &lt;code class=&quot;highlighter-rouge&quot;&gt;u32&lt;/code&gt; 类型的变量上。我起初怀疑是栈出了问题，所以放到堆上分配，然而还是不行。忽然想起以前遇到的对齐问题，在 &lt;code class=&quot;highlighter-rouge&quot;&gt;AArch64&lt;/code&gt; 架构上，可能为了简化，读取的 &lt;code class=&quot;highlighter-rouge&quot;&gt;u32&lt;/code&gt; 必须对齐到四个字节上。于是找了找 &lt;code class=&quot;highlighter-rouge&quot;&gt;Rust&lt;/code&gt; 中的对齐方面的文档，找到了 &lt;code class=&quot;highlighter-rouge&quot;&gt;#[repr(align=4)]&lt;/code&gt; 这种表示方法，代替了原来的 &lt;code class=&quot;highlighter-rouge&quot;&gt;#[repr(packed)]&lt;/code&gt; ，并且把数据先拷贝到对齐后的栈上的对应数据结构，然后再读取对应的项。果然，这个问题就解决了。然后又发现我的盘中会出现 &lt;code class=&quot;highlighter-rouge&quot;&gt;lfn&lt;/code&gt; 项并不是从后往前的情况，于是我又修改了一下相关的代码。现在，终于可以成功地 &lt;code class=&quot;highlighter-rouge&quot;&gt;ls&lt;/code&gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;cat&lt;/code&gt; &lt;code class=&quot;highlighter-rouge&quot;&gt;cd&lt;/code&gt; 。&lt;/p&gt;
 
 &lt;p&gt;不过还是要吐槽一下，作者的测试用的映像文件中，会出现 &lt;code class=&quot;highlighter-rouge&quot;&gt;0xE5&lt;/code&gt; 表示这个项已经被删除的情况，但是似乎作者的代码并没有处理这个，所以在预期的输出中出现了一些明显不正确的结果，导致我的代码跑测试并不能通过。而且，作者的代码在一些情况下会把文件的后缀漏掉。作者后来更新了几次测试的文件，不过这个问题只解决了一部分，并没有完全解决。坐等作者继续放出新的测试文件吧。&lt;/p&gt;
