@@ -6,9 +6,101 @@
 </description>
     <link>https://jiegec.github.io/</link>
     <atom:link href="https://jiegec.github.io/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Tue, 17 Apr 2018 13:41:30 +0800</pubDate>
-    <lastBuildDate>Tue, 17 Apr 2018 13:41:30 +0800</lastBuildDate>
+    <pubDate>Sat, 28 Apr 2018 22:51:17 +0800</pubDate>
+    <lastBuildDate>Sat, 28 Apr 2018 22:51:17 +0800</lastBuildDate>
     <generator>Jekyll v3.6.2</generator>
+    
+      <item>
+        <title>使用 Cisco AC + AP 组合搭建网络实践</title>
+        <description>&lt;p&gt;有一台已配置好直接可用的 AC 在地址 ac-address 。我们需要搭建交换机 + AP 的网络，并且用一台 Linux 服务器进行 DHCP 从而给 AP 分发 AC 的地址。这里以 systemd-networkd 为例。&lt;/p&gt;
+
+&lt;p&gt;我们约定，vlan 2 上联外网， vlan 3 为 Linux 服务器和 AP 的内部网络。&lt;/p&gt;
+
+&lt;p&gt;接下来，配置交换机给 Linux 服务器的端口为 trunk 口，然后将下联 Cisco AP 的端口都设为 access vlan 3 模式。接下来在 Linux 服务器上配置 DHCP 服务器和 NAT 。&lt;/p&gt;
+
+&lt;p&gt;如果 Linux 服务器的 interface 名称为 eno1 :&lt;/p&gt;
+
+&lt;p&gt;配置两个 VLAN interface:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ cat /etc/systemd/network/eno1.network
+[Match]
+Name=eno1
+
+[Network]
+VLAN=eno1.2
+VLAN=eno1.3
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;相应添加 VLAN 配置：&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ cat /etc/systemd/network/eno1.2.network
+[NetDev]
+Name=eno1.2
+
+[VLAN]
+Id=2
+$ cat /etc/systemd/network/eno1.3.network
+[NetDev]
+Name=eno1.3
+
+[VLAN]
+Id=3
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;配置上行的 eno1.2 interface 的静态地址：&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ cat /etc/systemd/network/eno1.2.network
+[Match]
+Name=eno1.2
+
+[Network]
+Address=123.123.123.123/24
+Gateway=123.123.123.1
+DNS=1.2.4.8
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;配置内部网络 eno1.3 interface:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ cat /etc/systemd/network/eno1.3.network
+[Match]
+Name=eno1.3
+
+[Network]
+Address=192.168.1.1/24
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;配置 dhcpd (isc-dhcp-server):&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ cat /etc/dhcpd.conf
+option space Cisco_LWAPP_AP;
+option Cisco_LWAPP_AP.server-address code 241 = array of ip-address;
+
+subnet 192.168.1.0 netmask 255.255.255.0 {
+  range 192.168.1.100 192.168.1.200;
+  option routers 192.168.1.1;
+  vendor-option-space Cisco_LWAPP_AP;
+  option Cisco_LWAPP_AP.server-address $ac-address;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;配置 iptables 做NAT:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables -t nat -A POSTROUTING -o eno1.2 -j MASQUERADE
+iptables-save &amp;gt; /etc/iptables/iptables.rules
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;打开 ipv4 forwarding:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;echo 'net.ipv4.conf.all.forwarding=1' &amp;gt;&amp;gt; /etc/sysctl.d/99-ipv4-forwarding.conf
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+</description>
+        <pubDate>Sat, 28 Apr 2018 21:58:00 +0800</pubDate>
+        <link>https://jiegec.github.io/networking/2018/04/28/wifi-with-cisco-ac-and-ap/</link>
+        <guid isPermaLink="true">https://jiegec.github.io/networking/2018/04/28/wifi-with-cisco-ac-and-ap/</guid>
+        
+        <category>cisco</category>
+        
+        <category>wifi</category>
+        
+        <category>vlan</category>
+        
+        
+        <category>networking</category>
+        
+      </item>
     
       <item>
         <title>把 GDB 降级到 8.0.1</title>
@@ -313,45 +405,6 @@ index 29a1c590..25360893 100644
         <category>RPi3</category>
         
         <category>FAT32</category>
-        
-        
-        <category>programming</category>
-        
-      </item>
-    
-      <item>
-        <title>近来做 Stanford CS140e 的一些进展和思考（3）</title>
-        <description>&lt;p&gt;由于 &lt;code class=&quot;highlighter-rouge&quot;&gt;Assignment 2: File System &lt;/code&gt; 延期发布，所以中间那段时间转向 &lt;code class=&quot;highlighter-rouge&quot;&gt;MIT 6.828&lt;/code&gt; 稍微研究了一下。前几天放出了新的任务，在&lt;a href=&quot;/programming/2018/02/06/thoughts-on-stanford-cs140e-2/&quot;&gt;上一篇文章&lt;/a&gt;之后，我又有了一些进展： 实现了从内存中读取 &lt;code class=&quot;highlighter-rouge&quot;&gt;ATAGS(ARM Tags)&lt;/code&gt; 信息的代码，从而可以获得内存大小的信息，根据这个信息，实现了 &lt;code class=&quot;highlighter-rouge&quot;&gt;bump&lt;/code&gt; 和 &lt;code class=&quot;highlighter-rouge&quot;&gt;bin&lt;/code&gt; 两种内存分配器，并且把二者之一注册为全局内存分配器，利用上更新了的 &lt;code class=&quot;highlighter-rouge&quot;&gt;std&lt;/code&gt; 就可以使用需要动态分配内存的相关工具了。利用这个，我实现了 &lt;code class=&quot;highlighter-rouge&quot;&gt;shell&lt;/code&gt; 输入历史的回溯，把输入历史保存在一个动态增长的数组中，再特殊处理上下键，把当前的行替换为历史。&lt;/p&gt;
-
-&lt;p&gt;这个过程也不是没有踩坑。一开始代码放出来了，但是题目说明还没出，我就自己按照代码做了 &lt;code class=&quot;highlighter-rouge&quot;&gt;ATAGS&lt;/code&gt; 和 &lt;code class=&quot;highlighter-rouge&quot;&gt;bump&lt;/code&gt; 分配器，后来做完了，看到说明出了以后，发现理解还是有偏差，把代码更改了并修复了分配器的 BUG 。看到 &lt;code class=&quot;highlighter-rouge&quot;&gt;bin&lt;/code&gt; 分配器的时候，我按照网上的 &lt;code class=&quot;highlighter-rouge&quot;&gt;buddy memory allocation&lt;/code&gt; 实现了一个内存分配器，原理看起来简单实现起来还是有很多细节问题，后来按照新放出的单元测试，修修补补才写得差不多可用了。同时，原来的 &lt;code class=&quot;highlighter-rouge&quot;&gt;bootloader&lt;/code&gt; 因为用了新的 &lt;code class=&quot;highlighter-rouge&quot;&gt;std&lt;/code&gt; 而缺失了 &lt;code class=&quot;highlighter-rouge&quot;&gt;alloc&lt;/code&gt; 不能编译，我就把 &lt;code class=&quot;highlighter-rouge&quot;&gt;kernel&lt;/code&gt; 下的相关文件软连接过去，调了数次后把问题解决。此时， &lt;code class=&quot;highlighter-rouge&quot;&gt;kernel&lt;/code&gt; 文件大小已经有 40K ，按照 115200 Baudrate 发送需要几秒才能传输过去，我就调到了 230400 Baudrate ，果然现在的传输速度就有所提升，可以接受了。等之后写了 &lt;code class=&quot;highlighter-rouge&quot;&gt;EMMC(SD card)&lt;/code&gt; 的驱动和 &lt;code class=&quot;highlighter-rouge&quot;&gt;FAT32&lt;/code&gt; 的文件系统后，就可以实现更多的 &lt;code class=&quot;highlighter-rouge&quot;&gt;shell&lt;/code&gt; 的功能了。中间还遇到一个问题，就是如果给 &lt;code class=&quot;highlighter-rouge&quot;&gt;kernel&lt;/code&gt; 开启了 &lt;code class=&quot;highlighter-rouge&quot;&gt;bin&lt;/code&gt; 分配器，使用 &lt;code class=&quot;highlighter-rouge&quot;&gt;exit&lt;/code&gt; 回到 &lt;code class=&quot;highlighter-rouge&quot;&gt;bootloader&lt;/code&gt; 就无法传新的 &lt;code class=&quot;highlighter-rouge&quot;&gt;kernel&lt;/code&gt; 上去了，结果发现是因为 &lt;code class=&quot;highlighter-rouge&quot;&gt;bin&lt;/code&gt; 中用到的侵入式 &lt;code class=&quot;highlighter-rouge&quot;&gt;LinkedList&lt;/code&gt; 实现覆盖了部分 &lt;code class=&quot;highlighter-rouge&quot;&gt;bootloader&lt;/code&gt; 的代码，换回不能回收内存的 &lt;code class=&quot;highlighter-rouge&quot;&gt;bump&lt;/code&gt; 分配器即可，反正目前远远还用不了那么多内存。&lt;/p&gt;
-
-&lt;p&gt;之后还要在 &lt;code class=&quot;highlighter-rouge&quot;&gt;aarch64&lt;/code&gt; 上用 &lt;code class=&quot;highlighter-rouge&quot;&gt;MMU&lt;/code&gt; 实现虚拟内存，之前在 &lt;code class=&quot;highlighter-rouge&quot;&gt;MIT 6.828&lt;/code&gt; 里被页表整得脑子眩晕，希望到时我还活着吧（逃&lt;/p&gt;
-</description>
-        <pubDate>Fri, 16 Feb 2018 20:09:00 +0800</pubDate>
-        <link>https://jiegec.github.io/programming/2018/02/16/thoughts-on-stanford-cs140e-3/</link>
-        <guid isPermaLink="true">https://jiegec.github.io/programming/2018/02/16/thoughts-on-stanford-cs140e-3/</guid>
-        
-        <category>Rust</category>
-        
-        <category>OS</category>
-        
-        <category>Stanford</category>
-        
-        <category>CS140e</category>
-        
-        <category>kernel</category>
-        
-        <category>hardware</category>
-        
-        <category>RPi3</category>
-        
-        <category>shell</category>
-        
-        <category>bootloader</category>
-        
-        <category>MIT 6.828</category>
-        
-        <category>ATAGS</category>
         
         
         <category>programming</category>
