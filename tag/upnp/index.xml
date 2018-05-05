@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+ <title>Tag - upnp</title>
+ <link href="https://jiegec.github.io/tag/upnp/index.xml" rel="self"/>
+ <link href="https://jiegec.github.io/tag/upnp.html"/>
+ <updated>2018-05-05T22:58:08+08:00</updated>
+ <id>https://jiegec.github.io/tag/upnp.html</id>
+ <author>
+   <name>Jiege Chen</name>
+ </author>
+ 
+ <entry>
+   <title>利用 UPnP 协议进行 mosh NAT 穿透的研究</title>
+   <link href="https://jiegec.github.io/networking/2018/05/05/mosh-behind-nat-with-upnp/"/>
+   <updated>2018-05-05T20:25:00+08:00</updated>
+   <id>https://jiegec.github.io/networking/2018/05/05/mosh-behind-nat-with-upnp</id>
+   <content type="html">&lt;p&gt;由于经常要从宿舍、教室等不同的 Wi-Fi 之间切换，但是 ssh 连接又总是断，所以想用 mosh 代替 ssh 。但是 mosh 也有它的问题：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;不能滚动。这个可以在 mosh 中嵌套一层 tmux 解决。我目前写了一些自动 mosh 后打开 tmux 并且开启鼠标支持的脚本，但还是有缺陷。&lt;/li&gt;
+  &lt;li&gt;在高端口 60000+ 监听 UDP ，这使得 NAT 后的服务器难以直接通过端口转发。如果直接转发到 NAT 后的机器，那么 NAT 后面如果有多台机器，这又失效了。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;于是找了找网上的 NAT 穿透的一些文章，看到了 UPnP 的方法。大致就是，用户可以向路由器注册一个临时的转发规则，路由会自动在 iptables 上配置转发。但是，这样也会遇到一个问题：路由上的 mosh-server 不知道这个转发的存在，所以它可能会尝试监听同样的端口。解决方案下面会提到。&lt;/p&gt;
+
+&lt;p&gt;需求：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;Server &amp;lt;---&amp;gt; NAT Router &amp;lt;---&amp;gt; My Laptop
+On NAT Router, port 8022 is forwarded to Server:22
+1. mosh router # works
+2. mosh --ssh=&quot;ssh -p 8022&quot; router # works
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;首先在 NAT Router 上配置 miniupnpd （以 Debian 为例）&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt install miniupnpd
+&lt;span class=&quot;c&quot;&gt;# you will get a dialog upon installation&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# input your wan interface and listening ip accordingly&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;vim /etc/default/miniupnpd
+&lt;span class=&quot;c&quot;&gt;# edit START_DAEMON=0 to START_DAEMON=1&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;vim /etc/miniupnpd/miniupnpd.conf
+&lt;span class=&quot;c&quot;&gt;# edit ext_ifname, listening_ip accordingly&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# set secure_mode=yes&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# add 'allow 60000-60023 internal_ip/prefix 60000-60023'&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# before the last line 'deny 0-65535 0.0.0.0/0 0-65535'&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;systemctl &lt;span class=&quot;nb&quot;&gt;enable&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--now&lt;/span&gt; miniupnpd
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;现在，复制 &lt;a href=&quot;https://github.com/jiegec/mosh-upnp-hole-puncher/blob/master/mosh-wrapper.js&quot;&gt;我修改的mosh-wrapper.js&lt;/a&gt; 到用户的 home 目录下，在 Server 安装 &lt;code class=&quot;highlighter-rouge&quot;&gt;miniupnpc&lt;/code&gt; 然后通过：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mosh &lt;span class=&quot;nt&quot;&gt;--ssh&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;ssh -p 8022&quot;&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--server&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;~/mosh-wrapper.js user@router
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这样， mosh 首先会通过 ssh 和 Server 协商一个 AES 的密钥和 UDP 端口（如 60001 ），之后的通信都通过 UDP 端口走加密后的流量。我的 &lt;code class=&quot;highlighter-rouge&quot;&gt;mosh-wrapper.js&lt;/code&gt; 通过 &lt;code class=&quot;highlighter-rouge&quot;&gt;miniupnpc&lt;/code&gt; 向路由器请求把该 UDP 端口转发到 Server 上，这样， &lt;code class=&quot;highlighter-rouge&quot;&gt;mosh-server&lt;/code&gt; 就能通过 NAT 路由穿透到后面的 Server 上。&lt;/p&gt;
+
+&lt;p&gt;等会！问题来了：&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;mosh&lt;/code&gt; 默认的 IP 范围是 &lt;code class=&quot;highlighter-rouge&quot;&gt;60000-61000&lt;/code&gt; ，根据我的观察，它会从 60001 开始尝试监听本机地址，如果已经被占用，则 60002, 60003, … 但是！Router 和 Server 实际上占用了相同的端口空间，并且 &lt;code class=&quot;highlighter-rouge&quot;&gt;mosh&lt;/code&gt; 只知道本机哪些端口被占用了，而不知道 Router 和 Server 共同占用了多少端口。&lt;/p&gt;
+
+&lt;p&gt;我想到了一些可能的解决方案：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;在 Router 上让 miniupnpd 监听对应的端口，占住这个坑。这样，Router 上的 &lt;code class=&quot;highlighter-rouge&quot;&gt;mosh-server&lt;/code&gt; 就不会用和 Server 相同的端口&lt;/li&gt;
+  &lt;li&gt;如果有多个 Server ，则会出现抢夺相同端口的情况。我目前的想法是，让 &lt;code class=&quot;highlighter-rouge&quot;&gt;upnpc&lt;/code&gt; 去询问 Router 找空闲的端口，然后再传给 &lt;code class=&quot;highlighter-rouge&quot;&gt;mosh-server&lt;/code&gt; 使用。另一种方法则是，给不同的 Server 划分不同的端口范围，比如 Router 用 60001-60005, 然后 Server1 用 60006-60010, Server2 用 60011-60015 如此下去。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;然后，新的问题又发现了：&lt;/p&gt;
+
+&lt;p&gt;当我在和 Server 同一个子网的时候，由于 &lt;code class=&quot;highlighter-rouge&quot;&gt;miniupnpd&lt;/code&gt; 配置的 &lt;code class=&quot;highlighter-rouge&quot;&gt;iptables&lt;/code&gt; 规则中来源只有 WAN interface ，所以我在内网发的包是不会被转发的。当然，既然在内网了，为啥不直接用内网 IP 呢，不知道 &lt;code class=&quot;highlighter-rouge&quot;&gt;mosh&lt;/code&gt; 有没有提供设置备用 IP 的功能。&lt;/p&gt;
+</content>
+ </entry>
+ 
+</feed>
