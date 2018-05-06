@@ -6,9 +6,62 @@
 </description>
     <link>https://jiegec.github.io/</link>
     <atom:link href="https://jiegec.github.io/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Sat, 05 May 2018 22:58:08 +0800</pubDate>
-    <lastBuildDate>Sat, 05 May 2018 22:58:08 +0800</lastBuildDate>
+    <pubDate>Sun, 06 May 2018 14:40:28 +0800</pubDate>
+    <lastBuildDate>Sun, 06 May 2018 14:40:28 +0800</lastBuildDate>
     <generator>Jekyll v3.6.2</generator>
+    
+      <item>
+        <title>使用 iptables 和策略路由进行带源地址的 forwarding</title>
+        <description>&lt;p&gt;陈老师打开他的服务器，突然发现 CPU 莫名高负载，然后发现是有一个用户被远程登录拿来挖矿了。但是这台机器在 NAT 后，所以登录的源地址全是 NAT 路由，所以不知道对方的地址是什么。我们为了能使用 fail2ban 来禁用多次尝试失败的 IP ，但又不想因为别人把 NAT 路由的地址给禁了，这样我们自己也用不了了。所以必须要让这台机器能够知道 ssh 的源地址，我们现在简单的 socat 方案不能满足这个需求。&lt;/p&gt;
+
+&lt;p&gt;需求：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;可以在外网连 NAT 路由的高端口（如2222）来访问这台机器。&lt;/li&gt;
+  &lt;li&gt;在内网中，既可以直接连它的内网地址，也可以连 NAT 路由的高端口来访问这台服务器。此时，由于连 ssh 的机器就在同一个子网中，如果保留了源地址，服务器发的包会直接回来不经过 NAT 。所以我们还是保留了 socat 的方案。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;实现方法：&lt;/p&gt;
+
+&lt;p&gt;在 NAT Router 上配置 DNAT ，这样发到 NAT Router 上的包就可以转发到服务器上：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; nat &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; PREROUTING &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; external_interface &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;-m&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;--dport&lt;/span&gt; 2222 &lt;span class=&quot;nt&quot;&gt;-j&lt;/span&gt; DNAT &lt;span class=&quot;nt&quot;&gt;--to-destination&lt;/span&gt; internal_server_ip:22
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;但是，从服务器回来的包到了 NAT Router 上后，由于路由表的配置问题，默认的路由并不能把包送达对方。所以，我们首先给包打上 mark：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; mangle &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; PREROUTING &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; internal_interface &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;-m&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;--sport&lt;/span&gt; 22 &lt;span class=&quot;nt&quot;&gt;-j&lt;/span&gt; MARK &lt;span class=&quot;nt&quot;&gt;--set-mark&lt;/span&gt; 0x2222
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;然后配置策略路由：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;ip rule add fwmark 0x2222 table 2222
+ip route add table 2222 default via gateway_address
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这样就可以保证 ssh 的回包可以原路返回了。&lt;/p&gt;
+
+&lt;p&gt;由于前面提到的原因，上面我们配置的 DNAT 规则只对外网过来的包有效。为了内网的访问，我们仍然采用了 socat 的方式：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;socat TCP-LISTEN:2222,reuseaddr,fork TCP:internal_server_ip:22
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;从不同的机器测试，都可以在 &lt;code class=&quot;highlighter-rouge&quot;&gt;who&lt;/code&gt; 看到，地址确实是我们想看到的源地址。接下来配置 &lt;code class=&quot;highlighter-rouge&quot;&gt;fail2ban &lt;/code&gt;即可。&lt;/p&gt;
+</description>
+        <pubDate>Sun, 06 May 2018 14:07:00 +0800</pubDate>
+        <link>https://jiegec.github.io/networking/2018/05/06/nat-forwarding-with-src-address/</link>
+        <guid isPermaLink="true">https://jiegec.github.io/networking/2018/05/06/nat-forwarding-with-src-address/</guid>
+        
+        <category>linux</category>
+        
+        <category>nat</category>
+        
+        <category>forwarding</category>
+        
+        
+        <category>networking</category>
+        
+      </item>
     
       <item>
         <title>利用 UPnP 协议进行 mosh NAT 穿透的研究</title>
@@ -513,84 +566,6 @@ index 29a1c590..25360893 100644
         
         
         <category>others</category>
-        
-      </item>
-    
-      <item>
-        <title>〖新手向〗绕过 C++ 类的访问限制</title>
-        <description>&lt;p&gt;这是一篇很水的文章，面向萌新，已经知道了的可以自觉绕道。&lt;/p&gt;
-
-&lt;p&gt;昨天上课，有同学问，如果用户偷偷把 &lt;code class=&quot;highlighter-rouge&quot;&gt;private&lt;/code&gt; 改成 &lt;code class=&quot;highlighter-rouge&quot;&gt;public&lt;/code&gt; 再和原有的库链接，是不是就可以在用户代码里更改了。这个答案是肯定的。下面我们就做个实验：&lt;/p&gt;
-
-&lt;p&gt;首先，创建 good_class.h 和 good_class.cpp:&lt;/p&gt;
-
-&lt;div class=&quot;language-c++ highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;SomeClass&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-&lt;span class=&quot;k&quot;&gt;private&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;data&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;k&quot;&gt;public&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getData&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;div class=&quot;language-c++ highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &quot;good_class.h&quot;
-&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SomeClass&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getData&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;data&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;然后，首先编译，&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;clang++ &lt;span class=&quot;nt&quot;&gt;-c&lt;/span&gt; good_class.cpp &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; good_class.o
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;然后，修改 good_class.cpp 并写一个 evil_user.cpp&lt;/p&gt;
-
-&lt;div class=&quot;language-c++ highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;SomeClass&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-&lt;span class=&quot;k&quot;&gt;public&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;data&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;k&quot;&gt;public&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getData&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;div class=&quot;language-c++ highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &amp;lt;stdio.h&amp;gt;
-#include &quot;good_class.h&quot;
-&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;SomeClass&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;37&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getData&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;());&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;编译：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;clang++ good_class.o evil_user.cpp &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; evil
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;然后 &lt;code class=&quot;highlighter-rouge&quot;&gt;evil&lt;/code&gt; 如愿地输出了 &lt;code class=&quot;highlighter-rouge&quot;&gt;37&lt;/code&gt; 。&lt;/p&gt;
-
-&lt;p&gt;一些提醒：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;C++&lt;/code&gt; 的访问控制十分的弱，仅仅是编译期。所以是很容易绕过的。&lt;/li&gt;
-  &lt;li&gt;对于不想泄露源代码的库，不要导出 &lt;code class=&quot;highlighter-rouge&quot;&gt;C++&lt;/code&gt; 的类和函数。选择导出 &lt;code class=&quot;highlighter-rouge&quot;&gt;C&lt;/code&gt; 函数，结构体用 incomplete type 或者干脆 &lt;code class=&quot;highlighter-rouge&quot;&gt;void *&lt;/code&gt; 。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;扩展阅读： &lt;a href=&quot;https://liam0205.me/2018/01/23/crack-private-member-function-by-vtable/&quot;&gt;L叔的通过虚函数表访问私有函数&lt;/a&gt; 。&lt;/p&gt;
-</description>
-        <pubDate>Wed, 07 Mar 2018 07:59:20 +0800</pubDate>
-        <link>https://jiegec.github.io/programming/2018/03/07/breaking-C++-weak-access-control/</link>
-        <guid isPermaLink="true">https://jiegec.github.io/programming/2018/03/07/breaking-C++-weak-access-control/</guid>
-        
-        <category>C++</category>
-        
-        <category>hack</category>
-        
-        
-        <category>programming</category>
         
       </item>
     
