@@ -3,11 +3,76 @@
  <title>Tag - macos</title>
  <link href="https://jiegec.me/tag/macos/index.xml" rel="self"/>
  <link href="https://jiegec.me/tag/macos.html"/>
- <updated>2018-05-09T08:14:04+08:00</updated>
+ <updated>2018-05-09T10:17:32+08:00</updated>
  <id>https://jiegec.me/tag/macos.html</id>
  <author>
    <name>Jiege Chen</name>
  </author>
+ 
+ <entry>
+   <title>在 macOS 和 Linux 之间搭建 tinc 网络</title>
+   <link href="https://jiegec.me/networking/2018/05/09/tinc-between-macos-and-linux/"/>
+   <updated>2018-05-09T10:02:00+08:00</updated>
+   <id>https://jiegec.me/networking/2018/05/09/tinc-between-macos-and-linux</id>
+   <content type="html">&lt;p&gt;一直听说 tinc 比较科学，所以尝试自己用 tinc 搭建一个网络。这里，macOS 这段没有固定 IP 地址，Linux 机器有固定 IP 地址 linux_ip 。假设网络名称为 example , macOS 端名为 macos 地址为 192.168.0.2, linux 端名为 linux 地址为 192.168.0.1。&lt;/p&gt;
+
+&lt;p&gt;在 macOS 上配置：&lt;/p&gt;
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;brew install tinc
+mkdir &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /usr/local/etc/tinc/example
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;新建 /usr/local/etc/tinc/example/tinc.conf:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;Name = macos
+Device = utun0 # use an unused number
+ConnectTo = linux
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;编辑 /usr/local/etc/tinc/example/tinc-up:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;#!/bin/sh&lt;/span&gt;
+ifconfig &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; 192.168.0.2 192.168.0.1 mtu 1500 netmask 255.255.255.255
+route add &lt;span class=&quot;nt&quot;&gt;-net&lt;/span&gt; 192.168.0.2 192.168.0.1 255.255.255.0
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;和 /usr/local/etc/tinc/example/tinc-down:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;#!/bin/sh&lt;/span&gt;
+ifconfig &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; down
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;然后将它们都设为可执行的：&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;chmod +x tinc-up
+chmod +x tinc-down
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;编辑 /usr/local/etc/tinc/example/macos:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;Port = 655
+Subnet = 192.168.0.2/32
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;执行 &lt;code class=&quot;highlighter-rouge&quot;&gt;tincd -n example -K&lt;/code&gt; 生成密钥。&lt;/p&gt;
+
+&lt;p&gt;到 Linux 机器上：
+编辑以下文件：&lt;/p&gt;
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;mkdir &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /etc/tinc/example/hosts
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/tinc.conf
+Name &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; linux
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/tinc-up
+&lt;span class=&quot;nv&quot;&gt;$!&lt;/span&gt;/bin/sh
+ip link &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; up
+ip addr add 192.168.0.1/24 dev &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/tinc-down
+&lt;span class=&quot;nv&quot;&gt;$!&lt;/span&gt;/bin/sh
+ip addr del 192.168.0.1/24 dev &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt;
+ip link &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; down
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/hosts/linux
+Address &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; linux_ip
+Port &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 655
+Subnet &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 192.168.0.1/32
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;tincd &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; example &lt;span class=&quot;nt&quot;&gt;-K&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;接着，把 linux 上 /etc/tinc/example/hosts/linux 拷贝到 macos 的 /usr/local/etc/tinc/example/hosts/linux ，然后把 macos 上 /usr/local/etc/tinc/example/hosts/macos 拷贝到 /etc/tinc/example/hosts/macos 。在两台机器上都 &lt;code class=&quot;highlighter-rouge&quot;&gt;tinc -n example -D -d3&lt;/code&gt; 即可看到连接的建立，通过 ping 即可验证网络建立成功。&lt;/p&gt;
+</content>
+ </entry>
  
  <entry>
    <title>把 GDB 降级到 8.0.1</title>
