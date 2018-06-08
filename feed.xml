@@ -6,9 +6,39 @@
 </description>
     <link>https://jiegec.me/</link>
     <atom:link href="https://jiegec.me/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Thu, 07 Jun 2018 22:01:19 +0800</pubDate>
-    <lastBuildDate>Thu, 07 Jun 2018 22:01:19 +0800</lastBuildDate>
+    <pubDate>Fri, 08 Jun 2018 10:42:01 +0800</pubDate>
+    <lastBuildDate>Fri, 08 Jun 2018 10:42:01 +0800</lastBuildDate>
     <generator>Jekyll v3.6.2</generator>
+    
+      <item>
+        <title>最近写 Node.js 遇到的若干坑</title>
+        <description>&lt;p&gt;最近在做前后端分离，前端在用 Vue.js 逐步重写，后端则变为 api 的形式。同时，我尝试了用 autocannon 和 clinic 工具测试自己的 api endpoint 的性能，一开始发现有几个延迟会特别高，即使是一个很简单的 api 也有不正常的高延迟。&lt;/p&gt;
+
+&lt;p&gt;于是，我用 clinic 生成了 flamegraph ，发现了一些问题：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;我在 session 里保存了一些缓存的信息，这部分内容比较大， express-session 在保存到数据库前会先 JSON.stringify 再 crc 判断是否有改变，如果有改变则保存下来。但是由于我的这个对象嵌套层数多，所以时间花得很多。我调整了这个对象的结构，缩小了很多以后，果然这部分快了很多&lt;/li&gt;
+  &lt;li&gt;有一个 API 需要大量的数据库查询，原本是 O（结点总数）次查询，我考虑到我们数据的结构，改成了O（深度），果然快了许多&lt;/li&gt;
+  &lt;li&gt;之前遇到一个小问题，就是即使我没有登录，服务器也会记录 session 并且返回一个 cookie 。检查以后发现，是 connect-flash 即使在没有使用的时候，也会往 cookie 中写入一个空的对象，这就导致 express-session 认为需要保存，所以出现了问题。解决方案就是，换成了它的一个 fork ： connect-flash-plus ，它解决了这个问题&lt;/li&gt;
+&lt;/ol&gt;
+
+</description>
+        <pubDate>Fri, 08 Jun 2018 10:33:00 +0800</pubDate>
+        <link>https://jiegec.me/programming/2018/06/08/nodejs-experiences/</link>
+        <guid isPermaLink="true">https://jiegec.me/programming/2018/06/08/nodejs-experiences/</guid>
+        
+        <category>nodejs</category>
+        
+        <category>mongodb</category>
+        
+        <category>mongoose</category>
+        
+        <category>session</category>
+        
+        
+        <category>programming</category>
+        
+      </item>
     
       <item>
         <title>在 Nginx 将某个子路径反代</title>
@@ -622,59 +652,6 @@ iptables &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; PREROUTING &lt;span cl
         <category>forwarding</category>
         
         <category>ftp</category>
-        
-        
-        <category>networking</category>
-        
-      </item>
-    
-      <item>
-        <title>使用 iptables 和策略路由进行带源地址的 forwarding</title>
-        <description>&lt;p&gt;陈老师打开他的服务器，突然发现 CPU 莫名高负载，然后发现是有一个用户被远程登录拿来挖矿了。但是这台机器在 NAT 后，所以登录的源地址全是 NAT 路由，所以不知道对方的地址是什么。我们为了能使用 fail2ban 来禁用多次尝试失败的 IP ，但又不想因为别人把 NAT 路由的地址给禁了，这样我们自己也用不了了。所以必须要让这台机器能够知道 ssh 的源地址，我们现在简单的 socat 方案不能满足这个需求。&lt;/p&gt;
-
-&lt;p&gt;需求：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;可以在外网连 NAT 路由的高端口（如2222）来访问这台机器。&lt;/li&gt;
-  &lt;li&gt;在内网中，既可以直接连它的内网地址，也可以连 NAT 路由的高端口来访问这台服务器。此时，由于连 ssh 的机器就在同一个子网中，如果保留了源地址，服务器发的包会直接回来不经过 NAT 。所以我们还是保留了 socat 的方案。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;实现方法：&lt;/p&gt;
-
-&lt;p&gt;在 NAT Router 上配置 DNAT ，这样发到 NAT Router 上的包就可以转发到服务器上：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; nat &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; PREROUTING &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; external_interface &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;-m&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;--dport&lt;/span&gt; 2222 &lt;span class=&quot;nt&quot;&gt;-j&lt;/span&gt; DNAT &lt;span class=&quot;nt&quot;&gt;--to-destination&lt;/span&gt; internal_server_ip:22
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;但是，从服务器回来的包到了 NAT Router 上后，由于路由表的配置问题，默认的路由并不能把包送达对方。所以，我们首先给包打上 mark：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; mangle &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; PREROUTING &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; internal_interface &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;-m&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;--sport&lt;/span&gt; 22 &lt;span class=&quot;nt&quot;&gt;-j&lt;/span&gt; MARK &lt;span class=&quot;nt&quot;&gt;--set-mark&lt;/span&gt; 0x2222
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;然后配置策略路由：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;ip rule add fwmark 0x2222 table 2222
-ip route add table 2222 default via gateway_address
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;这样就可以保证 ssh 的回包可以原路返回了。&lt;/p&gt;
-
-&lt;p&gt;由于前面提到的原因，上面我们配置的 DNAT 规则只对外网过来的包有效。为了内网的访问，我们仍然采用了 socat 的方式：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;socat TCP-LISTEN:2222,reuseaddr,fork TCP:internal_server_ip:22
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;从不同的机器测试，都可以在 &lt;code class=&quot;highlighter-rouge&quot;&gt;who&lt;/code&gt; 看到，地址确实是我们想看到的源地址。接下来配置 &lt;code class=&quot;highlighter-rouge&quot;&gt;fail2ban &lt;/code&gt;即可。&lt;/p&gt;
-</description>
-        <pubDate>Sun, 06 May 2018 14:07:00 +0800</pubDate>
-        <link>https://jiegec.me/networking/2018/05/06/nat-forwarding-with-src-address/</link>
-        <guid isPermaLink="true">https://jiegec.me/networking/2018/05/06/nat-forwarding-with-src-address/</guid>
-        
-        <category>linux</category>
-        
-        <category>nat</category>
-        
-        <category>forwarding</category>
         
         
         <category>networking</category>
