@@ -6,9 +6,94 @@
 </description>
     <link>https://jiegec.me/</link>
     <atom:link href="https://jiegec.me/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Tue, 12 Jun 2018 16:17:53 +0800</pubDate>
-    <lastBuildDate>Tue, 12 Jun 2018 16:17:53 +0800</lastBuildDate>
+    <pubDate>Fri, 15 Jun 2018 22:22:57 +0800</pubDate>
+    <lastBuildDate>Fri, 15 Jun 2018 22:22:57 +0800</lastBuildDate>
     <generator>Jekyll v3.6.2</generator>
+    
+      <item>
+        <title>编写 eBPF 程序和利用 HyperLogLog 统计包的信息</title>
+        <description>&lt;p&gt;前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 &lt;a href=&quot;https://github.com/jiegec/hll_ebpf&quot;&gt;jiegec/hll_ebpf&lt;/a&gt; ，大致原理如下：&lt;/p&gt;
+
+&lt;p&gt;由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bpf_map_def&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SEC&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;maps&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hll_ebpf_out_daddr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BPF_MAP_TYPE_PERCPU_ARRAY&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;key_size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;value_size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;max_entries&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;256&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pinning&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// PIN_GLOBAL_NS
+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;SEC&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;out_daddr&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bpf_out_daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__sk_buff&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;skb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;daddr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;get_daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;skb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Murmur3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;update_hll&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;hll_ebpf_out_daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。&lt;/p&gt;
+
+&lt;p&gt;接着，我们可以把这个 eBPF 函数进行编译，并且应用起来：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;KERN&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;4.16.0-2 &lt;span class=&quot;c&quot;&gt;# or use uname -r with awk, see Makefile&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;clang &lt;span class=&quot;nt&quot;&gt;-O2&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-I&lt;/span&gt; /usr/src/linux-headers-&lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;KERN&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-common&lt;/span&gt;/include &lt;span class=&quot;nt&quot;&gt;-I&lt;/span&gt; /usr/src/linux-headers-&lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;KERN&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-common&lt;/span&gt;/arch/x86/include &lt;span class=&quot;nt&quot;&gt;-emit-llvm&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-c&lt;/span&gt; bpf.c &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; - | llc &lt;span class=&quot;nt&quot;&gt;-march&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;bpf &lt;span class=&quot;nt&quot;&gt;-filetype&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;obj &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; bpf.o
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;en0 
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc qdisc add dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; clsact &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter del dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; egress
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter add dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; egress bpf obj bpf.o sec out_daddr
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter del dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; ingress
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter add dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; ingress bpf obj bpf.o sec in_saddr
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;我们需要在用户态读出上面这个 MAP 中的内容。由于它是全局的，我们可以在 &lt;code class=&quot;highlighter-rouge&quot;&gt;/sys/fs/bpf/tc/globals&lt;/code&gt; 中找到他们。然后，把统计得到的数据进行综合，得到结果：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;read_file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bpf_obj_get&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;6&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;m&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+  &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;kt&quot;&gt;double&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;m&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;bpf_map_lookup_elem&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// assuming 2 CPUs, will change later
+&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+      &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+  &lt;span class=&quot;kt&quot;&gt;double&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;709&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;V&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+      &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;30&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%ld&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;lround&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;可以手动通过 &lt;code class=&quot;highlighter-rouge&quot;&gt;nmap&lt;/code&gt; 测试，例如扫描一个段，可以看到数据会增长许多。如果扫描相同的段，则数字不会变化，但如果扫描新的段，数字会有变化。这是一个 利用了 eBPF 的 HyperLogLog 的实现。&lt;/p&gt;
+</description>
+        <pubDate>Fri, 15 Jun 2018 22:03:00 +0800</pubDate>
+        <link>https://jiegec.me/programming/2018/06/15/ebpf-with-hyperloglog/</link>
+        <guid isPermaLink="true">https://jiegec.me/programming/2018/06/15/ebpf-with-hyperloglog/</guid>
+        
+        <category>ebpf</category>
+        
+        <category>tc</category>
+        
+        <category>iproute2</category>
+        
+        <category>hyperloglog</category>
+        
+        
+        <category>programming</category>
+        
+      </item>
     
       <item>
         <title>调整 Nginx 和 PHP 的上传文件大小限制</title>
@@ -471,162 +556,6 @@ ip route del &lt;span class=&quot;nv&quot;&gt;$SUBNET&lt;/span&gt; dev &lt;span 
         <category>macos</category>
         
         <category>tinc</category>
-        
-        
-        <category>networking</category>
-        
-      </item>
-    
-      <item>
-        <title>使用 Nginx 转发 VMware ESXi</title>
-        <description>&lt;p&gt;我们的 VMware ESXi 在一台 NAT Router 之后，但是我们希望通过域名可以直接访问 VMware ESXi 。我们首先的尝试是，把 8443 转发到它的 443 端口，比如：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;socat TCP-LISTEN:8443,reuseaddr,fork TCP:esxi_addr:443
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;它能工作地很好（假的，如果你把 8443 换成 9443 它就不工作了），但是，我们想要的是，直接通过 esxi.example.org 就可以访问它。于是，我们需要 Nginx 在其中做一个转发的功能。在这个过程中遇到了很多的坑，最后终于是做好了 （VMware Remote Console等功能还不行，需要继续研究）。&lt;/p&gt;
-
-&lt;p&gt;首先讲讲为啥把 8443 换成 9443 不能工作吧 – 很简单，ESXi 的网页界面会请求 8443 端口。只是恰好我用 8443 转发到 443， 所以可以正常工作。这个很迷，但是测试的结果确实如此。VMware Remote Console 还用到了别的端口，我还在研究之中。&lt;/p&gt;
-
-&lt;p&gt;来谈谈怎么配置这个 Nginx 转发吧。首先是 80 跳转 443:&lt;/p&gt;
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;server {
-        listen 80;
-        listen 8080;
-        server_name esxi.example.org;
-
-        return 301 https://$host$request_uri;
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;这个很简单，接下来是转发 443 端口：&lt;/p&gt;
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
-server {
-        listen 443 ssl;
-        server_name esxi.example.org;
-        ssl_certificate /path/to/ssl/cert.pem;
-        ssl_certificate_key /path/to/ssl/key.pem;
-
-        location / {
-                proxy_pass https://esxi_addr;
-                proxy_ssl_verify off;
-                proxy_ssl_session_reuse on;
-                proxy_set_header Host $http_host;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-        }
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;此时，打开 https://esxi.example.org 就能看到登录界面了。但是仍然无法登录。从 DevTools 看错误，发现它请求了 8443 端口。于是进行转发：&lt;/p&gt;
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;server {
-        listen 8443 ssl;
-        server_name esxi.example.org;
-        ssl_certificate /path/to/ssl/cert.pem;
-        ssl_certificate_key /path/to/ssl/key.pem;
-
-
-        location / {
-                if ($request_method = 'OPTIONS') {
-                        add_header 'Access-Control-Allow-Origin' 'https://esxi.example.org';
-                        add_header 'Access-Control-Allow-Credentials' 'true';
-                        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                        add_header 'Access-Control-Max-Age' 1728000;
-                        add_header 'Access-Control-Allow-Headers' 'VMware-CSRF-Token,DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Cookie,SOAPAction';
-                        add_header 'Content-Type' 'text/plain; charset=utf-8';
-                        add_header 'Content-Length' 0;
-                        return 204;
-                }
-
-                add_header 'Access-Control-Allow-Origin' 'https://esxi.example.org';
-                add_header 'Access-Control-Allow-Credentials' 'true';
-                proxy_pass https://esxi_addr:443;
-                proxy_ssl_verify off;
-                proxy_ssl_session_reuse on;
-                proxy_set_header Host $http_host;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-        }
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;主要麻烦的是配置 CORS 的相关策略。我也是看了 DevTools 的错误提示半天才慢慢写出来的。这样配置以后，就可以成功登录 VMware ESXi 了。&lt;/p&gt;
-
-&lt;p&gt;20:02 更新：现在做了 WebSocket 转发，目前可以在浏览器中打开 Web Console 了。但是，在访问 https://esxi.example.org/ 的时候还是会出现一些问题，然而 https://esxi.example.org:8443/ 是好的。&lt;/p&gt;
-
-&lt;p&gt;转发 WebSocket：&lt;/p&gt;
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-}
-
-server {
-        listen 8443 ssl;
-        server_name esxi.example.org;
-        ssl_certificate /path/to/ssl/cert.pem;
-        ssl_certificate_key /path/to/ssl/key.pem;
-
-
-        location / {
-
-                if ($request_method = 'OPTIONS') {
-                        add_header 'Access-Control-Allow-Origin' 'https://esxi.example.org';
-                        add_header 'Access-Control-Allow-Credentials' 'true';
-                        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                        add_header 'Access-Control-Max-Age' 1728000;
-                        add_header 'Access-Control-Allow-Headers' 'VMware-CSRF-Token,DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Cookie,SOAPAction';
-                        add_header 'Content-Type' 'text/plain; charset=utf-8';
-                        add_header 'Content-Length' 0;
-                        return 204;
-                }
-
-                add_header 'Access-Control-Allow-Origin' 'https://esxi.example.org' always;
-                add_header 'Access-Control-Allow-Credentials' 'true' always;
-
-                proxy_pass https://esxi_addr:443;
-                proxy_ssl_verify off;
-                proxy_ssl_session_reuse on;
-                proxy_set_header Host $http_host;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection $connection_upgrade;
-        }
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;20:29 更新：找到了 VMware Remote Console 的端口：902，用 iptables 进行 DNAT 即可：&lt;/p&gt;
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;iptables &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; PREROUTING &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; wan_interface &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;-m&lt;/span&gt; tcp &lt;span class=&quot;nt&quot;&gt;--dport&lt;/span&gt; 902 &lt;span class=&quot;nt&quot;&gt;-j&lt;/span&gt; DNAT &lt;span class=&quot;nt&quot;&gt;--to-destination&lt;/span&gt; esxi_addr:902
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;2018-05-09 08:07 更新：最后发现，还是直接隧道到内网访问 ESXi 最科学。或者，让 443 重定向到 8443 ：&lt;/p&gt;
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;server {
-        listen 443 ssl;
-        server_name esxi.example.org;
-        ssl_certificate /path/to/ssl/cert.pem;
-        ssl_certificate_key /path/to/ssl/key.pem;
-
-        return 301 https://$host:8443$request_uri;
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;p&gt;这样，前面也不用写那么多 CORS 的东西了。&lt;/p&gt;
-</description>
-        <pubDate>Tue, 08 May 2018 19:26:00 +0800</pubDate>
-        <link>https://jiegec.me/networking/2018/05/08/nginx-proxy-vmware-esxi/</link>
-        <guid isPermaLink="true">https://jiegec.me/networking/2018/05/08/nginx-proxy-vmware-esxi/</guid>
-        
-        <category>linux</category>
-        
-        <category>nat</category>
-        
-        <category>forwarding</category>
-        
-        <category>vmware</category>
-        
-        <category>esxi</category>
-        
-        <category>nginx</category>
-        
-        <category>proxy</category>
         
         
         <category>networking</category>
