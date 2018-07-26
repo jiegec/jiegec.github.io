@@ -6,9 +6,156 @@
 </description>
     <link>https://jiegec.me/</link>
     <atom:link href="https://jiegec.me/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Sun, 15 Jul 2018 01:15:26 +0800</pubDate>
-    <lastBuildDate>Sun, 15 Jul 2018 01:15:26 +0800</lastBuildDate>
+    <pubDate>Thu, 26 Jul 2018 22:47:38 +0800</pubDate>
+    <lastBuildDate>Thu, 26 Jul 2018 22:47:38 +0800</lastBuildDate>
     <generator>Jekyll v3.6.2</generator>
+    
+      <item>
+        <title>向 Lenovo y1s 刷入 OpenWRT 17.01.5 固件，并把 IPv6 bridge 到内网中和配置认证脚本</title>
+        <description>&lt;p&gt;首先参照&lt;a href=&quot;https://wiki.openwrt.org/toh/lenovo/lenovo_y1_v1&quot;&gt;OpenWRT Wiki - Lenovo Y1 v1&lt;/a&gt;找到刷固件教程：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;下载&lt;a href=&quot;https://mirrors.tuna.tsinghua.edu.cn/lede/releases/17.01.5/targets/ramips/mt7620/lede-17.01.5-ramips-mt7620-y1s-squashfs-sysupgrade.bin&quot;&gt;Lenovo y1s 的固件&lt;/a&gt;备用&lt;/li&gt;
+  &lt;li&gt;断开电源，等待一段时间，插入电源同时快速按下重置按钮，如果面板双闪，则说明进入了恢复模式&lt;/li&gt;
+  &lt;li&gt;电脑连接到四个 LAN 口中任意一个，配置静态地址在 192.168.1.0/24 网段&lt;/li&gt;
+  &lt;li&gt;打开 192.168.1.1 可以看到刷固件的页面&lt;/li&gt;
+  &lt;li&gt;上传固件，等待路由器重启&lt;/li&gt;
+  &lt;li&gt;配置 IP 地址为 DHCP 模式，打开 192.168.1.1 进行配置&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;然后就是常规的密码设置，opkg 源设置为 tuna 的源，配置 ssh 和 公钥。&lt;/p&gt;
+
+&lt;p&gt;接下来，我们为了使用学校的 SLAAC ，采用 ebtables 直接把学校的 IPv6 bridge 进来，而 IPv4 由于准入系统，需要 NAT 。&lt;/p&gt;
+
+&lt;p&gt;参考&lt;a href=&quot;https://tmikey.tech/tech_daily/lede/2017/08/25/bridge_ipv6_lede.html&quot;&gt;Bridge IPv6 connections to WAN&lt;/a&gt;，下载&lt;a href=&quot;https://github.com/cvmiller/v6brouter/blob/master/v6brouter_openwrt.sh&quot;&gt;v6brouter_openwrt.sh&lt;/a&gt;到某个地方，然后修改一下里面的一些参数：&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;# For Lenovo y1s&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;WAN_DEV&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;eth0.2
+&lt;span class=&quot;nv&quot;&gt;BRIDGE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;br-lan
+&lt;span class=&quot;c&quot;&gt;# the rest remain unchanged&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;然后跑起来之后，自己的电脑可以成功拿到原生的 IPv6 地址了，不需要用难用的 NAT66 技术。&lt;/p&gt;
+
+&lt;p&gt;下一步是采用&lt;a href=&quot;https://github.com/z4yx/GoAuthing&quot;&gt;z4yx/GoAuthing&lt;/a&gt;。&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;go get &lt;span class=&quot;nt&quot;&gt;-u&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; github.com/z4yx/GoAuthing
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$GOPATH&lt;/span&gt;/src/github.com/z4yx/GoAuthing/cli
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;env &lt;span class=&quot;nv&quot;&gt;GOOS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;linux &lt;span class=&quot;nv&quot;&gt;GOARCH&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;mipsle &lt;span class=&quot;nv&quot;&gt;GOMIPS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;softfloat go build main.go
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;mipsel-linux-gnu-strip main
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;scp main root@192.168.1.1:~/GoAuthing
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ssh root@192.168.1.1
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;opkg install ca-certificates
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;./GoAuthing
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这里参考了&lt;a href=&quot;https://blog.csdn.net/QQ531456898/article/details/80095707&quot;&gt;解决GO语言编译程序在openwrt(mipsle架构)上运行提示Illegal instruction问题&lt;/a&gt;，配置了 GOMIPS 环境变量。为了访问 HTTPS 网站，参考了&lt;a href=&quot;https://wiki.openwrt.org/doc/howto/wget-ssl-certs&quot;&gt;OpenWRT Wiki - SSL and Certificates in wget&lt;/a&gt;。有毒的是，这个环境变量，在 macOS 上不能正常工作，而在 Linux 机子上是没有问题的。&lt;/p&gt;
+
+&lt;p&gt;然后就可以成功地跑起来 GoAuthing ，解决了上校园网认证的问题。&lt;/p&gt;
+
+&lt;p&gt;感谢&lt;a href=&quot;https://github.com/z4yx&quot;&gt;宇翔&lt;/a&gt;编写的 GoAuthing 小工具。&lt;/p&gt;
+</description>
+        <pubDate>Thu, 26 Jul 2018 20:48:00 +0800</pubDate>
+        <link>https://jiegec.me/networking/2018/07/26/flashing-lenovo-y1s-and-bridge-ipv6/</link>
+        <guid isPermaLink="true">https://jiegec.me/networking/2018/07/26/flashing-lenovo-y1s-and-bridge-ipv6/</guid>
+        
+        <category>lenovo</category>
+        
+        <category>newifi</category>
+        
+        <category>uboot</category>
+        
+        <category>lede</category>
+        
+        <category>openwrt</category>
+        
+        <category>go</category>
+        
+        <category>ebtables</category>
+        
+        <category>bridge</category>
+        
+        <category>ipv6</category>
+        
+        <category>goauthing</category>
+        
+        <category>z4yx</category>
+        
+        
+        <category>networking</category>
+        
+      </item>
+    
+      <item>
+        <title>构建简易的 initramfs</title>
+        <description>&lt;p&gt;一直对 Linux 的启动很感兴趣，但对 initrd 和 initramfs 等概念不大了解，于是上网找了资料，自己成功地看到了现象。&lt;/p&gt;
+
+&lt;p&gt;参考资料：
+&lt;a href=&quot;http://www.kaizou.org/2016/09/boot-minimal-linux-qemu/&quot;&gt;Build and boot a minimal Linux system with qemu&lt;/a&gt;
+&lt;a href=&quot;https://wiki.gentoo.org/wiki/Custom_Initramfs&quot;&gt;Custom Initramfs&lt;/a&gt;
+&lt;a href=&quot;https://dazdaztech.wordpress.com/2013/04/04/initrd-vs-initramfs/&quot;&gt;initramfs vs initrd&lt;/a&gt;
+&lt;a href=&quot;https://www.kernel.org/doc/Documentation/filesystems/ramfs-rootfs-initramfs.txt&quot;&gt;ramfs, rootfs and initramfs&lt;/a&gt;
+&lt;a href=&quot;https://www.linux.com/learn/kernel-newbie-corner-initrd-and-initramfs-whats&quot;&gt;The Kernel Newbie Corner: “initrd” and “initramfs”– What’s Up With That?&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;具体步骤：&lt;/p&gt;
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;hello.c
+&lt;span class=&quot;c&quot;&gt;#include &amp;lt;stdio.h&amp;gt;&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;#include &amp;lt;unistd.h&amp;gt;&lt;/span&gt;
+
+int main&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;Hello, world!&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;gcc &lt;span class=&quot;nt&quot;&gt;-static&lt;/span&gt; hello.c &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; init
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;echo &lt;/span&gt;init | cpio &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-H&lt;/span&gt; newc | gzip &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; initrd
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;qemu-system-x86_64 &lt;span class=&quot;nt&quot;&gt;-kernel&lt;/span&gt; /boot/vmlinuz-linux &lt;span class=&quot;nt&quot;&gt;-initrd&lt;/span&gt; initrd &lt;span class=&quot;nt&quot;&gt;-nographic&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-append&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'console=ttyS0'&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# Use C-a c q u i t &amp;lt;Enter&amp;gt; to exit&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;可以看到过一会（三四秒？），可以看到满屏的 Hello world 在输出。&lt;/p&gt;
+</description>
+        <pubDate>Mon, 16 Jul 2018 03:43:00 +0800</pubDate>
+        <link>https://jiegec.me/os/2018/07/16/build-custom-initramfs/</link>
+        <guid isPermaLink="true">https://jiegec.me/os/2018/07/16/build-custom-initramfs/</guid>
+        
+        <category>linux</category>
+        
+        <category>initrd</category>
+        
+        <category>initramfs</category>
+        
+        
+        <category>os</category>
+        
+      </item>
+    
+      <item>
+        <title>用 multicast 地址找到同一网段的主机</title>
+        <description>&lt;p&gt;IPv4 :&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ping &lt;span class=&quot;nt&quot;&gt;-t1&lt;/span&gt; 224.0.0.1
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;IPv6:&lt;/p&gt;
+
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ping &lt;span class=&quot;nt&quot;&gt;-t1&lt;/span&gt; ff02::1%iface
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+</description>
+        <pubDate>Sun, 15 Jul 2018 17:19:00 +0800</pubDate>
+        <link>https://jiegec.me/networking/2018/07/15/use-multicast-address-to-find-neighbours/</link>
+        <guid isPermaLink="true">https://jiegec.me/networking/2018/07/15/use-multicast-address-to-find-neighbours/</guid>
+        
+        <category>icmp</category>
+        
+        <category>ping</category>
+        
+        <category>multicast</category>
+        
+        
+        <category>networking</category>
+        
+      </item>
     
       <item>
         <title>用 MuSSH 快速对多台机器进行软件包升级</title>
@@ -313,167 +460,6 @@ AllowedIPs &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 192.168.0.2/24
         
         
         <category>networking</category>
-        
-      </item>
-    
-      <item>
-        <title>Verilog 初体验</title>
-        <description>&lt;p&gt;自己以前一直对硬件方面没有接触，但是大二大三很快就要接触相关知识，所以自己就先预习一下 Verilog HDL，以便以后造计算机。听学长们推荐了一本书叫《自己动手写CPU》，由于自己手中只有很老的 Spartan-3 板子，手上没有可以用来试验的 FPGA ，所以选择用 Verilog + Verilator 进行模拟。既然是模拟，自然是会有一定的问题，不过这个以后再说。&lt;/p&gt;
-
-&lt;p&gt;然后就是模仿着这本书的例子，写了指令的获取和指令的解码两部分很少很少的代码，只能解码 ori (or with immidiate) 这一个指令。然后，通过 verilator 跑模拟，输出 vcd 文件，再用 gtkwave 显示波形，终于能够看到我想要的结果了。能够看到，前一个时钟周期获取指令，下一个时钟周期进行解码，出现了流水线的结果。这让我十分开心。&lt;/p&gt;
-
-&lt;p&gt;接下来就是实现一些基本的算术指令，然后讲计算的结果写入到相应的寄存器中。这样做完之后，就可以做一个基于 verilator 的简易 A+B 程序了。&lt;/p&gt;
-
-&lt;p&gt;我的代码发布在&lt;a href=&quot;https://github.com/jiegec/learn_verilog&quot;&gt;jiegec/learn_verilog&lt;/a&gt;中。最近马上到考试周，可能到暑假会更频繁地更新吧。&lt;/p&gt;
-</description>
-        <pubDate>Thu, 21 Jun 2018 21:36:00 +0800</pubDate>
-        <link>https://jiegec.me/programming/2018/06/21/verilog-first-try/</link>
-        <guid isPermaLink="true">https://jiegec.me/programming/2018/06/21/verilog-first-try/</guid>
-        
-        <category>fpga</category>
-        
-        <category>verilog</category>
-        
-        <category>verilator</category>
-        
-        <category>cpu</category>
-        
-        
-        <category>programming</category>
-        
-      </item>
-    
-      <item>
-        <title>在 ArchLinux 上编译 LineageOS for Huawei Angler</title>
-        <description>&lt;p&gt;实践了一下如何在 ArchLinux 上编译自己的 LineageOS 。本文主要根据&lt;a href=&quot;https://wiki.lineageos.org/devices/angler/build&quot;&gt;官方文档&lt;/a&gt; 进行编写。&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;mkdir &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; ~/bin
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;mkdir &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; ~/android/lineage
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;curl https://storage.googleapis.com/git-repo-downloads/repo &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; ~/bin/repo
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;chmod a+x ~/bin/repo
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;vim ~/.config/fish/config.fish
-&lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-x&lt;/span&gt; PATH ~/bin &lt;span class=&quot;nv&quot;&gt;$PATH&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;exec &lt;/span&gt;fish &lt;span class=&quot;nt&quot;&gt;-l&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; ~/android/lineage
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;repo init &lt;span class=&quot;nt&quot;&gt;-u&lt;/span&gt; https://github.com/LineageOS/android.git &lt;span class=&quot;nt&quot;&gt;-b&lt;/span&gt; lineage-15.1
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;repo sync
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;bash
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;source &lt;/span&gt;build/envsetup.sh
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;breakfast angler
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;vim ~/.config/fish/config.fish
-&lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-x&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;USE_CCACHE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;1
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ccache &lt;span class=&quot;nt&quot;&gt;-M&lt;/span&gt; 50G
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; ~/android/lineage/device/huawei/angler
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;./extract-files.sh
-&lt;span class=&quot;c&quot;&gt;# Plug in your Nexus 6P&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; ~/android/lineage
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;virtualenv2 venv
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;source &lt;/span&gt;venv/bin/activate
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;croot
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;brunch angler
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;然而，出现了 flex 版本不兼容的问题，正在研究解决中。。&lt;/p&gt;
-</description>
-        <pubDate>Mon, 18 Jun 2018 05:47:00 +0800</pubDate>
-        <link>https://jiegec.me/programming/2018/06/18/building-lineageos-in-archlinux/</link>
-        <guid isPermaLink="true">https://jiegec.me/programming/2018/06/18/building-lineageos-in-archlinux/</guid>
-        
-        <category>lineageos</category>
-        
-        <category>archlinux</category>
-        
-        <category>python2</category>
-        
-        <category>angler</category>
-        
-        
-        <category>programming</category>
-        
-      </item>
-    
-      <item>
-        <title>编写 eBPF 程序和利用 HyperLogLog 统计包的信息</title>
-        <description>&lt;p&gt;前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 &lt;a href=&quot;https://github.com/jiegec/hll_ebpf&quot;&gt;jiegec/hll_ebpf&lt;/a&gt; ，大致原理如下：&lt;/p&gt;
-
-&lt;p&gt;由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bpf_map_def&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SEC&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;maps&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hll_ebpf_out_daddr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BPF_MAP_TYPE_PERCPU_ARRAY&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;key_size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;value_size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;max_entries&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;256&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pinning&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// PIN_GLOBAL_NS
-&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-
-&lt;span class=&quot;n&quot;&gt;SEC&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;out_daddr&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bpf_out_daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__sk_buff&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;skb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-  &lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;daddr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;get_daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;skb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-  &lt;span class=&quot;n&quot;&gt;u32&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Murmur3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-  &lt;span class=&quot;n&quot;&gt;update_hll&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;hll_ebpf_out_daddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-  &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。&lt;/p&gt;
-
-&lt;p&gt;接着，我们可以把这个 eBPF 函数进行编译，并且应用起来：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;KERN&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;4.16.0-2 &lt;span class=&quot;c&quot;&gt;# or use uname -r with awk, see Makefile&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;clang &lt;span class=&quot;nt&quot;&gt;-O2&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-I&lt;/span&gt; /usr/src/linux-headers-&lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;KERN&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-common&lt;/span&gt;/include &lt;span class=&quot;nt&quot;&gt;-I&lt;/span&gt; /usr/src/linux-headers-&lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;KERN&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-common&lt;/span&gt;/arch/x86/include &lt;span class=&quot;nt&quot;&gt;-emit-llvm&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-c&lt;/span&gt; bpf.c &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; - | llc &lt;span class=&quot;nt&quot;&gt;-march&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;bpf &lt;span class=&quot;nt&quot;&gt;-filetype&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;obj &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; bpf.o
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;en0 
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc qdisc add dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; clsact &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter del dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; egress
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter add dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; egress bpf obj bpf.o sec out_daddr
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter del dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; ingress
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;tc filter add dev &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;IFACE&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; ingress bpf obj bpf.o sec in_saddr
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;我们需要在用户态读出上面这个 MAP 中的内容。由于它是全局的，我们可以在 &lt;code class=&quot;highlighter-rouge&quot;&gt;/sys/fs/bpf/tc/globals&lt;/code&gt; 中找到他们。然后，把统计得到的数据进行综合，得到结果：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;read_file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-  &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bpf_obj_get&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-  &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;6&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;m&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-  &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;kt&quot;&gt;double&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;m&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;bpf_map_lookup_elem&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// assuming 2 CPUs, will change later
-&lt;/span&gt;    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-      &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
-  &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-  &lt;span class=&quot;kt&quot;&gt;double&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;709&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;V&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-      &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;m&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;V&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-  &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;30&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;log&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;E&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pow&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
-  &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-  &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%ld&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;lround&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;可以手动通过 &lt;code class=&quot;highlighter-rouge&quot;&gt;nmap&lt;/code&gt; 测试，例如扫描一个段，可以看到数据会增长许多。如果扫描相同的段，则数字不会变化，但如果扫描新的段，数字会有变化。这是一个 利用了 eBPF 的 HyperLogLog 的实现。&lt;/p&gt;
-</description>
-        <pubDate>Fri, 15 Jun 2018 22:03:00 +0800</pubDate>
-        <link>https://jiegec.me/programming/2018/06/15/ebpf-with-hyperloglog/</link>
-        <guid isPermaLink="true">https://jiegec.me/programming/2018/06/15/ebpf-with-hyperloglog/</guid>
-        
-        <category>ebpf</category>
-        
-        <category>tc</category>
-        
-        <category>iproute2</category>
-        
-        <category>hyperloglog</category>
-        
-        
-        <category>programming</category>
         
       </item>
     
