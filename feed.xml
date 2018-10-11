@@ -6,9 +6,133 @@
 </description>
     <link>https://jiegec.me/</link>
     <atom:link href="https://jiegec.me/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Thu, 04 Oct 2018 15:31:15 +0800</pubDate>
-    <lastBuildDate>Thu, 04 Oct 2018 15:31:15 +0800</lastBuildDate>
-    <generator>Jekyll v3.6.2</generator>
+    <pubDate>Fri, 12 Oct 2018 00:22:05 +0800</pubDate>
+    <lastBuildDate>Fri, 12 Oct 2018 00:22:05 +0800</lastBuildDate>
+    <generator>Jekyll v3.8.4</generator>
+    
+      <item>
+        <title>软工平台踩坑记</title>
+        <description>&lt;p&gt;老师要求我们搞 CI/CD ，CI 自然是很快就搞好了，不过 CD 还得配一下。今天研究了一下它的 Deployer 架构，发现了若干易用性问题：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;缺乏文档&lt;/li&gt;
+  &lt;li&gt;只有&lt;a href=&quot;https://gitlab.secoder.net/SECoder-Examples/python-example/blob/master/.gitlab-ci.yml&quot;&gt;样例配置&lt;/a&gt;没有讲解&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://docs.secoder.net/service/deployer/&quot;&gt;已有的文档&lt;/a&gt; 语焉不详&lt;/li&gt;
+  &lt;li&gt;官方对此回复：功能太多，还没忙过来写文档&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;于是只好经常戳助教然后尝试理解这个东西。。然后遇到了很多的 BUG ：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;容器没有重启功能。。。&lt;/li&gt;
+  &lt;li&gt;容器死了还是活着看一个图的颜色。。。毫无说明&lt;/li&gt;
+  &lt;li&gt;容器虽然有 Console ，但是输入过长后直接回到行首没有换行。。。&lt;/li&gt;
+  &lt;li&gt;容器对外的域名里有下划线。。。 Django 上来就一句 &lt;code class=&quot;highlighter-rouge&quot;&gt;Invalid HTTP_HOST header: 'xxxx_xxx.app.secoder.net'. The domain name provided is not valid according to RFC 1034/1035.&lt;/code&gt; Express 直接就 &lt;code class=&quot;highlighter-rouge&quot;&gt;Invalid Host header&lt;/code&gt; 放弃治疗。。。&lt;/li&gt;
+  &lt;li&gt;助教对上一条的回复是，等我忙完 DDL 有空再做吧。。。也就是说现在要做只能自己再开一个 Nginx 容器然后自己在 &lt;code class=&quot;highlighter-rouge&quot;&gt;proxy_set_header&lt;/code&gt; 上做手脚。。。&lt;/li&gt;
+&lt;/ol&gt;
+
+</description>
+        <pubDate>Fri, 12 Oct 2018 00:09:00 +0800</pubDate>
+        <link>https://jiegec.me/software/2018/10/12/secoder-platform-sucks/</link>
+        <guid isPermaLink="true">https://jiegec.me/software/2018/10/12/secoder-platform-sucks/</guid>
+        
+        <category>secoder</category>
+        
+        <category>softwarengineering</category>
+        
+        <category>cd</category>
+        
+        <category>ci</category>
+        
+        <category>gitlab</category>
+        
+        
+        <category>software</category>
+        
+      </item>
+    
+      <item>
+        <title>在荔枝糖（Lichee Tang）上初次体验 FPGA</title>
+        <description>&lt;p&gt;今天从张宇翔学长那拿到了 &lt;a href=&quot;http://tang.lichee.pro/&quot;&gt;荔枝糖（Lichee Tang）&lt;/a&gt; 的 FPGA 板子，于是立即开始把前段时间学到的Verilog应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。&lt;/p&gt;
+
+&lt;p&gt;在网上找到了 &lt;a href=&quot;https://github.com/ben-marshall/uart&quot;&gt;ben-marshall/uart&lt;/a&gt; 一个简易的实现，很快做到了一直在串口上打印 &lt;code class=&quot;highlighter-rouge&quot;&gt;A&lt;/code&gt; 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO ，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：&lt;/p&gt;
+
+&lt;div class=&quot;language-verilog highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;always&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;@&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;posedge&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;clk_in&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;begin&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;uart_tx_en&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;uart_fifo_re&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这样就解决了这个问题。完整代码在 &lt;a href=&quot;https://github.com/jiegec/learn_licheetang&quot;&gt;jiegec/learn_licheetang&lt;/a&gt; 中。&lt;/p&gt;
+</description>
+        <pubDate>Sun, 07 Oct 2018 22:34:00 +0800</pubDate>
+        <link>https://jiegec.me/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/</link>
+        <guid isPermaLink="true">https://jiegec.me/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/</guid>
+        
+        <category>verilog</category>
+        
+        <category>licheetang</category>
+        
+        <category>fpga</category>
+        
+        <category>uart</category>
+        
+        
+        <category>hardware</category>
+        
+      </item>
+    
+      <item>
+        <title>使用 veth 实现 IPv6-only 的 Brouter 功能</title>
+        <description>&lt;p&gt;最近从 @shankerwangmiao 学到了一个方法：通过 veth 把两个 bridge 的 IPv6 桥接起来。方法如下：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ ip link add veth-v6-in type veth peer name veth-v6-out
+$ brctl addif br-in veth-v6-in
+$ brctl addif br-out veth-v6-out
+$ ebtables -t filter -A FORWARD -p ! IPv6 -o veth-v6-in -j DROP
+$ ebtables -t filter -A FORWARD -p ! IPv6 -o veth-v6-out -j DROP
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这样就可以看到 veth 上仅有 IPv6 的流量了。&lt;/p&gt;
+</description>
+        <pubDate>Sun, 07 Oct 2018 11:05:00 +0800</pubDate>
+        <link>https://jiegec.me/networking/2018/10/07/use-veth-for-ipv6-brouter/</link>
+        <guid isPermaLink="true">https://jiegec.me/networking/2018/10/07/use-veth-for-ipv6-brouter/</guid>
+        
+        <category>brouter</category>
+        
+        <category>ebtables</category>
+        
+        <category>ipv6</category>
+        
+        
+        <category>networking</category>
+        
+      </item>
+    
+      <item>
+        <title>在 Android 上打开 LTE 的 IPv6</title>
+        <description>&lt;p&gt;听闻北京移动给 LTE 配置了 SLAAC ，但现在需要手动打开，方法如下：&lt;/p&gt;
+
+&lt;p&gt;Settings -&amp;gt; Network &amp;amp; Internet -&amp;gt; Mobile Network -&amp;gt; Advanced -&amp;gt; Access Point Names -&amp;gt; 中国移动 GPRS (China Mobile) -&amp;gt; 把 APN procotol 和 APN roaming protocol 两项都改成 IPv4/IPv6&lt;/p&gt;
+
+&lt;p&gt;然后在 &lt;a href=&quot;https://test-ipv6.com&quot;&gt;test-ipv6.com&lt;/a&gt; 上可以看到确实分配了 IPv6 地址，不过目前评分只有 1/10 。也就是说可用性还不佳。&lt;/p&gt;
+
+&lt;p&gt;而在 iOS 上，通过 HE 的 Network Tools 能看到，确实拿到了 IPv6 的地址，但是出不去，怀疑是运营商没有下发相关配置，所以还不能使用，只能继续等。&lt;/p&gt;
+</description>
+        <pubDate>Thu, 04 Oct 2018 22:47:00 +0800</pubDate>
+        <link>https://jiegec.me/networking/2018/10/04/enable-lte-ipv6-on-android/</link>
+        <guid isPermaLink="true">https://jiegec.me/networking/2018/10/04/enable-lte-ipv6-on-android/</guid>
+        
+        <category>android</category>
+        
+        <category>apn</category>
+        
+        <category>ipv6</category>
+        
+        
+        <category>networking</category>
+        
+      </item>
     
       <item>
         <title>THUCTF 2018 和 Teaser Dragon CTF 2018 小记</title>
@@ -84,7 +208,7 @@
         <description>&lt;p&gt;做了一个 Windows 10 安装 U 盘，想测试一下能不能启动，于是想用 VirtualBox 起一个虚拟机。但是发现，一般情况下要从 ISO 或者把 U 盘克隆成一个 vdi/vmdk etc 再启动。不过找到了 Cem Arslan 的 &lt;a href=&quot;https://www.linkedin.com/pulse/virtualbox-booting-from-usb-mac-cem-arslan&quot;&gt;VirtualBox - Booting From USB (MAC)&lt;/a&gt; 实验了一下，确实可以用，以 &lt;code class=&quot;highlighter-rouge&quot;&gt;/dev/disk2&lt;/code&gt; 为例方法如下：&lt;/p&gt;
 
 &lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;diskutil unmountDisk /dev/disk2
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;chown &lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;whoami&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt; /dev/disk2
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo chown&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;whoami&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt; /dev/disk2
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;VBoxManage internalcommands createrawvmdk &lt;span class=&quot;nt&quot;&gt;-filename&lt;/span&gt; PATH_TO_VMDK &lt;span class=&quot;nt&quot;&gt;-rawdisk&lt;/span&gt; /dev/disk2
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Now boot from VirtualBox&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
@@ -148,7 +272,7 @@ ddb.geometry.biosSectors=&quot;1234&quot;
 &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;ok&quot;&lt;/span&gt; : 1 &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;fg&lt;/span&gt;
 ^C
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;chown &lt;span class=&quot;nt&quot;&gt;-R&lt;/span&gt; mongodb:mongodb /var/lib/mongodb
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo chown&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-R&lt;/span&gt; mongodb:mongodb /var/lib/mongodb
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;systemctl start mongodb
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;mongo
 &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; db.adminCommand&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; getParameter: 1, featureCompatibilityVersion: 1 &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
@@ -246,142 +370,6 @@ dhcp-option&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;252,&lt;span class=&quo
         <category>wpad</category>
         
         <category>pac</category>
-        
-        
-        <category>networking</category>
-        
-      </item>
-    
-      <item>
-        <title>在 Xcode 9 上启用 Vim 模拟（XVim 2）</title>
-        <description>&lt;p&gt;作为一个不用 vim 编辑会死星人，用 Xcode 总是止不住自己想 Escape 的心。于是找到了 &lt;a href=&quot;https://github.com/XVimProject/XVim&quot;&gt;XVimProject/XVim2&lt;/a&gt; 进行配置。&lt;/p&gt;
-
-&lt;p&gt;大致方法如下：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;按照 &lt;a href=&quot;https://github.com/XVimProject/XVim2/blob/master/SIGNING_Xcode.md&quot;&gt;Signing Xcode&lt;/a&gt; 对 Xcode 进行重签名。套路和对 GDB 进行签名一样。不过这次，签名完成的时间可长多了，毕竟 Xcode 这么大。&lt;/li&gt;
-  &lt;li&gt;接着按照项目的 README ，首先 &lt;code class=&quot;highlighter-rouge&quot;&gt;git clone&lt;/code&gt; 然后 &lt;code class=&quot;highlighter-rouge&quot;&gt;make&lt;/code&gt; ，第一次打开 Xcode 的时候选择 &lt;code class=&quot;highlighter-rouge&quot;&gt;Load Bundle&lt;/code&gt; 即可。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;终于可以满足我 Escape Xcode 的欲望了。&lt;/p&gt;
-</description>
-        <pubDate>Sat, 08 Sep 2018 02:01:00 +0800</pubDate>
-        <link>https://jiegec.me/software/2018/09/08/enable-vim-mode-in-xcode-9/</link>
-        <guid isPermaLink="true">https://jiegec.me/software/2018/09/08/enable-vim-mode-in-xcode-9/</guid>
-        
-        <category>xcode</category>
-        
-        <category>vim</category>
-        
-        <category>xvim</category>
-        
-        
-        <category>software</category>
-        
-      </item>
-    
-      <item>
-        <title>在 macOS 上读取移动硬盘的 S.M.A.R.T. 信息</title>
-        <description>&lt;p&gt;之前想看看自己各个盘的情况，但是发现只能看电脑内置的 SSD 的 S.M.A.R.T 信息，而移动硬盘的都显示：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ smartctl -a /dev/disk2
-smartctl 6.6 2017-11-05 r4594 [Darwin 17.7.0 x86_64] (local build)
-Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org
-
-/dev/disk2: Unable to detect device type
-Please specify device type with the -d option.
-
-Use smartctl -h to get a usage summary
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;一开始我怀疑是个别盘不支持，但换了几个盘都不能工作，问题应该出现在了 USB 上。查了下资料，果然如此。根据 &lt;a href=&quot;https://www.smartmontools.org/wiki/USB&quot;&gt;USB devices and smartmontools&lt;/a&gt; ，获取 S.M.A.R.T 信息需要直接发送 ATA 命令，但是由于经过了 USB ，于是需要进行一个转换，导致无法直接发送 ATA 命令。这个问题自然是有解决方案，大概就是直接把 ATA 命令发送过去（pass-through）。上面这个地址里写到，如果需要在 macOS 上使用，需要安装一个内核驱动。可以找到，源码在 &lt;a href=&quot;https://github.com/kasbert/OS-X-SAT-SMART-Driver&quot;&gt;kasbert/OS-X-SAT-SMART-Driver&lt;/a&gt; 并且有一个带签名的安装包在 &lt;a href=&quot;https://binaryfruit.com/drivedx/usb-drive-support&quot;&gt;External USB / FireWire drive diagnostics support&lt;/a&gt; 中可以下载。丢到 VirusTotal 上没查出问题，用 v0.8 版本安装好后就成功地读取到了移动硬盘的 S.M.A.R.T 信息了。&lt;/p&gt;
-
-&lt;p&gt;然后我又简单研究了一下各个 S.M.A.R.T 各个值的含义是什么。 &lt;code class=&quot;highlighter-rouge&quot;&gt;VALUE&lt;/code&gt; 代表当前的值， &lt;code class=&quot;highlighter-rouge&quot;&gt;WORST&lt;/code&gt; 代表目前检测到的最差的值， &lt;code class=&quot;highlighter-rouge&quot;&gt;THRESH&lt;/code&gt; 代表损坏阈值。这些值都是从 &lt;code class=&quot;highlighter-rouge&quot;&gt;RAW_VALUE&lt;/code&gt; 进行计算后归一化而来。然后 &lt;code class=&quot;highlighter-rouge&quot;&gt;TYPE&lt;/code&gt; 分为两种，一是 &lt;code class=&quot;highlighter-rouge&quot;&gt;Pre-fail&lt;/code&gt; ，代表如果这一项的值小于阈值，代表这个机器很危险了，赶紧拷数据丢掉吧。二是 &lt;code class=&quot;highlighter-rouge&quot;&gt;Old_age&lt;/code&gt; ，代表如果这一项小于阈值，代表这个机器比较老了，但还没坏。真正要看是否坏了，可以看 &lt;code class=&quot;highlighter-rouge&quot;&gt;When_Failed&lt;/code&gt; 一栏。&lt;/p&gt;
-</description>
-        <pubDate>Fri, 07 Sep 2018 10:20:00 +0800</pubDate>
-        <link>https://jiegec.me/hardware/2018/09/07/reading-smart-info-of-external-drives-under-macOS/</link>
-        <guid isPermaLink="true">https://jiegec.me/hardware/2018/09/07/reading-smart-info-of-external-drives-under-macOS/</guid>
-        
-        <category>smart</category>
-        
-        <category>macos</category>
-        
-        <category>smartmontools</category>
-        
-        <category>kext</category>
-        
-        
-        <category>hardware</category>
-        
-      </item>
-    
-      <item>
-        <title>通过 Ipfilter Extension 实现 RFC8367</title>
-        <description>&lt;p&gt;前几天无聊闲逛看到了一个很有趣的 &lt;a href=&quot;https://tools.ietf.org/html/rfc8367&quot;&gt;RFC8367 - Wrongful Termination of Internet Protocol (IP) Packets&lt;/a&gt; ，看到日期大家应该都懂了，这是个粥客，不过里面还是反映了一些事情，咳。&lt;/p&gt;
-
-&lt;p&gt;之前看到闪客实现了 &lt;a href=&quot;https://github.com/shankerwangmiao/xt_PROTO&quot;&gt;shankerwangmiao/xt_PROTO&lt;/a&gt; ，想到自己也可以做一个 iptables 扩展，于是就写了 &lt;a href=&quot;https://github.com/jiegec/xt_EQUALIZE&quot;&gt;jiegec/xt_EQUALIZE&lt;/a&gt; 。它是这样使用的：&lt;/p&gt;
-
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;git clone git@github.com:jiegec/xt_EQUALIZE.git
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;make
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;make install
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;iptables &lt;span class=&quot;nt&quot;&gt;-t&lt;/span&gt; filter &lt;span class=&quot;nt&quot;&gt;-A&lt;/span&gt; INPUT &lt;span class=&quot;nt&quot;&gt;-j&lt;/span&gt; EQUALIZE
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;dmesg &lt;span class=&quot;nt&quot;&gt;-w&lt;/span&gt; &amp;amp;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Make some random network requests to see the effect!&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ping 1.1.1.1
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ping 8.8.8.8
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ping ::1
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;目前还没有把参数都变成可以配置的。如果真的有人需要这个模块的话，我再改吧（逃&lt;/p&gt;
-</description>
-        <pubDate>Fri, 31 Aug 2018 15:47:00 +0800</pubDate>
-        <link>https://jiegec.me/networking/2018/08/31/implementing-rfc8367-as-iptables-extension/</link>
-        <guid isPermaLink="true">https://jiegec.me/networking/2018/08/31/implementing-rfc8367-as-iptables-extension/</guid>
-        
-        <category>rfc</category>
-        
-        <category>rfc8367</category>
-        
-        <category>aprilfool</category>
-        
-        <category>iptables</category>
-        
-        <category>kernel</category>
-        
-        <category>mod</category>
-        
-        <category>xtables</category>
-        
-        
-        <category>networking</category>
-        
-      </item>
-    
-      <item>
-        <title>在 macOS 上 TAP Interface 上启用 IPv6 自动配置</title>
-        <description>&lt;p&gt;由于 macOS 对 TAP Interface 不会自动出现一个设置中对应的服务，所以需要手动进行配置。一番测试后，发现可以通过：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo ipconfig set [tap_if] automatic-v6
-$ sudo ipconfig set [tap_if] dhcp
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;启用系统自带的 dhcp 和 ra 功能。也许有方法可以把这些 tap 搬到系统的设置中去。&lt;/p&gt;
-
-&lt;p&gt;UPDATE:&lt;/p&gt;
-
-&lt;p&gt;可以把 TAP Interface 加到系统的设置中去。方法参考&lt;a href=&quot;https://stackoverflow.com/a/6375307&quot;&gt;Virtual network interface in Mac OS X&lt;/a&gt;。完成以后可以直接通过系统设置界面进行配置。&lt;/p&gt;
-</description>
-        <pubDate>Sat, 25 Aug 2018 19:07:00 +0800</pubDate>
-        <link>https://jiegec.me/networking/2018/08/25/enable-ipv6-autoconfiguration-on-tap-interfaces-in-macos/</link>
-        <guid isPermaLink="true">https://jiegec.me/networking/2018/08/25/enable-ipv6-autoconfiguration-on-tap-interfaces-in-macos/</guid>
-        
-        <category>slacc</category>
-        
-        <category>ipv6</category>
-        
-        <category>tuntaposx</category>
-        
-        <category>tap</category>
         
         
         <category>networking</category>
