@@ -6,9 +6,88 @@
 </description>
     <link>https://jiegec.me/</link>
     <atom:link href="https://jiegec.me/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Tue, 30 Oct 2018 23:41:43 +0800</pubDate>
-    <lastBuildDate>Tue, 30 Oct 2018 23:41:43 +0800</lastBuildDate>
-    <generator>Jekyll v3.8.4</generator>
+    <pubDate>Tue, 06 Nov 2018 09:26:57 +0800</pubDate>
+    <lastBuildDate>Tue, 06 Nov 2018 09:26:57 +0800</lastBuildDate>
+    <generator>Jekyll v3.7.4</generator>
+    
+      <item>
+        <title>咸鱼派的启动配置</title>
+        <description>&lt;p&gt;最近刚拿到了一个&lt;a href=&quot;https://github.com/sbc-fish/sfpi&quot;&gt;咸鱼派&lt;/a&gt;的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot ，我用的是现在的 master 分支的最新版 99431c1c ：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ # Archlinux
+$ sudo pacman -Sy arm-none-eabi-gcc
+$ make LicheePi_Zero_defconfig
+$ make ARCH=arm CROSS_COMPILE=arm-none-eabi- -j24
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这时候会得到一个 u-boot-sunxi-with-spl.bin 的文件。我们只要把它写到 SD 卡的 8192 偏移处，就可以把 U-Boot 跑起来了：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ diskutil unmountDisk /dev/disk4
+$ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。&lt;/p&gt;
+
+&lt;p&gt;我用的是八月份时候的 4.18.2 内核，虽然不是很新但也足够新了。一番调整内核参数后，得到了一个可用的内核，然后把 zImage 和 sun8i-v3s-licheepi-zero.dtb 都复制到刚才创建的 FAT-32 启动分区，然后进入 U-Boot 进行启动：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ setenv bootcmd 'fatload mmc 0 0x41000000 zImage; fatload mmc 0 0x41800000 sun8i-v3s-licheepi-zero.dtb; setenv bootargs console=ttyS0,115200 root=/dev/mmcblk0p2 rw rootwait; bootz 0x41000000 - 0x41800000'
+$ saveenv # optional
+$ boot
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这里一开始遇到了很多坑，比如一直看不到 console ，这个是找了 @Gaoyichuan 拿到的一份 Kernel Config 进行修改修好的。另一个是进去以后找不到 root ，我先是搞了一个有 busybox 的 initrd ，进去看发现是能找到 mmc 的，但是有延迟，那么添加上 rootwait 就好了。进去以后就差 rootfs 。由于我缺少一个写 ext4 的工具，又发现手上有一个 Raspbian 的镜像，它里面也正好是两个分区，而且架构也同样是 armv7l ，我就直接把它烧到 SD 卡中，把 U-Boot 写进去，然后往 boot 分区里写内核和 dtb ，然后就成功进去，并且跑起来了。最喜感的就是，进去以后是个 pi@raspberrypi ，实际上确是另一个东西。不过，只有当我 &lt;code class=&quot;highlighter-rouge&quot;&gt;apt update&lt;/code&gt; 发现用了半小时的时候，我才想起来这其实是是一个嵌入式系统。。&lt;/p&gt;
+
+&lt;p&gt;进去以后发现，没有识别到网卡驱动。网上找了 LicheePi Zero 的一个解决方案，但是并不能用，还出现了神奇的 Kernel Oops ，怀疑是内核版本太新的问题。我又找到 @Icenowy 的一个 &lt;a href=&quot;https://lore.kernel.org/patchwork/patch/884656/&quot;&gt;Patch&lt;/a&gt; ，它终于是解决了这个问题，成功地找到了网卡，并且愉快地 &lt;code class=&quot;highlighter-rouge&quot;&gt;ssh pi@raspberrypi.local&lt;/code&gt; 。之后会在咸鱼派那边公布一下我们做的修改。&lt;/p&gt;
+
+&lt;p&gt;现在的想法是，把 HomeBridge 搭建到它上面，不过目前来看硬件资源有点紧张，放着会有点慢。可能还是用树莓派做这个事情比较合适。&lt;/p&gt;
+</description>
+        <pubDate>Mon, 05 Nov 2018 22:17:00 +0800</pubDate>
+        <link>https://jiegec.me/hardware/2018/11/05/salted-fish-pi/</link>
+        <guid isPermaLink="true">https://jiegec.me/hardware/2018/11/05/salted-fish-pi/</guid>
+        
+        <category>sfpi</category>
+        
+        <category>saltedfishpi</category>
+        
+        <category>uboot</category>
+        
+        <category>linux</category>
+        
+        <category>kernel</category>
+        
+        <category>dts</category>
+        
+        <category>devicetree</category>
+        
+        
+        <category>hardware</category>
+        
+      </item>
+    
+      <item>
+        <title>使用 HomeBridge 把小米空气净化器加入到 HomeKit 中</title>
+        <description>&lt;p&gt;受 @NSBlink 安利，自己部署了一下 &lt;a href=&quot;https://github.com/nfarina/homebridge&quot;&gt;HomeBridge&lt;/a&gt; ，然后在 iOS 的家庭上就可以看到它。然后，通过 &lt;a href=&quot;https://www.npmjs.com/package/homebridge-mi-airpurifier&quot;&gt;homebrdige-mi-airpurifier&lt;/a&gt; 和 &lt;a href=&quot;https://github.com/aholstenson/miio&quot;&gt;miio&lt;/a&gt; 按照教程进行配置。然后就可以在家庭里看到小米空气净化器，包括空气质量，湿度，睡眠模式，温度，打开状态。然后我就可以做一些配置，如离开宿舍的时候自动关闭空气净化器，回来的时候自动打开。不过由于自己没有一个一直放在宿舍的 iPad、Apple TV 或者 HomePod ，失去了中枢，这个功能可能会打折扣。&lt;/p&gt;
+
+&lt;p&gt;后续想买一些智能的灯啊，然后就可以用 Siri 进行打开 / 关闭了。&lt;/p&gt;
+
+&lt;p&gt;此外，我又试了下，可以用 &lt;a href=&quot;https://github.com/KhaosT/homebridge-camera-ffmpeg&quot;&gt;homebridge-camera-ffmpeg&lt;/a&gt; 把摄像头配置到 HomeKit 中。这样，就可以远程查看视频流了。&lt;/p&gt;
+</description>
+        <pubDate>Sun, 04 Nov 2018 10:47:00 +0800</pubDate>
+        <link>https://jiegec.me/software/2018/11/04/mi-air-purifier-homekit/</link>
+        <guid isPermaLink="true">https://jiegec.me/software/2018/11/04/mi-air-purifier-homekit/</guid>
+        
+        <category>homebridge</category>
+        
+        <category>xiaomi</category>
+        
+        <category>airpurifier</category>
+        
+        <category>homekit</category>
+        
+        
+        <category>software</category>
+        
+      </item>
     
       <item>
         <title>部署 adminMongo 的 Docker 镜像</title>
@@ -231,75 +310,6 @@ $ ebtables -t filter -A FORWARD -p ! IPv6 -o veth-v6-out -j DROP
         
         
         <category>networking</category>
-        
-      </item>
-    
-      <item>
-        <title>THUCTF 2018 和 Teaser Dragon CTF 2018 小记</title>
-        <description>&lt;p&gt;终于可以公开 &lt;a href=&quot;https://github.com/jiegec/ctf-writeups/tree/master/2018-09-28-thuctf2018&quot;&gt;writeup&lt;/a&gt; 了，大家也可以去看 twd2 写的 &lt;a href=&quot;https://twd2.me/archives/11097&quot;&gt;writeup&lt;/a&gt; 。 这次是我第一次打 CTF ，发现题目还挺有意思的，虽然也有一些题目做不出来，有拿钱还是美滋滋。&lt;/p&gt;
-
-&lt;p&gt;这次也认识了好些会打 CTF 的人吧，如 0x00, user1, igoodvegetable 等队伍的同学。一开始被蛤力橙叫来打比赛，我觉得心里挺没底的，然后花了很多时间做题目，一点一点还是做出了不少题目来。最精彩的还是结束以后，当知晓没做出来的题目的做法时候，会不自觉感叹题目的巧妙。也学到了一些梗：&lt;/p&gt;
-
-&lt;div class=&quot;language-cpp highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#define 1000000007 twd2
-&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;接着就参与了一下 Teaser Dragon CTF 2018 ，是个在线赛，许多人一起做题，只有 24 小时。看了下题目，除了签到题，其它题都比 THUCTF 2018 难多了，我只能围观他们做题。最后看到别人写的 writeup ，真是太巧妙了，一环接一环，真的想不到。不过也有很麻烦的题目，特别是有的逆向的题目，太考验人的耐心了。&lt;/p&gt;
-
-&lt;p&gt;接下来就等待官方的 writeup 和别人的 writeup ，学习一下别人的做法吧。&lt;/p&gt;
-</description>
-        <pubDate>Thu, 04 Oct 2018 14:52:00 +0800</pubDate>
-        <link>https://jiegec.me/ctf/2018/10/04/thuctf-2018-and-teaser-dragon-ctf-2018/</link>
-        <guid isPermaLink="true">https://jiegec.me/ctf/2018/10/04/thuctf-2018-and-teaser-dragon-ctf-2018/</guid>
-        
-        <category>ctf</category>
-        
-        <category>thuctf</category>
-        
-        
-        <category>ctf</category>
-        
-      </item>
-    
-      <item>
-        <title>绕过 GPGMail 的激活检测</title>
-        <description>&lt;p&gt;前段时间 GPGMail &lt;a href=&quot;https://gpgtools.org/support-plan&quot;&gt;宣布不再免费&lt;/a&gt;，在三十天的试用期后就不给用了。唉，可能是官方实在没钱维护了，也可能是官方想赚钱了。不过，既然 GPGMail 采用的是&lt;a href=&quot;https://github.com/GPGTools/GPGMail/blob/high-sierra/LICENSE.txt&quot;&gt;自由的许可证&lt;/a&gt;，意味着我们可以自己对代码进行更改。和许可证验证相关的&lt;a href=&quot;https://github.com/GPGTools/GPGMail/blob/c08ce21eee08a1089c82c04af1fab5b85d72de68/Source/GPGMailBundle.m#L846&quot;&gt;代码&lt;/a&gt;如下：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;- (BOOL)hasActiveContract {
-    NSDictionary *contractInformation = [self contractInformation];
-    return [contractInformation[@&quot;Active&quot;] boolValue];
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;我们只要改成 &lt;code class=&quot;highlighter-rouge&quot;&gt;return TRUE&lt;/code&gt; ，在自己的电脑上手动编译、并复制到 &lt;code class=&quot;highlighter-rouge&quot;&gt;/Library/Application Support/GPGTools/GPGMail&lt;/code&gt; 下即可。&lt;/p&gt;
-
-&lt;p&gt;另：还有一个直接对二进制打 patch 的方法（仍然符合许可证），利用了最近打 CTF 学到的一些知识。找到以上这个函数，然后把返回值修改成非零即可。这里就不提供方法了。最后的更改：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ radiff2 -D
---- 0x0000282f  410fbec7
-- movsx eax, r15b
-+++ 0x0000282f  4c89e090
-+ mov rax, r12
-+ nop
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;当然了，还需要额外 &lt;code class=&quot;highlighter-rouge&quot;&gt;codesign --remove-signature&lt;/code&gt; 一下。&lt;/p&gt;
-
-&lt;p&gt;谨慎对非自由软件采用这个方法。可能有法律风险。&lt;/p&gt;
-</description>
-        <pubDate>Thu, 04 Oct 2018 11:47:00 +0800</pubDate>
-        <link>https://jiegec.me/software/2018/10/04/bypass-gpgmail-activation/</link>
-        <guid isPermaLink="true">https://jiegec.me/software/2018/10/04/bypass-gpgmail-activation/</guid>
-        
-        <category>gpg</category>
-        
-        <category>gpgmail</category>
-        
-        <category>macos</category>
-        
-        <category>radare2</category>
-        
-        
-        <category>software</category>
         
       </item>
     

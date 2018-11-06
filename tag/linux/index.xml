@@ -3,11 +3,47 @@
  <title>Tag - linux</title>
  <link href="https://jiegec.me/tag/linux/index.xml" rel="self"/>
  <link href="https://jiegec.me/tag/linux.html"/>
- <updated>2018-10-30T23:41:43+08:00</updated>
+ <updated>2018-11-06T09:26:57+08:00</updated>
  <id>https://jiegec.me/tag/linux.html</id>
  <author>
    <name>Jiege Chen</name>
  </author>
+ 
+ <entry>
+   <title>咸鱼派的启动配置</title>
+   <link href="https://jiegec.me/hardware/2018/11/05/salted-fish-pi/"/>
+   <updated>2018-11-05T22:17:00+08:00</updated>
+   <id>https://jiegec.me/hardware/2018/11/05/salted-fish-pi</id>
+   <content type="html">&lt;p&gt;最近刚拿到了一个&lt;a href=&quot;https://github.com/sbc-fish/sfpi&quot;&gt;咸鱼派&lt;/a&gt;的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot ，我用的是现在的 master 分支的最新版 99431c1c ：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ # Archlinux
+$ sudo pacman -Sy arm-none-eabi-gcc
+$ make LicheePi_Zero_defconfig
+$ make ARCH=arm CROSS_COMPILE=arm-none-eabi- -j24
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这时候会得到一个 u-boot-sunxi-with-spl.bin 的文件。我们只要把它写到 SD 卡的 8192 偏移处，就可以把 U-Boot 跑起来了：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ diskutil unmountDisk /dev/disk4
+$ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。&lt;/p&gt;
+
+&lt;p&gt;我用的是八月份时候的 4.18.2 内核，虽然不是很新但也足够新了。一番调整内核参数后，得到了一个可用的内核，然后把 zImage 和 sun8i-v3s-licheepi-zero.dtb 都复制到刚才创建的 FAT-32 启动分区，然后进入 U-Boot 进行启动：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ setenv bootcmd 'fatload mmc 0 0x41000000 zImage; fatload mmc 0 0x41800000 sun8i-v3s-licheepi-zero.dtb; setenv bootargs console=ttyS0,115200 root=/dev/mmcblk0p2 rw rootwait; bootz 0x41000000 - 0x41800000'
+$ saveenv # optional
+$ boot
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这里一开始遇到了很多坑，比如一直看不到 console ，这个是找了 @Gaoyichuan 拿到的一份 Kernel Config 进行修改修好的。另一个是进去以后找不到 root ，我先是搞了一个有 busybox 的 initrd ，进去看发现是能找到 mmc 的，但是有延迟，那么添加上 rootwait 就好了。进去以后就差 rootfs 。由于我缺少一个写 ext4 的工具，又发现手上有一个 Raspbian 的镜像，它里面也正好是两个分区，而且架构也同样是 armv7l ，我就直接把它烧到 SD 卡中，把 U-Boot 写进去，然后往 boot 分区里写内核和 dtb ，然后就成功进去，并且跑起来了。最喜感的就是，进去以后是个 pi@raspberrypi ，实际上确是另一个东西。不过，只有当我 &lt;code class=&quot;highlighter-rouge&quot;&gt;apt update&lt;/code&gt; 发现用了半小时的时候，我才想起来这其实是是一个嵌入式系统。。&lt;/p&gt;
+
+&lt;p&gt;进去以后发现，没有识别到网卡驱动。网上找了 LicheePi Zero 的一个解决方案，但是并不能用，还出现了神奇的 Kernel Oops ，怀疑是内核版本太新的问题。我又找到 @Icenowy 的一个 &lt;a href=&quot;https://lore.kernel.org/patchwork/patch/884656/&quot;&gt;Patch&lt;/a&gt; ，它终于是解决了这个问题，成功地找到了网卡，并且愉快地 &lt;code class=&quot;highlighter-rouge&quot;&gt;ssh pi@raspberrypi.local&lt;/code&gt; 。之后会在咸鱼派那边公布一下我们做的修改。&lt;/p&gt;
+
+&lt;p&gt;现在的想法是，把 HomeBridge 搭建到它上面，不过目前来看硬件资源有点紧张，放着会有点慢。可能还是用树莓派做这个事情比较合适。&lt;/p&gt;
+</content>
+ </entry>
  
  <entry>
    <title>构建简易的 initramfs</title>
@@ -34,7 +70,7 @@ int main&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&q
     &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
 &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;gcc &lt;span class=&quot;nt&quot;&gt;-static&lt;/span&gt; hello.c &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; init
-&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;echo &lt;/span&gt;init | cpio &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-H&lt;/span&gt; newc | &lt;span class=&quot;nb&quot;&gt;gzip&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; initrd
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;echo &lt;/span&gt;init | cpio &lt;span class=&quot;nt&quot;&gt;-o&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-H&lt;/span&gt; newc | gzip &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; initrd
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;qemu-system-x86_64 &lt;span class=&quot;nt&quot;&gt;-kernel&lt;/span&gt; /boot/vmlinuz-linux &lt;span class=&quot;nt&quot;&gt;-initrd&lt;/span&gt; initrd &lt;span class=&quot;nt&quot;&gt;-nographic&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-append&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'console=ttyS0'&lt;/span&gt;
 &lt;span class=&quot;c&quot;&gt;# Use C-a c q u i t &amp;lt;Enter&amp;gt; to exit&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
@@ -51,36 +87,36 @@ int main&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&q
    <content type="html">&lt;p&gt;之前在搞一个小工具，在里面需要访问 X11 server ，但是访问 X11 server 我们需要两个东西：DISPLAY和XAUTHORITY两个环境变量。但是，由于它们在不同的发型版和Display Manager下都有些不同，所以花了不少功夫才写了一些。&lt;/p&gt;
 
 &lt;p&gt;为了验证我们是否可以连上 X11 server， 我们使用这一句：&lt;/p&gt;
-&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;p&gt;它尝试打开当前的 DISPLAY，并且输出它的分辨率。接下来，我对不同的一些发型版，综合网上的方法，尝试去找到正确的环境变量。&lt;/p&gt;
 
 &lt;p&gt;对于 Debian:&lt;/p&gt;
-&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;DISPLAY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;tty&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /sys/class/tty/tty0/active&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'$2 == tty &amp;amp;&amp;amp; $3 != &quot;-&quot; {print $3; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;USER&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;tty&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /sys/class/tty/tty0/active&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'$2 == tty &amp;amp;&amp;amp; $3 != &quot;-&quot; {print $1; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;DISPLAY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | awk &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;tty&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /sys/class/tty/tty0/active&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'$2 == tty &amp;amp;&amp;amp; $3 != &quot;-&quot; {print $3; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;USER&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | awk &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;tty&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /sys/class/tty/tty0/active&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'$2 == tty &amp;amp;&amp;amp; $3 != &quot;-&quot; {print $1; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
 &lt;span class=&quot;nb&quot;&gt;eval &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;XAUTHORITY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;~&lt;span class=&quot;nv&quot;&gt;$USER&lt;/span&gt;/.Xauthority
 &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;DISPLAY
 &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;XAUTHORITY
-&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;p&gt;对于 Archlinux：&lt;/p&gt;
-&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;DISPLAY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'match($2, /:[0-9]+/) {print $2; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;USER&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'match($2, /:[0-9]+/) {print $1; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;nb&quot;&gt;eval &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;XAUTHORITY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/run/user/&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;id&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-u&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$USER&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;/gdm/Xauthority
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;DISPLAY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'match($2, /:[0-9]+/) {print $2; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;USER&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;w &lt;span class=&quot;nt&quot;&gt;-hs&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'match($2, /:[0-9]+/) {print $1; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;eval &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;XAUTHORITY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/run/user/&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;id &lt;span class=&quot;nt&quot;&gt;-u&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$USER&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;/gdm/Xauthority
 &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;DISPLAY
 &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;XAUTHORITY
-&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;p&gt;最后一种情况很粗暴的，直接找进程拿：&lt;/p&gt;
-&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;XAUTHORITY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;ps a | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'match($0, /Xorg/) {print $0; exit}'&lt;/span&gt; | perl &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-e&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'/Xorg.*\s-auth\s([^\s]+)\s/ &amp;amp;&amp;amp; print $1'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;PID&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;ps a | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'match($0, /Xorg/) {print $1; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;nv&quot;&gt;DISPLAY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;lsof &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$PID&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'match($9, /^\/tmp\/\.X11-unix\/X[0-9]+$/) {sub(&quot;/tmp/.X11-unix/X&quot;,&quot;:&quot;,$9); print $9; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;XAUTHORITY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;ps a | awk &lt;span class=&quot;s1&quot;&gt;'match($0, /Xorg/) {print $0; exit}'&lt;/span&gt; | perl &lt;span class=&quot;nt&quot;&gt;-n&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-e&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'/Xorg.*\s-auth\s([^\s]+)\s/ &amp;amp;&amp;amp; print $1'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;PID&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;ps a | awk &lt;span class=&quot;s1&quot;&gt;'match($0, /Xorg/) {print $1; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;DISPLAY&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;lsof &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$PID&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'match($9, /^\/tmp\/\.X11-unix\/X[0-9]+$/) {sub(&quot;/tmp/.X11-unix/X&quot;,&quot;:&quot;,$9); print $9; exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
 &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;DISPLAY
 &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;XAUTHORITY
-&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;awk&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;DIMENSIONS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;xdpyinfo | &lt;span class=&quot;nb&quot;&gt;grep&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'dimensions:'&lt;/span&gt; | awk &lt;span class=&quot;s1&quot;&gt;'{print $2;exit}'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;p&gt;中间混用了大量的 awk perl 代码，就差 sed 了。牺牲了一点可读性，但是开发起来比较轻松。&lt;/p&gt;
@@ -95,8 +131,8 @@ int main&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&q
    <content type="html">&lt;p&gt;一直听说 tinc 比较科学，所以尝试自己用 tinc 搭建一个网络。这里，macOS 这段没有固定 IP 地址，Linux 机器有固定 IP 地址 linux_ip 。假设网络名称为 example , macOS 端名为 macos 地址为 192.168.0.2, linux 端名为 linux 地址为 192.168.0.1。&lt;/p&gt;
 
 &lt;p&gt;在 macOS 上配置：&lt;/p&gt;
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;brew &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;tinc
-&lt;span class=&quot;nb&quot;&gt;mkdir&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /usr/local/etc/tinc/example
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;brew install tinc
+mkdir &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /usr/local/etc/tinc/example
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;p&gt;新建 /usr/local/etc/tinc/example/tinc.conf:&lt;/p&gt;
@@ -143,17 +179,17 @@ Subnet = 192.168.0.1/24
 
 &lt;p&gt;到 Linux 机器上：
 编辑以下文件：&lt;/p&gt;
-&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;mkdir&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /etc/tinc/example/hosts
+&lt;div class=&quot;language-shell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;mkdir &lt;span class=&quot;nt&quot;&gt;-p&lt;/span&gt; /etc/tinc/example/hosts
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/tinc.conf
 Name &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; linux
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/tinc-up
 &lt;span class=&quot;nv&quot;&gt;$!&lt;/span&gt;/bin/sh
-ip &lt;span class=&quot;nb&quot;&gt;link set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; up
+ip link &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; up
 ip addr add 192.168.0.1/24 dev &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt;
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/tinc-down
 &lt;span class=&quot;nv&quot;&gt;$!&lt;/span&gt;/bin/sh
 ip addr del 192.168.0.1/24 dev &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt;
-ip &lt;span class=&quot;nb&quot;&gt;link set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; down
+ip link &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; down
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat&lt;/span&gt; /etc/tinc/example/hosts/linux
 Address &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; linux_ip
 Port &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 655
@@ -173,12 +209,12 @@ ConnectTo &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; remote
 ScriptsInterpreter &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; /system/bin/sh
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;tinc-up
 &lt;span class=&quot;c&quot;&gt;#!/bin/sh&lt;/span&gt;
-ip &lt;span class=&quot;nb&quot;&gt;link set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; up
+ip link &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; up
 ip addr add local_ip/24 dev &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt;
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;tinc-down
 &lt;span class=&quot;c&quot;&gt;#!/bin/sh&lt;/span&gt;
 ip addr del local_ip/24 dev &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt;
-ip &lt;span class=&quot;nb&quot;&gt;link set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; down
+ip link &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$INTERFACE&lt;/span&gt; down
 &lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;subnet-up
 &lt;span class=&quot;nv&quot;&gt;$!&lt;/span&gt;/bin/bash
 &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$NAME&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$NODE&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;exit &lt;/span&gt;0
