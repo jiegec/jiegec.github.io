@@ -1202,7 +1202,7 @@
   <div class="post-content" itemprop="articleBody">
     <p>最近有了设备，想把设备拿到的数据都导一份存到 influxdb 里，但是目前找到的只有 <a href="https://github.com/YinHangCode/homebridge-mi-aqara">homebridge-mi-aqara</a> 可以访问并拿到数据，然后它又提供了 mqtt 的数据获取方案，于是自己写了个脚本去读取这些数据。</p>
 
-<p>首先当然是配置一下 homebridge-mi-aqara ，按照网上的教程来，这个不难。然后本地开一个 MQTT Broker （如 mosquitto ），配置为本地监听，然后我编写了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara.py">脚本telegraf-mi-aqara.py</a> ，使用前需要 <code class="highlighter-rouge">pip install paho-mqtt</code>，并且按照实际路径修改一下内容 。验证能够跑起来后，写一个 telegraf 配置：</p>
+<p>首先当然是配置一下 homebridge-mi-aqara ，按照网上的教程来，这个不难。然后本地开一个 MQTT Broker （如 mosquitto ），配置为本地监听，然后我编写了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara.py">脚本 telegraf-mi-aqara.py</a> ，使用前需要 <code class="highlighter-rouge">pip install paho-mqtt</code>，并且按照实际路径修改一下内容 。验证能够跑起来后，写一个 telegraf 配置：</p>
 
 <div class="language-toml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[[inputs.exec]]</span>
         <span class="py">commands</span> <span class="p">=</span> <span class="p">[</span><span class="s">"/usr/bin/python3 /path/to/telegraf-mi-aqara.py"</span><span class="p">]</span>
@@ -1211,6 +1211,26 @@
 </code></pre></div></div>
 
 <p>现在就可以读取到各项信息，如温度，湿度，是否开门，开关用电情况等等。</p>
+
+<p>2018-12-16 更新：</p>
+
+<p>研究了一下<a href="https://github.com/aqara/aiot-gateway-local-api">绿米网关局域网通信协议</a>，得到了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara-v2.py">第二个版本 telegraf-mi-aqara-v2.py</a>，它与第一版的区别是，第一版是主动向网关读取信息，而这一版则是监听组播包，等待网关发消息。这个脚本负责把读取到的组播信息发送到 MQTT ，再让 telegraf 从 MQTT 里解析 JSON 消息，写入数据库。Telegraf 配置如下：</p>
+
+<div class="language-toml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[[inputs.mqtt_consumer]]</span>
+        <span class="py">servers</span> <span class="p">=</span> <span class="nn">["tcp://127.0.0.1:1883"]</span>
+        <span class="py">qos</span> <span class="p">=</span> <span class="mi">0</span>
+        <span class="py">connection_timeout</span> <span class="p">=</span> <span class="s">"30s"</span>
+        <span class="py">topics</span> <span class="p">=</span> <span class="p">[</span>
+                <span class="s">"/telegraf-mi-aqara"</span>
+        <span class="p">]</span>
+        <span class="py">persistent_session</span> <span class="p">=</span> <span class="kc">true</span>
+        <span class="py">client_id</span> <span class="p">=</span> <span class="s">"Telegraf"</span>
+        <span class="py">data_format</span> <span class="p">=</span> <span class="s">"json"</span>
+        <span class="py">json_string_fields</span> <span class="p">=</span> <span class="p">[</span><span class="s">"model"</span><span class="p">,</span> <span class="s">"sid"</span><span class="p">,</span> <span class="s">"status"</span><span class="p">]</span>
+        <span class="py">tag_keys</span> <span class="p">=</span> <span class="p">[</span><span class="s">"model"</span><span class="p">,</span> <span class="s">"sid"</span><span class="p">,</span> <span class="s">"short_id"</span><span class="p">]</span>
+</code></pre></div></div>
+
+<p>由于设备不全，有些字段可能不完整。如果大家自己要用的话，可能需要自行修改一下。</p>
 
   </div>
 
