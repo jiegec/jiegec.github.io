@@ -6,9 +6,78 @@
 </description>
     <link>https://jiege.ch/</link>
     <atom:link href="https://jiege.ch/feed.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Sun, 31 Mar 2019 12:40:21 +0800</pubDate>
-    <lastBuildDate>Sun, 31 Mar 2019 12:40:21 +0800</lastBuildDate>
+    <pubDate>Mon, 01 Apr 2019 09:19:05 +0800</pubDate>
+    <lastBuildDate>Mon, 01 Apr 2019 09:19:05 +0800</lastBuildDate>
     <generator>Jekyll v3.7.4</generator>
+    
+      <item>
+        <title>高云 FPGA 踩坑</title>
+        <description>&lt;p&gt;最近那到了高云 FPGA GW2A-18 开发版，想在这上面做一些小工程。不过首先要配置好环境什么的。官方提供了 Linux 和 Windows 的两套工具，自然是拥抱 Linux 咯，但是由于官方适配的是 Redhat 系的操作系统，所以用 Debian 系的时候出现了若干问题，后面会谈到怎么解决的。&lt;/p&gt;
+
+&lt;p&gt;首先是官网下载了它的软件，大概有IDE，综合器，布线器和Programmer四个工具，然后开始跑，发现缺少了 libcrypt.so.1.0.0 。上网搜了一下解决方案，需要重新编译 openssl-1.0.0 ，于是下载并且编译了 openssl-1.0.0t 并且把 .so 的路径调好了，这时候就可以打开 IDE 了。然后发现需要 License ，这个很简单，去官网申请一下，一天邮件就下来了。&lt;/p&gt;
+
+&lt;p&gt;接下来配置 License， IDE 很容易，直接选择邮件里发下来的 node-locked License 即可。不过 Synplify Pro 的 Linux 版本不支持直接单文件 node-locked 的 License ，只允许跑 SCL … 不过高云也提供了 SCL 的下载，和 IDE 的 License Server 放在一起，安装完以后，在得到的 License 里加上两行：&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;SERVER &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;hostname&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;hostid&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;${&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;port&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;}&lt;/span&gt;
+VENDER snpslmd /path/to/scl/2018.06/linux64/bin/snpslmd
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;然后把 $LM_LICENSE_FILE 指向这个文件路径，就可以了。这一部分感谢 @Jackey-Huo。&lt;/p&gt;
+
+&lt;p&gt;随手写了一个简化版的点亮数字人生（没有数码管），得到了 bistream ，准备往板子里刷，然后问题出现了：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;ImportError: /path/to/Gowin_YunYuan_V1.9.0Beta_linux/Programmer/bin/librt.so.1: symbol __vdso_clock_gettime version GLIBC_PRIVATE not defined in file libc.so.6 with link time reference
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;目测是 glibc 版本问题 … 这就很难处理了。另外又从官网下载了独立的 Programmer ，仍然不行，检测不到设备。&lt;/p&gt;
+
+&lt;p&gt;最后想了想，找到了终极办法，在 Docker 里运行 CentOS 的 Privileged Container ，再跑 programmer ：&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;docker pull centos
+&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;docker run &lt;span class=&quot;nt&quot;&gt;-it&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--privileged&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-v&lt;/span&gt; /home:/home centos /bin/bash
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;CentOS 镜像出乎意料地小。进去以后，找到 Programmer 路径，然后 scan ：&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;# ./programmer_cli --scan&lt;/span&gt;
+ Scanning!
+Current download-cable channel:0
+Device Info:
+        Family: GW2A
+        Name: GW2A-18
+        ID: 0xREDACTED
+ 1 device&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;s&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; found!
+ Cost 0.54 second&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;s&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;接着烧到 SRAM 中：&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;# ./programmer_cli -d GW2A-18 --fsFile /path/to/bitstream.fs --run 2&lt;/span&gt;
+ &lt;span class=&quot;s2&quot;&gt;&quot;SRAM Program&quot;&lt;/span&gt; starting on device-1...
+Programming...: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;c&quot;&gt;#########################] 100%&lt;/span&gt;
+ User Code: 0xREDACTED
+ Status Code: 0xREDACTED
+ Cost 4.54 second&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;s&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;烧录成功，功能测试也没有问题。可以继续进行下一步工作了。&lt;/p&gt;
+</description>
+        <pubDate>Mon, 01 Apr 2019 09:00:00 +0800</pubDate>
+        <link>https://jiege.ch/hardware/2019/04/01/gowin-fpga/</link>
+        <guid isPermaLink="true">https://jiege.ch/hardware/2019/04/01/gowin-fpga/</guid>
+        
+        <category>gowin</category>
+        
+        <category>fpga</category>
+        
+        <category>programmer</category>
+        
+        <category>centos</category>
+        
+        
+        <category>hardware</category>
+        
+      </item>
     
       <item>
         <title>每周分享第 17 期</title>
@@ -387,46 +456,6 @@ http {
         
         
         <category>programming</category>
-        
-      </item>
-    
-      <item>
-        <title>每周分享第 13 期</title>
-        <description>&lt;p&gt;今天还是早点发吧&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;Rust concurrent work-stealing queue 可能可以放到调度器里用 https://github.com/kinghajj/deque&lt;/li&gt;
-  &lt;li&gt;支持信用卡/时间等格式信息的输入控件 https://github.com/nosir/cleave.js&lt;/li&gt;
-  &lt;li&gt;Rust 的简单 http server https://github.com/svenstaro/miniserve&lt;/li&gt;
-  &lt;li&gt;Coroutines &amp;amp; Modules Added For C++20 http://www.phoronix.com/scan.php?page=news_item&amp;amp;px=Coroutines-Modules-CPP20&lt;/li&gt;
-  &lt;li&gt;Implementing TCP in Rust (part 1) https://www.youtube.com/watch?v=bzja9fQWzdA&lt;/li&gt;
-  &lt;li&gt;一个类似 Vuetify 的框架 https://buefy.org/&lt;/li&gt;
-  &lt;li&gt;systemd tmpfiles.d 用于管理特定的临时文件夹 https://www.freedesktop.org/software/systemd/man/tmpfiles.d.html&lt;/li&gt;
-  &lt;li&gt;获取 ASN 信息的 API https://bgpview.docs.apiary.io/#reference/0/asn-prefixes/view-asn-prefixes&lt;/li&gt;
-  &lt;li&gt;Rust getter/setter generation https://github.com/Hoverbear/getset&lt;/li&gt;
-  &lt;li&gt;Golang 1.12 发布：TLS 1.3 http://www.phoronix.com/scan.php?page=news_item&amp;amp;px=Golang-1.12-Released&lt;/li&gt;
-  &lt;li&gt;一个笑话 https://redd.it/aux77g&lt;/li&gt;
-  &lt;li&gt;Rust 的 STM https://github.com/mtak-/swym&lt;/li&gt;
-  &lt;li&gt;自动同步视频和字幕 https://github.com/smacke/subsync&lt;/li&gt;
-  &lt;li&gt;用于快速开发的 http server https://zeroserver.io/&lt;/li&gt;
-  &lt;li&gt;一个自动加载的 http server https://github.com/tapio/live-server&lt;/li&gt;
-  &lt;li&gt;用 markdown 写 presentation 在线版 https://github.com/gnab/remark&lt;/li&gt;
-  &lt;li&gt;解决 excel 读取 nodejs 生成的 csv 的乱码问题 https://github.com/f2e-journey/xueqianban/issues/34&lt;/li&gt;
-  &lt;li&gt;清华的 Rust OS https://github.com/oscourse-tsinghua/rcore_plus&lt;/li&gt;
-  &lt;li&gt;GPU 加速的 JS http://gpu.rocks/&lt;/li&gt;
-  &lt;li&gt;小型的 k8s 实现： k3s https://k3s.io/&lt;/li&gt;
-  &lt;li&gt;粗暴的隧道，极低的带宽，有啥用 https://0day.work/performance-of-iodine-over-dns-over-https/&lt;/li&gt;
-  &lt;li&gt;Caddy 乘着 Go 官方支持的车轻松加入 TLS1.3 家族 https://github.com/mholt/caddy/pull/2399/files&lt;/li&gt;
-&lt;/ol&gt;
-</description>
-        <pubDate>Fri, 01 Mar 2019 08:39:00 +0800</pubDate>
-        <link>https://jiege.ch/misc/2019/03/01/weekly-sharing-13/</link>
-        <guid isPermaLink="true">https://jiege.ch/misc/2019/03/01/weekly-sharing-13/</guid>
-        
-        <category>weeklysharing</category>
-        
-        
-        <category>misc</category>
         
       </item>
     
