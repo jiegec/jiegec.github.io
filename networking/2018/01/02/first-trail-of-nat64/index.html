@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NAT64 初尝试 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+        <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <meta name="author" content="">
+        <meta property="og:title" content="NAT64 初尝试" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://jiegec.ch/networking/2018/01/02/first-trail-of-nat64/" />
+    
+
+    <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
+    <link rel="shortcut icon" href="/favicon.png">
+
+    <link href="https://jiegec.ch/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jiegec.ch/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jiegec.ch/css/style.css">
+
+    <meta name="generator" content="Hugo 0.55.4" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jiegec.ch">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">NAT64 初尝试</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/networking/2018/01/02/first-trail-of-nat64/" class="article-date">
+                <time datetime='2018-01-02T19:41:22.000&#43;08:00' itemprop="datePublished">2018-01-02</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/networking/2018/01/02/first-trail-of-nat64/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>最近宿舍里有线网络的 IPv4 总是拿不到地址，只能连无线网，不禁对计算机系学生的可怕的设备数量有了深刻的认识。不过，作为一个有道德（误）的良好青年，还是不要给已经枯竭的 IPv4 地址填堵了，还是赶紧玩玩 IPv6 的网络吧。然后在 TUNA 群里受青年千人续本达 (@heroxbd) 的安利，本地搭建一下 NAT64+DNS64 的环境。不过考虑到宿舍还是拿不到有线的 IPv4 地址，我就先利用苹果先前在强制 iOS 的应用支持 NAT64 网络的同时，在 macOS 上为了方便开发者调试，提供的便捷的建立 NAT64 网络的能力。</p>
+
+<p>首先在设置中按住 Option 键打开 Sharing ， 点击 Internet Sharing ，勾上 Create NAT64 Network 然后把网络共享给设备。然后在手机上关掉 Wi-Fi 和 Cellular ，发现还能正常上网。此时可以打开 Wireshark 验证我们的成果了：</p>
+
+<p>在手机上打开浏览器，浏览千度，得到如下的 Wireshark 截图：
+<img src="/baidu-nat64.jpg" alt="baidu-nat64" /></p>
+
+<p>这里，<code>2001:2:0:aab1::1</code> 是本机在这个子网中的地址，<code>2001:2::aab1:cda2:5de:87f6:fd78</code> 是我的 iOS 设备的地址，然后 iOS 向 macOS 发出了 DNS请求， macOS 发送 DNS 请求后得到 <code>baidu.com</code> 的 IPv4 地址之一为 <code>111.13.101.208</code> ：
+<img src="/baidu-dns.jpg" alt="baidu-dns" /></p>
+
+<p>上图中，我们可以看到， <code>baidu.com</code> 的 <code>AAAA</code> 记录是 <code>2001:2:0:1baa::6f0d:65d0</code> ，这个就是 DNS64 转译的地址，前面为网关的 <code>prefix</code> ，后面就是对应的 IPv4 地址： <code>0x6f=111, 0x0d=13, 0x65=101, 0xd0=208</code> ，当客户端向这个地址发包的时候，网关发现前缀符合条件，把最后的这部分 IPv4 地址取出来，自己把包发送到真实的地址上去，再把返回来的包再转为 IPv6 的地址返还给客户端。可以验证，剩下的几个地址也符合这个转译规则。</p>
+
+<p>这就实现了：利用一台连接着 IPv6 和 IPv4 两种网络的网关，可以使得 IPv6 这个网络通过网关访问 IPv4 。通过配置，也可以使得 IPv4 访问 IPv6 中的地址（即 Stateful 和 Stateless 的区分，需要手动配置映射）。</p>
+
+<p>好处：作为比较成熟的 IPv4 到 IPv6 过渡方案之一，可以让自己组建的 IPv6 网络访问一些仅 IPv4 的网站。
+坏处：依赖于 DNS64 ，必须要经过一层翻译，一些应用或协议可能写死了 IPv4 的地址，该方法可能会失效。</p>
+
+        </div>
+
+        
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/networking">networking
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/nat">nat
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/ipv6">ipv6
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/nat64">nat64
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/dns">dns
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/dns64">dns64
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    <nav id="article-nav">
+    
+    <a href="/programming/2018/01/07/two-patches-of-emacs-i-am-using/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            我正在使用的两个 Emacs 的 Patch
+        </div>
+    </a>
+    
+    
+    <a href="/programming/2017/12/31/interesting-java-formatting-problem/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">有趣的 Java 日期格式化问题&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2019 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

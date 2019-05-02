@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>高云 FPGA 踩坑 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+        <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <meta name="author" content="">
+        <meta property="og:title" content="高云 FPGA 踩坑" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://jiegec.ch/programming/2019/04/01/gowin-fpga/" />
+    
+
+    <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
+    <link rel="shortcut icon" href="/favicon.png">
+
+    <link href="https://jiegec.ch/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jiegec.ch/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jiegec.ch/css/style.css">
+
+    <meta name="generator" content="Hugo 0.55.4" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jiegec.ch">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">高云 FPGA 踩坑</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/programming/2019/04/01/gowin-fpga/" class="article-date">
+                <time datetime='2019-04-01T09:00:00.000&#43;08:00' itemprop="datePublished">2019-04-01</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/programming/2019/04/01/gowin-fpga/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>最近拿到了高云 FPGA GW2A-18 开发版，想在这上面做一些小工程。不过首先要配置好环境什么的。官方提供了 Linux 和 Windows 的两套工具，自然是拥抱 Linux 咯，但是由于官方适配的是 Redhat 系的操作系统，所以用 Debian 系的时候出现了若干问题，后面会谈到怎么解决的。</p>
+
+<p>首先是官网下载了它的软件，大概有IDE，综合器，布线器和Programmer四个工具，然后开始跑，发现缺少了 libcrypt.so.1.0.0 。上网搜了一下解决方案，需要重新编译 openssl-1.0.0 ，于是下载并且编译了 openssl-1.0.0t 并且把 .so 的路径调好了，这时候就可以打开 IDE 了。然后发现需要 License ，这个很简单，去官网申请一下，一天邮件就下来了。</p>
+
+<p>接下来配置 License， IDE 很容易，直接选择邮件里发下来的 node-locked License 即可。不过 Synplify Pro 的 Linux 版本不支持直接单文件 node-locked 的 License ，只允许跑 SCL … 不过高云也提供了 SCL 的下载，和 IDE 的 License Server 放在一起，安装完以后，在得到的 License 里加上两行：</p>
+
+<pre><code class="language-bash">SERVER ${hostname} ${hostid} ${port}
+VENDER snpslmd /path/to/scl/2018.06/linux64/bin/snpslmd
+</code></pre>
+
+<p>然后把 $LM_LICENSE_FILE 指向这个文件路径，就可以了。这一部分感谢 @Jackey-Huo。</p>
+
+<p>随手写了一个简化版的点亮数字人生（没有数码管），得到了 bistream ，准备往板子里刷，然后问题出现了：</p>
+
+<pre><code>ImportError: /path/to/Gowin_YunYuan_V1.9.0Beta_linux/Programmer/bin/librt.so.1: symbol __vdso_clock_gettime version GLIBC_PRIVATE not defined in file libc.so.6 with link time reference
+</code></pre>
+
+<p>目测是 glibc 版本问题 … 这就很难处理了。另外又从官网下载了独立的 Programmer ，仍然不行，检测不到设备。</p>
+
+<p>最后想了想，找到了终极办法，在 Docker 里运行 CentOS 的 Privileged Container ，再跑 programmer ：</p>
+
+<pre><code class="language-bash">$ docker pull centos
+$ docker run -it --privileged -v /home:/home centos /bin/bash
+</code></pre>
+
+<p>CentOS 镜像出乎意料地小。进去以后，找到 Programmer 路径，然后 scan ：</p>
+
+<pre><code class="language-bash"># ./programmer_cli --scan
+ Scanning!
+Current download-cable channel:0
+Device Info:
+        Family: GW2A
+        Name: GW2A-18
+        ID: 0xREDACTED
+ 1 device(s) found!
+ Cost 0.54 second(s)
+</code></pre>
+
+<p>接着烧到 SRAM 中：</p>
+
+<pre><code class="language-bash"># ./programmer_cli -d GW2A-18 --fsFile /path/to/bitstream.fs --run 2
+ &quot;SRAM Program&quot; starting on device-1...
+Programming...: [#########################] 100%
+ User Code: 0xREDACTED
+ Status Code: 0xREDACTED
+ Cost 4.54 second(s)
+</code></pre>
+
+<p>烧录成功，功能测试也没有问题。可以继续进行下一步工作了。</p>
+
+        </div>
+
+        
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/gowin">gowin
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/fpga">fpga
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/programmer">programmer
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiegec.ch/tags/centos">centos
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    <nav id="article-nav">
+    
+    <a href="/misc/2019/04/05/weekly-sharing-18/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            每周分享第 18 期
+        </div>
+    </a>
+    
+    
+    <a href="/misc/2019/03/31/weekly-sharing-17/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">每周分享第 17 期&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2019 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
