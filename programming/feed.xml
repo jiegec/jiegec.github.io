@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Programmings on 杰哥的{运维,编程,调板子}小笔记</title>
+    <link>https://jiege.ch/programming/</link>
+    <description>Recent content in Programmings on 杰哥的{运维,编程,调板子}小笔记</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Mon, 01 Apr 2019 09:00:00 +0800</lastBuildDate>
+    
+	<atom:link href="https://jiege.ch/programming/feed.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>高云 FPGA 踩坑</title>
+      <link>https://jiege.ch/programming/2019/04/01/gowin-fpga/</link>
+      <pubDate>Mon, 01 Apr 2019 09:00:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/04/01/gowin-fpga/</guid>
+      <description>最近拿到了高云 FPGA GW2A-18 开发版，想在这上面做一些小工程。不过首先要配置好环境什么的。官方提供了 Linux 和 Windows 的两套工具，自然是拥抱 Linux 咯，但是由于官方适配的是 Redhat 系的操作系统，所以用 Debian 系的时候出现了若干问题，后面会谈到怎么解决的。
+首先是官网下载了它的软件，大概有IDE，综合器，布线器和Programmer四个工具，然后开始跑，发现缺少了 libcrypt.so.1.0.0 。上网搜了一下解决方案，需要重新编译 openssl-1.0.0 ，于是下载并且编译了 openssl-1.0.0t 并且把 .so 的路径调好了，这时候就可以打开 IDE 了。然后发现需要 License ，这个很简单，去官网申请一下，一天邮件就下来了。
+接下来配置 License， IDE 很容易，直接选择邮件里发下来的 node-locked License 即可。不过 Synplify Pro 的 Linux 版本不支持直接单文件 node-locked 的 License ，只允许跑 SCL … 不过高云也提供了 SCL 的下载，和 IDE 的 License Server 放在一起，安装完以后，在得到的 License 里加上两行：
+SERVER ${hostname} ${hostid} ${port} VENDER snpslmd /path/to/scl/2018.06/linux64/bin/snpslmd  然后把 $LM_LICENSE_FILE 指向这个文件路径，就可以了。这一部分感谢 @Jackey-Huo。
+随手写了一个简化版的点亮数字人生（没有数码管），得到了 bistream ，准备往板子里刷，然后问题出现了：</description>
+    </item>
+    
+    <item>
+      <title>在 rCore 上运行 nginx</title>
+      <link>https://jiege.ch/programming/2019/03/08/running-nginx-on-rcore/</link>
+      <pubDate>Fri, 08 Mar 2019 18:07:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/03/08/running-nginx-on-rcore/</guid>
+      <description>阿 西 吧 nginx 终于能在 rCore 上跑了 orrrrrrrz
+通过这半个多月来的大量开发，我和王润基 @wangrunji0408 学长算是终于完成了第一个 milestone：跑起来一个 nginx 。遇到了很多困难，大概有这些：
+ syscall 实现不全。各种方面都缺，然后 nginx 在编译的时候又检测到比较新的 OS 版本，所以很多 syscall 都用了新的来替代老的，例如 readv/writev pread/pwrite accept4 等等，所以这方面做了一些工作。另外，还有很多新的 syscall 进来，太多了我就不细说了，基本上一个commit做一点一个commit做一点这个样子。 nginx 用到了 SSE 的寄存器 xmm ，但是之前是没有开的。所以把 sse 打开，然后切换上下文的时候把 sse 通过 fxsave 保存和 fxrstor 恢复（有意思的是，as居然不认这俩，只好手动写字节码），然后为了 16bit 的对齐又写了几行汇编代码。这块问题不大，今天一会就搞定了。但是如果要性能更高一些的话，可能需要在第一次使用 xmm 的时候再开始保存，大概就是加一个bit的事情。 文件系统有点崩。实现还是有很多 BUG ，表现就是需要经常重新 mksfs 一下，再重启加载完好的 fs ，有时候强制关机一下就又崩了。 内存管理做了一些改变。为了实现更加完整的 mmap mumap 和 mprotect ，又发现了一些新的 BUG 在里面，然后慢慢修复了。就是实现的有点粗暴。 死锁问题。这个其实现在还会出现，只是还没调出来，也不会百分百出现。我们计划在锁上面做一些死锁检测，例如记住是谁上锁的，等等。现在就遇到一个很玄学的死锁问题。  然后代码也是一边在写一边在重构吧，很多地方现在都写得很粗暴，FIXME和TODO留了很多，很多地方也写得不够优雅。以后再慢慢重构+优化吧。
+截图留念：
+再往前的话，还有很多小的问题，例如网卡的中断启用了但没有改 mask ，所以啥也没收到，靠 QEMU Tracing 找到问题。还有一个很有意思的现象，就是如果 elf 的 program header 没有 phdr 这个项的时候，我们发现，可以通过第一个load（如果加载了完整的 elf 头的话），我们可以从这里推断出 phdr 的地址（load的虚拟地址加偏移），然后丢到 auxv 里去让 musl 配置 tls。总之这些都解决了。也不用去考虑兼容 litc 了，已经全部向 linux 靠拢了，稳。</description>
+    </item>
+    
+    <item>
+      <title>实现网络的 syscall</title>
+      <link>https://jiege.ch/programming/2019/03/04/implement-network-syscalls/</link>
+      <pubDate>Mon, 04 Mar 2019 16:40:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/03/04/implement-network-syscalls/</guid>
+      <description>有了网卡驱动，接下来要做的就做网络的 syscall 了。为了测试，首先在 busybox 里找可以用来测试的 applet ，由于没有实现 poll ，所以 nc telnet 啥的都用不了。最后选择到了 ping 和 pscan 上。
+ping大家都很了解，pscan就是一个扫端口的，对一个ip连续的若干个端口发起 tcp 请求。这就要求我提供 raw socket和tcp socket状态的支持。由于网络栈本身是异步的，但 read connect 这些函数在不调 setsockopt 的前提下又是同步的，然而现在又没有 signal 可以用，要是 block 了就再也出不来了。于是就采用了 Condvar 的办法，拿一个全局的条件变量，当 poll 不到内容的时候，先把线程拿掉，等到网络栈更新了，再恢复。这样至少不会把 cpu 也 block 住。
+然后就是把 socket 部分改了又改吧，数据结构的设计改了几次，为了解决 ownership 问题上锁啊也有点多，但是也更细了，虽然实际上可能没有必要，因为上面还有大的锁。不过性能还不是现在考虑的重点，关键还要先把 send recv accept bind listen 啥的写得差不多了，然后还有把 poll/select 实现了，这个很关键。
+中间遇到的最大的坑就是，接收 pci interrupt 的时候总是啥也没有，然后靠万能的 qemu trace 发现，原来是 mask 掉了，所以啥也收不了，然后最后的解决方案就是用 MSI Interrupt #55 搞定了这个问题。至于为啥是 55 呢，因为 23 + 32 = 55 啊（误</description>
+    </item>
+    
+    <item>
+      <title>使用 Rust 实现 e1000 驱动</title>
+      <link>https://jiege.ch/programming/2019/02/26/network-driver-again/</link>
+      <pubDate>Tue, 26 Feb 2019 20:30:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/02/26/network-driver-again/</guid>
+      <description>是的。我又来了。上次做了使用 Rust 实现 VirtIO 驱动之后，继续往 rCore 加更多的驱动支持。由于现在工作重点是 x86_64 下的 syscall 实现，所以选了一个比较有代表性的驱动 e1000 来实现。其实如果只是为了在 qemu 下运行的话，其实只需要支持 virtio-pci 就可以了，原来的 virtio-net 直接拿来用就可以了。
+为什么挑 e1000 呢，一方面是支持的设备多，有真实硬件可以测试，虽然不一定要裸机上跑，但是可以通过 PCI passthrough 来测试驱动的正确性。另一方面是网上的资料比较多，有现成的简单的代码可以借鉴。这次主要借鉴了三个来源：一是 Biscuit OS， 二是 Judge Duck OS ，三是 Linux 。
+首先是实现了简单的 PCI 总线的枚举，然后找到对应的设备，激活，并且找到映射的内存地址，然后把原来 C 语言的实现搬运到 Rust 中。这个过程中遇到很多坑，例如一开始我以为内核里 pa 和 va 是一个固定的偏移，不过多次尝试后才发现这个假设只对 riscv 平台里的实现成立。
+这个时候就可以收到外面给进来的以太网帧了。接着就是把它接入到 smoltcp 的 API 中。但是发包又不工作了，尝试了很多次，各种方法也不行。其中特别要提到的就是 qemu 的 tracing API ，它在帮助我调试之前的 virtio 驱动和这次的 e1000(e) 驱动中起到了很大的帮助。不过，遗憾的是，发包相关的代码里的 trace 不足以让我找到问题的所在，我只好采用了最后一招：
+下载 QEMU ，自己改，然后自己编译。
+这个方法果然很有效啊，经过简单的几个修改，很快就定位到问题所在了，原来就是一个简单的错误，把 4 写成了 8 。这个过程中我也发现 QEMU 在 incremental build 的时候似乎会 segfault ，我没管这么多，反正编译也不慢，次数也不多，每次 clean 再 build 问题也不大。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（9）</title>
+      <link>https://jiege.ch/programming/2019/02/12/thoughts-on-stanford-cs140e-9/</link>
+      <pubDate>Tue, 12 Feb 2019 11:35:00 +0400</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/02/12/thoughts-on-stanford-cs140e-9/</guid>
+      <description>距离上一篇 CS140e 系列文章已经过去了很久，距离第一篇文章过了一年零几天。在后来这一段时间内，CS140e 结束了课程，又开始了新一年的 winter 2019 课程，迎来的却是 C 版本的 CS140e ，不禁让人感到失望。还好，Sergio Benitez 放出了原来的 CS140e 的镜像，如果大家仍然想回去查看原版优质的 CS140e ，可以点进去参考。
+后来因为机缘巧合参与到了清华的 Rust OS 课程，又想到回来把原来的 CS140e 进行更新，于是顺带把跑在 QEMU 下的一些需要的工作给做了，另外把 Rust nightly 版本更新了（一年前的 nightly 还能叫 nightly ？），才发现标准库变化还是蛮大的，由于 nightly 版本变了，而且原来是内嵌了一个阉割过的 std ，所以主要是从新的 std 里抄代码到内嵌的 std 中。另外，原来的 xargo 也不再维护了，转而使用 rust-xbuild 进行交叉编译。
+然后又顺手实现了 backtrace 和从 backtrace 中配合 dward symbols 找函数名的功能，不过实践证明，这些东西还是 addr2line 做得更好，所以也就没有做下去，在 relocation 上也是遇到了各种问题。这个经验也是应用到了 rCore 那边。
+再之后也就是寒假写驱动了，见之前的一个博文，我就没有在 CS140e 上去实现它了。有时间有兴趣的时候再考虑做一下 Raspberry Pi 的网卡驱动吧。
+写于迪拜雨天。</description>
+    </item>
+    
+    <item>
+      <title>使用 Rust 实现 VirtIO 驱动</title>
+      <link>https://jiege.ch/programming/2019/01/29/virtio-drivers-implementation/</link>
+      <pubDate>Tue, 29 Jan 2019 17:23:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/01/29/virtio-drivers-implementation/</guid>
+      <description>背景 最近在给 rCore 添加驱动层的支持。一开始是想做网卡驱动，后来发现， qemu-system-riscv32 只支持如下的驱动：
+# qemu-system-riscv32 -device help Storage devices: name &amp;quot;scsi-cd&amp;quot;, bus SCSI, desc &amp;quot;virtual SCSI CD-ROM&amp;quot; name &amp;quot;scsi-disk&amp;quot;, bus SCSI, desc &amp;quot;virtual SCSI disk or CD-ROM (legacy)&amp;quot; name &amp;quot;scsi-hd&amp;quot;, bus SCSI, desc &amp;quot;virtual SCSI disk&amp;quot; name &amp;quot;virtio-blk-device&amp;quot;, bus virtio-bus name &amp;quot;virtio-scsi-device&amp;quot;, bus virtio-bus Network devices: name &amp;quot;virtio-net-device&amp;quot;, bus virtio-bus Input devices: name &amp;quot;virtconsole&amp;quot;, bus virtio-serial-bus name &amp;quot;virtio-keyboard-device&amp;quot;, bus virtio-bus name &amp;quot;virtio-mouse-device&amp;quot;, bus virtio-bus name &amp;quot;virtio-serial-device&amp;quot;, bus virtio-bus name &amp;quot;virtio-tablet-device&amp;quot;, bus virtio-bus name &amp;quot;virtserialport&amp;quot;, bus virtio-serial-bus Display devices: name &amp;quot;virtio-gpu-device&amp;quot;, bus virtio-bus Misc devices: name &amp;quot;loader&amp;quot;, desc &amp;quot;Generic Loader&amp;quot; name &amp;quot;virtio-balloon-device&amp;quot;, bus virtio-bus name &amp;quot;virtio-crypto-device&amp;quot;, bus virtio-bus name &amp;quot;virtio-rng-device&amp;quot;, bus virtio-bus  所以要实现网卡的话，只能实现这里的 virtio-net-device ，而 VirtIO 驱动之间有很多共通的地方，于是顺带把 gpu mouse 和 blk 实现了。</description>
+    </item>
+    
+    <item>
+      <title>Rust 获取 Linker Script 中的地址</title>
+      <link>https://jiege.ch/programming/2019/01/07/rust-access-linker-script-address/</link>
+      <pubDate>Mon, 07 Jan 2019 11:57:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2019/01/07/rust-access-linker-script-address/</guid>
+      <description>在 Linker Script 中可以记录下一个地址到一个变量中，大概这样：
+.text: { PROVIDE(__text_start = .); *(.text .text.* .gnu.linkonce.t*) PROVIDE(__text_end = .); }  这里的 PROVIDE() 是可选的。这样，代码里就可以获取到 .text 段的地址了。在 C 中，直接 extern 一个同名的变量就可以了，但在 Rust 中，需要这样获取：
+extern &amp;quot;C&amp;quot; { fn __text_start(); fn __text_end(); } // __text_start as usize // __text_end as usize  这样就可以拿到地址了。</description>
+    </item>
+    
+    <item>
+      <title>通过 SSH 隧道连接 ADB 和 Android 设备</title>
+      <link>https://jiege.ch/programming/2018/09/13/adb-over-ssh-tunnel/</link>
+      <pubDate>Thu, 13 Sep 2018 13:20:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/09/13/adb-over-ssh-tunnel/</guid>
+      <description>由于本机算力不足，想要在远程编译 LineageOS ，其中有一步需要连接到已有的设备，于是突发奇想：
+ adb 可以通过 网络连接 ssh 可以进行端口转发，这里是把 remote 的端口转发到 Android 设备上的端口。  方法如下：
+$ adb shell ip -f inet addr show wlan0 $ # remember the ip address here $ adb tcpip PORT1 $ ssh -R PORT2:ANDROID_IP:PORT1 REMOTE (remote)$ adb connect localhost:PORT2 # trust this device on Android  参考文档：
+ How can I connect to Android with ADB over TCP? SSH PORT FORWARDING EXAMPLE  </description>
+    </item>
+    
+    <item>
+      <title>升级 MongoDB 到 4.0</title>
+      <link>https://jiege.ch/programming/2018/07/04/upgrade-mongodb-to-4.0/</link>
+      <pubDate>Wed, 04 Jul 2018 07:22:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/07/04/upgrade-mongodb-to-4.0/</guid>
+      <description>MongoDB 4.0 刚刚发布，加入了我很想要的 Transaction 功能。不过，我一更新就发现 MongoDB 起不来了。研究了一下日志，发现由于我创建数据库时，MongoDB版本是 3.4 ，虽然后来升级到了 3.6 ，但还是用着 3.4的兼容模式。这个可以这样来检测：
+$ mongo &amp;gt; db.adminCommand( { getParameter: 1, featureCompatibilityVersion: 1 } )  如果不是 3.6， 升级到 4.0 之前，需要先执行如下操作：
+$ # MongoDB version 3.6 $ mongo &amp;gt; db.adminCommand( { setFeatureCompatibilityVersion: &amp;quot;3.6&amp;quot; } )  然后再升级到 MongoDB 4.0 ，才能正常地启动 MongoDB 4.0 。之后可以考虑尝试使用 MongoDB 4.0 的 Transaction 了。不知道什么时候进入 Debian 的 stretch-backports 源中。
+为了使用 MongoDB 4.0 的新特性，输入以下命令：
+$ mongo &amp;gt; db.adminCommand( { setFeatureCompatibilityVersion: &amp;quot;4.</description>
+    </item>
+    
+    <item>
+      <title>Verilog 初体验</title>
+      <link>https://jiege.ch/programming/2018/06/21/verilog-first-try/</link>
+      <pubDate>Thu, 21 Jun 2018 21:36:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/06/21/verilog-first-try/</guid>
+      <description>自己以前一直对硬件方面没有接触，但是大二大三很快就要接触相关知识，所以自己就先预习一下 Verilog HDL，以便以后造计算机。听学长们推荐了一本书叫《自己动手写CPU》，由于自己手中只有很老的 Spartan-3 板子，手上没有可以用来试验的 FPGA ，所以选择用 Verilog + Verilator 进行模拟。既然是模拟，自然是会有一定的问题，不过这个以后再说。
+然后就是模仿着这本书的例子，写了指令的获取和指令的解码两部分很少很少的代码，只能解码 ori (or with immidiate) 这一个指令。然后，通过 verilator 跑模拟，输出 vcd 文件，再用 gtkwave 显示波形，终于能够看到我想要的结果了。能够看到，前一个时钟周期获取指令，下一个时钟周期进行解码，出现了流水线的结果。这让我十分开心。
+接下来就是实现一些基本的算术指令，然后讲计算的结果写入到相应的寄存器中。这样做完之后，就可以做一个基于 verilator 的简易 A+B 程序了。
+我的代码发布在jiegec/learn_verilog中。最近马上到考试周，可能到暑假会更频繁地更新吧。</description>
+    </item>
+    
+    <item>
+      <title>在 ArchLinux 上编译 LineageOS for Huawei Angler</title>
+      <link>https://jiege.ch/programming/2018/06/18/building-lineageos-in-archlinux/</link>
+      <pubDate>Mon, 18 Jun 2018 05:47:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/06/18/building-lineageos-in-archlinux/</guid>
+      <description>实践了一下如何在 ArchLinux 上编译自己的 LineageOS 。本文主要根据官方文档 进行编写。
+$ # for py2 virtualenv and running x86 prebuilt binaries(e.g. bison) $ sudo pacman -Sy python2-virtualenv lib32-gcc-libs $ mkdir -p ~/bin $ mkdir -p ~/virtualenv $ # build script is written in python 2 $ cd ~/virtualenv $ virtualenv2 -p /usr/bin/python2 py2 $ mkdir -p ~/android/lineage $ curl https://storage.googleapis.com/git-repo-downloads/repo &amp;gt; ~/bin/repo $ chmod a+x ~/bin/repo $ vim ~/.config/fish/config.fish set -x PATH ~/bin $PATH set -x USE_CCACHE=1 $ exec fish -l $ cd ~/android/lineage $ repo init -u https://github.</description>
+    </item>
+    
+    <item>
+      <title>编写 eBPF 程序和利用 HyperLogLog 统计包的信息</title>
+      <link>https://jiege.ch/programming/2018/06/15/ebpf-with-hyperloglog/</link>
+      <pubDate>Fri, 15 Jun 2018 22:03:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/06/15/ebpf-with-hyperloglog/</guid>
+      <description>前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 jiegec/hll_ebpf ，大致原理如下：
+由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：
+struct bpf_map_def SEC(&amp;quot;maps&amp;quot;) hll_ebpf_out_daddr = { .type = BPF_MAP_TYPE_PERCPU_ARRAY, .key_size = sizeof(u32), .value_size = sizeof(u32), .max_entries = 256, .pinning = 2 // PIN_GLOBAL_NS }; SEC(&amp;quot;out_daddr&amp;quot;) int bpf_out_daddr(struct __sk_buff *skb) { u32 daddr = get_daddr(skb); u32 hash = Murmur3(daddr, 0); update_hll(&amp;amp;hll_ebpf_out_daddr, hash); return 0; }  首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</description>
+    </item>
+    
+    <item>
+      <title>调整 Nginx 和 PHP 的上传文件大小限制</title>
+      <link>https://jiege.ch/programming/2018/06/10/nginx-php-upload-size-limit/</link>
+      <pubDate>Sun, 10 Jun 2018 16:04:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/06/10/nginx-php-upload-size-limit/</guid>
+      <description>之前迁移的 MediaWiki ，有人提出说无法上传一个 1.4M 的文件。我去看了一下网站，上面写的是限制在 2M ，但是一上传就说 Entity Too Large，无法上传。后来经过研究，是 Nginx 对 POST 的大小进行了限制，同时 PHP 也有限制。
+Nginx 的话，可以在 nginx.conf 的 http 中添加，也可以在 server 或者 location 中加入这么一行：
+client_max_body_size 100m;  我的建议是，尽量缩小范围到需要的地方，即 location &amp;gt; server &amp;gt; http 。
+在 PHP 中，则修改 /etc/php/7.0/fpm/php.ini ：
+post_max_size = 100M  回到 MediaWiki 的上传页面，可以看到显示的大小限制自动变成了 100M ，这个是从 PHP 的配置中直接获得的。</description>
+    </item>
+    
+    <item>
+      <title>最近写 Node.js 遇到的若干坑</title>
+      <link>https://jiege.ch/programming/2018/06/08/nodejs-experiences/</link>
+      <pubDate>Fri, 08 Jun 2018 10:33:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/06/08/nodejs-experiences/</guid>
+      <description>最近在做前后端分离，前端在用 Vue.js 逐步重写，后端则变为 api 的形式。同时，我尝试了用 autocannon 和 clinic 工具测试自己的 api endpoint 的性能，一开始发现有几个延迟会特别高，即使是一个很简单的 api 也有不正常的高延迟。
+于是，我用 clinic 生成了 flamegraph ，发现了一些问题：
+ 我在 session 里保存了一些缓存的信息，这部分内容比较大， express-session 在保存到数据库前会先 JSON.stringify 再 crc 判断是否有改变，如果有改变则保存下来。但是由于我的这个对象嵌套层数多，所以时间花得很多。我调整了这个对象的结构，缩小了很多以后，果然这部分快了很多 有一个 API 需要大量的数据库查询，原本是 O（结点总数）次查询，我考虑到我们数据的结构，改成了O（深度），果然快了许多 之前遇到一个小问题，就是即使我没有登录，服务器也会记录 session 并且返回一个 cookie 。检查以后发现，是 connect-flash 即使在没有使用的时候，也会往 cookie 中写入一个空的对象，这就导致 express-session 认为需要保存，所以出现了问题。解决方案就是，换成了它的一个 fork ： connect-flash-plus ，它解决了这个问题  </description>
+    </item>
+    
+    <item>
+      <title>在脚本中寻找 X11 的 DISPLAY 和 XAUTHORITY</title>
+      <link>https://jiege.ch/programming/2018/05/11/finding-x11-display-and-xauthority/</link>
+      <pubDate>Fri, 11 May 2018 14:21:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/05/11/finding-x11-display-and-xauthority/</guid>
+      <description>之前在搞一个小工具，在里面需要访问 X11 server ，但是访问 X11 server 我们需要两个东西：DISPLAY和XAUTHORITY两个环境变量。但是，由于它们在不同的发型版和Display Manager下都有些不同，所以花了不少功夫才写了一些。
+为了验证我们是否可以连上 X11 server， 我们使用这一句：
+DIMENSIONS=$(xdpyinfo | grep &#39;dimensions:&#39; | awk &#39;{print $2;exit}&#39;)  它尝试打开当前的 DISPLAY，并且输出它的分辨率。接下来，我对不同的一些发型版，综合网上的方法，尝试去找到正确的环境变量。
+对于 Debian:
+DISPLAY=$(w -hs | awk -v tty=&amp;quot;$(cat /sys/class/tty/tty0/active)&amp;quot; &#39;$2 == tty &amp;amp;&amp;amp; $3 != &amp;quot;-&amp;quot; {print $3; exit}&#39;) USER=$(w -hs | awk -v tty=&amp;quot;$(cat /sys/class/tty/tty0/active)&amp;quot; &#39;$2 == tty &amp;amp;&amp;amp; $3 != &amp;quot;-&amp;quot; {print $1; exit}&#39;) eval XAUTHORITY=~$USER/.Xauthority export DISPLAY export XAUTHORITY DIMENSIONS=$(xdpyinfo | grep &#39;dimensions:&#39; | awk &#39;{print $2;exit}&#39;)  对于 Archlinux：</description>
+    </item>
+    
+    <item>
+      <title>把 GDB 降级到 8.0.1</title>
+      <link>https://jiege.ch/programming/2018/04/17/downgrade-gdb/</link>
+      <pubDate>Tue, 17 Apr 2018 13:08:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/04/17/downgrade-gdb/</guid>
+      <description>在 macOS 上使用 GDB 需要 codesigning 。但是在 GDB 升级到 8.1 后这种方法不知道为何失效了。所以我安装回了 GDB 8.0.1 并且重新 codesigning ，现在又可以正常升级了。
+对 Formula 进行 patch：
+diff --git a/Formula/gdb.rb b/Formula/gdb.rb index 29a1c590..25360893 100644 --- a/Formula/gdb.rb +++ b/Formula/gdb.rb @@ -1,14 +1,15 @@ class Gdb &amp;lt; Formula desc &amp;quot;GNU debugger&amp;quot; homepage &amp;quot;https://www.gnu.org/software/gdb/&amp;quot; - url &amp;quot;https://ftp.gnu.org/gnu/gdb/gdb-8.1.tar.xz&amp;quot; - mirror &amp;quot;https://ftpmirror.gnu.org/gdb/gdb-8.1.tar.xz&amp;quot; - sha256 &amp;quot;af61a0263858e69c5dce51eab26662ff3d2ad9aa68da9583e8143b5426be4b34&amp;quot; + url &amp;quot;https://ftp.gnu.org/gnu/gdb/gdb-8.0.1.tar.xz&amp;quot; + mirror &amp;quot;https://ftpmirror.gnu.org/gdb/gdb-8.0.1.tar.xz&amp;quot; + sha256 &amp;quot;3dbd5f93e36ba2815ad0efab030dcd0c7b211d7b353a40a53f4c02d7d56295e3&amp;quot; bottle do - sha256 &amp;quot;43a6d6cca157ef70d13848f35c04e11d832dc0c96f5bcf53a43330f524b3ac40&amp;quot; =&amp;gt; :high_sierra - sha256 &amp;quot;fe7c6261f9164e7a744c9c512ba7e5afff0e74e373ece9b5aa19d5da6443bfc2&amp;quot; =&amp;gt; :sierra - sha256 &amp;quot;cd89001bcf8c93b5d6425ab91a400aeffe0cd5bbb0eccd8ab38c719ab5ca34ba&amp;quot; =&amp;gt; :el_capitan + sha256 &amp;quot;e98ad847402592bd48a9b1468fefb2fac32aff1fa19c2681c3cea7fb457baaa0&amp;quot; =&amp;gt; :high_sierra + sha256 &amp;quot;0fdd20562170c520cfb16e63d902c13a01ec468cb39a85851412e7515b6241e9&amp;quot; =&amp;gt; :sierra + sha256 &amp;quot;f51136c70cff44167dfb8c76b679292d911bd134c2de3fef40777da5f1f308a0&amp;quot; =&amp;gt; :el_capitan + sha256 &amp;quot;2b32a51703f6e254572c55575f08f1e0c7bc2f4e96778cb1fa6582eddfb1d113&amp;quot; =&amp;gt; :yosemite end deprecated_option &amp;quot;with-brewed-python&amp;quot; =&amp;gt; &amp;quot;with-python@2&amp;quot;  </description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（8）</title>
+      <link>https://jiege.ch/programming/2018/04/10/thoughts-on-stanford-cs140e-8/</link>
+      <pubDate>Tue, 10 Apr 2018 17:27:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/04/10/thoughts-on-stanford-cs140e-8/</guid>
+      <description>在上一篇文章之后，我其实还是很忙，但是一直心理惦记着这件事，毕竟只剩最后的一点点就可以做完了，不做完总是觉得心痒。
+今天做的部分是调度。我们目前只在 EL0 运行了一个 shell ，每当触发 exception 时回到 kernel 进行处理，再回到原来的地方。但现在，我要实现一个 preemtive round-robin scheduler ，就需要管理当前的所有进程，并且维护当前的进程状态，当时钟中断到来的时候，决定下一个 time slice 要执行的进程，再切换过去。这个过程当然会遇到不少的坑。
+首先，我们需要判断一个进程是否可以执行了。考虑到阻塞的 IO ，作者提供了一个优雅的方法：如果这个进程阻塞在 IO 上，那么，提供一个函数，在 scheduler 中调用，判断所需要的数据是否到达。这样，我们就可以一个循环把下一个 time slice 要执行的线程找到。如果找不到，就等待 interrupt 再尝试。
+困难的地方在于，在启动的时候，切换到一个起始线程。并且在上下文切换的时候，在 process 1 -&amp;gt; kernel -&amp;gt; process 2 这两步过程中，有许多寄存器都需要仔细考虑如何实现。并且在这个过程中，我也发现了之前写的代码中的问题，最终修复了（目前来看是 working 了）。
+我的代码实现在 这里 。下一步就要写 syscall 了。希望能在期中前抽时间赶紧把这个做完。
+18:54 PM Update: 刚实现完了 sleep 的 syscall 。比预想中要简单。果然找到了自己实现的调度器的 BUG 。此系列大概是完结了。
+2019-02-12 Update: 下一篇文章。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（7）</title>
+      <link>https://jiege.ch/programming/2018/04/07/thoughts-on-stanford-cs140e-7/</link>
+      <pubDate>Sat, 07 Apr 2018 14:05:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/04/07/thoughts-on-stanford-cs140e-7/</guid>
+      <description>在上一篇文章之后，我很长时间都没有在继续我这个项目，清明节刚好闲下来了我就回来继续啃它。Stanford那边已经结课，最后的 3-spawn 也只有一部分，剩下的部分不知道什么时候作者才会填上去了。
+这次主要要写的代码就是，对异常的处理。这里的异常并不是我们编程语言中的 catch/throw ，而是硬件的异常。AArch64 和 x86 一样，也有不同的特权级别的区分，前者是 EL0~EL3 ，后者则是 RING0 和 RING3 。特权级别高可以往特权级别低转换，但是反过来，只能通过异常的方式提高特权等级，并且切换特权等级后只有固定的一些代码可能会跳转，这就是 exception handler/vectors 。这些函数可以知道是什么原因调用了他们，根据硬件规定好的文档，我们可以知道发生了什么事情，是对齐出错了呢，还是用户调用了 syscall 呢，等等。根据不同的情况，我们需要进行不同的处理。当处理完之后，我们需要考虑，跳转回用户代码的时候，回到哪里，提供什么值，不提供什么。
+实现的话，需要很多步骤。首先是构造好 exception vector ，这里作者已经写好了一个宏（这里 @BenYip 遇到了一个 assembler 的 BUG ），直接用宏就可以把它写出来。然后，我们需要把它加载到当前 EL 的 VBAR_ELx 寄存器中，当 CPU 抛出异常的时候，就会找到这里相应的处理器进行处理。进到这里以后，我们首先先不考虑太多上下文保存的事情&amp;ndash;我们先保证能处理异常，恢复也是个有很多坑的步骤，作者也是在这里分成了两个 Subphase 。首先还是从 ESR_ELx 中解析到错误的来源的具体内容，如果是我们在 shell 中自己调用的 brk 2 指令，我们就自己新开一个 shell ，修改了提示符以示区别。这样，我们就成功地捕捉到了这个异常。由于我们还无法恢复回去，所以我们直接死循环。
+接下来我们要做的是，从异常中恢复出来。由于用户代码可能在各种地方抛出异常，异常也分同步和异步两种情况，这里有许多需要考虑的问题。为了简化，我们目前只考虑同步的 brk 2 导致的 Brk 异常。为了能恢复之后能够正常运行，我们需要把所有的寄存器都保存下来，即 TrapFrame 。保存的时候需要讲究 AArch64 平台下 SP 寄存器的对齐问题。我们也要把一些特殊的寄存器保存下来。还有一点，就是，因为 exception handler 中调用了 context_save 函数，所以此时的 lr 本身也需要进行保存，这个地方也卡了我很久。最后，再把这些一个一个地恢复到原来的样子，调整 ELR_EL1 使得退回到原来的状态时，会跳过当前的 brk 2 指令，调用它的下一调指令。这样，我们就成功地在遇到异常时，弹出一个 shell ，而且还可以回退回来。</description>
+    </item>
+    
+    <item>
+      <title>〖新手向〗绕过 C&#43;&#43; 类的访问限制</title>
+      <link>https://jiege.ch/programming/2018/03/07/breaking-c-weak-access-control/</link>
+      <pubDate>Wed, 07 Mar 2018 07:59:20 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/03/07/breaking-c-weak-access-control/</guid>
+      <description>这是一篇很水的文章，面向萌新，已经知道了的可以自觉绕道。
+昨天上课，有同学问，如果用户偷偷把 private 改成 public 再和原有的库链接，是不是就可以在用户代码里更改了。这个答案是肯定的。下面我们就做个实验：
+首先，创建 good_class.h 和 good_class.cpp:
+class SomeClass { private: int data; public: int getData(); };  #include &amp;quot;good_class.h&amp;quot; int SomeClass::getData() { return data; }  然后，首先编译，
+clang++ -c good_class.cpp -o good_class.o  然后，修改 good_class.cpp 并写一个 evil_user.cpp
+class SomeClass { public: int data; public: int getData(); };  #include &amp;lt;stdio.h&amp;gt; #include &amp;quot;good_class.h&amp;quot; int main() { SomeClass a; a.data = 37; printf(&amp;quot;%d\n&amp;quot;, a.getData()); return 0; }  编译：</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（6）</title>
+      <link>https://jiege.ch/programming/2018/03/05/thoughts-on-stanford-cs140e-6/</link>
+      <pubDate>Mon, 05 Mar 2018 19:55:49 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/03/05/thoughts-on-stanford-cs140e-6/</guid>
+      <description>在上一篇文章之后，作者终于更新了测试的用例，我的程序终于可以成功跑过所有测试，也成功在树莓派跑起来。不过，我的代码中很多地方的错误处理比较偷懒，往往直接 panic ，显然并不友好。同时，我想到了使用 cargo-fuzz 来进行自动化测试，果然，使用这个很快就修复了不少我没想到的会出错的地方，比如乘法溢出，目录项没有正确结束等等。目前还发现一个 timeout 的问题，研究发现大概是文件的 cluster chain 中出现了环，导致一直读取文件而没有停止。要解决这个问题，我目前想到的是 Floyd 的判圈算法，但还没上实现。等过几天，新的 Assignment 3 出了以后，再继续更新。希望作者少点跳票，多点勤奋，哈哈哈哈哈
+更新：下一篇在这里。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（5）</title>
+      <link>https://jiege.ch/programming/2018/03/03/thoughts-on-stanford-cs140e-5/</link>
+      <pubDate>Sat, 03 Mar 2018 11:07:30 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/03/03/thoughts-on-stanford-cs140e-5/</guid>
+      <description>在上一篇文章之后，作者多次延期跳票之后（again），终于放出了 Assignment 2 Phase 3: Saddle Up 。这次，我们要做的变成了把已经写好的（错漏百出）的 fat32 的驱动搬到树莓派里面去，然后实现一些基本的 shell 命令： ls cat cd 等等。作者首先更新了老版本的新的测试样例，放了一些映像然后提供了预期的结果，结果发现，这里的 fat32 有一些不同，主要的就是 bytes_per_sector 不是 512 了，意味着物理的扇区和逻辑扇区并不一致。同时， sectors_per_cluster 也不是 1 了，需要考虑多个扇区的情况。同时， read_cluster 传入的 offset 也可能不再是第一个 sector 中的，所以需要做一个处理。对于物理和逻辑扇区的问题，作者推荐的方案是，把 fat32 之外的扇区保持不变，把其内的扇区视为逻辑扇区。这样，其它代码都可以透明地工作，而不用到处更改，这就体现了封装的威力。接着，作者提供了一个写好了的 libsd 和一些导出的函数，使用这些函数即可。不过，在错误处理和 timeout 上也遇到了一些坑。后面，把东西搬到树莓派上运行，问题就出现了：读取了第一个扇区（即 MBR 所在的扇区）之后，直接就死掉了。想了半天都没找到方案，突然想起可以利用 panic! 对错误语句进行二分查找。查找了大概有七八个小时之后，终于发现，问题出现在读取一个 u32 类型的变量上。我起初怀疑是栈出了问题，所以放到堆上分配，然而还是不行。忽然想起以前遇到的对齐问题，在 AArch64 架构上，可能为了简化，读取的 u32 必须对齐到四个字节上。于是找了找 Rust 中的对齐方面的文档，找到了 #[repr(align=4)] 这种表示方法，代替了原来的 #[repr(packed)] ，并且把数据先拷贝到对齐后的栈上的对应数据结构，然后再读取对应的项。果然，这个问题就解决了。然后又发现我的盘中会出现 lfn 项并不是从后往前的情况，于是我又修改了一下相关的代码。现在，终于可以成功地 ls cat cd 。
+不过还是要吐槽一下，作者的测试用的映像文件中，会出现 0xE5 表示这个项已经被删除的情况，但是似乎作者的代码并没有处理这个，所以在预期的输出中出现了一些明显不正确的结果，导致我的代码跑测试并不能通过。而且，作者的代码在一些情况下会把文件的后缀漏掉。作者后来更新了几次测试的文件，不过这个问题只解决了一部分，并没有完全解决。坐等作者继续放出新的测试文件吧。
+更新：下一篇在这里。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（4）</title>
+      <link>https://jiege.ch/programming/2018/02/27/thoughts-on-stanford-cs140e-4/</link>
+      <pubDate>Tue, 27 Feb 2018 22:42:59 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/02/27/thoughts-on-stanford-cs140e-4/</guid>
+      <description>在上一篇文章之后，作者多次延期跳票之后，终于放出了 Assignment 2 Phase 2:32-bit Lipids ，这两天就把只读 FAT32 写完了（不过封装得并不好，许多地方利用了 pub(super) 把变量可以访问的范围控制到 vfat 中，然后直接读，只有少数需要特殊处理的进行了函数的封装）。首先当然是研究了半天 MBR 和 FAT32 的结构，拿了不同来源的 FAT 结构说明进行对比和验证，最后终于把格式搞清楚了，先实现了 MasterBootRecord ，这个其实很好实现，以前也有接触过 MBR ，本身也很简单。然后就是根据 MBR 找到第一个 FAT32 的分区，根据偏移找到分区的开头，开头的第一个扇区就是 EBPB 数据结构，里面保存了 FAT32 分区的各种信息。根据里面的信息，可以找到 FAT 表的位置和数量，还有数据部分的 Cluster 的位置和数量。接着，解析一下 FAT 表，实际上是一个与 Cluster 一一对应的链表结构，用特殊的数据代表链表的尾和空、坏扇区。利用这些，和 EBPB 中根目录所在的第一个 Cluster ，先在 VFat 里面实现了读取一个 Cluster 链的内容的函数，利用这个函数读取一个一个的目录项，解析目录项，把长文件名的项合并到一个之中，然后对应地丢到 Entry 对象中，目录则可以枚举子目录项，根据名字比较去找子目录或者子文件夹，文件则实现了 io::Read和 io::Seek 使得可以读取文件的内容。实现好了这些以后，就拿了 raspbian-strech-lite.img 作为硬盘映像，从文件里读取文件信息，成功地把 config.txt 读取出来。
+其中还是遇到许多困难，如各种偏移的计算，如何处理跨 Cluster 和跨 Sector 的读写，等等，有不少的坑在其中，花了两天的空余时间才差不多完善了这个功能。还有就是利用 Rust 现有的功能完成 C 里面很轻易就可以实现的指针操作，也花了不少时间。
+更新：下一篇在这里。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（3）</title>
+      <link>https://jiege.ch/programming/2018/02/16/thoughts-on-stanford-cs140e-3/</link>
+      <pubDate>Fri, 16 Feb 2018 20:09:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/02/16/thoughts-on-stanford-cs140e-3/</guid>
+      <description>由于 Assignment 2: File System 延期发布，所以中间那段时间转向 MIT 6.828 稍微研究了一下。前几天放出了新的任务，在上一篇文章之后，我又有了一些进展： 实现了从内存中读取 ATAGS(ARM Tags) 信息的代码，从而可以获得内存大小的信息，根据这个信息，实现了 bump 和 bin 两种内存分配器，并且把二者之一注册为全局内存分配器，利用上更新了的 std 就可以使用需要动态分配内存的相关工具了。利用这个，我实现了 shell 输入历史的回溯，把输入历史保存在一个动态增长的数组中，再特殊处理上下键，把当前的行替换为历史。
+这个过程也不是没有踩坑。一开始代码放出来了，但是题目说明还没出，我就自己按照代码做了 ATAGS 和 bump 分配器，后来做完了，看到说明出了以后，发现理解还是有偏差，把代码更改了并修复了分配器的 BUG 。看到 bin 分配器的时候，我按照网上的 buddy memory allocation 实现了一个内存分配器，原理看起来简单实现起来还是有很多细节问题，后来按照新放出的单元测试，修修补补才写得差不多可用了。同时，原来的 bootloader 因为用了新的 std 而缺失了 alloc 不能编译，我就把 kernel 下的相关文件软连接过去，调了数次后把问题解决。此时， kernel 文件大小已经有 40K ，按照 115200 Baudrate 发送需要几秒才能传输过去，我就调到了 230400 Baudrate ，果然现在的传输速度就有所提升，可以接受了。等之后写了 EMMC(SD card) 的驱动和 FAT32 的文件系统后，就可以实现更多的 shell 的功能了。中间还遇到一个问题，就是如果给 kernel 开启了 bin 分配器，使用 exit 回到 bootloader 就无法传新的 kernel 上去了，结果发现是因为 bin 中用到的侵入式 LinkedList 实现覆盖了部分 bootloader 的代码，换回不能回收内存的 bump 分配器即可，反正目前远远还用不了那么多内存。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考（2）</title>
+      <link>https://jiege.ch/programming/2018/02/06/thoughts-on-stanford-cs140e-2/</link>
+      <pubDate>Tue, 06 Feb 2018 12:52:59 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/02/06/thoughts-on-stanford-cs140e-2/</guid>
+      <description>在上一篇文章之后，我又有了一些进展：UART ，简易的shell ，修复了之前写的 xmodem 中的 BUG，一个可以从 UART 接收一个 kernel 写入到内存中再跳转过去的 bootloader 。
+首先是 UART ，就是通过两个 GPIO pin 进行数据传输，首先在 memory mapped IO 上进行相应的初始化，然后包装了 io::Read 和 io::Write （这里实现一开始有 BUG，后来修复了），然后很快地完成了一个仅仅能 echo 的 kernel 。
+然后实现了 CONSOLE ，一个对 MiniUart 和单例封装，就可以用 kprint!/kprintln! 宏来输出到 UART ，接着实现了一个 echo 的 shell ，读入一行输出一行。然后实现退格键和方向键，这里的难点在于要控制光标并且用读入的或者空格覆盖掉屏幕上已经显示而不应该显示的内容。接着，利用 skeleton 中的 Command 做了一个简单的 echo 命令。
+接着，利用之前编写的 tty ，配合上新编写的 bootloader ，实现通过 UART 把新的 kernel 通过 XMODEM 协议发送到设备，写入 0x80000 启动地址并且调转到新加载的 kernel 中执行。
+最后，又实现了 uptime （输出设备启动到现在的时间）和 exit （跳转回 bootloader ，可以上传新的 kernel ）。并添加了 TUNA 作为 shell 启动时输出的 BANNER 。</description>
+    </item>
+    
+    <item>
+      <title>近来做 Stanford CS140e 的一些进展和思考</title>
+      <link>https://jiege.ch/programming/2018/02/04/thoughts-on-stanford-cs140e/</link>
+      <pubDate>Sun, 04 Feb 2018 22:28:23 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/02/04/thoughts-on-stanford-cs140e/</guid>
+      <description>最近，受各路安利，剁手买下了 这个淘宝商家的树莓派的套餐C ，还买了许多 LED 灯泡、杜邦线和电阻，开始按照 CS 140e 学习 Rust 并且用 Rust 编译写一个简易的操作系统。Assignment 0 的目标就是编写一个向 GPIO 16 连接的 LED 灯闪烁。首先当然就是愉快地按照教程下载 bootloader ，下载交叉编译工具链，顺带装一个 Raspbian 到机器上，随时可以当成一个低性能的 ARM/ARM64 （实际上，Raspbian 只用了armv7l，没有用 64bit）机器来用，以后如果配上 @scateu 团购的 Motorola Laptop Dock 的话就是一个几百块的笔记本了。把课程上的文件丢上去，可以看到绿色的活动指示灯闪烁，后面又把 CP2102 模块连上去，又能看到 Blink on, Blink off 的输出。然后按照要求，自己先码一段 C 语言，实现 blinky:
+#define GPIO_BASE (0x3F000000 + 0x200000) volatile unsigned *GPIO_FSEL1 = (volatile unsigned *)(GPIO_BASE + 0x04); volatile unsigned *GPIO_SET0 = (volatile unsigned *)(GPIO_BASE + 0x1C); volatile unsigned *GPIO_CLR0 = (volatile unsigned *)(GPIO_BASE + 0x28); static void spin_sleep_us(unsigned int us) { for (unsigned int i = 0; i &amp;lt; us * 6; i++) { asm volatile(&amp;quot;nop&amp;quot;); } } static void spin_sleep_ms(unsigned int ms) { spin_sleep_us(ms * 1000); } int main(void) { // STEP 1: Set GPIO Pin 16 as output.</description>
+    </item>
+    
+    <item>
+      <title>再次吐槽 VS 关于 scanf 和 scanf_s 的问题</title>
+      <link>https://jiege.ch/programming/2018/01/30/more-on-scanf-and-scanf_s/</link>
+      <pubDate>Tue, 30 Jan 2018 16:05:33 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/01/30/more-on-scanf-and-scanf_s/</guid>
+      <description>继上次的吐槽后，今天再次遇到同学因为 scanf 在 VS 下的 deprecation error 感到十分迷茫，在知乎上求助又因为拍照的原因被说，我就在此再次吐槽一下 VS 这对初学者很不友善很不友善的两点。
+一点就是上面提到的这个，另一点就是程序结束后任意键以退出这一功能要做得更加醒目一点 。前者由于大多数新手在学习 C/C++ 的时候都会跟着书上或者网上的代码敲一遍输入输出的代码，很容易就会撞到这个问题。后者则会让新手习惯性地以为程序闪退了，没有出结果，而不知道其实是程序执行结束后关闭而已。</description>
+    </item>
+    
+    <item>
+      <title>我正在使用的两个 Emacs 的 Patch</title>
+      <link>https://jiege.ch/programming/2018/01/07/two-patches-of-emacs-i-am-using/</link>
+      <pubDate>Sun, 07 Jan 2018 14:24:24 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2018/01/07/two-patches-of-emacs-i-am-using/</guid>
+      <description>我在本地对 emacs.rb 进行了修改：
+diff --git a/Formula/emacs.rb b/Formula/emacs.rb index d0138cd..de3c5ff 100644 --- a/Formula/emacs.rb +++ b/Formula/emacs.rb @@ -4,6 +4,14 @@ class Emacs &amp;lt; Formula url &amp;quot;https://ftp.gnu.org/gnu/emacs/emacs-25.3.tar.xz&amp;quot; sha256 &amp;quot;253ac5e7075e594549b83fd9ec116a9dc37294d415e2f21f8ee109829307c00b&amp;quot; + patch do + url &amp;quot;https://gist.githubusercontent.com/aatxe/260261daf70865fbf1749095de9172c5/raw/214b50c62450be1cbee9f11cecba846dd66c7d06/patch-multicolor-font.diff&amp;quot; + end + + patch do + url &amp;quot;https://debbugs.gnu.org/cgi/bugreport.cgi?filename=0001-Fix-child-frame-placement-issues-bug-29953.patch;bug=29953;att=1;msg=8&amp;quot; + end + bottle do sha256 &amp;quot;d5ce62eb55d64830264873a363a99f3de58c35c0bd1602cb7fd0bc37137b0c9d&amp;quot; =&amp;gt; :high_sierra sha256 &amp;quot;4d7ff7f96c9812a9f58cd45796aef789a1b5d26c58e3e68ecf520fab34af524d&amp;quot; =&amp;gt; :sierra  主要涉及到两个 Patch ：
+ 启用对 Multicolor font ，比如 Emoji 的支持。由于一些 ethic problems 暂时在 Emacs 中被禁用了，所以自己启用回来。 打上我前几天上报的 BUG #29953 的修复。已经在上游 Merge 到 emacs-26 分支中，这个修复会在下一个版本中。  有了第一个，就可以正常显示 Emoji （对不起，RMS）；有了第二个，就解决了 pyim 和 lsp-ui-peek 用 child-frame 显示的一些问题了。</description>
+    </item>
+    
+    <item>
+      <title>有趣的 Java 日期格式化问题</title>
+      <link>https://jiege.ch/programming/2017/12/31/interesting-java-formatting-problem/</link>
+      <pubDate>Sun, 31 Dec 2017 10:55:23 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2017/12/31/interesting-java-formatting-problem/</guid>
+      <description>今天在群里看到有人说， Java 的日期格式化有问题，如果用 YYYY-MM-dd ，今天的日期就会显示 2018-12-31 。我立马在本地用 Java REPL (aka Groovy) 跑了一下，果然如此：
+$ date = new Date() ===&amp;gt; Sun Dec 31 10:51:26 CST 2017 $ import java.text.SimpleDateFormat ===&amp;gt; java.text.SimpleDateFormat $ new SimpleDateFormat(&amp;quot;YYYY-MM-dd&amp;quot;).format(date) ===&amp;gt; 2018-12-31  解决方案是，把格式换为 yyyy-MM-dd ，确实就可以了。于是我就去研究了一下文档： Class SimpleDateFormat ，发现了问题：
+y 代表 year ，而 Y 代表 week year 。根据 week year ，因为今年最后的一个星期在明年的部分更多，于是这个星期被归在了明年，所以这一周属于 2018 ，这就可以解释之前的那个输出问题了。</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2017/12/12/lsp-and-cpp/</link>
+      <pubDate>Tue, 12 Dec 2017 08:13:40 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2017/12/12/lsp-and-cpp/</guid>
+      <description>之前时间，巨硬发布了LSP（Language Server Protocol），目的是解决目前IDE和各语言的m+n问题。想法很好，不过直到最近，终于有我觉得可以用的工具出来了，并且已经代替了我在使用的其它的插件。
+由于我最近主要就是做做程设作业，做做OJ这些，主要就是和C++打交道。所以我当然就开始找一些比较成熟的C++的LSP server。有一个 Sourcegraph 维护的 langserver.org ，上面有着目前的各个语言和编辑器/IDE的支持情况，我刚才提到的cquery也会加入到这个列表里去。从这个列表里可以看到，我用的比较多的Python和Haskell都已经有不错的的LSP server，我已经开始在本地体验pyls和hie了，感觉做得挺不错的。
+回到C++，我的主力编辑器是Emacs，其次是CLion，而Emacs上的LSP支持 lsp-mode也在快速发展，与之配合的lsp-ui 也出现了很多很棒的功能。
+下面开始编译并配置cquery：
+git clone https://github.com/jacobdufault/cquery --recursive cd cquery ./waf configure # to use system clang, append --use-system-clang ./waf build  然后配置Emacs：
+(use-package lsp-mode :ensure t :diminish lsp-mode :commands (lsp-mode) :config (lsp-define-stdio-client lsp-pyls &amp;quot;python&amp;quot; #&#39;get-project-root &#39;(&amp;quot;/usr/local/bin/pyls&amp;quot;))) (use-package lsp-ui :commands lsp-ui-mode :init (add-hook &#39;lsp-mode-hook &#39;lsp-ui-mode)) (use-package cquery :load-path &amp;quot;path_to_cquery/emacs&amp;quot; :config (setq cquery-executable &amp;quot;path_to_cquery/build/app&amp;quot; cquery-resource-dir &amp;quot;path_to_cquery/clang_resource_dir&amp;quot;))  接下来，需要配置 基于Clang的 工具都需要的 Compilation Database 。Sacrasm对这个有一个非常完整的总结 ，可以查看里面的方法。我这里推荐在CMake项目中用CMake自带的，加上nickdiego/compiledb-generator 应付基于Makefile/Autotools的项目。如果都不适用，就按照cquery的README写一个简单的.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2017/12/02/on-nginx-memory-pool/</link>
+      <pubDate>Sat, 02 Dec 2017 22:16:07 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2017/12/02/on-nginx-memory-pool/</guid>
+      <description>今晚参加了 Tunight ，会长给我们讲了 Nginx 的一些内部运作的机制和原理。中间的时候，会长展示的代码中用到了线程池方面的一些函数，但是大多地方只有调用 ngx_pcalloc 而没有看到相应的对象释放的过程，于是在演示的最后，会长应大家要求对 Nginx 魔幻的线程池实现做了现场代码分析。
+在分析的中途遇到了很多坑，最后才终于理清了内存池的工作原理。这里直接解释结论吧。以下代码均摘自 Nginx 1.13.7 ，代码都可以在官方仓库找到。
+首先分析一下创建一个内存池的函数：
+ngx_pool_t * ngx_create_pool(size_t size, ngx_log_t *log) { ngx_pool_t *p; p = ngx_memalign(NGX_POOL_ALIGNMENT, size, log); if (p == NULL) { return NULL; } p-&amp;gt;d.last = (u_char *) p + sizeof(ngx_pool_t); p-&amp;gt;d.end = (u_char *) p + size; p-&amp;gt;d.next = NULL; p-&amp;gt;d.failed = 0; size = size - sizeof(ngx_pool_t); p-&amp;gt;max = (size &amp;lt; NGX_MAX_ALLOC_FROM_POOL) ? size : NGX_MAX_ALLOC_FROM_POOL; p-&amp;gt;current = p; p-&amp;gt;chain = NULL; p-&amp;gt;large = NULL; p-&amp;gt;cleanup = NULL; p-&amp;gt;log = log; return p; }  现在开始分段分析这个函数：在这里，一个内存池用一个 ngx_pool_t (aka struct ngx_pool_s) 类型的数据进行包装，所有的关于内存池的操作都基于相应的内存池对象。 ngx_log_t 表示输出信息的对象，与内存池无关，后面也不会讨论它。</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2017/11/30/run-cpp-in-jupyter-notebook/</link>
+      <pubDate>Thu, 30 Nov 2017 18:07:10 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2017/11/30/run-cpp-in-jupyter-notebook/</guid>
+      <description>刚刚在HN上看到了这么一个文章：Interactive Workflows for C++ with Jupyter HN ，终于可以在Jupyter Notebook里跑C++代码了，很开心，于是开始自己研究了起来怎么本地跑。
+首先当然是更新一波jupyter，安装一波cling：
+pip3 install -U jupyter brew install cling  然后根据官方教程里的要求执行：
+cd /usr/local/share/cling/Jupyter/kernel pip3 install -e . jupyter kernelspec install cling-cpp11 jupyter kernelspec install cling-cpp14 jupyter kernelspec install cling-cpp17 jupyter kernelspec install cling-cpp1z  结果发现找不到jupyter-kernelspec，遂重装了一下jupyter-client这个包，果然就可以了。打开一个notebook测试：
+jupyter notebook  然后创建一个C++14的Notebook，结果发现一直Kernel rebooting，错误信息是说找不到../Cellar/cling/0.5/lib/libclingJupyter.dylib。这一看就是路径处理的问题，当前目录肯定不是/usr/local，肯定出现了什么问题，然后研究发现cling-kernel.py中对cling判断是否是个连接，如果是连接则按照连接去找cling的安装目录，但是！没有考虑到这个连接是个相对路径的问题（Homebrew你背锅吗）。于是我愉快地改了代码并提交了PR。修复了以后就可以用了。
+以下是一个小小的例子：
+&amp;gt;&amp;gt; jupyter console --kernel cling-cpp14 Jupyter console 5.2.0 cling-X In [1]: #include &amp;lt;stdio.h&amp;gt; Out[1]: In [2]: char *s = &amp;quot;Hello, world!&amp;quot;; input_line_4:2:12: warning: ISO C++11 does not allow conversion from string literal to &#39;char *&#39; [-Wwritable-strings] char *s = &amp;quot;Hello, world!</description>
+    </item>
+    
+    <item>
+      <title>分析一个我第一次见的素数测试函数</title>
+      <link>https://jiege.ch/programming/2017/10/17/analysis-on-a-primality-test/</link>
+      <pubDate>Tue, 17 Oct 2017 21:05:28 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2017/10/17/analysis-on-a-primality-test/</guid>
+      <description>今天逛到这个连接，发现其中的第四种素数判定方法很有意思：
+#include&amp;lt;stdio.h&amp;gt; #include&amp;lt;math.h&amp;gt; int p[8]={4,2,4,2,4,6,2,6}; int prime(int n) { int i=7,j,q; if(n==1)return 0; if(n==2||n==5||n==3)return 1; if(n%2==0||n%3==0||n%5==0)return 0; q=(int)sqrt(n); for(;i&amp;lt;=q;){ for(j=0;j&amp;lt;8;j++){ if(n%i==0)return 0; i+=p[j]; } if(n%i==0)return 0; } return 1; } void main() { int n; scanf(&amp;quot;%d&amp;quot;,&amp;amp;n); if(prime(n))puts(&amp;quot;Yes&amp;quot;); else puts(&amp;quot;No&amp;quot;); }  仔细研究发现，这里利用的是这样的原理：
+ 判断是不是1, 2, 3, 5及其倍数 从7开始，不断考虑其是否是素数，那么，这个p是什么回事呢？  首先把p的各个元素加起来，和为30，然后就可以发现一个规律： 7为质数，7+2=9不是质数，7+4=11为质数，11+2=13为质数，13+2=15为合数，15+2=17为质数，17+2=19为质数，19+2=21为合数，21+2=23为质数，23+2=25为合数，25+2=27为合数，27+2=29为质数，29+1=31为质数，31+2=33为合数，33+2=35为合数，35+2=37为质数。 观察以上所有的合数，都含有2或者3或者5的因子，而30又是2,3,5的公倍数，也就是说，后面的素数模30的余数不可能是上面这些合数，而剩下的素数才可能是真正的素数，于是跳过了很多素数的判断。
+至于这个函数的性能如何，还需要进一步测试来进行判断。</description>
+    </item>
+    
+    <item>
+      <title>关于scanf和scanf_s的问题</title>
+      <link>https://jiege.ch/programming/2017/10/17/on-scanf-and-scanf_s/</link>
+      <pubDate>Tue, 17 Oct 2017 16:46:40 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2017/10/17/on-scanf-and-scanf_s/</guid>
+      <description>最近作为程设基础的小教员，收到很多同学的求助，关于scanf和scanf_s的问题已经遇到了两次，特此写一篇博文来叙述一下这个问题。
+一开始，有同学问我，
+char a; scanf(&amp;quot;%c&amp;quot;,&amp;amp;a);  为什么会报错？我说，vs默认强制要求使用scanf_s函数，于是我建议这位同学把这个错误信息关掉了。嗯。经过百度，这位同学的问题解决了。
+后来，又有一位同学问我，
+char a; scanf_s(&amp;quot;%c&amp;quot;,&amp;amp;a);  程序为什么会崩溃？我想了想，如果scanf_s和scanf是一样的行为，这段代码是没问题的。但scanf_s既然安全，必然是在字符串方面做了处理。这里的char*勉强也算一个？网上一查，果然，应该写成scanf_s(&amp;quot;%c&amp;quot;,&amp;amp;a,1);，字符串则要写成scanf_s(&amp;quot;%s&amp;quot;,str,sizeof(str))，来保证缓冲区不会溢出。
+但是，这样解决这个问题又面临着不同的选择：
+ 学习scanf_s和scanf的不同，把所有scanf换成scanf_s并做相应的修改。 这样当然符合了语言进化的潮流，也会让vs闭嘴。但是，scanf_s只有在C11标准中有，而且，根据cpprefrence.com上关于scanf的描述，只有在__STDC_LIB_EXT1__被定义且在#include&amp;lt;stdio.h&amp;gt;之前#define __STDC_WANT_LIB_EXT1__才能确保使用scanf_s能使用，当然在vs较新版本中是默认可以使用的。但是，程设基础的作业是要丢到oj上的，而oj上的编译器不一定支持这些，所以这个选项不行。 坚持用scanf，自己按照题目要求保证缓冲区不溢出，同时让vs闭嘴。 网上已有教程，已经讲的很全面了，大家可以根据这个教程把vs教训一顿。为了能在oj里跑，建议用里面的方法五到八。（个人最推荐在文件头添加#define _CRT_SECURE_NO_WARNINGS）  以后再遇到这个问题，我就丢这个连接上来就好了咯。yeah！</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2016/07/23/a-good-way-to-show-git-diff-for-compressed-files/</link>
+      <pubDate>Sat, 23 Jul 2016 14:46:41 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2016/07/23/a-good-way-to-show-git-diff-for-compressed-files/</guid>
+      <description>I have found a good way to track changes in .gz files: Add these to ~/.gitconfig:
+[core] attributesFile = ~/.gitattributes [diff &amp;quot;zip&amp;quot;] textconv = unzip -p binary = true [diff &amp;quot;gz&amp;quot;] textconv = gzcat binary = true [diff &amp;quot;bz2&amp;quot;] textconv = bzcat binary = true [diff &amp;quot;xz&amp;quot;] textconv = xzcat binary = true [diff &amp;quot;tar&amp;quot;] textconv = tar -O -xf binary = true [diff &amp;quot;tar-bz2&amp;quot;] textconv = tar -O -xjf binary = true [diff &amp;quot;tar-gz&amp;quot;] textconv = tar -O -xzf binary = true [diff &amp;quot;tar-xz&amp;quot;] textconv = tar -O -xJf binary = true [diff &amp;quot;odf&amp;quot;] textconv = odt2txt [diff &amp;quot;pdf&amp;quot;] textconv = pdfinfo [diff &amp;quot;bin&amp;quot;] textconv = hexdump -v -C  And these to ~/.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2016/05/22/exciting-new-software-updates/</link>
+      <pubDate>Sun, 22 May 2016 07:47:16 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2016/05/22/exciting-new-software-updates/</guid>
+      <description>Just got a piece of great news: GHC 8.0.1 is out! See the announcement [here][http://article.gmane.org/gmane.comp.lang.haskell.ghc.devel/11928].
+So excited! And Emacs 25 release will be out soon. Using Emacs 25.0.94 now. Many new features available. See [this][http://puntoblogspot.blogspot.com/2016/05/emacs-251-news.html] for more information.
+Recently I have finally started to use mu4e and gnus. What makes it truly great is that they integrate org, bbdb and so on.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2016/04/09/interesting-links/</link>
+      <pubDate>Sat, 09 Apr 2016 06:17:34 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2016/04/09/interesting-links/</guid>
+      <description>Having a bad cold. Really annoying.
+Okay, here comes the interesting links:
+https://glyph.twistedmatrix.com/2015/11/editor-malware.html
+http://kitchingroup.cheme.cmu.edu/blog/2016/04/07/Writing-hy-code-from-hy-code/
+https://github.com/holomorph/transmission
+https://github.com/bergey/org-babel-diagrams
+http://ess.r-project.org/
+http://projects.haskell.org/diagrams/</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2016/04/03/tips-on-git-shallow-clone/</link>
+      <pubDate>Sun, 03 Apr 2016 14:38:09 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2016/04/03/tips-on-git-shallow-clone/</guid>
+      <description>Just learned a new tip on git shallow clone. As you know, some repository are really really large, such as emacs and linux. Cloning is slow and unstable. And there is no way to pause and resume a git clone. So I use shallow clone to clone them. But what if I want to clone other branches?
+From here: http://stackoverflow.com/a/27393574/2148614
+git remote set-branches origin &#39;*&#39;  </description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://jiege.ch/programming/2016/03/09/some-interesting-links/</link>
+      <pubDate>Wed, 09 Mar 2016 22:10:31 +0800</pubDate>
+      
+      <guid>https://jiege.ch/programming/2016/03/09/some-interesting-links/</guid>
+      <description>I&amp;rsquo;m here to share some interesting links. I do not have much time writing the blog now.
+Recently I have been working on CodeFalling/MacGesture on Github. If you are interested in it, go and have a look.
+Here are the links to share: https://twitter.com/PoolpOrg/status/694593152670437376 https://github.com/wellle/targets.vim http://thecodelesscode.com/case/225 https://twitter.com/zhangyuze320602/status/706457155763712000
+I have done reading the biography of Steve Jobs. Great book.</description>
+    </item>
+    
+  </channel>
+</rss>

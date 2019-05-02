@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Hardwares on 杰哥的{运维,编程,调板子}小笔记</title>
+    <link>https://jiege.ch/hardware/</link>
+    <description>Recent content in Hardwares on 杰哥的{运维,编程,调板子}小笔记</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Wed, 24 Apr 2019 19:41:00 +0800</lastBuildDate>
+    
+	<atom:link href="https://jiege.ch/hardware/feed.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>在 FPGA 上实现路由器</title>
+      <link>https://jiege.ch/hardware/router-on-fpga/</link>
+      <pubDate>Wed, 24 Apr 2019 19:41:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/hardware/router-on-fpga/</guid>
+      <description>最近在做 FPGA 上硬件的路由器，感觉接近一个基本可用的阶段了吧，大概谈一谈做这个的思路、过程和踩过的坑。
+首先，做实验用的板子是 Alinx AX7021 ，FPGA 是 Xilinx xc7z020clg484-2 ，扩展板上有 4PL+1PS 个网口和千兆 KSZ9031RNX PHY ，采用的接口是 RGMII 。一开始做的自然是做 RGMII ，但是遇到了困难，RGMII在千兆模式下传输的是 DDR 信号，而时序和延迟就是个比较麻烦的事情。一开始先直接拿 Xilinx 的 AXI Ethernet IP 来用，然后上 ILA 看到了 IDDR 后的信号，第一次看到了完整的以太网帧，从 Preamble 和 SFD 到最后的 FCS 。于是就特别振奋，想着手写 RGMII ，先做收，再做发。确实，收很容易，很快就做出来了，但是写总是出问题，当时也不懂跨时钟域的一些问题，总之各种没调出来。于是就退而求其次，选择了 Xilinx 的 Tri Mode Ethernet IP 了。
+Tri Mode Ethernet IP 有很多选项，为了简单，直接采用了 AXI-Stream 的接口，不要 AXI4-Lite 什么的，都不要，因为我需要直接写剩余的逻辑。其他东西能省也都省掉了。这个 IP 确实很给力，很快就可以完成收和发的操作了，这次终于知道了怎么处理跨时钟域的问题 — XPM FIFO ASYNC ，一下推进了很大的进度。
+既然可以收，也可以发了，就扩展到多个网口。这个 IP 中可以选择 Shared Logic 在内部，也可以在外部，研究了一下发现，应该是一个放内部，其余选外部，然后接起来就可以了。不过目前为了简单，还是只用了俩端口。在这个基础上，就开始解析收进来的以太网帧了。
+第一步自然是填 ARP 表，自然问题来了，如果多个网口同时进来数据，怎么保证 ARP 表读写的正确性？自然就想到总线上需要做仲裁，于是写了一个简单的总线仲裁，顺带学习到了 unique case(z) 和 priority case(z) 的语法。然后 ARP 表怎么实现呢，大概就是一个哈希表，然后表里维护了（IP，MAC，PORT）三元组，然后实现了一些冲突和覆盖的处理逻辑，做这些的同时也对各个模块编写相应的测试。有了 ARP 表，就可以在解析以太网帧的时候，拆解出里面的信息，然后请求 ARP 表总线，然后写入。</description>
+    </item>
+    
+    <item>
+      <title>向咸鱼派写入 ArchlinuxARM</title>
+      <link>https://jiege.ch/hardware/archlinuxarm-on-sfpi/</link>
+      <pubDate>Tue, 06 Nov 2018 19:18:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/hardware/archlinuxarm-on-sfpi/</guid>
+      <description>之前由于我的 macOS 上不知道为啥不能把我的 TF 卡设备放到我的虚拟机里，所以之前就没能刷 ArchLinuxARM 上去。今天我想到了一个方法，完成了这件时期：
+$ wget https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/os/ArchLinuxARM-armv7-latest.tar.gz $ dd if=/dev/zero of=archlinuxarm.img bs=1M count=1024 $ mkfs.ext4 archlinuxarm.img $ sudo mkdir -p /mnt/archlinuxarm $ sudo mount -o loop archlinuxarm.img /mnt/archlinuxarm $ sudo bsdtar -xpf ArchLinuxARM-armv7-latest.tar.gz -C /mnt/archlinuxarm $ sudo umount /mnt/archlinuxarm  这样就获得了一个 ext4 的 ArchlinuxARM 镜像。刚好解压出来不到 1G ，所以开了 1G 的镜像刚好放得下。然后把 archlinuxarm.img 拷回 macOS ，然后用 dd 写进去：
+$ sudo dd if=archlinuxarm.img of=/dev/rdisk4s2 bs=1048576  这时候可以确认，我们确实是得到了一个正确的 ext4fs ：
+$ sudo /usr/local/opt/e2fsprogs/sbin/tune2fs -l /dev/disk4s2  不过，我们实际的分区大小可能不止 1G ，所以可以修改一下大小：</description>
+    </item>
+    
+    <item>
+      <title>咸鱼派的启动配置</title>
+      <link>https://jiege.ch/hardware/salted-fish-pi/</link>
+      <pubDate>Mon, 05 Nov 2018 22:17:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/hardware/salted-fish-pi/</guid>
+      <description>最近刚拿到了一个咸鱼派的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot ，我用的是现在的 master 分支的最新版 99431c1c ：
+$ # Archlinux $ sudo pacman -Sy arm-none-eabi-gcc $ make LicheePi_Zero_defconfig $ make ARCH=arm CROSS_COMPILE=arm-none-eabi- -j24  这时候会得到一个 u-boot-sunxi-with-spl.bin 的文件。我们只要把它写到 SD 卡的 8192 偏移处，就可以把 U-Boot 跑起来了：
+$ diskutil unmountDisk /dev/disk4 $ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8  接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。
+我用的是八月份时候的 4.18.2 内核，虽然不是很新但也足够新了。一番调整内核参数后，得到了一个可用的内核，然后把 zImage 和 sun8i-v3s-licheepi-zero.dtb 都复制到刚才创建的 FAT-32 启动分区，然后进入 U-Boot 进行启动：</description>
+    </item>
+    
+    <item>
+      <title>在荔枝糖（Lichee Tang）上初次体验 FPGA</title>
+      <link>https://jiege.ch/hardware/my-first-fpga-experience-on-lichee-tang/</link>
+      <pubDate>Sun, 07 Oct 2018 22:34:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/hardware/my-first-fpga-experience-on-lichee-tang/</guid>
+      <description>今天从张宇翔学长那拿到了 荔枝糖（Lichee Tang） 的 FPGA 板子，于是立即开始把前段时间学到的Verilog应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。
+在网上找到了 ben-marshall/uart 一个简易的实现，很快做到了一直在串口上打印 A 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO ，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：
+always @ (posedge clk_in) begin uart_tx_en &amp;lt;= uart_fifo_re; end  这样就解决了这个问题。完整代码在 jiegec/learn_licheetang 中。</description>
+    </item>
+    
+    <item>
+      <title>在 macOS 上读取移动硬盘的 S.M.A.R.T. 信息</title>
+      <link>https://jiege.ch/hardware/reading-smart-info-of-external-drives-under-macos/</link>
+      <pubDate>Fri, 07 Sep 2018 10:20:00 +0800</pubDate>
+      
+      <guid>https://jiege.ch/hardware/reading-smart-info-of-external-drives-under-macos/</guid>
+      <description>之前想看看自己各个盘的情况，但是发现只能看电脑内置的 SSD 的 S.M.A.R.T 信息，而移动硬盘的都显示：
+$ smartctl -a /dev/disk2 smartctl 6.6 2017-11-05 r4594 [Darwin 17.7.0 x86_64] (local build) Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org /dev/disk2: Unable to detect device type Please specify device type with the -d option. Use smartctl -h to get a usage summary  一开始我怀疑是个别盘不支持，但换了几个盘都不能工作，问题应该出现在了 USB 上。查了下资料，果然如此。根据 USB devices and smartmontools ，获取 S.M.A.R.T 信息需要直接发送 ATA 命令，但是由于经过了 USB ，于是需要进行一个转换，导致无法直接发送 ATA 命令。这个问题自然是有解决方案，大概就是直接把 ATA 命令发送过去（pass-through）。上面这个地址里写到，如果需要在 macOS 上使用，需要安装一个内核驱动。可以找到，源码在 kasbert/OS-X-SAT-SMART-Driver 并且有一个带签名的安装包在 External USB / FireWire drive diagnostics support 中可以下载。丢到 VirusTotal 上没查出问题，用 v0.</description>
+    </item>
+    
+  </channel>
+</rss>
