@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>在 FPGA 上实现路由器（2） // 杰哥的{运维,编程,调板子}小笔记</title>
+    <title>每周分享第 24 期 // 杰哥的{运维,编程,调板子}小笔记</title>
 
         <meta charset="utf-8">
     <meta http-equiv="content-type" content="text/html; charset=utf-8">
@@ -9,11 +9,11 @@
     <meta name="description" content="">
     <meta name="keywords" content="">
     <meta name="author" content="">
-        <meta property="og:title" content="在 FPGA 上实现路由器（2）" />
+        <meta property="og:title" content="每周分享第 24 期" />
     <meta property="og:description" content="" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:url" content="https://jiege.ch/hardware/router-on-fpga-2/" />
+    <meta property="og:url" content="https://jiege.ch/misc/2019/05/17/weekly-sharing-24/" />
     
 
     <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
@@ -59,77 +59,37 @@
     <div class="article-inner">
         
         <header class="article-header">
-            <h1 class="article-title" itemprop="name">在 FPGA 上实现路由器（2）</h1>
+            <h1 class="article-title" itemprop="name">每周分享第 24 期</h1>
         </header>
         
         <div class="article-meta">
-            <a href="/hardware/router-on-fpga-2/" class="article-date">
-                <time datetime='2019-05-15T20:39:00.000&#43;08:00' itemprop="datePublished">2019-05-15</time>
+            <a href="/misc/2019/05/17/weekly-sharing-24/" class="article-date">
+                <time datetime='2019-05-17T20:04:00.000&#43;08:00' itemprop="datePublished">2019-05-17</time>
             </a>
             
             
             
             <div class="article-comment-link-wrap">
-                <a href="/hardware/router-on-fpga-2/#disqus_thread" class="article-comment-link">Comments</a>
+                <a href="/misc/2019/05/17/weekly-sharing-24/#disqus_thread" class="article-comment-link">Comments</a>
             </div>
             
         </div>
         <div class="article-entry" itemprop="articleBody">
-            
-
-<h1 id="前沿">前沿</h1>
-
-<p>月初的时候，有了一个完整可用的路由器，但当时测了一下速度，只有几十 Mb/s ，只要往上提就会失效，得 reset 才能继续。当时也先没管性能的事情，先把和 OS 交互的部分做了。现在又回头来做性能调优。</p>
-
-<p>之前，逻辑部分的主频只有 10 MHz ，这自然不行，不提高肯定做不到千兆。于是试着把主频拉高， FIFO 加大，然后遇到了很多问题，慢慢修复了，学到了很多新知识，目前也接近千兆的水平了吧，贴图：</p>
-
-<p>TCP 测速：</p>
-
-<p><img src="/router_tcp.jpg" alt="" /></p>
-
-<p>UDP 测速：</p>
-
-<p><img src="/router_udp.jpg" alt="" /></p>
-
-<p>测试环境是 macOS 虚拟机外打虚拟机内，走网桥把虚拟机和一个 USB 网卡接起来，然后从另一个 USB 网卡打到路由器。</p>
-
-<h1 id="尝试-700mb-s">尝试 700Mb/s</h1>
-
-<p>接下来讲讲，在这个过程中遇到了什么问题，怎么解决的。第一个是速度过快就会挂，这肯定是丢包逻辑没写对，后来在仿真里开够了时间，于是就找到了一个 BUG ，其实就是一行的修复。接着就是提高主频，但大家也知道，CPU不能随便超频，由于各种延迟的原因，比如 Setup 时间，如果超了一个时钟周期的时间，本来应该下个周期就得到新数据的，结果到了下下周期才有，那有的状态可能就乱了，我目前遇到的也主要就是这个问题。</p>
-
-<p>于是就对着 Timing 里汇报的各种问题修啊修，发现了很多以前没有注意到的问题，它们不影响功能，但是会让逻辑变慢。第一个问题是 High Fanout ，以上就是说一个输出接到了很多输入，这看起来没啥问题，但数设课上也讲过，每个门的输入输出电流是有限制的，例如按书上的数据，一个门输出只能带十个门，更多只能级联一层。级联的话，延迟自然就高了。后来发现，这里的原因是，开了一个大的数组，但是没有变成 RAM ，综合出了几千个逻辑单元，自然是出问题。解决方法很简单，用 xpm_memory_tpdram 即可。这样一搞，主频就能上 200MHz 了。</p>
-
-<p>这个时候测了一下，发现 UDP 能打到 700Mb/s 了，TCP 由于丢包率比较高，只有 400Mb/s ，距离预期还有一段距离。于是继续进行优化。</p>
-
-<h1 id="向-900mb-s-进发">向 900Mb/s 进发</h1>
-
-<p>要继续提速，自然要提高主频。下一个主频目标就是 250MHz 。随着提高主频，时序的要求也会更高，自然也出现了新的问题。</p>
-
-<p>这次的问题主要在于，一个路径上逻辑门数过多，多的有7到10个，每一步零点几到一点几纳秒，叠起来4纳秒哪里够用。于是把一些不需要依赖条件的逻辑挪到条件外面，这样就减少了一些路径的依赖。</p>
-
-<p>解决了这个以后，现在的 WNS （Worst Negative Slack）只剩下 0.6 ns 了。这时候的问题一部分还是来自于逻辑门过多，但这个时候就没这么简单了，只能继续细化流水线，打一拍，这样才能把延迟降下来。</p>
-
-<p>虽然 Timing 没有完全解决，但还是写进了 FPGA 中。幸好工作一切正常，就得到了上面那个图片的结果，接近千兆的速度了。</p>
-
-<h1 id="后续优化途径">后续优化途径</h1>
-
-<p>后续优化途径的话，一方面是继续对逻辑进行细化和拆分，另一方面是对架构进行优化。当初设计的时候，可能没有考虑地那么周全，例如现在发现，其实 ARP Cache 可以放到每个网口一份，这样会降低花在仲裁上的时间。另外，路由表其实也可以分多份存，只要改的时候同一改就可以了。这样应该会更快。</p>
+            <ol>
+<li>在线波形绘制 <a href="https://wavedrom.com/editor.html">https://wavedrom.com/editor.html</a></li>
+<li>Python 波形绘制 <a href="https://github.com/wallento/wavedrompy">https://github.com/wallento/wavedrompy</a></li>
+<li>GDB 8.3 发布 <a href="http://www.phoronix.com/scan.php?page=news_item&amp;px=GDB-8.3-Debugger-Released">http://www.phoronix.com/scan.php?page=news_item&amp;px=GDB-8.3-Debugger-Released</a></li>
+<li>命令行自动搜索 StackOverflow <a href="https://github.com/WindSoilder/hors">https://github.com/WindSoilder/hors</a></li>
+<li>从 C 到 Rust 的翻译 <a href="https://github.com/immunant/c2rust">https://github.com/immunant/c2rust</a></li>
+<li>SHA-1 碰撞攻击新进展 <a href="https://www.zdnet.com/article/sha-1-collision-attacks-are-now-actually-practical-and-a-looming-danger/">https://www.zdnet.com/article/sha-1-collision-attacks-are-now-actually-practical-and-a-looming-danger/</a></li>
+<li>macOS 配置 AD 管理员组 <a href="https://derflounder.wordpress.com/2011/02/17/adding-groups-from-your-directory-service-to-your-macs-admin-group/">https://derflounder.wordpress.com/2011/02/17/adding-groups-from-your-directory-service-to-your-macs-admin-group/</a></li>
+<li>ssh 后自动安装并打开 code-server 同步配置 <a href="https://github.com/cdr/sshcode">https://github.com/cdr/sshcode</a></li>
+<li>HTTP Sunset 头 <a href="https://tools.ietf.org/html/rfc8594">https://tools.ietf.org/html/rfc8594</a></li>
+</ol>
 
         </div>
 
         
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-<ul>
-<li><a href="#前沿">前沿</a></li>
-<li><a href="#尝试-700mb-s">尝试 700Mb/s</a></li>
-<li><a href="#向-900mb-s-进发">向 900Mb/s 进发</a></li>
-<li><a href="#后续优化途径">后续优化途径</a></li>
-</ul>
-</nav>
-        </div>
         
         
 
@@ -179,12 +139,7 @@
             <ul class="article-tag-list">
                 
                 <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jiege.ch/tags/router">router
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jiege.ch/tags/fpga">fpga
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/weeklysharing">weeklysharing
                     </a>
                 </li>
                 
@@ -194,15 +149,9 @@
     </div>
     <nav id="article-nav">
     
-    <a href="/misc/2019/05/17/weekly-sharing-24/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            每周分享第 24 期
-        </div>
-    </a>
     
-    
-    <a href="/misc/2019/05/11/weekly-sharing-23/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">每周分享第 23 期&nbsp;<span>&gt;</span></div>
+    <a href="/hardware/router-on-fpga-2/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 FPGA 上实现路由器（2）&nbsp;<span>&gt;</span></div>
     </a>
     
 </nav>
