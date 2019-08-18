@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在 Linux 下捕获 Framebuffer // 杰哥的{运维,编程,调板子}小笔记</title>
+
+        <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <meta name="author" content="">
+        <meta property="og:title" content="在 Linux 下捕获 Framebuffer" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://jiege.ch/software/framebuffer-capture/" />
+    
+
+    <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
+    <link rel="shortcut icon" href="/favicon.png">
+
+    <link href="https://jiege.ch/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jiege.ch/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jiege.ch/css/style.css">
+
+    <meta name="generator" content="Hugo 0.57.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jiege.ch">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在 Linux 下捕获 Framebuffer</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/framebuffer-capture/" class="article-date">
+                <time datetime='2019-08-12T20:18:00.000&#43;08:00' itemprop="datePublished">2019-08-12</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/framebuffer-capture/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>最近需要在 linux 下抓取 Framebuffer 的内容，在网上找到了两种方法，在我这里只有第二、第三种可以成功，没有细究具体原因，可能与我的 Framebuffer 配置有关。方法如下：</p>
+
+<ol>
+<li><code>fbgrab</code> ：命令就是 fbgrab image.png ，直接得到 png 文件，格式是对的，但是用软件打开就是一片空白。用 ImageMagick 转换为 jpg可以看到一些内容，但是和实际有些不一样。</li>
+<li><code>fbdump</code> ：命令就是 fbdump &gt; image.ppm ，得到裸的 ppm 文件，图像是正确的，也可以转换为别的格式正常打开。</li>
+<li>cat+脚本处理：直接 cat /dev/fb0 &gt; image.rgb ，然后用下面的脚本转换为 png 。由于 Framebuffer 格式为 RGB ，本来 A 所在的 channel 都为 0 ，所以用一些软件直接打开都是空白，只好写了脚本直接跳过 Alpha Channel 。</li>
+</ol>
+
+<p>Framebuffer 配置（ <code>fbset</code> 输出）：</p>
+
+<pre><code>mode &quot;640x480-0&quot;
+        # D: 0.000 MHz, H: 0.000 kHz, V: 0.000 Hz
+        geometry 640 480 1024 480 32
+        timings 0 0 0 0 0 0 0
+        accel false
+        rgba 8/16,8/8,8/0,0/0
+endmode
+</code></pre>
+
+<p>转换脚本（参考<a href="https://owen-hsu.blogspot.com/2016/06/tips-framebuffer.html">[Tips] 擷取framebuffer畫面</a>）：</p>
+
+<pre><code class="language-perl">#!/usr/bin/perl -w
+ 
+$w = shift || 240;
+$h = shift || 320;
+$pixels = $w * $h;
+ 
+open OUT, &quot;|pnmtopng&quot; or die &quot;Can't pipe pnmtopng: $!\n&quot;;
+ 
+printf OUT &quot;P6%d %d\n255\n&quot;, $w, $h;
+ 
+while ((read STDIN, $raw, 4) and $pixels--) {
+   $short = unpack('I', $raw);
+   print OUT pack(&quot;C3&quot;,
+      ($short &amp; 0xff0000) &gt;&gt; 16,
+      ($short &amp; 0xff00) &gt;&gt; 8,
+      ($short &amp; 0xff));
+}
+ 
+close OUT;
+</code></pre>
+
+<p>用法： <code>cat image.rgb | perl script.pl 1024 480 &gt; console.png</code></p>
+
+        </div>
+
+        
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/linux">linux
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/fb">fb
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/framebuffer">framebuffer
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/fbgrab">fbgrab
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/fbdump">fbdump
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    <nav id="article-nav">
+    
+    <a href="/software/read-edid-decode-macos/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            macOS 下读取并解析 EDID
+        </div>
+    </a>
+    
+    
+    <a href="/misc/2019/08/10/weekly-sharing-36/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">每周分享第 36 期&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2019 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

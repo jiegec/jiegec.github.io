@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="https://jiege.ch/css/style.css">
 
-    <meta name="generator" content="Hugo 0.56.3" />
+    <meta name="generator" content="Hugo 0.57.0" />
 </head>
 
 <body>
@@ -54,6 +54,157 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/router-on-fpga/">在 FPGA 上实现路由器</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/router-on-fpga/" class="article-date">
+                        <time datetime='2019-04-24T19:41:00.000&#43;08:00' itemprop="datePublished">2019-04-24</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/router-on-fpga/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    最近在做 FPGA 上硬件的路由器，感觉接近一个基本可用的阶段了吧，大概谈一谈做这个的思路、过程和踩过的坑。
+首先，做实验用的板子是 Alinx AX7021 ，FPGA 是 Xilinx xc7z020clg484-2 ，扩展板上有 4PL+1PS 个网口和千兆 KSZ9031RNX PHY ，采用的接口是 RGMII 。一开始做的自然是做 RGMII ，但是遇到了困难，RGMII在千兆模式下传输的是 DDR 信号，而时序和延迟就是个比较麻烦的事情。一开始先直接拿 Xilinx 的 AXI Ethernet IP 来用，然后上 ILA 看到了 IDDR 后的信号，第一次看到了完整的以太网帧，从 Preamble 和 SFD 到最后的 FCS 。于是就特别振奋，想着手写 RGMII ，先做收，再做发。确实，收很容易，很快就做出来了，但是写总是出问题，当时也不懂跨时钟域的一些问题，总之各种没调出来。于是就退而求其次，选择了 Xilinx 的 Tri Mode Ethernet IP 了。
+Tri Mode Ethernet IP 有很多选项，为了简单，直接采用了 AXI-Stream 的接口，不要 AXI4-Lite 什么的，都不要，因为我需要直接写剩余的逻辑。其他东西能省也都省掉了。这个 IP 确实很给力，很快就可以完成收和发的操作了，这次终于知道了怎么处理跨时钟域的问题 — XPM FIFO ASYNC ，一下推进了很大的进度。
+既然可以收，也可以发了，就扩展到多个网口。这个 IP 中可以选择 Shared Logic 在内部，也可以在外部，研究了一下发现，应该是一个放内部，其余选外部，然后接起来就可以了。不过目前为了简单，还是只用了俩端口。在这个基础上，就开始解析收进来的以太网帧了。
+第一步自然是填 ARP 表，自然问题来了，如果多个网口同时进来数据，怎么保证 ARP 表读写的正确性？自然就想到总线上需要做仲裁，于是写了一个简单的总线仲裁，顺带学习到了 unique case(z) 和 priority case(z) 的语法。然后 ARP 表怎么实现呢，大概就是一个哈希表，然后表里维护了（IP，MAC，PORT）三元组，然后实现了一些冲突和覆盖的处理逻辑，做这些的同时也对各个模块编写相应的测试。有了 ARP 表，就可以在解析以太网帧的时候，拆解出里面的信息，然后请求 ARP 表总线，然后写入。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/router-on-fpga/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jiege.ch/tags/router">router
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jiege.ch/tags/fpga">fpga
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/misc/2019/04/22/jiegec-xyz-down/">jiegec.xyz 域名即将停用</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/misc/2019/04/22/jiegec-xyz-down/" class="article-date">
+                        <time datetime='2019-04-22T11:42:00.000&#43;08:00' itemprop="datePublished">2019-04-22</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/misc/2019/04/22/jiegec-xyz-down/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    最早买域名的时候，买的是 jiegec.xyz ，后来发现了更好的域名，于是这个老域名一直就是一个简单的网页转址。很快，它就要过期了，我也不打算续费了，大家继续用我的新域名吧。
+P.S. 忽然发现我之前配的 acme.sh 没有配自动 nginx -s reload ，所以之前 ssl 证书时间凉了。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/misc/2019/04/22/jiegec-xyz-down/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jiege.ch/tags/jiegecxyz">jiegecxyz
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jiege.ch/tags/domain">domain
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/misc/2019/04/20/weekly-sharing-20/">每周分享第 20 期</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/misc/2019/04/20/weekly-sharing-20/" class="article-date">
+                        <time datetime='2019-04-20T22:42:00.000&#43;08:00' itemprop="datePublished">2019-04-20</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/misc/2019/04/20/weekly-sharing-20/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    写到了第 20 期了！最近几期总是在咕咕。
+ Rust 的科学计算库 https://github.com/rust-ndarray/ndarray https://github.com/jturner314/ndarray-stats Rust Crate 生态可视化 https://rfdonnelly.github.io/crate-galaxy/ 在地址栏里做动画 http://matthewrayfield.com/articles/animating-urls-with-javascript-and-emojis/#%F0%9F%8C%92 Ruby 3 也要加类型了 https://twitter.com/darkdimius/status/1119115657776209920 verilog 的 MAC + 简易网络栈 https://github.com/alexforencich/verilog-ethernet  
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/misc/2019/04/20/weekly-sharing-20/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jiege.ch/tags/weeklysharing">weeklysharing
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -445,177 +596,6 @@ sqlite3: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked,
             </div>
         </article>
         
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/software/cross-compiling-nginx-to-riscv/">交叉编译 Nginx 1.14.2 到 RISC-V</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/software/cross-compiling-nginx-to-riscv/" class="article-date">
-                        <time datetime='2019-03-22T23:18:00.000&#43;08:00' itemprop="datePublished">2019-03-22</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/software/cross-compiling-nginx-to-riscv/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    最近又把一定的精力放到了 RISC-V 64 上的 rCore 用户态程序的支持上，同时也借到了 HiFive Unleashed 板子，所以有真实硬件可以拿来跑了。在这之前先在 QEMU 上把能跑的都跑起来。
-由于 rCore 对 glibc 的支持一直有问题，RISC-V 也不例外，所以还是选择用 musl 来做这件事情。一般搜索，终于找到了 Linux 下能用的 musl-riscv-toolchain 。编译好工具链以后，很多需要 libc 的用户态都能跑了，于是想着试一下 nginx 的编译。试着编译了一下，遇到了各种问题，最后搜到了交叉编译Hi3536上面使用的nginx，里面的方法解决了这个问题。最后总结出了这样的 patch :
-diff --git a/nginx-1.14.2/auto/cc/name b/nginx-1.14.2/auto/cc/name index ded93f5..d6ab27a 100644 --- a/nginx-1.14.2/auto/cc/name +++ b/nginx-1.14.2/auto/cc/name @@ -7,7 +7,7 @@ if [ &quot;$NGX_PLATFORM&quot; != win32 ]; then ngx_feature=&quot;C compiler&quot; ngx_feature_name= - ngx_feature_run=yes + ngx_feature_run=no ngx_feature_incs= ngx_feature_path= ngx_feature_libs= diff --git a/nginx-1.14.2/auto/lib/openssl/make b/nginx-1.14.2/auto/lib/openssl/make index 126a238..7a0e768 100644 --- a/nginx-1.14.2/auto/lib/openssl/make +++ b/nginx-1.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/software/cross-compiling-nginx-to-riscv/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/rcore">rcore
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/riscv">riscv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/crosscompiling">crosscompiling
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/musl">musl
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/devops/new-clean-env-on-old-os/">在古老的 OS 上运行一个干净的新的环境</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/devops/new-clean-env-on-old-os/" class="article-date">
-                        <time datetime='2019-03-21T22:46:00.000&#43;08:00' itemprop="datePublished">2019-03-21</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/devops/new-clean-env-on-old-os/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    由于某些课程的原因，需要在一个 CentOS 7 上跑一些编译和运行代码。看到这么古老的软件，我心想不行，肯定要找新一些的软件来用。首先想到的是 tmux ，于是按照网上的脚本 很快装了一个 tmux 2.8 版本，果然好了很多。但是常用的很多软件依然是个问题。试了一下最近比较新的 code-server ，因为ABI问题跑不起来。
-于是开始想玩骚操作。首先想到的是 Gentoo Prefix ，不过既然是别人的机器，还是算了。又找了 fakeroot 配合 alpine rootfs 的方案，但编译不过，估计是内核版本问题。又试了一下 fakechroot ，但它需要配合 fakeroot 使用，这就凉了。
-然后又找了一些替代方案。一是 uchroot ，但由于 CMake 版本太老也编译不过。最后发现了 PRoot ，直接提供 prebuilt 然后很容易就可以跑起来：
-$ ./proot -b /proc -b /dev -r $CHROOT /bin/busybox sh  于是就进到了 alpine 的 rootfs 中，下载地址。进去以后发现没有编辑器，于是出来把 apk 的源改了，加了 resolv.conf ，就成功地安装了很多很新的软件了。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/devops/new-clean-env-on-old-os/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/centos">centos
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/alpine">alpine
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/slurm">slurm
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/redhat">redhat
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/misc/2019/03/16/weekly-sharing-15/">每周分享第 15 期</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/misc/2019/03/16/weekly-sharing-15/" class="article-date">
-                        <time datetime='2019-03-16T01:04:00.000&#43;08:00' itemprop="datePublished">2019-03-16</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/misc/2019/03/16/weekly-sharing-15/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    继续沉迷写 OS
- 嵌入 graphics for rust 可以绘制 bmp 了 https://wapl.es/rust/2019/03/04/embedded-graphics-0.4.7-bmp-support.html rustup component history 方便 nightly 日期选择 https://rust-lang.github.io/rustup-components-history/index.html grpcurl 用于 grpc 调试 https://github.com/fullstorydev/grpcurl grafana 6.0 is out http://docs.grafana.org/guides/whats-new-in-v6-0/ 康哥推荐的写论文工具： https://github.com/stsewd/ieee-pandoc-template  
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/misc/2019/03/16/weekly-sharing-15/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jiege.ch/tags/weeklysharing">weeklysharing
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
 
         
 
@@ -690,6 +670,10 @@ $ ./proot -b /proc -b /dev -r $CHROOT /bin/busybox sh  于是就进到了 alpine
     
     
     <a href="/page/17/">17</a>
+    
+    
+    
+    <a href="/page/18/">18</a>
     
     
 
