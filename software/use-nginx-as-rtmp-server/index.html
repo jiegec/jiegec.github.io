@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>每周分享第 43 期 // 杰哥的{运维,编程,调板子}小笔记</title>
+    <title>用 Nginx 作为 RTMP 服务器并提供直播服务 // 杰哥的{运维,编程,调板子}小笔记</title>
 
         <meta charset="utf-8">
     <meta http-equiv="content-type" content="text/html; charset=utf-8">
@@ -9,11 +9,11 @@
     <meta name="description" content="">
     <meta name="keywords" content="">
     <meta name="author" content="">
-        <meta property="og:title" content="每周分享第 43 期" />
+        <meta property="og:title" content="用 Nginx 作为 RTMP 服务器并提供直播服务" />
     <meta property="og:description" content="" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:url" content="https://jiege.ch/misc/2019/09/28/weekly-sharing-43/" />
+    <meta property="og:url" content="https://jiege.ch/software/use-nginx-as-rtmp-server/" />
     
 
     <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
@@ -59,38 +59,83 @@
     <div class="article-inner">
         
         <header class="article-header">
-            <h1 class="article-title" itemprop="name">每周分享第 43 期</h1>
+            <h1 class="article-title" itemprop="name">用 Nginx 作为 RTMP 服务器并提供直播服务</h1>
         </header>
         
         <div class="article-meta">
-            <a href="/misc/2019/09/28/weekly-sharing-43/" class="article-date">
-                <time datetime='2019-09-28T10:04:00.000&#43;08:00' itemprop="datePublished">2019-09-28</time>
+            <a href="/software/use-nginx-as-rtmp-server/" class="article-date">
+                <time datetime='2019-09-28T10:15:00.000&#43;08:00' itemprop="datePublished">2019-09-28</time>
             </a>
             
             
             
             <div class="article-comment-link-wrap">
-                <a href="/misc/2019/09/28/weekly-sharing-43/#disqus_thread" class="article-comment-link">Comments</a>
+                <a href="/software/use-nginx-as-rtmp-server/#disqus_thread" class="article-comment-link">Comments</a>
             </div>
             
         </div>
         <div class="article-entry" itemprop="articleBody">
-            <ol>
-<li>Async in C <a href="https://github.com/naasking/async.h">https://github.com/naasking/async.h</a></li>
-<li>Mozilla 的 QUIC 实现 <a href="https://github.com/mozilla/neqo/">https://github.com/mozilla/neqo/</a></li>
-<li>在PCI上做的攻击 <a href="https://github.com/ufrisk/pcileech">https://github.com/ufrisk/pcileech</a></li>
-<li>对 X 的原理介绍 <a href="https://magcius.github.io/xplain/article/index.html">https://magcius.github.io/xplain/article/index.html</a></li>
-<li>Ethernet 物理层的介绍 <a href="https://www.analog.com/media/en/technical-documentation/application-notes/EE-269.pdf">https://www.analog.com/media/en/technical-documentation/application-notes/EE-269.pdf</a></li>
-<li>Overleaf 更新了 TeX Live 版本 <a href="https://www.overleaf.com/blog/tex-live-upgrade-september-2019">https://www.overleaf.com/blog/tex-live-upgrade-september-2019</a></li>
-<li>下一代 proc macro ？ <a href="https://github.com/alexcrichton/proc-macro2">https://github.com/alexcrichton/proc-macro2</a></li>
-<li>iOS 13 API 变化 <a href="https://nshipster.com/ios-13/">https://nshipster.com/ios-13/</a></li>
-<li>iOS 13.1.1 发布</li>
-<li>Rust 编译期 HashMap <a href="https://github.com/sfackler/rust-phf">https://github.com/sfackler/rust-phf</a></li>
-<li>V8 加入顶层 Await 支持 <a href="https://chromium.googlesource.com/v8/v8.git/+/0ceee9ad28c21bc4971fb237cf87eb742fc787b8%5E%21/">https://chromium.googlesource.com/v8/v8.git/+/0ceee9ad28c21bc4971fb237cf87eb742fc787b8%5E%21/</a></li>
-<li>ASCII 码表的一种理解 <a href="https://garbagecollected.org/2017/01/31/four-column-ascii/">https://garbagecollected.org/2017/01/31/four-column-ascii/</a></li>
-<li>Cloudflare 启用 HTTP/3 <a href="https://blog.cloudflare.com/http3-the-past-present-and-future/">https://blog.cloudflare.com/http3-the-past-present-and-future/</a></li>
-<li>ZFS 发布 0.8.2 <a href="https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.8.2">https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.8.2</a></li>
-</ol>
+            <p>Nginx 除了可以做 HTTP 服务器以外，还可以做 RTMP 服务器，同时转成 HLS 再提供给用户，这样可以实现一个直播的服务器，用 OBS 推上来即可。</p>
+
+<p>首先要安装 nginx-rtmp-server 模块，很多的发行版都已经包含了，它的主页是 <a href="https://github.com/arut/nginx-rtmp-module">https://github.com/arut/nginx-rtmp-module</a> ，下面很多内容也是来自于它的教程中。</p>
+
+<p>接着，配置 Nginx ，在 nginx.conf 的顶层中添加如下的配置：</p>
+
+<pre><code>rtmp {
+    server {
+            listen 1935;
+            chunk_size 4096;
+
+            application live {
+                    live on;
+                    record off;
+
+                    hls on;
+                    hls_path /path/to/save/hls;
+                    hls_fragment 1s;
+                    hls_playlist_length 10s;
+            }
+
+    }
+}
+</code></pre>
+
+<p>这里表示 Nginx 要在 1935 监听一个 RTMP 服务器，然后把 live 下的视频切成片然后存在目录下，提供一个 m3u8 文件以供播放器使用。这里的参数都可以按照实际需求进行调整。这时候应该可以看到 nginx 正确监听1935 端口，这是 rtmp 的默认端口。</p>
+
+<p>接着，需要在一个 HTTP server 路径下把 HLS serve 出去：</p>
+
+<pre><code>        location /hls {
+            # Serve HLS fragments
+            types {
+                application/vnd.apple.mpegurl m3u8;
+                video/mp2t ts;
+            }
+            root /path/to/save/hls;
+            add_header Cache-Control no-cache;
+        }
+</code></pre>
+
+<p>这时候，如果你用 rtmp 推一个流（比如用OBS）到 rtmp://SERVER_IP/live/SOMETHING ，那么在对应的目录下会看到 SOMETHING 开头的一系列文件；用播放器打开 <a href="http://SERVER_IP/hls/SOMETHING.m3u8">http://SERVER_IP/hls/SOMETHING.m3u8</a> 就可以看到直播的视频流了。</p>
+
+<p>如果要直接在浏览器里播放 HLS，需要用 Flowplayer，直接参考官方的例子即可：</p>
+
+<pre><code class="language-javascript">&lt;script&gt;
+var player = flowplayer(&quot;#player&quot;, {
+        clip: {
+                sources: [
+                {
+                        type: &quot;application/x-mpegurl&quot;,
+                        src: &quot;https://SERVER_IP/hls/SOMETHING.m3u8&quot;
+                }]
+        },
+        autoplay: true,
+        loop: true,
+        live: true
+});
+&lt;/script&gt;
+</code></pre>
+
+<p>上面的各个路径可以按照实际需求改动。</p>
 
         </div>
 
@@ -144,7 +189,22 @@
             <ul class="article-tag-list">
                 
                 <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jiege.ch/tags/weeklysharing">weeklysharing
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/nginx">nginx
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/rtmp">rtmp
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/hls">hls
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/obs">obs
                     </a>
                 </li>
                 
@@ -154,15 +214,9 @@
     </div>
     <nav id="article-nav">
     
-    <a href="/software/use-nginx-as-rtmp-server/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            用 Nginx 作为 RTMP 服务器并提供直播服务
-        </div>
-    </a>
     
-    
-    <a href="/misc/2019/09/21/weekly-sharing-42/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">每周分享第 42 期&nbsp;<span>&gt;</span></div>
+    <a href="/misc/2019/09/28/weekly-sharing-43/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">每周分享第 43 期&nbsp;<span>&gt;</span></div>
     </a>
     
 </nav>
