@@ -18,9 +18,11 @@
       
       <guid>https://jiege.ch/programming/2019/06/21/ip-prefix-unexpected-undefined-behavior/</guid>
       <description>最近发现了两个很神奇的 Undefined Behavior ，出现在 Prefix Len 和 Netmask 的转换的问题下。一个简单思路可能是：
-#define PREFIX_BIN2DEC(bin) (32 - __builtin_ctz((bin))) #define PREFIX_DEC2BIN(hex) (((~0) &amp;gt;&amp;gt; (32 - (hex))) &amp;lt;&amp;lt; (32 - (hex))  乍一看，似乎没有什么问题。但是，在一些平台下，可能会出现这样的结果：
-PREFIX_BIN2DEC(0x00000000) = 33 PREFIX_DEC2BIN(0) = 0xFFFFFFFF  而且只能在一些平台上不确定地复现，最后发现其实是 Undefined Behavior，在 C 的标准中：
-In any case, the behavior is undefined if rhs is negative or is greater or equal the number of bits in the promoted lhs.  意味着， 0xFFFFFFFF &amp;gt;&amp;gt; 32 是一个 UB ，所以出现了上面的问题。</description>
+#define PREFIX_BIN2DEC(bin) (32 - __builtin_ctz((bin)))#define PREFIX_DEC2BIN(hex) (((~0) &amp;gt;&amp;gt; (32 - (hex))) &amp;lt;&amp;lt; (32 - (hex))乍一看，似乎没有什么问题。但是，在一些平台下，可能会出现这样的结果：
+PREFIX_BIN2DEC(0x00000000) = 33 PREFIX_DEC2BIN(0) = 0xFFFFFFFF 而且只能在一些平台上不确定地复现，最后发现其实是 Undefined Behavior，在 C 的标准中：
+In any case, the behavior is undefined if rhs is negative or is greater or equal the number of bits in the promoted lhs. 意味着， 0xFFFFFFFF &amp;gt;&amp;gt; 32 是一个 UB ，所以出现了上面的问题。
+另外，__builtin_ctz 有这样的说明：
+Returns the number of trailing 0-bits in x, starting at the least significant bit position.</description>
     </item>
     
     <item>
@@ -31,7 +33,7 @@ In any case, the behavior is undefined if rhs is negative or is greater or equal
       <guid>https://jiege.ch/networking/2019/05/30/ip-and-udp-checksum-incremental-update/</guid>
       <description>之前在写 IP Checksum 的增量更新，就是当 TTL -= 1 的时候，Checksum 应该增加 0x0100 ，但是这样会有问题，在于，如果按照原来的 IP Checksum 计算方法，是不会出现 0xFFFF 的（求和，进位，然后取反写入），这种加法就有可能出现 0xFFFF 。于是翻阅了相关的RFC：
 首先是 RFC 1141 相关部分：
-unsigned long sum; ipptr-&amp;gt;ttl--; /* decrement ttl */ sum = ipptr-&amp;gt;Checksum + 0x100; /* increment checksum high byte*/ ipptr-&amp;gt;Checksum = (sum + (sum&amp;gt;&amp;gt;16)) /* add carry */  这也是比较直接能想到的一种方法，但是会出现刚才提到的问题。于是 RFC 1624 纠正了这个问题：
+unsigned long sum; ipptr-&amp;gt;ttl--; /* decrement ttl */ sum = ipptr-&amp;gt;Checksum + 0x100; /* increment checksum high byte*/ ipptr-&amp;gt;Checksum = (sum + (sum&amp;gt;&amp;gt;16)) /* add carry */ 这也是比较直接能想到的一种方法，但是会出现刚才提到的问题。于是 RFC 1624 纠正了这个问题：
  Although this equation appears to work, there are boundary conditions under which it produces a result which differs from the one obtained by checksum computation from scratch.</description>
     </item>
     
@@ -44,7 +46,7 @@ unsigned long sum; ipptr-&amp;gt;ttl--; /* decrement ttl */ sum = ipptr-&amp;gt;
       <description>现在遇到一个场景，原来的一个服务只给一个客户端用，但现在增加了一个客户端，由于客户端配置相同，但是服务端需要区别对待两个客户端的服务端配置，所以利用 iptables 根据源地址做了一个端口转发，实现了 demux 。
 假设：服务器在 192.168.0.1 ，客户端分别在 192.168.0.2 和 192.168.0.3 。客户端配置的服务端地址是 192.168.0.1:8000 。之前，在服务器上只跑了一个服务，监听着 8000 端口。
 现在，在服务器上再跑一个服务，监听 8001 端口，同时根据需求进行相应的配置。然后，加上如下 iptables 规则：
-$ sudo iptables -t nat -A PREROUTING -s 192.168.0.3 -d 192.168.0.1 -p tcp -m tcp --dport 8000 -j REDIRECT --to-ports 8001  这样，在不需要更改客户端的情况下，完成了需要的效果。</description>
+$ sudo iptables -t nat -A PREROUTING -s 192.168.0.3 -d 192.168.0.1 -p tcp -m tcp --dport 8000 -j REDIRECT --to-ports 8001 这样，在不需要更改客户端的情况下，完成了需要的效果。</description>
     </item>
     
   </channel>

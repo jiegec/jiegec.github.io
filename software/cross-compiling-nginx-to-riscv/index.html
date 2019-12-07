@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="https://jiege.ch/css/style.css">
 
-    <meta name="generator" content="Hugo 0.59.1" />
+    <meta name="generator" content="Hugo 0.60.1" />
 </head>
 
 
@@ -80,71 +80,67 @@
         </div>
         <div class="article-entry" itemprop="articleBody">
             <p>最近又把一定的精力放到了 RISC-V 64 上的 rCore 用户态程序的支持上，同时也借到了 HiFive Unleashed 板子，所以有真实硬件可以拿来跑了。在这之前先在 QEMU 上把能跑的都跑起来。</p>
-
 <p>由于 rCore 对 glibc 的支持一直有问题，RISC-V 也不例外，所以还是选择用 musl 来做这件事情。一般搜索，终于找到了 Linux 下能用的 <a href="https://github.com/rv8-io/musl-riscv-toolchain">musl-riscv-toolchain</a> 。编译好工具链以后，很多需要 libc 的用户态都能跑了，于是想着试一下 nginx 的编译。试着编译了一下，遇到了各种问题，最后搜到了<a href="https://www.jianshu.com/p/5d9b60f7b262">交叉编译Hi3536上面使用的nginx</a>，里面的方法解决了这个问题。最后总结出了这样的 patch :</p>
-
-<pre><code class="language-diff">diff --git a/nginx-1.14.2/auto/cc/name b/nginx-1.14.2/auto/cc/name
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-diff" data-lang="diff">diff --git a/nginx-1.14.2/auto/cc/name b/nginx-1.14.2/auto/cc/name
 index ded93f5..d6ab27a 100644
---- a/nginx-1.14.2/auto/cc/name
-+++ b/nginx-1.14.2/auto/cc/name
-@@ -7,7 +7,7 @@ if [ &quot;$NGX_PLATFORM&quot; != win32 ]; then
- 
-     ngx_feature=&quot;C compiler&quot;
+<span style="color:#f92672">--- a/nginx-1.14.2/auto/cc/name
+</span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/nginx-1.14.2/auto/cc/name
+</span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -7,7 +7,7 @@ if [ &#34;$NGX_PLATFORM&#34; != win32 ]; then
+</span><span style="color:#75715e"></span> 
+     ngx_feature=&#34;C compiler&#34;
      ngx_feature_name=
--    ngx_feature_run=yes
-+    ngx_feature_run=no
-     ngx_feature_incs=
+<span style="color:#f92672">-    ngx_feature_run=yes
+</span><span style="color:#f92672"></span><span style="color:#a6e22e">+    ngx_feature_run=no
+</span><span style="color:#a6e22e"></span>     ngx_feature_incs=
      ngx_feature_path=
      ngx_feature_libs=
 diff --git a/nginx-1.14.2/auto/lib/openssl/make b/nginx-1.14.2/auto/lib/openssl/make
 index 126a238..7a0e768 100644
---- a/nginx-1.14.2/auto/lib/openssl/make
-+++ b/nginx-1.14.2/auto/lib/openssl/make
-@@ -51,7 +51,7 @@ END
- $OPENSSL/.openssl/include/openssl/ssl.h:	$NGX_MAKEFILE
+<span style="color:#f92672">--- a/nginx-1.14.2/auto/lib/openssl/make
+</span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/nginx-1.14.2/auto/lib/openssl/make
+</span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -51,7 +51,7 @@ END
+</span><span style="color:#75715e"></span> $OPENSSL/.openssl/include/openssl/ssl.h:	$NGX_MAKEFILE
  	cd $OPENSSL \\
  	&amp;&amp; if [ -f Makefile ]; then \$(MAKE) clean; fi \\
--	&amp;&amp; ./config --prefix=$ngx_prefix no-shared no-threads $OPENSSL_OPT \\
-+	&amp;&amp; ./config --prefix=$ngx_prefix no-shared no-threads --cross-compile-prefix=riscv64-linux-musl- $OPENSSL_OPT \\
- 	&amp;&amp; \$(MAKE) \\
+<span style="color:#f92672">-	&amp;&amp; ./config --prefix=$ngx_prefix no-shared no-threads $OPENSSL_OPT \\
+</span><span style="color:#f92672"></span><span style="color:#a6e22e">+	&amp;&amp; ./config --prefix=$ngx_prefix no-shared no-threads --cross-compile-prefix=riscv64-linux-musl- $OPENSSL_OPT \\
+</span><span style="color:#a6e22e"></span> 	&amp;&amp; \$(MAKE) \\
  	&amp;&amp; \$(MAKE) install_sw LIBDIR=lib
  
 diff --git a/nginx-1.14.2/auto/types/sizeof b/nginx-1.14.2/auto/types/sizeof
 index 480d8cf..52c7287 100644
---- a/nginx-1.14.2/auto/types/sizeof
-+++ b/nginx-1.14.2/auto/types/sizeof
-@@ -33,7 +33,7 @@ int main(void) {
- END
+<span style="color:#f92672">--- a/nginx-1.14.2/auto/types/sizeof
+</span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/nginx-1.14.2/auto/types/sizeof
+</span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -33,7 +33,7 @@ int main(void) {
+</span><span style="color:#75715e"></span> END
  
  
--ngx_test=&quot;$CC $CC_TEST_FLAGS $CC_AUX_FLAGS \
-+ngx_test=&quot;gcc $CC_TEST_FLAGS $CC_AUX_FLAGS \
-           -o $NGX_AUTOTEST $NGX_AUTOTEST.c $NGX_LD_OPT $ngx_feature_libs&quot;
+<span style="color:#f92672">-ngx_test=&#34;$CC $CC_TEST_FLAGS $CC_AUX_FLAGS \
+</span><span style="color:#f92672"></span><span style="color:#a6e22e">+ngx_test=&#34;gcc $CC_TEST_FLAGS $CC_AUX_FLAGS \
+</span><span style="color:#a6e22e"></span>           -o $NGX_AUTOTEST $NGX_AUTOTEST.c $NGX_LD_OPT $ngx_feature_libs&#34;
  
- eval &quot;$ngx_test &gt;&gt; $NGX_AUTOCONF_ERR 2&gt;&amp;1&quot;
+ eval &#34;$ngx_test &gt;&gt; $NGX_AUTOCONF_ERR 2&gt;&amp;1&#34;
 
-</code></pre>
-
-<p>接着，在 <code>./configure --with-cc=riscv64-linux-musl-gcc --with-cc-opt=-static --with-ld-opt=-static --without-pcre --without-http_rewrite_module --without-http_gzip_module --with-poll_module --without-http_upstream_zone_module</code> 之后，修改 <code>objs/ngx_auto_config.h</code>，加入：</p>
-
-<pre><code class="language-c">#ifndef NGX_SYS_NERR
-#define NGX_SYS_NERR  132
-#endif
-
-#ifndef NGX_HAVE_SYSVSHM
-#define NGX_HAVE_SYSVSHM 1
-#endif
-</code></pre>
-
-<p>接着就可以正常编译了：</p>
-
-<pre><code class="language-bash">$ file objs/nginx
-objs/nginx: ELF 64-bit LSB executable, UCB RISC-V, version 1 (SYSV), statically linked, with debug_info, not stripped
-</code></pre>
-
+</code></pre></div><p>接着，在 <code>./configure --with-cc=riscv64-linux-musl-gcc --with-cc-opt=-static --with-ld-opt=-static --without-pcre --without-http_rewrite_module --without-http_gzip_module --with-poll_module --without-http_upstream_zone_module</code> 之后，修改 <code>objs/ngx_auto_config.h</code>，加入：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#75715e">#</span><span style="color:#75715e">ifndef NGX_SYS_NERR</span><span style="color:#75715e">
+</span><span style="color:#75715e"></span><span style="color:#75715e">#</span><span style="color:#75715e">define NGX_SYS_NERR  132</span><span style="color:#75715e">
+</span><span style="color:#75715e"></span><span style="color:#75715e">#</span><span style="color:#75715e">endif</span><span style="color:#75715e">
+</span><span style="color:#75715e"></span>
+<span style="color:#75715e">#</span><span style="color:#75715e">ifndef NGX_HAVE_SYSVSHM</span><span style="color:#75715e">
+</span><span style="color:#75715e"></span><span style="color:#75715e">#</span><span style="color:#75715e">define NGX_HAVE_SYSVSHM 1</span><span style="color:#75715e">
+</span><span style="color:#75715e"></span><span style="color:#75715e">#</span><span style="color:#75715e">endif</span><span style="color:#75715e">
+</span></code></pre></div><p>接着就可以正常编译了：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ file objs/nginx
+objs/nginx: ELF 64-bit LSB executable, UCB RISC-V, version <span style="color:#ae81ff">1</span> <span style="color:#f92672">(</span>SYSV<span style="color:#f92672">)</span>, statically linked, with debug_info, not stripped
+</code></pre></div>
         </div>
 
         
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents"></nav>
+        </div>
         
         
 

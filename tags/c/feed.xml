@@ -18,9 +18,11 @@
       
       <guid>https://jiege.ch/programming/2019/06/21/ip-prefix-unexpected-undefined-behavior/</guid>
       <description>最近发现了两个很神奇的 Undefined Behavior ，出现在 Prefix Len 和 Netmask 的转换的问题下。一个简单思路可能是：
-#define PREFIX_BIN2DEC(bin) (32 - __builtin_ctz((bin))) #define PREFIX_DEC2BIN(hex) (((~0) &amp;gt;&amp;gt; (32 - (hex))) &amp;lt;&amp;lt; (32 - (hex))  乍一看，似乎没有什么问题。但是，在一些平台下，可能会出现这样的结果：
-PREFIX_BIN2DEC(0x00000000) = 33 PREFIX_DEC2BIN(0) = 0xFFFFFFFF  而且只能在一些平台上不确定地复现，最后发现其实是 Undefined Behavior，在 C 的标准中：
-In any case, the behavior is undefined if rhs is negative or is greater or equal the number of bits in the promoted lhs.  意味着， 0xFFFFFFFF &amp;gt;&amp;gt; 32 是一个 UB ，所以出现了上面的问题。</description>
+#define PREFIX_BIN2DEC(bin) (32 - __builtin_ctz((bin)))#define PREFIX_DEC2BIN(hex) (((~0) &amp;gt;&amp;gt; (32 - (hex))) &amp;lt;&amp;lt; (32 - (hex))乍一看，似乎没有什么问题。但是，在一些平台下，可能会出现这样的结果：
+PREFIX_BIN2DEC(0x00000000) = 33 PREFIX_DEC2BIN(0) = 0xFFFFFFFF 而且只能在一些平台上不确定地复现，最后发现其实是 Undefined Behavior，在 C 的标准中：
+In any case, the behavior is undefined if rhs is negative or is greater or equal the number of bits in the promoted lhs. 意味着， 0xFFFFFFFF &amp;gt;&amp;gt; 32 是一个 UB ，所以出现了上面的问题。
+另外，__builtin_ctz 有这样的说明：
+Returns the number of trailing 0-bits in x, starting at the least significant bit position.</description>
     </item>
     
     <item>
@@ -30,7 +32,7 @@ In any case, the behavior is undefined if rhs is negative or is greater or equal
       
       <guid>https://jiege.ch/software/get-resolvers-in-c/</guid>
       <description>最近在做一个作业的时候，发现里面有个步骤是获取 Linux 系统中的 DNS 服务器列表，它的方法很粗暴，直接 cat grep cut 再处理。我就在想有没有完全代码的实现，然后搜了一下，果然有：
-#include &amp;lt;resolv.h&amp;gt; // ... res_init(); // _res.nsaddr_list is an array of resolvers  用到了全局变量 _res ，虽然很 hacky ，但是至少是工作的，不清楚兼容性几何。</description>
+#include &amp;lt;resolv.h&amp;gt;// ... res_init(); // _res.nsaddr_list is an array of resolvers 用到了全局变量 _res ，虽然很 hacky ，但是至少是工作的，不清楚兼容性几何。</description>
     </item>
     
     <item>
@@ -51,9 +53,9 @@ In any case, the behavior is undefined if rhs is negative or is greater or equal
       <guid>https://jiege.ch/programming/2017/10/17/on-scanf-and-scanf_s/</guid>
       <description>最近作为程设基础的小教员，收到很多同学的求助，关于scanf和scanf_s的问题已经遇到了两次，特此写一篇博文来叙述一下这个问题。
 一开始，有同学问我，
-char a; scanf(&amp;quot;%c&amp;quot;,&amp;amp;a);  为什么会报错？我说，vs默认强制要求使用scanf_s函数，于是我建议这位同学把这个错误信息关掉了。嗯。经过百度，这位同学的问题解决了。
+char a; scanf(&amp;quot;%c&amp;quot;,&amp;amp;a); 为什么会报错？我说，vs默认强制要求使用scanf_s函数，于是我建议这位同学把这个错误信息关掉了。嗯。经过百度，这位同学的问题解决了。
 后来，又有一位同学问我，
-char a; scanf_s(&amp;quot;%c&amp;quot;,&amp;amp;a);  程序为什么会崩溃？我想了想，如果scanf_s和scanf是一样的行为，这段代码是没问题的。但scanf_s既然安全，必然是在字符串方面做了处理。这里的char*勉强也算一个？网上一查，果然，应该写成scanf_s(&amp;quot;%c&amp;quot;,&amp;amp;a,1);，字符串则要写成scanf_s(&amp;quot;%s&amp;quot;,str,sizeof(str))，来保证缓冲区不会溢出。
+char a; scanf_s(&amp;quot;%c&amp;quot;,&amp;amp;a); 程序为什么会崩溃？我想了想，如果scanf_s和scanf是一样的行为，这段代码是没问题的。但scanf_s既然安全，必然是在字符串方面做了处理。这里的char*勉强也算一个？网上一查，果然，应该写成scanf_s(&amp;quot;%c&amp;quot;,&amp;amp;a,1);，字符串则要写成scanf_s(&amp;quot;%s&amp;quot;,str,sizeof(str))，来保证缓冲区不会溢出。
 但是，这样解决这个问题又面临着不同的选择：
  学习scanf_s和scanf的不同，把所有scanf换成scanf_s并做相应的修改。 这样当然符合了语言进化的潮流，也会让vs闭嘴。但是，scanf_s只有在C11标准中有，而且，根据cpprefrence.com上关于scanf的描述，只有在__STDC_LIB_EXT1__被定义且在#include&amp;lt;stdio.h&amp;gt;之前#define __STDC_WANT_LIB_EXT1__才能确保使用scanf_s能使用，当然在vs较新版本中是默认可以使用的。但是，程设基础的作业是要丢到oj上的，而oj上的编译器不一定支持这些，所以这个选项不行。 坚持用scanf，自己按照题目要求保证缓冲区不溢出，同时让vs闭嘴。 网上已有教程，已经讲的很全面了，大家可以根据这个教程把vs教训一顿。为了能在oj里跑，建议用里面的方法五到八。（个人最推荐在文件头添加#define _CRT_SECURE_NO_WARNINGS）  以后再遇到这个问题，我就丢这个连接上来就好了咯。yeah！</description>
     </item>
