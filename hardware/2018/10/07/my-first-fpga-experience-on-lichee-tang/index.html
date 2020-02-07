@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在荔枝糖（Lichee Tang）上初次体验 FPGA // 杰哥的{运维,编程,调板子}小笔记</title>
+
+        <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <meta name="author" content="">
+        <meta property="og:title" content="在荔枝糖（Lichee Tang）上初次体验 FPGA" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://jiege.ch/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/" />
+    
+
+    <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
+    <link rel="shortcut icon" href="/favicon.png">
+
+    <link href="https://jiege.ch/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jiege.ch/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jiege.ch/css/style.css">
+
+    <meta name="generator" content="Hugo 0.63.1" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jiege.ch">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在荔枝糖（Lichee Tang）上初次体验 FPGA</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/" class="article-date">
+                <time datetime='2018-10-07T22:34:00.000&#43;08:00' itemprop="datePublished">2018-10-07</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>今天从张宇翔学长那拿到了 <a href="http://tang.lichee.pro/">荔枝糖（Lichee Tang）</a> 的 FPGA 板子，于是立即开始把前段时间学到的Verilog应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。</p>
+<p>在网上找到了 <a href="https://github.com/ben-marshall/uart">ben-marshall/uart</a> 一个简易的实现，很快做到了一直在串口上打印 <code>A</code> 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO ，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-verilog" data-lang="verilog"><span style="color:#66d9ef">always</span> @ (<span style="color:#66d9ef">posedge</span> clk_in) <span style="color:#66d9ef">begin</span>
+	uart_tx_en <span style="color:#f92672">&lt;</span><span style="color:#f92672">=</span> uart_fifo_re;
+<span style="color:#66d9ef">end</span>
+</code></pre></div><p>这样就解决了这个问题。完整代码在 <a href="https://github.com/jiegec/learn_licheetang">jiegec/learn_licheetang</a> 中。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents"></nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/verilog">verilog
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/licheetang">licheetang
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/fpga">fpga
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/uart">uart
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    <nav id="article-nav">
+    
+    <a href="/software/2018/10/12/secoder-platform-sucks/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            软工平台踩坑记
+        </div>
+    </a>
+    
+    
+    <a href="/networking/2018/10/07/use-veth-for-ipv6-brouter/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">使用 veth 实现 IPv6-only 的 Brouter 功能&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2020 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
