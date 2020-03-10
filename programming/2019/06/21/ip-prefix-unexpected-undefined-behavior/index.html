@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="https://jiege.ch/css/style.css">
 
-    <meta name="generator" content="Hugo 0.64.1" />
+    <meta name="generator" content="Hugo 0.66.0" />
 </head>
 
 
@@ -80,8 +80,8 @@
         </div>
         <div class="article-entry" itemprop="articleBody">
             <p>最近发现了两个很神奇的 Undefined Behavior ，出现在 Prefix Len 和 Netmask 的转换的问题下。一个简单思路可能是：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c++" data-lang="c++"><span style="color:#75715e">#</span><span style="color:#75715e">define PREFIX_BIN2DEC(bin) (32 - __builtin_ctz((bin)))</span><span style="color:#75715e">
-</span><span style="color:#75715e"></span><span style="color:#75715e">#</span><span style="color:#75715e">define PREFIX_DEC2BIN(hex) (((~0) &gt;&gt; (32 - (hex))) &lt;&lt; (32 - (hex))</span><span style="color:#75715e">
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c++" data-lang="c++"><span style="color:#75715e">#define PREFIX_BIN2DEC(bin) (32 - __builtin_ctz((bin)))
+</span><span style="color:#75715e">#define PREFIX_DEC2BIN(hex) (((~0) &gt;&gt; (32 - (hex))) &lt;&lt; (32 - (hex))
 </span></code></pre></div><p>乍一看，似乎没有什么问题。但是，在一些平台下，可能会出现这样的结果：</p>
 <pre><code>PREFIX_BIN2DEC(0x00000000) = 33
 PREFIX_DEC2BIN(0) = 0xFFFFFFFF
@@ -92,23 +92,23 @@ PREFIX_DEC2BIN(0) = 0xFFFFFFFF
 <pre><code>Returns the number of trailing 0-bits in x, starting at the least significant bit position. If x is 0, the result is undefined.
 </code></pre><p>意味着，<code>__builtin_ctz(0)</code> 也是一个 UB ， 所以得到了错误的结果。</p>
 <p>解决方案也很简单，下面提供一个参考的解决方法：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#75715e">#</span><span style="color:#75715e">define PREFIX_BIN2DEC(bin) ((bin) ? (32 - __builtin_ctz((bin))) : 0)</span><span style="color:#75715e">
-</span><span style="color:#75715e"></span><span style="color:#75715e">#</span><span style="color:#75715e">define PREFIX_DEC2BIN(hex) (((uint64_t)0xFFFFFFFF &lt;&lt; (32 - (hex))) &amp; 0xFFFFFFFF)</span><span style="color:#75715e">
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#75715e">#define PREFIX_BIN2DEC(bin) ((bin) ? (32 - __builtin_ctz((bin))) : 0)
+</span><span style="color:#75715e">#define PREFIX_DEC2BIN(hex) (((uint64_t)0xFFFFFFFF &lt;&lt; (32 - (hex))) &amp; 0xFFFFFFFF)
 </span></code></pre></div><p>Quagga 的实现：</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#75715e">/* Convert masklen into IP address&#39;s netmask (network byte order). */</span>
 <span style="color:#66d9ef">void</span>
 <span style="color:#a6e22e">masklen2ip</span> (<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">int</span> masklen, <span style="color:#66d9ef">struct</span> in_addr <span style="color:#f92672">*</span>netmask)
 {
-  assert (masklen <span style="color:#f92672">&gt;</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">&amp;</span><span style="color:#f92672">&amp;</span> masklen <span style="color:#f92672">&lt;</span><span style="color:#f92672">=</span> IPV4_MAX_BITLEN);
+  assert (masklen <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">&amp;&amp;</span> masklen <span style="color:#f92672">&lt;=</span> IPV4_MAX_BITLEN);
 
   <span style="color:#75715e">/* left shift is only defined for less than the size of the type.
 </span><span style="color:#75715e">   * we unconditionally use long long in case the target platform
 </span><span style="color:#75715e">   * has defined behaviour for &lt;&lt; 32 (or has a 64-bit left shift) */</span>
 
   <span style="color:#66d9ef">if</span> (<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> <span style="color:#66d9ef">long</span>) <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">4</span>)
-    netmask<span style="color:#f92672">-</span><span style="color:#f92672">&gt;</span>s_addr <span style="color:#f92672">=</span> htonl(<span style="color:#ae81ff">0xffffffffULL</span> <span style="color:#f92672">&lt;</span><span style="color:#f92672">&lt;</span> (<span style="color:#ae81ff">32</span> <span style="color:#f92672">-</span> masklen));
+    netmask<span style="color:#f92672">-&gt;</span>s_addr <span style="color:#f92672">=</span> htonl(<span style="color:#ae81ff">0xffffffffULL</span> <span style="color:#f92672">&lt;&lt;</span> (<span style="color:#ae81ff">32</span> <span style="color:#f92672">-</span> masklen));
   <span style="color:#66d9ef">else</span>
-    netmask<span style="color:#f92672">-</span><span style="color:#f92672">&gt;</span>s_addr <span style="color:#f92672">=</span> htonl(masklen <span style="color:#f92672">?</span> <span style="color:#ae81ff">0xffffffffU</span> <span style="color:#f92672">&lt;</span><span style="color:#f92672">&lt;</span> (<span style="color:#ae81ff">32</span> <span style="color:#f92672">-</span> masklen) <span style="color:#f92672">:</span> <span style="color:#ae81ff">0</span>);
+    netmask<span style="color:#f92672">-&gt;</span>s_addr <span style="color:#f92672">=</span> htonl(masklen <span style="color:#f92672">?</span> <span style="color:#ae81ff">0xffffffffU</span> <span style="color:#f92672">&lt;&lt;</span> (<span style="color:#ae81ff">32</span> <span style="color:#f92672">-</span> masklen) <span style="color:#f92672">:</span> <span style="color:#ae81ff">0</span>);
 }
 
 <span style="color:#75715e">/* Convert IP address&#39;s netmask into integer. We assume netmask is
@@ -135,7 +135,7 @@ u_char
 u32
 <span style="color:#a6e22e">u32_mkmask</span>(uint n)
 {
-  <span style="color:#66d9ef">return</span> n <span style="color:#f92672">?</span> <span style="color:#f92672">~</span>((<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;</span><span style="color:#f92672">&lt;</span> (<span style="color:#ae81ff">32</span> <span style="color:#f92672">-</span> n)) <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">:</span> <span style="color:#ae81ff">0</span>;
+  <span style="color:#66d9ef">return</span> n <span style="color:#f92672">?</span> <span style="color:#f92672">~</span>((<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> (<span style="color:#ae81ff">32</span> <span style="color:#f92672">-</span> n)) <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">:</span> <span style="color:#ae81ff">0</span>;
 }
 
 <span style="color:#75715e">/**
@@ -153,12 +153,12 @@ uint
   u32 n <span style="color:#f92672">=</span> <span style="color:#f92672">~</span>x;
 
   <span style="color:#66d9ef">if</span> (n <span style="color:#f92672">&amp;</span> (n<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>)) <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">255</span>;
-  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x0000ffff</span>) { x <span style="color:#f92672">&amp;</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0000ffff</span>; l <span style="color:#f92672">+</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">16</span>; }
-  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x00ff00ff</span>) { x <span style="color:#f92672">&amp;</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0x00ff00ff</span>; l <span style="color:#f92672">+</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">8</span>; }
-  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x0f0f0f0f</span>) { x <span style="color:#f92672">&amp;</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0f0f0f0f</span>; l <span style="color:#f92672">+</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>; }
-  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x33333333</span>) { x <span style="color:#f92672">&amp;</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0x33333333</span>; l <span style="color:#f92672">+</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>; }
-  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x55555555</span>) l<span style="color:#f92672">+</span><span style="color:#f92672">+</span>;
-  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xaaaaaaaa</span>) l<span style="color:#f92672">+</span><span style="color:#f92672">+</span>;
+  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x0000ffff</span>) { x <span style="color:#f92672">&amp;=</span> <span style="color:#ae81ff">0x0000ffff</span>; l <span style="color:#f92672">+=</span> <span style="color:#ae81ff">16</span>; }
+  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x00ff00ff</span>) { x <span style="color:#f92672">&amp;=</span> <span style="color:#ae81ff">0x00ff00ff</span>; l <span style="color:#f92672">+=</span> <span style="color:#ae81ff">8</span>; }
+  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x0f0f0f0f</span>) { x <span style="color:#f92672">&amp;=</span> <span style="color:#ae81ff">0x0f0f0f0f</span>; l <span style="color:#f92672">+=</span> <span style="color:#ae81ff">4</span>; }
+  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x33333333</span>) { x <span style="color:#f92672">&amp;=</span> <span style="color:#ae81ff">0x33333333</span>; l <span style="color:#f92672">+=</span> <span style="color:#ae81ff">2</span>; }
+  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x55555555</span>) l<span style="color:#f92672">++</span>;
+  <span style="color:#66d9ef">if</span> (x <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xaaaaaaaa</span>) l<span style="color:#f92672">++</span>;
   <span style="color:#66d9ef">return</span> l;
 }
 </code></pre></div>

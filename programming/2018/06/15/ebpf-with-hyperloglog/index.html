@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="https://jiege.ch/css/style.css">
 
-    <meta name="generator" content="Hugo 0.64.1" />
+    <meta name="generator" content="Hugo 0.66.0" />
 </head>
 
 
@@ -81,7 +81,7 @@
         <div class="article-entry" itemprop="articleBody">
             <p>前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 <a href="https://github.com/jiegec/hll_ebpf">jiegec/hll_ebpf</a> ，大致原理如下：</p>
 <p>由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">maps</span><span style="color:#e6db74">&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;maps&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
     .type <span style="color:#f92672">=</span> BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
     .value_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
@@ -89,7 +89,7 @@
     .pinning <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span> <span style="color:#75715e">// PIN_GLOBAL_NS
 </span><span style="color:#75715e"></span>};
 
-SEC(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">out_daddr</span><span style="color:#e6db74">&#34;</span>)
+SEC(<span style="color:#e6db74">&#34;out_daddr&#34;</span>)
 <span style="color:#66d9ef">int</span> bpf_out_daddr(<span style="color:#66d9ef">struct</span> __sk_buff <span style="color:#f92672">*</span>skb) {
   u32 daddr <span style="color:#f92672">=</span> get_daddr(skb);
   u32 hash <span style="color:#f92672">=</span> Murmur3(daddr, <span style="color:#ae81ff">0</span>);
@@ -110,27 +110,27 @@ $ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">read_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>file) {
   <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> bpf_obj_get(file);
   <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>;
-  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> m <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;</span><span style="color:#f92672">&lt;</span> b;
+  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> m <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> b;
   <span style="color:#66d9ef">int</span> M[m] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
   <span style="color:#66d9ef">int</span> V <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
   <span style="color:#66d9ef">double</span> sum <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-  <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span>m; i<span style="color:#f92672">+</span><span style="color:#f92672">+</span>) {
+  <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span>m; i<span style="color:#f92672">++</span>) {
     <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> value[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
     bpf_map_lookup_elem(fd, <span style="color:#f92672">&amp;</span>i, <span style="color:#f92672">&amp;</span>value);
     M[i] <span style="color:#f92672">=</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">&gt;</span> value[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">?</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">:</span> value[<span style="color:#ae81ff">1</span>]; <span style="color:#75715e">// assuming 2 CPUs, will change later
-</span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (M[i] <span style="color:#f92672">=</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>)
-      V<span style="color:#f92672">+</span><span style="color:#f92672">+</span>;
-    sum <span style="color:#f92672">+</span><span style="color:#f92672">=</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#f92672">-</span>M[i]);
+</span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (M[i] <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)
+      V<span style="color:#f92672">++</span>;
+    sum <span style="color:#f92672">+=</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#f92672">-</span>M[i]);
   }
   <span style="color:#66d9ef">double</span> E <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.709</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> sum;
-  <span style="color:#66d9ef">if</span> (E <span style="color:#f92672">&lt;</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>) {
-    <span style="color:#66d9ef">if</span> (V <span style="color:#f92672">!</span><span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>) {
+  <span style="color:#66d9ef">if</span> (E <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">5</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>) {
+    <span style="color:#66d9ef">if</span> (V <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
       E <span style="color:#f92672">=</span> m <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> V);
     }
   } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (E<span style="color:#f92672">&gt;</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">/</span> <span style="color:#ae81ff">30</span>) {
     E <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> E <span style="color:#f92672">/</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>));
   }
-  printf(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">%ld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, lround(E));
+  printf(<span style="color:#e6db74">&#34;%ld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, lround(E));
 }
 </code></pre></div><p>可以手动通过 <code>nmap</code> 测试，例如扫描一个段，可以看到数据会增长许多。如果扫描相同的段，则数字不会变化，但如果扫描新的段，数字会有变化。这是一个 利用了 eBPF 的 HyperLogLog 的实现。</p>
 

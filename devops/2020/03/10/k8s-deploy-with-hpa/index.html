@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用 Kubernetes 部署无状态服务 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+        <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <meta name="author" content="">
+        <meta property="og:title" content="用 Kubernetes 部署无状态服务" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://jiege.ch/devops/2020/03/10/k8s-deploy-with-hpa/" />
+    
+
+    <link href="" rel="alternate" type="application/rss+xml" title="杰哥的{运维,编程,调板子}小笔记" />
+    <link rel="shortcut icon" href="/favicon.png">
+
+    <link href="https://jiege.ch/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jiege.ch/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jiege.ch/css/style.css">
+
+    <meta name="generator" content="Hugo 0.66.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jiege.ch">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">用 Kubernetes 部署无状态服务</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/devops/2020/03/10/k8s-deploy-with-hpa/" class="article-date">
+                <time datetime='2020-03-10T13:57:00.000&#43;08:00' itemprop="datePublished">2020-03-10</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/devops/2020/03/10/k8s-deploy-with-hpa/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h1 id="背景">背景</h1>
+<p>最近需要部署一个用来跑编译的服务，服务从 MQ 取任务，编译完以后提交任务。最初的做法是包装成 docker，然后用 docker-compose 来 scale up。但既然有 k8s 这么好的工具，就试着学习了一下，踩了很多坑，总结了一些需要用到的命令。</p>
+<h1 id="搭建-docker-registry">搭建 Docker Registry</h1>
+<p>首先搭建一个本地的 Docker Repository，首先设置密码：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ mkdir auth
+$ htpasswd user pass &gt; auth/passwd
+</code></pre></div><p>然后运行 registry：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ docker run -d -p 5000:5000 <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        --restart<span style="color:#f92672">=</span>always <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        --name registry <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        -v <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>pwd<span style="color:#66d9ef">)</span><span style="color:#e6db74">/registry&#34;</span>:/var/lib/registry <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        -v <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>pwd<span style="color:#66d9ef">)</span><span style="color:#e6db74">/auth&#34;</span>:/auth <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        -e <span style="color:#e6db74">&#34;REGISTRY_AUTH=htpasswd&#34;</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        -e <span style="color:#e6db74">&#34;REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm&#34;</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        -e REGISTRY_AUTH_HTPASSWD_PATH<span style="color:#f92672">=</span>/auth/htpasswd <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>        registry:2
+</code></pre></div><p>简单起见没有配 tls。然后吧本地的 image push 上去：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ docker tag $image localhost:5000/$image
+$ docker push localhost:5000/$image
+</code></pre></div><p>这样就可以了。</p>
+<h1 id="搭建-k8s-环境">搭建 k8s 环境</h1>
+<p>考虑到只用了单个物理机，所以采用的是 minikube。首先下载 minikube，下载方法略去。</p>
+<p>接着新建 minikube 虚拟机：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ minikube start --registry-mirror<span style="color:#f92672">=</span>https://registry.docker-cn.com --image-mirror-country<span style="color:#f92672">=</span>cn --image-repository<span style="color:#f92672">=</span>registry.cn-hangzhou.aliyuncs.com/google_containers --vm-driver<span style="color:#f92672">=</span>kvm2 --insecure-registry<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;0.0.0.0/0&#34;</span> --disk-size<span style="color:#f92672">=</span>50GB --cpus <span style="color:#ae81ff">128</span> --memory <span style="color:#ae81ff">131072</span>
+</code></pre></div><p>这里的 0.0.0.0/0 可以缩小，磁盘、CPU和内存需要在这里就设好，之后不能改，要改只能重新开个虚拟机，不过这个过程也挺快的。</p>
+<p>然后初始化一些组件（metrics server和kubernetes dashboard）：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ minikube addons enable metrics-server
+$ minikube dashboard
+</code></pre></div><p>如果要访问 dashboard 的话，可以用上面命令输出的链接，或者用 <code>kubectl proxy</code> 然后打开  http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/ （注意 http还是https）。</p>
+<p>如果问到 Access Token，可以用以下 alias 获得（fish/macOS）：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ alias kubedashboard<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;kubectl -n kubernetes-dashboard describe secret (kubectl -n kubernetes-dashboard get secret | grep admin-user | awk &#39;{print \$1}&#39;) | tail -n1 | awk &#39;{print \$2}&#39; | pbcopy&#34;</span>
+</code></pre></div><p>接着，配置一下 docker registry的密钥：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ kubectl create secret generic regcred --from-file<span style="color:#f92672">=</span>.dockerconfigjson<span style="color:#f92672">=</span>/path/to/config.json  --type<span style="color:#f92672">=</span>kubernetes.io/dockerconfigjson
+</code></pre></div><p>然后，在 Pod/Deployment 里面设定镜像：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#66d9ef">containers</span>:
+  - <span style="color:#66d9ef">name</span>: name
+    <span style="color:#66d9ef">image</span>: IP:<span style="color:#ae81ff">5000</span>/image
+<span style="color:#66d9ef">imagePullSecrets</span>:
+  - <span style="color:#66d9ef">name</span>: regcred
+</code></pre></div><p>然后部署即可。</p>
+<h1 id="部署水平自动伸缩hpa">部署水平自动伸缩（HPA）</h1>
+<p>这一步配置的是自带的 HPA 功能，需要上述的 metrics-server 打开，并且在 Pod/Deployment 里面写明 resources.requests.cpu:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml">- <span style="color:#66d9ef">name</span>: name
+  <span style="color:#66d9ef">resources</span>:
+    <span style="color:#66d9ef">requests</span>:
+      <span style="color:#66d9ef">cpu</span>: <span style="color:#e6db74">&#34;xxx&#34;</span>
+</code></pre></div><p>然后创建 HPA 即可：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ kubectl autoscale deployment $deployment --cpu-percent<span style="color:#f92672">=</span><span style="color:#ae81ff">50</span> --min<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> --max<span style="color:#f92672">=</span><span style="color:#ae81ff">10</span>
+</code></pre></div><p>通过压测，可以看到自动伸缩的记录：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ kubectl describe hpa
+Normal  SuccessfulRescale  22s   horizontal-pod-autoscaler  New size: 4; reason: cpu resource utilization <span style="color:#f92672">(</span>percentage of request<span style="color:#f92672">)</span> above target
+Normal  SuccessfulRescale  6s     horizontal-pod-autoscaler  New size: 1; reason: All metrics below target
+</code></pre></div><p>参考：Kubernetes 官方文档</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents"></nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/k8s">k8s
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/kubernetes">kubernetes
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jiege.ch/tags/docker">docker
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    <nav id="article-nav">
+    
+    
+    <a href="/devops/2020/03/09/use-jailkit-for-scp-only-user/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">用 jailkit 限制用户仅 scp&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2020 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
