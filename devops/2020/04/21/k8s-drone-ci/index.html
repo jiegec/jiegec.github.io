@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let&#39;s Encrypt HTTPS 证书 // 杰哥的{运维,编程,调板子}小笔记</title>
+    <title>在 k8s 中部署 Drone 用于 CI // 杰哥的{运维,编程,调板子}小笔记</title>
 
     <meta charset="utf-8">
     <meta http-equiv="content-type" content="text/html; charset=utf-8">
@@ -10,11 +10,11 @@
     
     
 
-        <meta property="og:title" content="在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let&#39;s Encrypt HTTPS 证书" />
+        <meta property="og:title" content="在 k8s 中部署 Drone 用于 CI" />
     <meta property="og:description" content="" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/devops/2020/04/17/k8s-nginx-cert-manager-le/" />
+    <meta property="og:url" content="https://jia.je/devops/2020/04/21/k8s-drone-ci/" />
     
 
     <link rel="shortcut icon" href="/favicon.ico">
@@ -64,70 +64,91 @@
     <div class="article-inner">
         
         <header class="article-header">
-            <h1 class="article-title" itemprop="name">在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let&#39;s Encrypt HTTPS 证书</h1>
+            <h1 class="article-title" itemprop="name">在 k8s 中部署 Drone 用于 CI</h1>
         </header>
         
         <div class="article-meta">
-            <a href="/devops/2020/04/17/k8s-nginx-cert-manager-le/" class="article-date">
-                <time datetime='2020-04-17T18:13:00.000&#43;08:00' itemprop="datePublished">2020-04-17</time>
+            <a href="/devops/2020/04/21/k8s-drone-ci/" class="article-date">
+                <time datetime='2020-04-21T18:10:00.000&#43;08:00' itemprop="datePublished">2020-04-21</time>
             </a>
             
             
             
             <div class="article-comment-link-wrap">
-                <a href="/devops/2020/04/17/k8s-nginx-cert-manager-le/#disqus_thread" class="article-comment-link">Comments</a>
+                <a href="/devops/2020/04/21/k8s-drone-ci/#disqus_thread" class="article-comment-link">Comments</a>
             </div>
             
         </div>
         <div class="article-entry" itemprop="articleBody">
-            <p>上一篇博客讲了 nginx ingress 的配置，那自然第一步要配上 https。首先配置 cert-manager：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ kubectl create namespace cert-manager
-$ kubectl apply --validate<span style="color:#f92672">=</span>false -f https://github.com/jetstack/cert-manager/releases/download/v0.14.1/cert-manager.crds.yaml
-$ helm repo add jetstack https://charts.jetstack.io
-$ helm repo update
-$ helm install <span style="color:#ae81ff">\
-</span><span style="color:#ae81ff"></span>  cert-manager jetstack/cert-manager <span style="color:#ae81ff">\
-</span><span style="color:#ae81ff"></span>  --namespace cert-manager <span style="color:#ae81ff">\
-</span><span style="color:#ae81ff"></span>  --version v0.14.1
-
-</code></pre></div><p>然后，配置 Cluster Issuer，应用以下的 yaml：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#66d9ef">apiVersion</span>: cert-manager.io/v1alpha2
-<span style="color:#66d9ef">kind</span>: ClusterIssuer
-<span style="color:#66d9ef">metadata</span>:
-  <span style="color:#66d9ef">name</span>: letsencrypt-prod
-  <span style="color:#66d9ef">namespace</span>: cert-manager
-<span style="color:#66d9ef">spec</span>:
-  <span style="color:#66d9ef">acme</span>:
-    <span style="color:#66d9ef">email</span>: example@example.com
-    <span style="color:#66d9ef">server</span>: https://acme-v02.api.letsencrypt.org/directory
-    <span style="color:#66d9ef">privateKeySecretRef</span>:
-      <span style="color:#66d9ef">name</span>: letsencrypt-prod
-    <span style="color:#66d9ef">solvers</span>:
-    - <span style="color:#66d9ef">http01</span>:
-        <span style="color:#66d9ef">ingress</span>:
-          <span style="color:#66d9ef">class</span>: nginx
-</code></pre></div><p>然后在 ingress 里面进行配置：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#66d9ef">apiVersion</span>: networking.k8s.io/v1beta1
-<span style="color:#66d9ef">kind</span>: Ingress
-<span style="color:#66d9ef">metadata</span>:
-  <span style="color:#66d9ef">name</span>: ingress-example
+            <p>实验了一下在 k8s 中部署 CI，在 drone gitlab-ci 和 jenkins 三者中选择了 drone，因为它比较轻量，并且基于 docker，可以用 GitHub 上的仓库，比较方便。</p>
+<p>首先，配置 helm：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm repo add drone https://charts.drone.io
+kubectl create ns drone
+</code></pre></div><p>参考 drone 的文档，编写 drone-values.yml:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#66d9ef">ingress</span>:
+  <span style="color:#66d9ef">enabled</span>: <span style="color:#66d9ef">true</span>
   <span style="color:#66d9ef">annotations</span>:
     <span style="color:#66d9ef">kubernetes.io/ingress.class</span>: <span style="color:#e6db74">&#34;nginx&#34;</span>
     <span style="color:#66d9ef">cert-manager.io/cluster-issuer</span>: <span style="color:#e6db74">&#34;letsencrypt-prod&#34;</span>
-<span style="color:#66d9ef">spec</span>:
+  <span style="color:#66d9ef">hosts</span>:
+    - <span style="color:#66d9ef">host</span>: drone.example.com
+      <span style="color:#66d9ef">paths</span>:
+        - <span style="color:#e6db74">&#34;/&#34;</span>
   <span style="color:#66d9ef">tls</span>:
   - <span style="color:#66d9ef">hosts</span>:
-    - example.com
-    <span style="color:#66d9ef">secretName</span>: example-tls
-  <span style="color:#66d9ef">rules</span>:
-  - <span style="color:#66d9ef">host</span>: example.com
-    <span style="color:#66d9ef">http</span>:
-      <span style="color:#66d9ef">paths</span>:
-      - <span style="color:#66d9ef">path</span>: /
-        <span style="color:#66d9ef">backend</span>:
-          <span style="color:#66d9ef">serviceName</span>: example-service
-          <span style="color:#66d9ef">servicePort</span>: <span style="color:#ae81ff">80</span>
-</code></pre></div><p>应用以后，用 <code>kubectl describe certificate</code> 查看证书获取进度。成功后，访问改域名的 HTTP，就会自动跳转到 HTTPS，并且提供了正确的证书。</p>
+    - drone.example.com
+    <span style="color:#66d9ef">secretName</span>: drone-tls
+<span style="color:#66d9ef">env</span>:
+  <span style="color:#66d9ef">DRONE_SERVER_HOST</span>: drone.example.com
+  <span style="color:#66d9ef">DRONE_SERVER_PROTO</span>: https
+  <span style="color:#66d9ef">DRONE_USER_CREATE</span>: username:YOUR_GITHUB_USERNAME,admin:<span style="color:#66d9ef">true</span>
+  <span style="color:#66d9ef">DRONE_USER_FILTER</span>: YOUR_GITHUB_USERNAME
+  <span style="color:#66d9ef">DRONE_RPC_SECRET</span>: REDACTED
+  <span style="color:#66d9ef">DRONE_GITHUB_CLIENT_ID</span>: REDACTED
+  <span style="color:#66d9ef">DRONE_GITHUB_CLIENT_SECRET</span>: REDACTED
+</code></pre></div><p>需要首先去 GitHub 上配置 OAuth application，具体参考 drone 的文档。然后，生成一个 secret，设置 admin 用户并只允许 admin 用户使用 drone，防止其他人使用。然后应用：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm install --namespace drone drone drone/drone -f drone-values.yml
+<span style="color:#75715e"># or, to upgrade</span>
+helm upgrade --namespace drone drone drone/drone --values drone-values.yml 
+</code></pre></div><p>然后就可以访问上面配好的域名了。遇到了 cert manager 最近的一个 bug，来回折腾几次就好了。</p>
+<p>接着配 drone 的 k8s runnner，也是参考 drone 的文档，编写 drone-runner-kube-values.yml：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#66d9ef">rbac</span>:
+  <span style="color:#66d9ef">buildNamespaces</span>:
+    - drone
+<span style="color:#66d9ef">env</span>:
+  <span style="color:#66d9ef">DRONE_RPC_SECRET</span>: REDACTED
+  <span style="color:#66d9ef">DRONE_NAMESPACE_DEFAULT</span>: drone
+</code></pre></div><p>然后应用：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm install --namespace drone drone-runner-kube drone/drone-runner-kube -f drone-runner-kube-values.yml
+</code></pre></div><p>然后就可以去 drone 界面上操作了。</p>
+<p>需要注意的是，drone 需要 pv，所以我先在腾讯云里面配置了 CFS 的 storage class，然后它就会自动 provision 一个新的 pv 和 pvc 出来。</p>
+<p>接着尝试了一下在 drone 里面构建 docker 镜像并且 push 到 registry 上。以腾讯云为例：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#66d9ef">kind</span>: pipeline
+<span style="color:#66d9ef">type</span>: kubernetes
+<span style="color:#66d9ef">name</span>: default
+
+<span style="color:#66d9ef">steps</span>:
+- <span style="color:#66d9ef">name</span>: build
+  <span style="color:#66d9ef">image</span>: alpine
+  <span style="color:#66d9ef">commands</span>:
+  - make
+
+- <span style="color:#66d9ef">name</span>: publish
+  <span style="color:#66d9ef">image</span>: plugins/docker
+  <span style="color:#66d9ef">settings</span>:
+    <span style="color:#66d9ef">registry</span>: ccr.ccs.tencentyun.com
+    <span style="color:#66d9ef">repo</span>: ccr.ccs.tencentyun.com/abc/def
+    <span style="color:#66d9ef">tags</span>: [<span style="color:#e6db74">&#34;${DRONE_COMMIT_SHA:0:7}&#34;</span>,<span style="color:#e6db74">&#34;latest&#34;</span>]
+    <span style="color:#66d9ef">username</span>:
+      <span style="color:#66d9ef">from_secret</span>: docker_username
+    <span style="color:#66d9ef">password</span>:
+      <span style="color:#66d9ef">from_secret</span>: docker_password
+</code></pre></div><p>然后在网页里配置好 docker username 和 password，它就会自动构建 docker 镜像并且 push 到 registry 上，然后再 rollout 一下 deployment 就能部署最新的 image 了。实际上可以在 drone 里面把部署这一步也完成，但目前还没有去实践。</p>
+<p>参考文档：</p>
+<p><a href="provider">Drone provider: GitHub</a></p>
+<p><a href="https://github.com/drone/charts/blob/master/charts/drone/docs/install.md">Drone helm chart</a></p>
+<p><a href="https://github.com/drone/charts/blob/master/charts/drone-runner-kube/docs/install.md">Drone runner kube helm chat</a></p>
+<p><a href="https://www.magalix.com/blog/building-a-cd-pipeline-with-drone-ci-and-kubernetes">Building a CD pipeline with drone CI and kubernetes</a></p>
 
         </div>
 
@@ -201,22 +222,12 @@ $ helm install <span style="color:#ae81ff">\
                 </li>
                 
                 <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jia.je/tags/ingress">ingress
+                    <a class="article-tag-list-link" href="https://jia.je/tags/drone">drone
                     </a>
                 </li>
                 
                 <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jia.je/tags/nginx-ingress">nginx-ingress
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jia.je/tags/letsencrypt">letsencrypt
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="https://jia.je/tags/cert-manager">cert-manager
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ci">ci
                     </a>
                 </li>
                 
@@ -226,15 +237,9 @@ $ helm install <span style="color:#ae81ff">\
     </div>
     <nav id="article-nav">
     
-    <a href="/devops/2020/04/21/k8s-drone-ci/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            在 k8s 中部署 Drone 用于 CI
-        </div>
-    </a>
     
-    
-    <a href="/devops/2020/04/17/tke-nginx-ingress-without-lb/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">在 TKE 上配置不使用 LB 的 Nginx Ingress Controller&nbsp;<span>&gt;</span></div>
+    <a href="/devops/2020/04/17/k8s-nginx-cert-manager-le/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let&#39;s Encrypt HTTPS 证书&nbsp;<span>&gt;</span></div>
     </a>
     
 </nav>
