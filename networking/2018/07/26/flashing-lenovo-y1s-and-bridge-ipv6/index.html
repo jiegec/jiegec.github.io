@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.74.3" />
+    <meta name="generator" content="Hugo 0.75.1" />
 </head>
 
 
@@ -91,7 +91,7 @@
 </ol>
 <p>然后就是常规的密码设置，opkg 源设置为 tuna 的源，配置 ssh 和 公钥。</p>
 <p>接下来，我们为了使用学校的 SLAAC ，采用 ebtables 直接把学校的 IPv6 bridge 进来，而 IPv4 由于准入系统，需要 NAT 。</p>
-<p>参考<a href="https://tmikey.tech/tech_daily/lede/2017/08/25/bridge_ipv6_lede.html">Bridge IPv6 connections to WAN</a>，下载<a href="https://github.com/cvmiller/v6brouter/blob/master/v6brouter_openwrt.sh">v6brouter_openwrt.sh</a>到某个地方，然后修改一下里面的一些参数：</p>
+<p>参考 <a href="https://tmikey.tech/tech_daily/lede/2017/08/25/bridge_ipv6_lede.html">Bridge IPv6 connections to WAN</a>，下载 <a href="https://github.com/cvmiller/v6brouter/blob/master/v6brouter_openwrt.sh">v6brouter_openwrt.sh</a> 到某个地方，然后修改一下里面的一些参数：</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell"><span style="color:#75715e"># For Lenovo y1s</span>
 WAN_DEV<span style="color:#f92672">=</span>eth0.2
 BRIDGE<span style="color:#f92672">=</span>br-lan
@@ -109,6 +109,38 @@ $ ./GoAuthing
 </code></pre></div><p>这里参考了<a href="https://blog.csdn.net/QQ531456898/article/details/80095707">解决GO语言编译程序在openwrt(mipsle架构)上运行提示Illegal instruction问题</a>，配置了 GOMIPS 环境变量。为了访问 HTTPS 网站，参考了<a href="https://wiki.openwrt.org/doc/howto/wget-ssl-certs">OpenWRT Wiki - SSL and Certificates in wget</a>。有毒的是，这个环境变量，在 macOS 上不能正常工作，而在 Linux 机子上是没有问题的。</p>
 <p>然后就可以成功地跑起来 GoAuthing ，解决了上校园网认证的问题。</p>
 <p>感谢<a href="https://github.com/z4yx">宇翔</a>编写的 GoAuthing 小工具。</p>
+<p>更新：简化了一下 v6brouter 脚本：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash"><span style="color:#75715e">#!/bin/sh
+</span><span style="color:#75715e"></span>BRIDGE<span style="color:#f92672">=</span>br-lan
+WAN_DEV<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>/sbin/uci get network.wan.ifname<span style="color:#66d9ef">)</span>
+WHITELIST1<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;00:11:22:33:44:55&#34;</span>
+WHITELIST2<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;55:44:33:22:11:00&#34;</span>
+
+brctl addbr $BRIDGE 2&gt; /dev/null
+brctl addif $BRIDGE $WAN_DEV
+ip link set $BRIDGE down
+ip link set $BRIDGE up
+brctl show
+
+ebtables -F
+ebtables -P FORWARD ACCEPT
+ebtables -L
+
+uci set dhcp.lan.ra<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;disabled&#39;</span>
+uci set dhcp.lan.dhcpv6<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;disabled&#39;</span>
+uci commit
+/etc/init.d/odhcpd restart
+
+echo <span style="color:#ae81ff">2</span> &gt; /proc/sys/net/ipv6/conf/$BRIDGE/accept_ra
+ebtables -t broute -F
+ebtables -t broute -A BROUTING -i $WAN_DEV -p ! ipv6 -j DROP
+ebtables -t broute -A BROUTING -s $WHITELIST1 -p ipv6 -j ACCEPT
+ebtables -t broute -A BROUTING -d $WHITELIST1 -p ipv6 -j ACCEPT
+ebtables -t broute -A BROUTING -s $WHITELIST2 -p ipv6 -j ACCEPT
+ebtables -t broute -A BROUTING -d $WHITELIST2 -p ipv6 -j ACCEPT
+ebtables -t broute -A BROUTING -p ipv6 -j DROP
+ebtables -t broute -L
+</code></pre></div><p>注意，这里添加了两个 WHITELIST 的 MAC 地址，表示只让这两个 MAC 地址的设备访问 v6。一般来说，外面网关的 MAC 地址也要放进来，不然可能接收不到 RA。如果不需要白名单的话，可以去掉 ebtables 的后几行规则。</p>
 
         </div>
 
