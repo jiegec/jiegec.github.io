@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在 M1 上用 QEMU 运行 Debian 虚拟机 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="在 M1 上用 QEMU 运行 Debian 虚拟机" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2021/01/02/aarch64-debian-in-qemu-m1/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.80.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在 M1 上用 QEMU 运行 Debian 虚拟机</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2021/01/02/aarch64-debian-in-qemu-m1/" class="article-date">
+                <time datetime='2021-01-02T13:05:00.000&#43;08:00' itemprop="datePublished">2021-01-02</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2021/01/02/aarch64-debian-in-qemu-m1/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>看到 @jsteward 在 M1 的 QEMU 中运行了 Windows on ARM，所以我先来试试 Debian on AArch64，这样会简单一些。</p>
+<p>参考：https://gist.github.com/niw/e4313b9c14e968764a52375da41b4278#file-readme-md</p>
+<h2 id="安装-qemu-w-m1-patches">安装 QEMU w/ M1 patches</h2>
+<p>目前上游的 QEMU 还不支持 M1 的 Hypervisor framework，需要打 patch：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">git clone https://mirrors.tuna.tsinghua.edu.cn/git/qemu.git
+cd qemu
+git checkout master -b wip/hvf
+curl <span style="color:#e6db74">&#39;https://patchwork.kernel.org/series/400619/mbox/&#39;</span>|git am --3way
+mkdir build
+cd build
+../configure --target-list<span style="color:#f92672">=</span>aarch64-softmmu --enable-cocoa --disable-gnutls
+make -j4
+</code></pre></div><p>编译后，得到 <code>qemu-system-aarch64</code> 的二进制</p>
+<h2 id="准备好文件系统">准备好文件系统</h2>
+<p>需要下载 <a href="https://gist.github.com/niw/4f1f9bb572f40d406866f23b3127919b/raw/f546faea68f4149c06cca88fa67ace07a3758268/QEMU_EFI-cb438b9-edk2-stable202011-with-extra-resolutions.tar.gz">EFI 固件</a> 和 <a href="https://mirrors.tuna.tsinghua.edu.cn/debian-cd/current/arm64/iso-cd/debian-10.7.0-arm64-xfce-CD-1.iso">Debian 安装镜像</a>，解压前者以后把文件放同一个目录中，并且创建需要的文件：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ls *.fd
+QEMU_EFI.fd   QEMU_VARS.fd
+$ dd <span style="color:#66d9ef">if</span><span style="color:#f92672">=</span>/dev/zero of<span style="color:#f92672">=</span>pflash0.img bs<span style="color:#f92672">=</span>1m count<span style="color:#f92672">=</span><span style="color:#ae81ff">64</span>
+$ dd <span style="color:#66d9ef">if</span><span style="color:#f92672">=</span>/dev/zero of<span style="color:#f92672">=</span>pflash1.img bs<span style="color:#f92672">=</span>1m count<span style="color:#f92672">=</span><span style="color:#ae81ff">64</span>
+$ dd <span style="color:#66d9ef">if</span><span style="color:#f92672">=</span>QEMU_EFI.fd of<span style="color:#f92672">=</span>pflash0.img conv<span style="color:#f92672">=</span>notrunc
+$ dd <span style="color:#66d9ef">if</span><span style="color:#f92672">=</span>QEMU_VARS.fd of<span style="color:#f92672">=</span>pflash1.img conv<span style="color:#f92672">=</span>notrunc
+$ $QEMU/qemu-img create -f qcow2 disk.qcow2 40G
+</code></pre></div><h2 id="安装-debian-系统">安装 Debian 系统</h2>
+<p>接着，执行以下的命令，然后按照提示安装系统：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ $QEMU/qemu-system-aarch64 <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -serial mon:stdio <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -M virt,highmem<span style="color:#f92672">=</span>off <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -accel hvf <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -cpu cortex-a72 <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -smp <span style="color:#ae81ff">4</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -m <span style="color:#ae81ff">4096</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive file<span style="color:#f92672">=</span>./pflash0.img,format<span style="color:#f92672">=</span>raw,if<span style="color:#f92672">=</span>pflash,readonly<span style="color:#f92672">=</span>on <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive file<span style="color:#f92672">=</span>./pflash1.img,format<span style="color:#f92672">=</span>raw,if<span style="color:#f92672">=</span>pflash <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device virtio-scsi-pci <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device virtio-gpu-pci <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device qemu-xhci <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device usb-kbd <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device usb-tablet <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive file<span style="color:#f92672">=</span>./disk.qcow2,if<span style="color:#f92672">=</span>none,id<span style="color:#f92672">=</span>boot,cache<span style="color:#f92672">=</span>writethrough <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device nvme,drive<span style="color:#f92672">=</span>boot,serial<span style="color:#f92672">=</span>boot <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive <span style="color:#66d9ef">if</span><span style="color:#f92672">=</span>none,id<span style="color:#f92672">=</span>cd,file<span style="color:#f92672">=</span>debian-10.7.0-arm64-xfce-CD-1.iso,media<span style="color:#f92672">=</span>cdrom <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device scsi-cd,drive<span style="color:#f92672">=</span>cd <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -display default,show-cursor<span style="color:#f92672">=</span>on
+</code></pre></div><p>需要注意的是，如果用 <code>-cdrom</code> 选项，Debian 会无法识别，所以需要走 SCSI。安装完成后，第一次重启可能会显示失败，不用管。另外，安装界面只在串口处显示，但不会显示在 GUI 中，估计是缺少 virtio-gpu 的驱动。</p>
+<h2 id="启动系统">启动系统</h2>
+<p>安装好后，运行下面的命令来启动 Debian 系统：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ $QEMU/qemu-system-aarch64 <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -monitor stdio <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -M virt,highmem<span style="color:#f92672">=</span>off <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -accel hvf <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -cpu cortex-a72 <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -smp <span style="color:#ae81ff">4</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -m <span style="color:#ae81ff">4096</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive file<span style="color:#f92672">=</span>./pflash0.img,format<span style="color:#f92672">=</span>raw,if<span style="color:#f92672">=</span>pflash,readonly<span style="color:#f92672">=</span>on <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive file<span style="color:#f92672">=</span>./pflash1.img,format<span style="color:#f92672">=</span>raw,if<span style="color:#f92672">=</span>pflash <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device virtio-gpu-pci <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device virtio-scsi-pci <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device qemu-xhci <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device usb-kbd <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device usb-tablet <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -drive file<span style="color:#f92672">=</span>./disk.qcow2,if<span style="color:#f92672">=</span>none,id<span style="color:#f92672">=</span>boot,cache<span style="color:#f92672">=</span>writethrough <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -device nvme,drive<span style="color:#f92672">=</span>boot,serial<span style="color:#f92672">=</span>boot <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -display default,show-cursor<span style="color:#f92672">=</span>on <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>  -nic user,model<span style="color:#f92672">=</span>virtio
+</code></pre></div><p>注意参数和上面有所不同。启动后就可以在 GUI 上看到 Debian 登录的界面了。</p>
+<h2 id="网络">网络</h2>
+<p>起来以后，可以看到一个网卡 <code>enp0s1</code> 启动并获取 IP 地址：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ip l set enp0s1 up
+$ dhclient enp0s1
+</code></pre></div><p>获取到一个 IP 地址后，就可以上网了。</p>
+<h2 id="已知问题">已知问题</h2>
+<p>在虚拟机内重启以后，可能会启动失败。退出 QEMU 进程重新启动即可。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#安装-qemu-w-m1-patches">安装 QEMU w/ M1 patches</a></li>
+    <li><a href="#准备好文件系统">准备好文件系统</a></li>
+    <li><a href="#安装-debian-系统">安装 Debian 系统</a></li>
+    <li><a href="#启动系统">启动系统</a></li>
+    <li><a href="#网络">网络</a></li>
+    <li><a href="#已知问题">已知问题</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/debian">debian
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/macos">macos
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/m1">m1
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/qemu">qemu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/aarch64">aarch64
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2020/12/27/ethernet-physical-interfaces/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">以太网的物理接口&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
