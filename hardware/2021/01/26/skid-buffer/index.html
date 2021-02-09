@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Skid Buffer // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="Skid Buffer" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2021/01/26/skid-buffer/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.80.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">Skid Buffer</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2021/01/26/skid-buffer/" class="article-date">
+                <time datetime='2021-01-26T20:34:00.000&#43;08:00' itemprop="datePublished">2021-01-26</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2021/01/26/skid-buffer/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h1 id="skid-buffer">Skid buffer</h1>
+<p>Skid buffer 指的就是，对于 valid + ready 的握手信号，用空间（更多的逻辑）来换取时间（更好的时序）的一个硬件模块。</p>
+<p>简单来说，背景就是，为了解决 valid 和 ready 信号在数据流水线上一路经过组合逻辑导致的时序问题，在中途加上一些寄存器来阻隔。当然了，代价就是延迟和面积，不过吞吐量还是需要保持的。</p>
+<p>由于需求的不同，Skid buffer 也有不同的实现。目前，找到了四个实现，实现上有所不同，特性也不大一样。</p>
+<h2 id="统一约定">统一约定</h2>
+<p>由于我在 SpinalHDL 语言中重新实现了下面的这些 Skid buffer，所以按照 SpinalHDL 的 Stream 定义接口：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SkidBufferCommon</span><span style="color:#f92672">[</span><span style="color:#66d9ef">T</span> <span style="color:#66d9ef">&lt;:</span> <span style="color:#66d9ef">Data</span><span style="color:#f92672">](</span>
+    gen<span style="color:#66d9ef">:</span> <span style="color:#f92672">=&gt;</span> T
+<span style="color:#f92672">)</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">Component</span> <span style="color:#f92672">{</span>
+  <span style="color:#66d9ef">val</span> io <span style="color:#66d9ef">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">Bundle</span> <span style="color:#f92672">{</span>
+    <span style="color:#66d9ef">val</span> s <span style="color:#66d9ef">=</span> slave<span style="color:#f92672">(</span><span style="color:#a6e22e">Stream</span><span style="color:#f92672">(</span>gen<span style="color:#f92672">))</span>
+    <span style="color:#66d9ef">val</span> m <span style="color:#66d9ef">=</span> master<span style="color:#f92672">(</span><span style="color:#a6e22e">Stream</span><span style="color:#f92672">(</span>gen<span style="color:#f92672">))</span>
+  <span style="color:#f92672">}</span>
+<span style="color:#f92672">}</span>
+</code></pre></div><p>在这里，<code>io.s</code> 表示从上游取的数据，<code>io.m</code> 表示传递给下游的数据。</p>
+<p>输出信号共有：<code>io.s.ready</code>、<code>io.m.valid</code> 和 <code>io.m.payload</code>。</p>
+<h2 id="zipcpu-版本">ZipCPU 版本</h2>
+<p>第一个版本来自 ZipCPU：</p>
+<p>博客地址：<a href="https://zipcpu.com/blog/2019/05/22/skidbuffer.html">Building a Skid Buffer for AXI processing</a>
+代码地址：<a href="https://github.com/ZipCPU/wb2axip/blob/master/rtl/skidbuffer.v">skidbuffer.v</a></p>
+<p>它有两个参数，一个表示是否有额外的输出寄存器（outputReg），一个表示是否低功耗（lowPower）。</p>
+<h2 id="fpgacpu-版本">FPGACPU 版本</h2>
+<p>第二个版本来自 FPGACPU：</p>
+<p>文章地址：<a href="http://fpgacpu.ca/fpga/Pipeline_Skid_Buffer.html">Pipeline Skid Buffer</a></p>
+<h2 id="spinalhdl-s2m-版本">SpinalHDL S2M 版本</h2>
+<p>第三个版本来自 SpinalHDL Library 的 s2mPipe：</p>
+<p>代码地址：<a href="https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L348">Stream.scala L348</a></p>
+<h2 id="spinalhdl-m2s-版本">SpinalHDL M2S 版本</h2>
+<p>第四个版本来自 SpinalHDL Library 的 m2sPipe：</p>
+<p>代码地址：<a href="https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L327">Stream.scala L327</a></p>
+<h2 id="四个版本的对比">四个版本的对比</h2>
+<p>在研究了代码以后，可以看到这四个版本的区别：</p>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>ZipCPU w/ outputReg</th>
+<th>ZipCPU w/o outputReg</th>
+<th>FPGACPU</th>
+<th>S2M</th>
+<th>M2S</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>io.s.ready</td>
+<td>Reg</td>
+<td>Reg</td>
+<td>Reg</td>
+<td>Reg</td>
+<td>Comb</td>
+</tr>
+<tr>
+<td>io.m.valid</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+</tr>
+<tr>
+<td>io.m.payload</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+</tr>
+<tr>
+<td>latency</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>buffer 数量</td>
+<td>1</td>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p>注：</p>
+<ol>
+<li>Reg 表示从寄存器输出，Comb 表示从组合逻辑输出</li>
+<li>Latency 表示从 <code>io.s.fire</code> 到 <code>io.m.fire</code> 的延迟</li>
+<li>Buffer 表示缓冲的 payload 个数</li>
+<li>ZipCPU w/o outputReg 和 S2M 实现的逻辑是一样的</li>
+</ol>
+<h2 id="形式化验证">形式化验证</h2>
+<p>为了确认上面这些类型的 Skid Buffer 都可以正常工作，按照 ZipCPU Skid Buffer 的文章，也照着写了几个 property：</p>
+<p>1: 在 valid &amp;&amp; ~ready 的时候，valid 需要继续保持为高，并且 payload 不变：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#75715e">// When valid goes high, data is stable and valid stays high before ready
+</span><span style="color:#75715e"></span>when<span style="color:#f92672">(</span>past<span style="color:#f92672">(</span>stream<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">~</span>stream<span style="color:#f92672">.</span>ready <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">~</span>outerReset<span style="color:#f92672">))</span> <span style="color:#f92672">{</span>
+    slaveAssume<span style="color:#f92672">(</span>stream<span style="color:#f92672">.</span>valid<span style="color:#f92672">);</span>
+    <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>dataStable<span style="color:#f92672">)</span> <span style="color:#f92672">{</span>
+        slaveAssume<span style="color:#f92672">(</span>stable<span style="color:#f92672">(</span>stream<span style="color:#f92672">.</span>payload<span style="color:#f92672">.</span>asBits<span style="color:#f92672">));</span>
+    <span style="color:#f92672">}</span>
+<span style="color:#f92672">}</span>
+</code></pre></div><p>2: 在 reset 释放的第一个周期里，valid 不能为高：</p>
+<p>参考 AXI 标准(IHI0022E Page 38 A3.1.2)原文：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-text" data-lang="text">The earliest point after reset that a master is permitted to begin driving ARVALID, AWVALID, or WVALID HIGH is at a rising ACLK edge after ARESETn is HIGH.
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#75715e">// Valid is low in the first cycle after reset falls
+</span><span style="color:#75715e"></span>when<span style="color:#f92672">(</span>pastValid <span style="color:#f92672">&amp;&amp;</span> past<span style="color:#f92672">(</span>outerReset<span style="color:#f92672">)</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">~</span>outerReset<span style="color:#f92672">)</span> <span style="color:#f92672">{</span>
+    slaveAssume<span style="color:#f92672">(~</span>stream<span style="color:#f92672">.</span>valid<span style="color:#f92672">);</span>
+<span style="color:#f92672">}</span>
+</code></pre></div><p>3: 添加 cover property，要求 <code>io.s</code> 和 <code>io.m</code> 可以连续若干个周期 valid &amp;&amp; ready，保证吞吐率：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">cover<span style="color:#f92672">(</span>
+    pastValid <span style="color:#f92672">&amp;&amp;</span> genPast<span style="color:#f92672">(</span>pastValid<span style="color:#f92672">,</span> <span style="color:#66d9ef">null</span><span style="color:#f92672">,</span> cycles<span style="color:#f92672">)</span> <span style="color:#f92672">&amp;&amp;</span> genPast<span style="color:#f92672">(</span>
+        <span style="color:#f92672">~</span>outerReset<span style="color:#f92672">,</span>
+        <span style="color:#66d9ef">null</span><span style="color:#f92672">,</span>
+        cycles
+    <span style="color:#f92672">)</span> <span style="color:#f92672">&amp;&amp;</span> genPast<span style="color:#f92672">(</span>stream<span style="color:#f92672">.</span>fire<span style="color:#f92672">,</span> payload<span style="color:#f92672">,</span> cycles<span style="color:#f92672">)</span>
+<span style="color:#f92672">)</span>
+</code></pre></div><p>采用 <code>yosys-smtbmc</code> 工具验证了以上四种 Skid buffer 都满足这些属性。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#统一约定">统一约定</a></li>
+    <li><a href="#zipcpu-版本">ZipCPU 版本</a></li>
+    <li><a href="#fpgacpu-版本">FPGACPU 版本</a></li>
+    <li><a href="#spinalhdl-s2m-版本">SpinalHDL S2M 版本</a></li>
+    <li><a href="#spinalhdl-m2s-版本">SpinalHDL M2S 版本</a></li>
+    <li><a href="#四个版本的对比">四个版本的对比</a></li>
+    <li><a href="#形式化验证">形式化验证</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/hdl">hdl
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/pipeline">pipeline
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/spinalhdl">spinalhdl
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/skid">skid
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/buffer">buffer
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/register">register
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/software/2021/02/09/common-symbols-linking/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            COMMON 符号
+        </div>
+    </a>
+    
+    
+    <a href="/software/2021/01/02/aarch64-debian-in-qemu-m1/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 M1 上用 QEMU 运行 Debian 虚拟机&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>COMMON 符号 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="COMMON 符号" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2021/02/09/common-symbols-linking/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.80.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">COMMON 符号</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2021/02/09/common-symbols-linking/" class="article-date">
+                <time datetime='2021-02-09T19:02:00.000&#43;08:00' itemprop="datePublished">2021-02-09</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2021/02/09/common-symbols-linking/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>在编译一个程序的时候，遇到了 undefined symbol 的问题。具体情况是这样的：</p>
+<ol>
+<li>一开始的时候，直接把所有的源代码编译成 <code>.o</code>，再一次性链接，这样不会报错</li>
+<li>后来，把一些代码编译成静态库，即把其中一部分源代码编译成 <code>.o</code> 后，用 <code>ar</code> 合并到一个 <code>.a</code> 中，再和其余的 <code>.o</code> 链接在一起，这时候就报错了：</li>
+</ol>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-text" data-lang="text">Undefined symbols for architecture arm64:
+  &#34;_abcd&#34;, referenced from:
+    ...
+</code></pre></div><p>如果换台机器，编译（使用的是 gcc 10.2.0）就没有问题。</p>
+<p>而如果去找这个符号存在的 <code>.o</code> 里，是可以找到的：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t /path/to/abcd.o
+<span style="color:#ae81ff">0000000000000028</span>         *COM*  <span style="color:#ae81ff">00000008</span> _abcd
+</code></pre></div><p>在合成的静态库 <code>.a</code> 里，也是存在的（一个定义+若干个引用）：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t /path/to/libabc.a | grep abcd
+<span style="color:#ae81ff">0000000000000028</span>         *COM*  <span style="color:#ae81ff">00000008</span> _abcd
+<span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
+<span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
+<span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
+<span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
+<span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
+</code></pre></div><p>于是觉得很奇怪，就上网搜了一下，找到了一篇 <a href="https://stackoverflow.com/questions/63665653/different-behavior-between-clang-and-gcc-10-when-linking-to-static-library-conta">StackOverflow</a> 讲了这个问题。解决方案很简单，就是：</p>
+<p><strong>编译的时候打开 <code>-fno-common</code> 设置</strong></p>
+<p>而 gcc 10 不会出错的原因是，它默认从 <code>-fcommon</code> 改成了 <code>-fno-common</code> 。</p>
+<h2 id="common-是什么">COMMON 是什么</h2>
+<p>这时候，肯定不满足于找到一个解决方案，肯定还是会去找背后的原理。</p>
+<p>首先，搜索了一下 COMMON 是什么，找到了 <a href="https://binarydodo.wordpress.com/2016/05/09/investigating-linking-with-common-symbols-in-elf/">Investigating linking with COMMON symbols in ELF</a> 这篇文章。</p>
+<p>文章里讲了 COMMON 是做什么的：</p>
+<blockquote>
+<p>Common symbols are a feature that allow a programmer to ‘define’ several variables of the same name in different source files.  This is in contrast with the more popular way of doing, where you define a variable once in a source file, and reference it everywhere else in other source files, using extern.  When common symbols are used, the linker will merge all symbols of the same name into a single memory location, the size of which is the largest type of the individual common symbol definitions.  For example, if fileA.c defines an uninitialized 32-bit integer myint, and fileB.c defines an 8-bit char myint, then in the final executable, references to myint from both files will point to the same memory location (common location), and the linker will reserve 32 bits for that location.</p>
+</blockquote>
+<p>文章里还讲了具体的实现方法：一个没有初始化的全局变量，在 <code>-fcommon</code> 的情况下，会设为 COMMON；如果有初始化，就按照初始化的值预分配到 .bss 或者 .data。链接的时候，如果有多个同名的 symbol，会有一个规则决定最后的 symbol 放到哪里；如果有冲突的话，就是我们熟悉的 <code>multiple definition</code> 错误了。</p>
+<p>为啥会有这种需求，多个 variable 同名，不会冲突而且共享内存？又在别的地方看到说法，COMMON 是给 <code>ancient</code> 代码使用的，还有的提到了 FORTRAN。于是去搜了一下，果然，FORTRAN 是问题的关键</p>
+<h2 id="fortran-里面的-common">FORTRAN 里面的 COMMON</h2>
+<p>用关键词很容易可以搜索到讲 <a href="https://www.obliquity.com/computer/fortran/common.html">COMMON BLOCK in FORTRAN 的文章</a>，FORTRAN 里面的 COMMON 是一种通过全局存储隐式传递参数的方法。拿文章里的例子：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fortran" data-lang="fortran">      <span style="color:#66d9ef">PROGRAM </span>MAIN
+      <span style="color:#66d9ef">INTEGER </span>A
+      <span style="color:#66d9ef">REAL    </span>F,R,X,Y
+      <span style="color:#66d9ef">COMMON  </span>R,A,F
+      A <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">14</span>
+      R <span style="color:#f92672">=</span> <span style="color:#ae81ff">9</span><span style="color:#ae81ff">9.9</span>
+      F <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.2</span>
+      <span style="color:#66d9ef">CALL </span>SUB(X,Y)
+      <span style="color:#66d9ef">END
+</span><span style="color:#66d9ef">
+</span><span style="color:#66d9ef">      SUBROUTINE </span>SUB(P,Q)
+      <span style="color:#66d9ef">INTEGER </span>I
+      <span style="color:#66d9ef">REAL    </span>A,B,P,Q
+      <span style="color:#66d9ef">COMMON  </span>A,I,B
+      <span style="color:#66d9ef">END</span>
+</code></pre></div><p>在函数 MAIN 和 SUB 中，都有 COMMON 语句，而 COMMON 后面的变量，就是存储在一个 COMMON 的 symbol 之中，按照顺序映射到 symbol 的内存地址。尝试编译一下上面的代码，然后看一下 symbol：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ gfortran -g -c test.f -o test.o
+$ objdump -t test.o
+
+test.o:	file format Mach-O arm64
+
+SYMBOL TABLE:
+<span style="color:#ae81ff">0000000000000078</span> g     F __TEXT,__text _main
+<span style="color:#ae81ff">0000000000000000</span> g     F __TEXT,__text _sub_
+000000000000000c         *COM*	<span style="color:#ae81ff">00000010</span> ___BLNK__
+</code></pre></div><p>可以看到，出现了一个叫做 <code>___BLNK__</code> 的 COMMON symbol，大小是 16 字节。看一下代码中是如何引用的：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -S --reloc test.o
+
+test.o:	file format Mach-O arm64
+
+Disassembly of section __TEXT,__text:
+
+<span style="color:#ae81ff">0000000000000018</span> _MAIN__:
+;         PROGRAM MAIN
+      18: fd 7b be a9                  	stp	x29, x30, <span style="color:#f92672">[</span>sp, <span style="color:#75715e">#-32]!</span>
+      1c: fd <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">91</span>                  	mov	x29, sp
+;         A <span style="color:#f92672">=</span> -14
+      20: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">90</span>                  	adrp	x0, <span style="color:#75715e">#0</span>
+		0000000000000020:  ARM64_RELOC_GOT_LOAD_PAGE21	___BLNK__
+      24: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">40</span> f9                  	ldr	x0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
+		0000000000000024:  ARM64_RELOC_GOT_LOAD_PAGEOFF12	___BLNK__
+      28: a1 <span style="color:#ae81ff">01</span> <span style="color:#ae81ff">80</span> <span style="color:#ae81ff">12</span>                  	mov	w1, <span style="color:#75715e">#-14</span>
+      2c: <span style="color:#ae81ff">01</span> <span style="color:#ae81ff">04</span> <span style="color:#ae81ff">00</span> b9                  	str	w1, <span style="color:#f92672">[</span>x0, <span style="color:#75715e">#4]</span>
+;         R <span style="color:#f92672">=</span> 99.9
+      30: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">90</span>                  	adrp	x0, <span style="color:#75715e">#0</span>
+		0000000000000030:  ARM64_RELOC_GOT_LOAD_PAGE21	___BLNK__
+      34: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">40</span> f9                  	ldr	x0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
+		0000000000000034:  ARM64_RELOC_GOT_LOAD_PAGEOFF12	___BLNK__
+      38: a1 <span style="color:#ae81ff">99</span> <span style="color:#ae81ff">99</span> <span style="color:#ae81ff">52</span>                  	mov	w1, <span style="color:#75715e">#52429</span>
+      3c: e1 <span style="color:#ae81ff">58</span> a8 <span style="color:#ae81ff">72</span>                  	movk	w1, <span style="color:#75715e">#17095, lsl #16</span>
+      40: <span style="color:#ae81ff">20</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">27</span> 1e                  	fmov	s0, w1
+      44: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> bd                  	str	s0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
+;         F <span style="color:#f92672">=</span> 0.2
+      48: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">90</span>                  	adrp	x0, <span style="color:#75715e">#0</span>
+		0000000000000048:  ARM64_RELOC_GOT_LOAD_PAGE21	___BLNK__
+      4c: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">40</span> f9                  	ldr	x0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
+		000000000000004c:  ARM64_RELOC_GOT_LOAD_PAGEOFF12	___BLNK__
+      50: a1 <span style="color:#ae81ff">99</span> <span style="color:#ae81ff">99</span> <span style="color:#ae81ff">52</span>                  	mov	w1, <span style="color:#75715e">#52429</span>
+      54: <span style="color:#ae81ff">81</span> c9 a7 <span style="color:#ae81ff">72</span>                  	movk	w1, <span style="color:#75715e">#15948, lsl #16</span>
+      58: <span style="color:#ae81ff">20</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">27</span> 1e                  	fmov	s0, w1
+      5c: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">08</span> <span style="color:#ae81ff">00</span> bd                  	str	s0, <span style="color:#f92672">[</span>x0, <span style="color:#75715e">#8]</span>
+;         CALL SUB<span style="color:#f92672">(</span>X,Y<span style="color:#f92672">)</span>
+      60: e1 <span style="color:#ae81ff">63</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">91</span>                  	add	x1, sp, <span style="color:#75715e">#24</span>
+      64: e0 <span style="color:#ae81ff">73</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">91</span>                  	add	x0, sp, <span style="color:#75715e">#28</span>
+      68: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">94</span>                  	bl	<span style="color:#75715e">#0 &lt;_MAIN__+0x50&gt;</span>
+		0000000000000068:  ARM64_RELOC_BRANCH26	_sub_
+;         END
+      6c: 1f <span style="color:#ae81ff">20</span> <span style="color:#ae81ff">03</span> d5                  	nop
+      70: fd 7b c2 a8                  	ldp	x29, x30, <span style="color:#f92672">[</span>sp<span style="color:#f92672">]</span>, <span style="color:#75715e">#32</span>
+      74: c0 <span style="color:#ae81ff">03</span> 5f d6                  	ret
+
+</code></pre></div><p>可以看到，在 MAIN 中引用 <code>A</code> 的时候，取的地址是 <code>___BLNK__+4</code>，<code>R</code> 是 <code>___BLNK__+0</code>，<code>F</code> 是 <code>___BLNK__+8</code>。这和代码里的顺序也是一致的。所以在 SUB 中读 A I B 的时候，对应了 MAIN 中的 A R F。通过这种方式，可以在 MAIN 函数里面隐式地给所有函数传递参数。</p>
+<p>此外，COMMON 还可以命名，这样就可以区分不同的参数用途：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fortran" data-lang="fortran">        <span style="color:#66d9ef">PROGRAM </span>MAIN
+        <span style="color:#66d9ef">INTEGER </span>A
+        <span style="color:#66d9ef">REAL    </span>F,R,X,Y
+        <span style="color:#66d9ef">COMMON  </span>R,A,F
+        <span style="color:#66d9ef">COMMON</span> <span style="color:#f92672">/</span>test<span style="color:#f92672">/</span> X,Y
+        A <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">14</span>
+        R <span style="color:#f92672">=</span> <span style="color:#ae81ff">9</span><span style="color:#ae81ff">9.9</span>
+        F <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.2</span>
+        <span style="color:#66d9ef">CALL </span>SUB(X,Y)
+        <span style="color:#66d9ef">END
+</span><span style="color:#66d9ef">
+</span><span style="color:#66d9ef">        SUBROUTINE </span>SUB(P,Q)
+        <span style="color:#66d9ef">INTEGER </span>I
+        <span style="color:#66d9ef">REAL    </span>A,B,P,Q
+        <span style="color:#66d9ef">COMMON  </span>A,I,B
+        <span style="color:#66d9ef">END</span>
+</code></pre></div><p>代码添加了一行 <code>COMMON /test/</code>，观察一下 symbol：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t test.o
+
+test.o:	file format Mach-O arm64
+
+SYMBOL TABLE:
+<span style="color:#ae81ff">0000000000000088</span> g     F __TEXT,__text _main
+<span style="color:#ae81ff">0000000000000000</span> g     F __TEXT,__text _sub_
+000000000000000c         *COM*	<span style="color:#ae81ff">00000010</span> ___BLNK__
+<span style="color:#ae81ff">0000000000000008</span>         *COM*	<span style="color:#ae81ff">00000010</span> _test_
+</code></pre></div><p>和预期的一致：出现了新的 COMMON symbol，对应了 named COMMON Block 里面的变量 X 和 Y。</p>
+<p>再看一下汇编里怎么引用的：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">;         CALL SUB<span style="color:#f92672">(</span>X,Y<span style="color:#f92672">)</span>
+      60: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">90</span>                   adrp    x0, <span style="color:#75715e">#0</span>
+                0000000000000060:  ARM64_RELOC_GOT_LOAD_PAGE21  _test_
+      64: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">40</span> f9                   ldr     x0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
+                0000000000000064:  ARM64_RELOC_GOT_LOAD_PAGEOFF12       _test_
+      68: <span style="color:#ae81ff">01</span> <span style="color:#ae81ff">10</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">91</span>                   add     x1, x0, <span style="color:#75715e">#4</span>
+      6c: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">90</span>                   adrp    x0, <span style="color:#75715e">#0</span>
+                000000000000006c:  ARM64_RELOC_GOT_LOAD_PAGE21  _test_
+      70: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">40</span> f9                   ldr     x0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
+                0000000000000070:  ARM64_RELOC_GOT_LOAD_PAGEOFF12       _test_
+      74: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">94</span>                   bl      <span style="color:#75715e">#0 &lt;_MAIN__+0x5c&gt;</span>
+                0000000000000074:  ARM64_RELOC_BRANCH26 _sub_
+</code></pre></div><p>可以看到，第一个参数（x0）为 <code>_test_</code>，第二个参数（x1）为 <code>_test_+4</code>，和预期也是一样的。</p>
+<p>读到这里，就可以理解为啥有 COMMON symbol 了。可能是为了让 C 代码和 FORTRAN 代码可以互操作 COMMON symbol，就有了这么一出。也可能有的 C 库确实用了类似的方法来实现某些功能。</p>
+<h2 id="解决方案">解决方案</h2>
+<p>但是，这种用法在现在来看是不推荐的，建议还是该 extern 就 extern，另外，在编译静态库的时候，记得加上 <code>-fno-common</code>。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#common-是什么">COMMON 是什么</a></li>
+    <li><a href="#fortran-里面的-common">FORTRAN 里面的 COMMON</a></li>
+    <li><a href="#解决方案">解决方案</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/c&#43;&#43;">c&#43;&#43;
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/fortran">fortran
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/gcc">gcc
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/clang">clang
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ld">ld
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/linking">linking
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/symbols">symbols
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/objdump">objdump
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2021/01/26/skid-buffer/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Skid Buffer&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
