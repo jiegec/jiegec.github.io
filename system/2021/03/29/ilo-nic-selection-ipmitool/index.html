@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>通过 ipmitool 配置 iLO 4 管理端口 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="通过 ipmitool 配置 iLO 4 管理端口" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/system/2021/03/29/ilo-nic-selection-ipmitool/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.82.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">通过 ipmitool 配置 iLO 4 管理端口</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/system/2021/03/29/ilo-nic-selection-ipmitool/" class="article-date">
+                <time datetime='2021-03-29T08:30:00.000&#43;08:00' itemprop="datePublished">2021-03-29</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/system/2021/03/29/ilo-nic-selection-ipmitool/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>ipmitool 自带了对 iDRAC 的支持，可以通过 <code>ipmitool delloem</code> 设置 iDRAC 的管理端口。但是对 iLO 的支持并没有实现。研究了一番，找到了通过 raw command 配置 iLO 4 管理端口的方法。</p>
+<p><a href="https://computercheese.blogspot.com/2013/05/ipmi-lan-commands.html">这篇文章</a> 讲述了 <code>ipmitool lan</code> 命令实际会发送的命令：</p>
+<p>读取配置：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ipmitool raw 0x0c 0x02 CHANNEL KEY SET BLOCK
+</code></pre></div><p>一般来说 SET 和 BLOCK 都是 0。KEY 的常见取值：</p>
+<ul>
+<li>3: IP 地址</li>
+<li>4: IP 地址来源</li>
+<li>5: MAC 地址</li>
+<li>6: 子网掩码</li>
+<li>12: 默认网关</li>
+</ul>
+<p>返回的数据中，第一个字节忽略，剩下的就是数据了。</p>
+<p>写入配置：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ipmitool raw 0x0c 0x01 CHANNEL KEY DATA...
+</code></pre></div><p>知道如何读取配置后，接下来就是找到 iLO 4 配置 NIC 的地方了。一番搜索，找到了 <a href="https://support.hpe.com/hpesc/public/docDisplay?docId=c04530505&amp;docLocale=en_US">HPE iLO IPMI User Guide</a>。在第 101 页，可以找到一个用于配置 iLO NIC 选择的设置：</p>
+<pre><code>Index: 224
+iLO Dedicated/Shared NIC Selection.
+data 3:
+• Selected iLO NIC.
+◦ 0h = iLO Dedicated NIC is selected.
+◦ 1h = iLO Shared NIC is selected.
+◦ All others = reserved
+• To switch to another iLO NIC:
+1. Write this (and possibly parameter 197) to the desired NIC selection
+2. Configure all other relevant network parameters for the desin
+3. Reset iLO. The desired NIC will be in use after iLO reset.
+• When writing changes to data 3, NIC selection:
+◦ data 1 must be AAh
+◦ data 2 must be 55h
+◦ data 4 must be FFh
+</code></pre>
+<p>有这样的信息以后，可以通过下面的命令来设置 Shared NIC：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ipmitool raw 0x0c 0x01 0x01 <span style="color:#ae81ff">224</span> 0xAA 0x55 0x01 0xFF
+</code></pre></div><p>再读出来 224，发现它的 data 4 表示 <code>iLO reset needed for some settings changes that have been made</code>。于是，执行 <code>ipmitool mc reset warm</code> 之后，就可以看到 NIC 选择已经更新：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ipmitool raw 0x0c 0x02 0x01 <span style="color:#ae81ff">197</span> 0x00 0x00
+<span style="color:#ae81ff">11</span> <span style="color:#ae81ff">02</span> <span style="color:#ae81ff">01</span> <span style="color:#ae81ff">02</span>
+</code></pre></div><p>数据分别表示：</p>
+<ul>
+<li>0x02: Shared NIC Selection = ALOM</li>
+<li>0x01: Shared NIC Port Number = Port 1</li>
+<li>0x02: Platform supports ALOM shared NIC</li>
+</ul>
+<p>如果想要的端口和默认选择不一样，可以写入 197 来更新。详见上面的文档链接。</p>
+<p>超微的机器也有类似的办法：https://www.supermicro.org.cn/support/faqs/faq.cfm?faq=15868</p>
+<p>Update：我给 IPMITOOL 提交了 <a href="https://github.com/ipmitool/ipmitool/pull/278">PR</a>，来简化这个过程。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents"></nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/hpe">hpe
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ilo">ilo
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ilo4">ilo4
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ipmi">ipmi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ipmitool">ipmitool
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/system/2021/03/29/static-ipmitool/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            静态编译 ipmitool
+        </div>
+    </a>
+    
+    
+    <a href="/networking/2021/03/27/esxi-network-config/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">ESXi 网络配置&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
