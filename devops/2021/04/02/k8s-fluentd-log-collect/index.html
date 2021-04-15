@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用 fluentd 收集 k8s 中容器的日志 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="用 fluentd 收集 k8s 中容器的日志" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/devops/2021/04/02/k8s-fluentd-log-collect/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.82.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">用 fluentd 收集 k8s 中容器的日志</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/devops/2021/04/02/k8s-fluentd-log-collect/" class="article-date">
+                <time datetime='2021-04-02T23:19:00.000&#43;08:00' itemprop="datePublished">2021-04-02</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/devops/2021/04/02/k8s-fluentd-log-collect/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>在维护一个 k8s 集群的时候，一个很常见的需求就是把日志持久化存下来，一方面是方便日后回溯，一方面也是聚合 replicate 出来的同一个服务的日志。</p>
+<p>在我目前的需求下，只需要把日志持久下来，还不需要做额外的分析。所以我并没有部署类似 ElasticSearch 的服务来对日志进行索引。</p>
+<h2 id="实现">实现</h2>
+<p>实现主要参考官方的仓库：https://github.com/fluent/fluentd-kubernetes-daemonset。它把一些常用的插件打包到 docker 镜像中，然后提供了一些默认的设置，比如获取 k8s 日志和 pod 日志等等。为了达到我的需求，我希望：</p>
+<ol>
+<li>每个结点上有一个 fluentd 收集日志，forward 到单独的 log server 上的 fluentd</li>
+<li>log server 上的 fluentd 把收到的日志保存到文件</li>
+</ol>
+<p>由于 log server 不由 k8s 管理，所以按照<a href="https://docs.fluentd.org/installation/install-by-deb">官网</a>的方式手动安装：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ curl -L https://toolbelt.treasuredata.com/sh/install-debian-buster-td-agent4.sh | sh
+</code></pre></div><p>然后，编辑配置 <code>/etc/td-agent/td-agent.conf</code>：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">&lt;source&gt;
+  @type forward
+  @id input_forward
+  bind x.x.x.x
+&lt;/source&gt;
+
+&lt;match **&gt;
+  @type file
+  path /var/log/fluentd/k8s
+  compress gzip
+  &lt;buffer&gt;
+    timekey 1d
+    timekey_use_utc true
+    timekey_wait 10m
+  &lt;/buffer&gt;
+&lt;/match&gt;
+</code></pre></div><p>分别设置输入：监听 fluentd forward 协议；输出：设置输出文件，和 buffer 配置。如有需要，可以加鉴权。</p>
+<p>接着，按照 <a href="https://github.com/fluent/fluentd-kubernetes-daemonset/blob/master/fluentd-daemonset-forward.yaml">https://github.com/fluent/fluentd-kubernetes-daemonset/blob/master/fluentd-daemonset-forward.yaml</a>，我做了一些修改，得到了下面的配置：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml">---
+<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
+<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
+<span style="color:#f92672">metadata</span>:
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+
+---
+<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
+<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRole</span>
+<span style="color:#f92672">metadata</span>:
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+<span style="color:#f92672">rules</span>:
+- <span style="color:#f92672">apiGroups</span>:
+  - <span style="color:#e6db74">&#34;&#34;</span>
+  <span style="color:#f92672">resources</span>:
+  - <span style="color:#ae81ff">pods</span>
+  - <span style="color:#ae81ff">namespaces</span>
+  <span style="color:#f92672">verbs</span>:
+  - <span style="color:#ae81ff">get</span>
+  - <span style="color:#ae81ff">list</span>
+  - <span style="color:#ae81ff">watch</span>
+
+---
+<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRoleBinding</span>
+<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
+<span style="color:#f92672">metadata</span>:
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+<span style="color:#f92672">roleRef</span>:
+  <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRole</span>
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+  <span style="color:#f92672">apiGroup</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io</span>
+<span style="color:#f92672">subjects</span>:
+- <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+
+---
+<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">apps/v1</span>
+<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">DaemonSet</span>
+<span style="color:#f92672">metadata</span>:
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+  <span style="color:#f92672">labels</span>:
+    <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
+    <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
+<span style="color:#f92672">spec</span>:
+  <span style="color:#f92672">selector</span>:
+    <span style="color:#f92672">matchLabels</span>:
+      <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
+      <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
+  <span style="color:#f92672">template</span>:
+    <span style="color:#f92672">metadata</span>:
+      <span style="color:#f92672">labels</span>:
+        <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
+        <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
+    <span style="color:#f92672">spec</span>:
+      <span style="color:#f92672">serviceAccount</span>: <span style="color:#ae81ff">fluentd</span>
+      <span style="color:#f92672">serviceAccountName</span>: <span style="color:#ae81ff">fluentd</span>
+      <span style="color:#f92672">tolerations</span>:
+      - <span style="color:#f92672">key</span>: <span style="color:#ae81ff">node-role.kubernetes.io/master</span>
+        <span style="color:#f92672">effect</span>: <span style="color:#ae81ff">NoSchedule</span>
+      <span style="color:#f92672">containers</span>:
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+        <span style="color:#f92672">image</span>: <span style="color:#ae81ff">fluent/fluentd-kubernetes-daemonset:v1-debian-forward</span>
+        <span style="color:#f92672">env</span>:
+          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENT_FOWARD_HOST</span>
+            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;x.x.x.x&#34;</span>
+          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENT_FOWARD_PORT</span>
+            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;24224&#34;</span>
+          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENTD_SYSTEMD_CONF</span>
+            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;disable&#34;</span>
+        <span style="color:#f92672">resources</span>:
+          <span style="color:#f92672">limits</span>:
+            <span style="color:#f92672">memory</span>: <span style="color:#ae81ff">200Mi</span>
+          <span style="color:#f92672">requests</span>:
+            <span style="color:#f92672">cpu</span>: <span style="color:#ae81ff">100m</span>
+            <span style="color:#f92672">memory</span>: <span style="color:#ae81ff">200Mi</span>
+        <span style="color:#f92672">volumeMounts</span>:
+        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">config-volume</span>
+          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/fluentd/etc/tail_container_parse.conf</span>
+          <span style="color:#f92672">subPath</span>: <span style="color:#ae81ff">tail_container_parse.conf</span>
+        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlog</span>
+          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/var/log</span>
+        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlibdockercontainers</span>
+          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/var/lib/docker/containers</span>
+          <span style="color:#f92672">readOnly</span>: <span style="color:#66d9ef">true</span>
+      <span style="color:#f92672">terminationGracePeriodSeconds</span>: <span style="color:#ae81ff">30</span>
+      <span style="color:#f92672">volumes</span>:
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">config-volume</span>
+        <span style="color:#f92672">configMap</span>:
+          <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd-config</span>
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlog</span>
+        <span style="color:#f92672">hostPath</span>:
+          <span style="color:#f92672">path</span>: <span style="color:#ae81ff">/var/log</span>
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlibdockercontainers</span>
+        <span style="color:#f92672">hostPath</span>:
+          <span style="color:#f92672">path</span>: <span style="color:#ae81ff">/var/lib/docker/containers</span>
+
+---
+<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
+<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ConfigMap</span>
+<span style="color:#f92672">metadata</span>:
+  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd-config</span>
+  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+<span style="color:#f92672">data</span>:
+  <span style="color:#f92672">tail_container_parse.conf</span>: |-<span style="color:#e6db74">
+</span><span style="color:#e6db74">    &lt;parse&gt;
+</span><span style="color:#e6db74">      @type cri
+</span><span style="color:#e6db74">    &lt;/parse&gt;</span>    
+</code></pre></div><p>和原版有几点细节上的不同：</p>
+<ol>
+<li>k8s 启用了 rbac，所以需要对应的配置；照着仓库里其他带 rbac 配置的文件抄一下即可。</li>
+<li>禁用了 SYSTEMD 日志的抓取，因为我用的是 k3s，而不是 kubeadm，自然找不到 kubelet 的 systemd service。</li>
+<li>覆盖了 container 日志的读取，因为使用的 container runtime 日志格式和默认的不同，这部分设置在仓库的 README 中也有提到。</li>
+</ol>
+<p>部署到 k8s 中即可。为了保证日志的准确性，建议各个结点都保持 NTP 的同步。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#实现">实现</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/k8s">k8s
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/kubernetes">kubernetes
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/fluentd">fluentd
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/logging">logging
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/devops/2021/04/15/vmware-esxi-perccli/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            在 ESXi 中用 PERCCli 换 RAID 中的盘
+        </div>
+    </a>
+    
+    
+    <a href="/system/2021/03/29/static-ipmitool/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">静态编译 ipmitool&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

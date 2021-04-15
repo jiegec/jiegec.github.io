@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在 ESXi 中用 PERCCli 换 RAID 中的盘 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="在 ESXi 中用 PERCCli 换 RAID 中的盘" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/devops/2021/04/15/vmware-esxi-perccli/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.82.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在 ESXi 中用 PERCCli 换 RAID 中的盘</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/devops/2021/04/15/vmware-esxi-perccli/" class="article-date">
+                <time datetime='2021-04-15T14:31:00.000&#43;08:00' itemprop="datePublished">2021-04-15</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/devops/2021/04/15/vmware-esxi-perccli/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近有一台机器的盘出现了报警，需要换掉，然后重建 RAID5 阵列。iDRAC 出现报错：</p>
+<ol>
+<li>Disk 2 in Backplane 1 of Integrated RAID Controller 1 is not functioning correctly.</li>
+<li>Virtual Disk 1 on Integrated RAID Controller 1 has become degraded.</li>
+<li>Error occurred on Disk2 in Backplane 1 of Integrated RAID Controller 1 : (Error 2)</li>
+</ol>
+<h2 id="安装-perccli">安装 PERCCli</h2>
+<p>首先，因为系统是 VMware ESXi 6.7，所以在<a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">DELL 官网</a>下载对应的文件。按照里面的 README 安装 vib：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">esxcli software vib install -v /vmware-perccli-007.1420.vib
+</code></pre></div><p>需要注意的是，如果复制上去 Linux 版本的 PERCCli，虽然也可以运行，但是找不到控制器。安装好以后，就可以运行 <code>/opt/lsi/perccli/perccli</code> 。接着，运行 <code>perccli show all</code>，可以看到类似下面的信息：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli show all
+--------------------------------------------------------------------------------
+EID:Slt DID State  DG     Size Intf Med SED PI SeSz Model               Sp Type
+--------------------------------------------------------------------------------
+32:2      <span style="color:#ae81ff">2</span> Failed  <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
+32:4      <span style="color:#ae81ff">4</span> UGood   F 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
+--------------------------------------------------------------------------------
+</code></pre></div><p>其中 E32S2 是 Failed 的盘，属于 Disk Group 1；E32S4 是新插入的盘，准备替换掉 E32S2，目前不属于任何的 Disk Group。查看一下 Disk Group ：<code>perccli /c0/dall show</code></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/dall show
+-----------------------------------------------------------------------------
+DG Arr Row EID:Slot DID Type  State BT       Size PDC  PI SED DS3  FSpace TR
+-----------------------------------------------------------------------------
+ <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd   N    7.276 TB dflt N  N   dflt N      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd   N    7.276 TB dflt N  N   dflt N      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:2     <span style="color:#ae81ff">2</span>   DRIVE Failed N    3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
+</code></pre></div><p>可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 <a href="https://dl.dell.com/topicspdf/cli_guide_en-us.pdf">PERCCli 文档</a>，它告诉我们要这么做：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set offline
+perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set missing
+perccli /cx /dall show
+perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx insert dg<span style="color:#f92672">=</span>a array<span style="color:#f92672">=</span>b row<span style="color:#f92672">=</span>c
+perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx start rebuild
+</code></pre></div><p>具体到我们这个情景，就是把 E32S2 设为 offline，然后用 E32S4 来替换它：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /c0/e32/s2 set offline
+perccli /c0/e32/s2 set missing
+perccli /cx /dall show
+perccli /cx/e32/s4 insert dg<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> array<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> row<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>
+perccli /cx/e32/s4 start rebuild
+</code></pre></div><p>完成以后的状态：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">TOPOLOGY :
+<span style="color:#f92672">========</span>
+
+---------------------------------------------------------------------------
+DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
+---------------------------------------------------------------------------
+ <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:4     <span style="color:#ae81ff">4</span>   DRIVE Rbld  Y  3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+---------------------------------------------------------------------------
+</code></pre></div><p>可以看到 E32S4 替换了原来 E32S2 的位置，并且开始重建。查看重建进度：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/32/s4 show rebuild
+-----------------------------------------------------
+Drive-ID   Progress% Status      Estimated Time Left
+-----------------------------------------------------
+/c0/e32/s4         <span style="color:#ae81ff">3</span> In progress -
+-----------------------------------------------------
+$ perccli show all
+Need Attention :
+<span style="color:#f92672">==============</span>
+
+Controller <span style="color:#ae81ff">0</span> :
+<span style="color:#f92672">============</span>
+
+-------------------------------------------------------------------------------
+EID:Slt DID State DG     Size Intf Med SED PI SeSz Model               Sp Type
+-------------------------------------------------------------------------------
+32:4      <span style="color:#ae81ff">4</span> Rbld   <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
+-------------------------------------------------------------------------------
+</code></pre></div><p>然后，查看一下出错的盘：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 show all
+Drive /c0/e32/s2 State :
+<span style="color:#f92672">======================</span>
+Shield Counter <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+Media Error Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+Other Error Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>
+Drive Temperature <span style="color:#f92672">=</span>  36C <span style="color:#f92672">(</span>96.80 F<span style="color:#f92672">)</span>
+Predictive Failure Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+S.M.A.R.T alert flagged by drive <span style="color:#f92672">=</span> No
+</code></pre></div><p>果然有错误，但是也看不到更多信息了。</p>
+<p>坏块统计：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0 show badblocks
+Detailed Status :
+<span style="color:#f92672">===============</span>
+
+-------------------------------------------------------------
+Ctrl Status Ctrl_Prop       Value ErrMsg               ErrCd
+-------------------------------------------------------------
+   <span style="color:#ae81ff">0</span> Failed Bad Block Count -     BadBlockCount failed     <span style="color:#ae81ff">2</span>
+-------------------------------------------------------------
+
+</code></pre></div><p>经过检查以后，发现 E32S2 盘的 SMART 并没有报告什么问题，所以也没有把盘取走，而是作为 hot spare 当备用：</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 add hotsparedrive DG<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>
+$ perccli /c0/d1 show
+TOPOLOGY :
+<span style="color:#f92672">========</span>
+
+---------------------------------------------------------------------------
+DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
+---------------------------------------------------------------------------
+ <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:4     <span style="color:#ae81ff">4</span>   DRIVE Rbld  Y  3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+ <span style="color:#ae81ff">1</span> -   -   32:2     <span style="color:#ae81ff">2</span>   DRIVE DHS   -  3.637 TB -    -  -   -    -      N
+---------------------------------------------------------------------------
+
+DG<span style="color:#f92672">=</span>Disk Group Index|Arr<span style="color:#f92672">=</span>Array Index|Row<span style="color:#f92672">=</span>Row Index|EID<span style="color:#f92672">=</span>Enclosure Device ID
+DID<span style="color:#f92672">=</span>Device ID|Type<span style="color:#f92672">=</span>Drive Type|Onln<span style="color:#f92672">=</span>Online|Rbld<span style="color:#f92672">=</span>Rebuild|Optl<span style="color:#f92672">=</span>Optimal|Dgrd<span style="color:#f92672">=</span>Degraded
+Pdgd<span style="color:#f92672">=</span>Partially degraded|Offln<span style="color:#f92672">=</span>Offline|BT<span style="color:#f92672">=</span>Background Task Active
+PDC<span style="color:#f92672">=</span>PD Cache|PI<span style="color:#f92672">=</span>Protection Info|SED<span style="color:#f92672">=</span>Self Encrypting Drive|Frgn<span style="color:#f92672">=</span>Foreign
+DS3<span style="color:#f92672">=</span>Dimmer Switch 3|dflt<span style="color:#f92672">=</span>Default|Msng<span style="color:#f92672">=</span>Missing|FSpace<span style="color:#f92672">=</span>Free Space Present
+TR<span style="color:#f92672">=</span>Transport Ready
+</code></pre></div><p>这样就可以做后备盘，当别的盘坏的时候，作为备用。</p>
+<h2 id="相关软件下载">相关软件下载</h2>
+<p>可以在<a href="https://www.broadcom.com/products/storage/raid-controllers/megaraid-sas-9361-8i#downloads">这里</a>寻找 StorCLI 版本。</p>
+<p>StorCLI：</p>
+<ul>
+<li>007.1613.0000.0000 Oct 29, 2020 <a href="https://docs.broadcom.com/docs/007.1613.0000.0000_Unified_StorCLI.zip">007.1613.0000.0000_Unified_StorCLI.zip</a></li>
+<li>007.1506.0000.0000 Aug 11, 2020 <a href="https://downloadcenter.intel.com/download/30286/StorCLI-Standalone-Utility">StorCLI_MR7.15.zip</a></li>
+<li>1.15.12 Apr 23, 2015 <a href="https://docs.broadcom.com/docs/12354905">MR_SAS_StorCLI_6-7-1-15-12-SCGCQ00852539.zip</a></li>
+<li>1.15.05 Jan 22, 2015 <a href="https://docs.broadcom.com/docs/12354804">1-15-05_StorCLI.zip</a></li>
+</ul>
+<p>MegaCLI:</p>
+<ul>
+<li>8.07.07 Dec 19, 2012 <a href="https://docs.broadcom.com/docs/12351585">8-07-07_MegaCLI.zip</a></li>
+</ul>
+<p>PercCLI:</p>
+<ul>
+<li>007.1420.0000.0000 Dec 10, 2020 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=n65f1">PERCCLI_N65F1_7.1420.00_A10_Linux.tar.gz</a></li>
+<li>007.1327.0000.0000 July 27, 2020 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=d6ywp">PERCCLI_D6YWP_7.1327.00_A09_Linux.tar.gz</a></li>
+<li>007.0127.0000.0000 July 13, 2017 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=f48c2">perccli_7.1-007.0127_linux.tar.gz</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#安装-perccli">安装 PERCCli</a></li>
+    <li><a href="#相关软件下载">相关软件下载</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/esxi">esxi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/vmware">vmware
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/perc">perc
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/perccli">perccli
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/raid">raid
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/megaraid">megaraid
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/lsi">lsi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/avago">avago
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/devops/2021/04/02/k8s-fluentd-log-collect/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">用 fluentd 收集 k8s 中容器的日志&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
