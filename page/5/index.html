@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.84.0" />
+    <meta name="generator" content="Hugo 0.85.0" />
 </head>
 
 <body>
@@ -59,6 +59,157 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/devops/2020/04/17/k8s-nginx-cert-manager-le/">在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let&#39;s Encrypt HTTPS 证书</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/devops/2020/04/17/k8s-nginx-cert-manager-le/" class="article-date">
+                        <time datetime='2020-04-17T18:13:00.000&#43;08:00' itemprop="datePublished">2020-04-17</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/devops/2020/04/17/k8s-nginx-cert-manager-le/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    上一篇博客讲了 nginx ingress 的配置，那自然第一步要配上 https。首先配置 cert-manager：
+$ kubectl create namespace cert-manager $ kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.14.1/cert-manager.crds.yaml $ helm repo add jetstack https://charts.jetstack.io $ helm repo update $ helm install \  cert-manager jetstack/cert-manager \  --namespace cert-manager \  --version v0.14.1 然后，配置 Cluster Issuer，应用以下的 yaml：
+apiVersion: cert-manager.io/v1alpha2 kind: ClusterIssuer metadata: name: letsencrypt-prod namespace: cert-manager spec: acme: email: example@example.com server: https://acme-v02.api.letsencrypt.org/directory privateKeySecretRef: name: letsencrypt-prod solvers: - http01: ingress: class: nginx 然后在 ingress 里面进行配置：
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/devops/2020/04/17/k8s-nginx-cert-manager-le/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/k8s">k8s
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/kubernetes">kubernetes
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/tencentcloud">tencentcloud
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/ingress">ingress
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/nginx-ingress">nginx-ingress
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/letsencrypt">letsencrypt
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/cert-manager">cert-manager
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/devops/2020/04/17/tke-nginx-ingress-without-lb/">在 TKE 上配置不使用 LB 的 Nginx Ingress Controller</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/devops/2020/04/17/tke-nginx-ingress-without-lb/" class="article-date">
+                        <time datetime='2020-04-17T17:30:00.000&#43;08:00' itemprop="datePublished">2020-04-17</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/devops/2020/04/17/tke-nginx-ingress-without-lb/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 想要在 k8s 里面 host 一个网站，但又不想额外花钱用 LB，想直接用节点的 IP。
+方法 首先安装 nginx-ingress：
+$ helm repo add nginx-stable https://helm.nginx.com/stable $ helm repo update $ helm install ingress-controller nginx-stable/nginx-ingress --set controller.service.type=NodePort --set controller.hostNetwork=true 这里给 ingress controller chart 传了两个参数：第一个指定 service 类型是 NodePort，替代默认的 LoadBalancer；第二个指定 ingress controller 直接在节点上监听，这样就可以用节点的公网 IP 访问了。
+然后配一个 ingress：
+apiVersion: networking.k8s.io/v1beta1 kind: Ingress metadata: name: ingress-example annotations: kubernetes.io/ingress.class: &#34;nginx&#34; spec: rules: - host: example.com http: paths: - path: / backend: serviceName: example-service servicePort: 80 然后就可以发现请求被正确路由到 example-service 的 80 端口了。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/devops/2020/04/17/tke-nginx-ingress-without-lb/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/k8s">k8s
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/kubernetes">kubernetes
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/tencentcloud">tencentcloud
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/tke">tke
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/nginx">nginx
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/nginx-ingress">nginx-ingress
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -518,135 +669,6 @@ mkdir /path/to/jail chown root:root /path/to/jail chmod 701 /path/to/jail jk_ini
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="https://jia.je/tags/weeklysharing">weeklysharing
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2020/02/10/simulate-chisel3-on-vivado/">在 Vivado 中对 chisel3 产生的 verilog 代码仿真</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2020/02/10/simulate-chisel3-on-vivado/" class="article-date">
-                        <time datetime='2020-02-10T23:09:00.000&#43;08:00' itemprop="datePublished">2020-02-10</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2020/02/10/simulate-chisel3-on-vivado/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    默认情况下，chisel3 生成的 verilog 代码在 Vivado 中仿真会出现很多信号大面积变成 X。解决方法在一个不起眼的 Wiki 页面：Randomization flags：
-`define RANDOMIZE_REG_INIT `define RANDOMIZE_MEM_INIT `define RANDOMIZE_GARBAGE_ASSIGN `define RANDOMIZE_INVALID_ASSIGN 在生成的 verilog 前面加上这四句，就可以正常仿真了。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2020/02/10/simulate-chisel3-on-vivado/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/vivado">vivado
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/chisel">chisel
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/verilog">verilog
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2020/02/10/rocket-chip-bscan-debug/">通过 BSCAN JTAG 对 Rocket Chip 进行调试</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2020/02/10/rocket-chip-bscan-debug/" class="article-date">
-                        <time datetime='2020-02-10T15:08:00.000&#43;08:00' itemprop="datePublished">2020-02-10</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2020/02/10/rocket-chip-bscan-debug/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    前言 在上一个 post 里研究了原理，今天也是成功在 Artix 7 上实现了调试。效果如下：
-OpenOCD 输出：
-Info : JTAG tap: riscv.cpu tap/device found: 0x0362d093 (mfg: 0x049 (Xilinx), part: 0x362d, ver: 0x0) Info : datacount=1 progbufsize=16 Info : Disabling abstract command reads from CSRs. Info : Examined RISC-V core; found 1 harts Info : hart 0: XLEN=32, misa=0x40801105 Info : Listening on port 3333 for gdb connections GDB 输出：
-Remote debugging using localhost:3333 0x0001018c in getc () at bootloader.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2020/02/10/rocket-chip-bscan-debug/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/fpga">fpga
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/riscv">riscv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/rocketchip">rocketchip
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/bscan">bscan
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/jtag">jtag
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/openocd">openocd
                             </a>
                         </li>
                         
