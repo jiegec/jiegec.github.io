@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.85.0" />
+    <meta name="generator" content="Hugo 0.87.0" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/os/2019/05/08/axi-uart-interrupt/" class="article-date">
-                <time datetime='2019-05-08T11:04:00.000&#43;08:00' itemprop="datePublished">2019-05-08</time>
+                <time datetime='2019-05-08T11:04:00.000&#43;00:00' itemprop="datePublished">2019-05-08</time>
             </a>
             
             
@@ -85,7 +85,7 @@
 <h2 id="踩坑过程">踩坑过程</h2>
 <h3 id="rocket-chip-运行代码">Rocket Chip 运行代码</h3>
 <p>首先分析了一下已有的代码和工作方式，这个 Rocket Chip （ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI ，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">  <span style="color:#75715e">/**
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">  <span style="color:#75715e">/**
 </span><span style="color:#75715e">   * Address Map
 </span><span style="color:#75715e">   * 0x00 - serial out FIFO data
 </span><span style="color:#75715e">   * 0x04 - serial out FIFO data available (words)
@@ -102,7 +102,7 @@
 </span><span style="color:#75715e">   * 0x3C - max request length
 </span><span style="color:#75715e">   */</span>
 </code></pre></div><p>前面的是调试接口，后面的是 block device 和 network ，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000 ，所以代码中就这样访问对应的物理地址：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c++" data-lang="c++"><span style="color:#75715e">#define ZYNQ_BASE_PADDR 0x43C00000L
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c++" data-lang="c++"><span style="color:#75715e">#define ZYNQ_BASE_PADDR 0x43C00000L
 </span><span style="color:#75715e"></span>
 fd <span style="color:#f92672">=</span> open(<span style="color:#e6db74">&#34;/dev/mem&#34;</span>, O_RDWR<span style="color:#f92672">|</span>O_SYNC);
 assert(fd <span style="color:#f92672">!=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
@@ -120,7 +120,7 @@ assert(dev <span style="color:#f92672">!=</span> MAP_FAILED);
 <p>又做了一些小的修改和适配，用户态也可以正常跑起来了。但是，现在串口只能轮询读取，而 htif 是通过读写内存进行的， 也没有类似 MSI 的机制（现在想了想，其实可以，给 PS 挂一个 AXI Interrupt Controller ，采用软件产生中断模式，然后接到 Rocket Chip 上，其实也是可以的），另外 Rocket Chip 原来的 Config 还没有向外暴露中断，我想挂一个串口也得让 Rocket Chip 访问得到。于是就开始了阅读 Chisel 代码然后魔改的过程了。</p>
 <h3 id="魔改-rocket-chip">魔改 Rocket Chip</h3>
 <p>其实算不上魔改，克服了对 Rocket Chip 的恐惧，仔细阅读代码以后，发现还是比较容易理解的。譬如，我要添加一个外部总线，只需要添加一句：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">  <span style="color:#66d9ef">case</span> <span style="color:#a6e22e">ExtBus</span> <span style="color:#66d9ef">=&gt;</span> up<span style="color:#f92672">(</span><span style="color:#a6e22e">ExtBus</span><span style="color:#f92672">,</span> site<span style="color:#f92672">).</span>copy<span style="color:#f92672">(</span>idBits <span style="color:#66d9ef">=</span> <span style="color:#ae81ff">6</span><span style="color:#f92672">)</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">  <span style="color:#66d9ef">case</span> <span style="color:#a6e22e">ExtBus</span> <span style="color:#66d9ef">=&gt;</span> up<span style="color:#f92672">(</span><span style="color:#a6e22e">ExtBus</span><span style="color:#f92672">,</span> site<span style="color:#f92672">).</span>copy<span style="color:#f92672">(</span>idBits <span style="color:#66d9ef">=</span> <span style="color:#ae81ff">6</span><span style="color:#f92672">)</span>
 </code></pre></div><p>那么对应地，就多了一片地址映射：</p>
 <pre><code>60000000 - 80000000  RWX  mmio-port-axi4@60000000
 </code></pre><p>意味着，只要我在 Rocket Chip 里访问这片地址，那么就会访问这个 AXI 总线上的外设了。但是事情没有这么简单，在踩了很久的坑以后才最终解决。。</p>
@@ -132,7 +132,7 @@ assert(dev <span style="color:#f92672">!=</span> MAP_FAILED);
 <li>Rocket Chip 是 Master ， 外设 是 Slave — 这就是现在要做的事情</li>
 </ol>
 <p>之前省略没说的是上面的第二点，就是让 Rocket Chip 也可以拿到内存用。那问题来了，怎么让 Rocket Chip 和 ARM 上的 Linux 不要打架？把地址空间分成两块就好了：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-verilog" data-lang="verilog"><span style="color:#66d9ef">wire</span> [<span style="color:#ae81ff">31</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem_araddr;
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-verilog" data-lang="verilog"><span style="color:#66d9ef">wire</span> [<span style="color:#ae81ff">31</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem_araddr;
 <span style="color:#66d9ef">wire</span> [<span style="color:#ae81ff">31</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem_awaddr;
 
 <span style="color:#75715e">// Memory given to Rocket is the upper 256 MB of the 512 MB DRAM
@@ -148,9 +148,9 @@ assert(dev <span style="color:#f92672">!=</span> MAP_FAILED);
 <p>细心的读者可能已经从我上面讲到的一些内容上猜到了问题所在。。但这一点直到后面我才明白发生了什么，后面会再讲到这里的问题。</p>
 <h4 id="axi-interrupt-controller">AXI Interrupt Controller</h4>
 <p>接着，回到我们最初的目标，既然可以输入输出了，还要真的串口干啥？添加中断或者拉一路 JTAG 出来，脱离 PS 来进行调试。所以接下来需要从 Rocket Chip 中暴露外部中断。在原来的代码中，是直接关掉了的：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">target<span style="color:#f92672">.</span>tieOffInterrupts<span style="color:#f92672">()</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala">target<span style="color:#f92672">.</span>tieOffInterrupts<span style="color:#f92672">()</span>
 </code></pre></div><p>它的功能很简单，直接把中断置 0 。但我要的是拉到外面，经过了一番挣扎：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#66d9ef">val</span> io <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">IO</span><span style="color:#f92672">(</span><span style="color:#66d9ef">new</span> <span style="color:#a6e22e">Bundle</span> <span style="color:#f92672">{</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#66d9ef">val</span> io <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">IO</span><span style="color:#f92672">(</span><span style="color:#66d9ef">new</span> <span style="color:#a6e22e">Bundle</span> <span style="color:#f92672">{</span>
 	<span style="color:#66d9ef">val</span> ps_axi_slave <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Flipped</span><span style="color:#f92672">(</span>adapter<span style="color:#f92672">.</span>axi<span style="color:#f92672">.</span>cloneType<span style="color:#f92672">)</span>
 	<span style="color:#66d9ef">val</span> mem_axi <span style="color:#66d9ef">=</span> target<span style="color:#f92672">.</span>mem_axi4<span style="color:#f92672">.</span>head<span style="color:#f92672">.</span>cloneType
 	<span style="color:#66d9ef">val</span> mmio_axi <span style="color:#66d9ef">=</span> target<span style="color:#f92672">.</span>mmio_axi4<span style="color:#f92672">.</span>head<span style="color:#f92672">.</span>cloneType

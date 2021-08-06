@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.85.0" />
+    <meta name="generator" content="Hugo 0.87.0" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/software/2020/11/08/spack-openmpi-slurm-external/" class="article-date">
-                <time datetime='2020-11-08T00:51:00.000&#43;08:00' itemprop="datePublished">2020-11-08</time>
+                <time datetime='2020-11-08T00:51:00.000&#43;00:00' itemprop="datePublished">2020-11-08</time>
             </a>
             
             
@@ -82,27 +82,27 @@
         <div class="article-entry" itemprop="articleBody">
             <p>最近在一个集群上，需要用一个自己编译的 openmpi，但并没有 root 权限，所以需要自己搞一个 spack，在 spack 里面装 openmpi。但默认的安装选项下，它没有打开 slurm 支持，所以 srun 的话会出问题，只能 sbatch 然后指定 host 去做。于是我研究了一下怎么在 spack 里引入 external 的 slurm，然后用它来编译 openmpi</p>
 <p>首先，编译 <code>~/.spack/packages.yaml</code>：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">packages</span>:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">packages</span>:
   <span style="color:#f92672">slurm</span>:
     <span style="color:#f92672">buildable</span>: <span style="color:#66d9ef">False</span>
     <span style="color:#f92672">paths</span>:
       <span style="color:#f92672">&#34;slurm@15-08-7-1%gcc@8.3.0 arch=linux-ubuntu16.04-haswell&#34;: </span><span style="color:#ae81ff">/usr</span>
 </code></pre></div><p>这里 slurm 版本是 <code>15.08.7</code>，我就按照 spack 里面 slurm 的版本号来写了。可以用 <code>spack spec openmpi schedulers=slurm +pmi</code> 来确认一下外部的 slurm 确实出现在了依赖之中。</p>
 <p>这一步配好的话，安装的时候就会直接跳过 spack 里面 slurm 的安装。但又出现了 configure 错误，找不到 pmi 的库。于是，先用 external 的 mpirun 看一下配置：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ module load openmpi-3.0.0
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ module load openmpi-3.0.0
 $ ompi_info
 ...
 --with-pmi<span style="color:#f92672">=</span>/usr
 --with-pmi-libdir<span style="color:#f92672">=</span>/usr/lib/x86_64-linux-gnu
 ...
 </code></pre></div><p>可以看到，需要两个 config 参数。然后，在 spack 的 openmpi package.py 中：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">if</span> spec<span style="color:#f92672">.</span>satisfies(<span style="color:#e6db74">&#39;schedulers=slurm&#39;</span>):
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">if</span> spec<span style="color:#f92672">.</span>satisfies(<span style="color:#e6db74">&#39;schedulers=slurm&#39;</span>):
   config_args<span style="color:#f92672">.</span>append(<span style="color:#e6db74">&#39;--with-pmi=</span><span style="color:#e6db74">{0}</span><span style="color:#e6db74">&#39;</span><span style="color:#f92672">.</span>format(spec[<span style="color:#e6db74">&#39;slurm&#39;</span>]<span style="color:#f92672">.</span>prefix))
   <span style="color:#66d9ef">if</span> spec<span style="color:#f92672">.</span>satisfies(<span style="color:#e6db74">&#39;@3.1.3:&#39;</span>) <span style="color:#f92672">or</span> spec<span style="color:#f92672">.</span>satisfies(<span style="color:#e6db74">&#39;@3.0.3&#39;</span>):
     <span style="color:#66d9ef">if</span> <span style="color:#e6db74">&#39;+static&#39;</span> <span style="color:#f92672">in</span> spec:
       config_args<span style="color:#f92672">.</span>append(<span style="color:#e6db74">&#39;--enable-static&#39;</span>)
 </code></pre></div><p>所以，需要加一个小 patch：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">if</span> spec<span style="color:#f92672">.</span>satisfies(<span style="color:#e6db74">&#39;schedulers=slurm&#39;</span>):
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">if</span> spec<span style="color:#f92672">.</span>satisfies(<span style="color:#e6db74">&#39;schedulers=slurm&#39;</span>):
   config_args<span style="color:#f92672">.</span>append(<span style="color:#e6db74">&#39;--with-pmi=</span><span style="color:#e6db74">{0}</span><span style="color:#e6db74">&#39;</span><span style="color:#f92672">.</span>format(spec[<span style="color:#e6db74">&#39;slurm&#39;</span>]<span style="color:#f92672">.</span>prefix))
   <span style="color:#75715e"># patched here</span>
   config_args<span style="color:#f92672">.</span>append(<span style="color:#e6db74">&#39;--with-pmi-libdir=</span><span style="color:#e6db74">{0}</span><span style="color:#e6db74">/lib/x86_64-linux-gnu&#39;</span><span style="color:#f92672">.</span>format(spec[<span style="color:#e6db74">&#39;slurm&#39;</span>]<span style="color:#f92672">.</span>prefix))

@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.85.0" />
+    <meta name="generator" content="Hugo 0.87.0" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/devops/2020/04/21/k8s-drone-ci/" class="article-date">
-                <time datetime='2020-04-21T18:10:00.000&#43;08:00' itemprop="datePublished">2020-04-21</time>
+                <time datetime='2020-04-21T18:10:00.000&#43;00:00' itemprop="datePublished">2020-04-21</time>
             </a>
             
             
@@ -82,10 +82,10 @@
         <div class="article-entry" itemprop="articleBody">
             <p>实验了一下在 k8s 中部署 CI，在 drone gitlab-ci 和 jenkins 三者中选择了 drone，因为它比较轻量，并且基于 docker，可以用 GitHub 上的仓库，比较方便。</p>
 <p>首先，配置 helm：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm repo add drone https://charts.drone.io
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm repo add drone https://charts.drone.io
 kubectl create ns drone
 </code></pre></div><p>参考 drone 的文档，编写 drone-values.yml:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">ingress</span>:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">ingress</span>:
   <span style="color:#f92672">enabled</span>: <span style="color:#66d9ef">true</span>
   <span style="color:#f92672">annotations</span>:
     <span style="color:#f92672">kubernetes.io/ingress.class</span>: <span style="color:#e6db74">&#34;nginx&#34;</span>
@@ -107,23 +107,23 @@ kubectl create ns drone
   <span style="color:#f92672">DRONE_GITHUB_CLIENT_ID</span>: <span style="color:#ae81ff">REDACTED</span>
   <span style="color:#f92672">DRONE_GITHUB_CLIENT_SECRET</span>: <span style="color:#ae81ff">REDACTED</span>
 </code></pre></div><p>需要首先去 GitHub 上配置 OAuth application，具体参考 drone 的文档。然后，生成一个 secret，设置 admin 用户并只允许 admin 用户使用 drone，防止其他人使用。然后应用：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm install --namespace drone drone drone/drone -f drone-values.yml
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm install --namespace drone drone drone/drone -f drone-values.yml
 <span style="color:#75715e"># or, to upgrade</span>
 helm upgrade --namespace drone drone drone/drone --values drone-values.yml 
 </code></pre></div><p>然后就可以访问上面配好的域名了。遇到了 cert manager 最近的一个 bug，来回折腾几次就好了。</p>
 <p>接着配 drone 的 k8s runnner，也是参考 drone 的文档，编写 drone-runner-kube-values.yml：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#f92672">rbac</span>:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#f92672">rbac</span>:
   <span style="color:#f92672">buildNamespaces</span>:
     - <span style="color:#ae81ff">drone</span>
 <span style="color:#f92672">env</span>:
   <span style="color:#f92672">DRONE_RPC_SECRET</span>: <span style="color:#ae81ff">REDACTED</span>
   <span style="color:#f92672">DRONE_NAMESPACE_DEFAULT</span>: <span style="color:#ae81ff">drone</span>
 </code></pre></div><p>然后应用：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm install --namespace drone drone-runner-kube drone/drone-runner-kube -f drone-runner-kube-values.yml
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">helm install --namespace drone drone-runner-kube drone/drone-runner-kube -f drone-runner-kube-values.yml
 </code></pre></div><p>然后就可以去 drone 界面上操作了。</p>
 <p>需要注意的是，drone 需要 pv，所以我先在腾讯云里面配置了 CFS 的 storage class，然后它就会自动 provision 一个新的 pv 和 pvc 出来。</p>
 <p>接着尝试了一下在 drone 里面构建 docker 镜像并且 push 到 registry 上。以腾讯云为例：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">pipeline</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">pipeline</span>
 <span style="color:#f92672">type</span>: <span style="color:#ae81ff">kubernetes</span>
 <span style="color:#f92672">name</span>: <span style="color:#ae81ff">default</span>
 

@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.85.0" />
+    <meta name="generator" content="Hugo 0.87.0" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/programming/2018/06/15/ebpf-with-hyperloglog/" class="article-date">
-                <time datetime='2018-06-15T22:03:00.000&#43;08:00' itemprop="datePublished">2018-06-15</time>
+                <time datetime='2018-06-15T22:03:00.000&#43;00:00' itemprop="datePublished">2018-06-15</time>
             </a>
             
             
@@ -82,7 +82,7 @@
         <div class="article-entry" itemprop="articleBody">
             <p>前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 <a href="https://github.com/jiegec/hll_ebpf">jiegec/hll_ebpf</a> ，大致原理如下：</p>
 <p>由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;maps&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;maps&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
     .type <span style="color:#f92672">=</span> BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
     .value_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
@@ -99,7 +99,7 @@ SEC(<span style="color:#e6db74">&#34;out_daddr&#34;</span>)
 }
 </code></pre></div><p>首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</p>
 <p>接着，我们可以把这个 eBPF 函数进行编译，并且应用起来：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ export KERN<span style="color:#f92672">=</span>4.16.0-2 <span style="color:#75715e"># or use uname -r with awk, see Makefile</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ export KERN<span style="color:#f92672">=</span>4.16.0-2 <span style="color:#75715e"># or use uname -r with awk, see Makefile</span>
 $ clang -O2 -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/include -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/arch/x86/include -emit-llvm -c bpf.c -o - | llc -march<span style="color:#f92672">=</span>bpf -filetype<span style="color:#f92672">=</span>obj -o bpf.o
 $ export IFACE<span style="color:#f92672">=</span>en0 
 $ sudo tc qdisc add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> clsact <span style="color:#f92672">||</span> true
@@ -108,7 +108,7 @@ $ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="
 $ sudo tc filter del dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress
 $ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress bpf obj bpf.o sec in_saddr
 </code></pre></div><p>我们需要在用户态读出上面这个 MAP 中的内容。由于它是全局的，我们可以在 <code>/sys/fs/bpf/tc/globals</code> 中找到他们。然后，把统计得到的数据进行综合，得到结果：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">read_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>file) {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">read_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>file) {
   <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> bpf_obj_get(file);
   <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>;
   <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> m <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> b;

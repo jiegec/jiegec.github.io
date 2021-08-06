@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.85.0" />
+    <meta name="generator" content="Hugo 0.87.0" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/devops/2021/04/15/vmware-esxi-perccli/" class="article-date">
-                <time datetime='2021-04-15T14:31:00.000&#43;08:00' itemprop="datePublished">2021-04-15</time>
+                <time datetime='2021-04-15T14:31:00.000&#43;00:00' itemprop="datePublished">2021-04-15</time>
             </a>
             
             
@@ -89,9 +89,9 @@
 </ol>
 <h2 id="安装-perccli">安装 PERCCli</h2>
 <p>首先，因为系统是 VMware ESXi 6.7，所以在<a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">DELL 官网</a>下载对应的文件。按照里面的 README 安装 vib：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">esxcli software vib install -v /vmware-perccli-007.1420.vib
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">esxcli software vib install -v /vmware-perccli-007.1420.vib
 </code></pre></div><p>需要注意的是，如果复制上去 Linux 版本的 PERCCli，虽然也可以运行，但是找不到控制器。安装好以后，就可以运行 <code>/opt/lsi/perccli/perccli</code> 。接着，运行 <code>perccli show all</code>，可以看到类似下面的信息：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli show all
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli show all
 --------------------------------------------------------------------------------
 EID:Slt DID State  DG     Size Intf Med SED PI SeSz Model               Sp Type
 --------------------------------------------------------------------------------
@@ -99,7 +99,7 @@ EID:Slt DID State  DG     Size Intf Med SED PI SeSz Model               Sp Type
 32:4      <span style="color:#ae81ff">4</span> UGood   F 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
 --------------------------------------------------------------------------------
 </code></pre></div><p>其中 E32S2 是 Failed 的盘，属于 Disk Group 1；E32S4 是新插入的盘，准备替换掉 E32S2，目前不属于任何的 Disk Group。查看一下 Disk Group ：<code>perccli /c0/dall show</code></p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/dall show
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/dall show
 -----------------------------------------------------------------------------
 DG Arr Row EID:Slot DID Type  State BT       Size PDC  PI SED DS3  FSpace TR
 -----------------------------------------------------------------------------
@@ -109,19 +109,19 @@ DG Arr Row EID:Slot DID Type  State BT       Size PDC  PI SED DS3  FSpace TR
  <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:2     <span style="color:#ae81ff">2</span>   DRIVE Failed N    3.637 TB dflt N  N   dflt -      N
  <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
 </code></pre></div><p>可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 <a href="https://dl.dell.com/topicspdf/cli_guide_en-us.pdf">PERCCli 文档</a>，它告诉我们要这么做：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set offline
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set offline
 perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set missing
 perccli /cx /dall show
 perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx insert dg<span style="color:#f92672">=</span>a array<span style="color:#f92672">=</span>b row<span style="color:#f92672">=</span>c
 perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx start rebuild
 </code></pre></div><p>具体到我们这个情景，就是把 E32S2 设为 offline，然后用 E32S4 来替换它：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /c0/e32/s2 set offline
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /c0/e32/s2 set offline
 perccli /c0/e32/s2 set missing
 perccli /cx /dall show
 perccli /cx/e32/s4 insert dg<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> array<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> row<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>
 perccli /cx/e32/s4 start rebuild
 </code></pre></div><p>完成以后的状态：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">TOPOLOGY :
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">TOPOLOGY :
 <span style="color:#f92672">========</span>
 
 ---------------------------------------------------------------------------
@@ -134,7 +134,7 @@ DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
  <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
 ---------------------------------------------------------------------------
 </code></pre></div><p>可以看到 E32S4 替换了原来 E32S2 的位置，并且开始重建。查看重建进度：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/32/s4 show rebuild
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/32/s4 show rebuild
 -----------------------------------------------------
 Drive-ID   Progress% Status      Estimated Time Left
 -----------------------------------------------------
@@ -153,7 +153,7 @@ EID:Slt DID State DG     Size Intf Med SED PI SeSz Model               Sp Type
 32:4      <span style="color:#ae81ff">4</span> Rbld   <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
 -------------------------------------------------------------------------------
 </code></pre></div><p>然后，查看一下出错的盘：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 show all
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 show all
 Drive /c0/e32/s2 State :
 <span style="color:#f92672">======================</span>
 Shield Counter <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
@@ -164,7 +164,7 @@ Predictive Failure Count <span style="color:#f92672">=</span> <span style="color
 S.M.A.R.T alert flagged by drive <span style="color:#f92672">=</span> No
 </code></pre></div><p>果然有错误，但是也看不到更多信息了。</p>
 <p>坏块统计：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0 show badblocks
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0 show badblocks
 Detailed Status :
 <span style="color:#f92672">===============</span>
 
@@ -175,7 +175,7 @@ Ctrl Status Ctrl_Prop       Value ErrMsg               ErrCd
 -------------------------------------------------------------
 
 </code></pre></div><p>经过检查以后，发现 E32S2 盘的 SMART 并没有报告什么问题，所以也没有把盘取走，而是作为 hot spare 当备用：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 add hotsparedrive DG<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 add hotsparedrive DG<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>
 $ perccli /c0/d1 show
 TOPOLOGY :
 <span style="color:#f92672">========</span>

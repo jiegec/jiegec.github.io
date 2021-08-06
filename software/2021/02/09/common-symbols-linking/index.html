@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.85.0" />
+    <meta name="generator" content="Hugo 0.87.0" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/software/2021/02/09/common-symbols-linking/" class="article-date">
-                <time datetime='2021-02-09T19:02:00.000&#43;08:00' itemprop="datePublished">2021-02-09</time>
+                <time datetime='2021-02-09T19:02:00.000&#43;00:00' itemprop="datePublished">2021-02-09</time>
             </a>
             
             
@@ -86,15 +86,15 @@
 <li>一开始的时候，直接把所有的源代码编译成 <code>.o</code>，再一次性链接，这样不会报错</li>
 <li>后来，把一些代码编译成静态库，即把其中一部分源代码编译成 <code>.o</code> 后，用 <code>ar</code> 合并到一个 <code>.a</code> 中，再和其余的 <code>.o</code> 链接在一起，这时候就报错了：</li>
 </ol>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-text" data-lang="text">Undefined symbols for architecture arm64:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-text" data-lang="text">Undefined symbols for architecture arm64:
   &#34;_abcd&#34;, referenced from:
     ...
 </code></pre></div><p>如果换台机器，编译（使用的是 gcc 10.2.0）就没有问题。</p>
 <p>而如果去找这个符号存在的 <code>.o</code> 里，是可以找到的：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t /path/to/abcd.o
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t /path/to/abcd.o
 <span style="color:#ae81ff">0000000000000028</span>         *COM*  <span style="color:#ae81ff">00000008</span> _abcd
 </code></pre></div><p>在合成的静态库 <code>.a</code> 里，也是存在的（一个定义+若干个引用）：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t /path/to/libabc.a | grep abcd
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t /path/to/libabc.a | grep abcd
 <span style="color:#ae81ff">0000000000000028</span>         *COM*  <span style="color:#ae81ff">00000008</span> _abcd
 <span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
 <span style="color:#ae81ff">0000000000000000</span>         *UND* _abcd
@@ -115,7 +115,7 @@
 <p>为啥会有这种需求，多个 variable 同名，不会冲突而且共享内存？又在别的地方看到说法，COMMON 是给 <code>ancient</code> 代码使用的，还有的提到了 FORTRAN。于是去搜了一下，果然，FORTRAN 是问题的关键</p>
 <h2 id="fortran-里面的-common">FORTRAN 里面的 COMMON</h2>
 <p>用关键词很容易可以搜索到讲 <a href="https://www.obliquity.com/computer/fortran/common.html">COMMON BLOCK in FORTRAN 的文章</a>，FORTRAN 里面的 COMMON 是一种通过全局存储隐式传递参数的方法。拿文章里的例子：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fortran" data-lang="fortran">      <span style="color:#66d9ef">PROGRAM </span>MAIN
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fortran" data-lang="fortran">      <span style="color:#66d9ef">PROGRAM </span>MAIN
       <span style="color:#66d9ef">INTEGER </span>A
       <span style="color:#66d9ef">REAL    </span>F,R,X,Y
       <span style="color:#66d9ef">COMMON  </span>R,A,F
@@ -131,7 +131,7 @@
       <span style="color:#66d9ef">COMMON  </span>A,I,B
       <span style="color:#66d9ef">END</span>
 </code></pre></div><p>在函数 MAIN 和 SUB 中，都有 COMMON 语句，而 COMMON 后面的变量，就是存储在一个 COMMON 的 symbol 之中，按照顺序映射到 symbol 的内存地址。尝试编译一下上面的代码，然后看一下 symbol：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ gfortran -g -c test.f -o test.o
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ gfortran -g -c test.f -o test.o
 $ objdump -t test.o
 
 test.o:	file format Mach-O arm64
@@ -141,7 +141,7 @@ SYMBOL TABLE:
 <span style="color:#ae81ff">0000000000000000</span> g     F __TEXT,__text _sub_
 000000000000000c         *COM*	<span style="color:#ae81ff">00000010</span> ___BLNK__
 </code></pre></div><p>可以看到，出现了一个叫做 <code>___BLNK__</code> 的 COMMON symbol，大小是 16 字节。看一下代码中是如何引用的：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -S --reloc test.o
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -S --reloc test.o
 
 test.o:	file format Mach-O arm64
 
@@ -188,7 +188,7 @@ Disassembly of section __TEXT,__text:
 
 </code></pre></div><p>可以看到，在 MAIN 中引用 <code>A</code> 的时候，取的地址是 <code>___BLNK__+4</code>，<code>R</code> 是 <code>___BLNK__+0</code>，<code>F</code> 是 <code>___BLNK__+8</code>。这和代码里的顺序也是一致的。所以在 SUB 中读 A I B 的时候，对应了 MAIN 中的 A R F。通过这种方式，可以在 MAIN 函数里面隐式地给所有函数传递参数。</p>
 <p>此外，COMMON 还可以命名，这样就可以区分不同的参数用途：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fortran" data-lang="fortran">        <span style="color:#66d9ef">PROGRAM </span>MAIN
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fortran" data-lang="fortran">        <span style="color:#66d9ef">PROGRAM </span>MAIN
         <span style="color:#66d9ef">INTEGER </span>A
         <span style="color:#66d9ef">REAL    </span>F,R,X,Y
         <span style="color:#66d9ef">COMMON  </span>R,A,F
@@ -205,7 +205,7 @@ Disassembly of section __TEXT,__text:
         <span style="color:#66d9ef">COMMON  </span>A,I,B
         <span style="color:#66d9ef">END</span>
 </code></pre></div><p>代码添加了一行 <code>COMMON /test/</code>，观察一下 symbol：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t test.o
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ objdump -t test.o
 
 test.o:	file format Mach-O arm64
 
@@ -216,7 +216,7 @@ SYMBOL TABLE:
 <span style="color:#ae81ff">0000000000000008</span>         *COM*	<span style="color:#ae81ff">00000010</span> _test_
 </code></pre></div><p>和预期的一致：出现了新的 COMMON symbol，对应了 named COMMON Block 里面的变量 X 和 Y。</p>
 <p>再看一下汇编里怎么引用的：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">;         CALL SUB<span style="color:#f92672">(</span>X,Y<span style="color:#f92672">)</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">;         CALL SUB<span style="color:#f92672">(</span>X,Y<span style="color:#f92672">)</span>
       60: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">90</span>                   adrp    x0, <span style="color:#75715e">#0</span>
                 0000000000000060:  ARM64_RELOC_GOT_LOAD_PAGE21  _test_
       64: <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">00</span> <span style="color:#ae81ff">40</span> f9                   ldr     x0, <span style="color:#f92672">[</span>x0<span style="color:#f92672">]</span>
