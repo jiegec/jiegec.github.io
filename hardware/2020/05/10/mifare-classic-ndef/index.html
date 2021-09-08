@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.87.0" />
+    <meta name="generator" content="Hugo 0.88.1" />
 </head>
 
 
@@ -69,7 +69,7 @@
         
         <div class="article-meta">
             <a href="/hardware/2020/05/10/mifare-classic-ndef/" class="article-date">
-                <time datetime='2020-05-10T09:19:00.000&#43;00:00' itemprop="datePublished">2020-05-10</time>
+                <time datetime='2020-05-10T09:19:00.000&#43;08:00' itemprop="datePublished">2020-05-10</time>
             </a>
             
             
@@ -86,7 +86,7 @@
 <p>NFC 有很多协议，其中 MIFARE Classic 基于 ISO 14443-3 Type A 标准，里面有一些 MIFARE 的命令。通过这些命令，就可以控制 MIFARE Classic 卡的内容。具体来说，以我使用的 <a href="https://www.nxp.com/docs/en/data-sheet/MF1S70YYX_V1.pdf">MIFARE Classic EV1 4K S70</a> 为例，这篇文章会涉及到如下的背景知识：</p>
 <h3 id="mifare-classic-内存布局">MIFARE Classic 内存布局</h3>
 <p>在 MIFARE Classic 中，有 Sector 和 Block 的概念，每个 Sector 有若干个 Block，其中最后一个 Block 是特殊的（称为 Sector Trailer），保存了这个 Sector 的一些信息：Key A、Access Bits、GPB 和 Key B。对于 Classic 4K，首先是 32 个有 4 blocks 的 sector，然后是 8 个 有 16 blocks 的 sector， 整体的内存布局大概是：</p>
-<pre><code>Sector 0:
+<pre tabindex="0"><code>Sector 0:
 	Block 0
 	Block 1
 	Block 2
@@ -144,23 +144,23 @@ Sector 39:
 <p>为了向 MIFARE Classic 卡发送命令，首先需要一个 ISO 14443-3 Type A 的接口，Android 的 NfcA 或者 libnfc 都提供了接口。这里发送的命令实际上会再经过一层解析、用 CRYPTO1 算法加密（猜测是读卡器做的？不是很确定），不过对应用程序来说是透明的。可以参考 <a href="https://www.nxp.com/docs/en/data-sheet/MF1S50YYX_V1.pdf">MIFARE Classic EV1 1K</a> 和 <a href="https://link.springer.com/chapter/10.1007/978-3-540-85893-5_20">A Practical Attack on the MIFARE Classic</a> 中的描述。</p>
 <h4 id="mifare-read">MIFARE Read</h4>
 <p>读出一个 Block 的内容，每个 Block 有 16 字节。命令格式如下：</p>
-<pre><code>30 XX
+<pre tabindex="0"><code>30 XX
 </code></pre><p>如果要读第一个 Block，就是 <code>30 00</code>，如果要读第二个 Block，就是 <code>30 01</code> 。</p>
 <p>返回的数据里刚好是 16 个字节。</p>
 <h4 id="mifare-write">MIFARE Write</h4>
 <p>向一个 Block 写入数据，命令格式如下：</p>
-<pre><code>A0 XX YY YY YY YY YY YY YY YY YY YY YY YY YY YY YY YY
+<pre tabindex="0"><code>A0 XX YY YY YY YY YY YY YY YY YY YY YY YY YY YY YY YY
 </code></pre><p>这里的 XX 和上面一样，也是 Block 地址；之后是十六字节的数据。</p>
 <h4 id="mifare-authentiate-with-ab">MIFARE Authentiate with A/B</h4>
 <p>注：这里和 S70 datasheet 里写的不完全一样。</p>
 <p>这个命令会进行 Key A 或者 Key B 的认证，如果是对 Key A 认证：</p>
-<pre><code>60 XX YY YY YY YY ZZ ZZ ZZ ZZ ZZ ZZ
+<pre tabindex="0"><code>60 XX YY YY YY YY ZZ ZZ ZZ ZZ ZZ ZZ
 </code></pre><p>这里的 XX 也是 Block 地址，但实际上认证的粒度上 Sector，所以只要认证了 Sector 里面的一个 Block，其他 Block 也是同时认证，也是用同一个 Sector Trailer 中的信息进行认证。YY 则是 ISO 14443-3 Type A 中的 UID，如果用 Android 的 API 读取，就可以在 NfcA 中找到这个四字节的信息。ZZ 就是要认证的密钥，六个字节。</p>
 <p>如果是对 Key B 认证，把第一个字节的 0x60 改成 0x61 即可。</p>
 <p>认证成功后，返回一个 0x00；如果认证失败，则会断开 NFC。</p>
 <h3 id="ndef-是什么">NDEF 是什么</h3>
 <p>NDEF 实际上是比较高层次的数据，就像 HTML ，表示了一个格式化的数组数据，数组的元素可能是文本、URI 等等。它是由若干个 Record 组成的。一个 Record 如下：</p>
-<pre><code>03 0B 01 07 54 02 65 6E 61 62 63 64
+<pre tabindex="0"><code>03 0B 01 07 54 02 65 6E 61 62 63 64
 </code></pre><p>首先是一个 03 表示类型，然后是长度 0x0B（11，从下一个字节开始数），接着是 0x01 0x07 表示这似乎一个 Well Known 类型的 Record，内容的长度为 7，0x54（ASCII T）表示这是文本格式，0x02 表示编码是 UTF-8，0x65 0x6E (ASCII &ldquo;en&rdquo;) 表示语言是英语，之后的 0x61 0x62 0x63 0x64 （ASCII &ldquo;abcd&rdquo;） 就是文本内容。</p>
 <p>很多个 record 连起来，最终一个 0xFE 表示结束，这就是完整的 NDEF 信息了。</p>
 <h3 id="在-mifare-classic-上使用-ndef">在 MIFARE Classic 上使用 NDEF</h3>
@@ -207,7 +207,7 @@ Sector 39:
 <p>第二个字节是 Info Byte，用处不大，见 MAD 的文档。</p>
 <p>之后每两个字节对应一个 Sector 的 AID（Application ID），比如 Block 1 的 2-3 字节对应 Sector 1 的 AID，Block 1 的 4-5 字节对应 Sector 2 的 AID，最后 Block 2 的 14-15 字节对应 Sector 15 的 AID。NDEF 的 AID 就是 0x03 0xE1。当软件发现这里的 AID 是 0x03E1 的时候，它就会去相应的 Sector 去读取 NDEF 信息。</p>
 <p>一个用 TagInfo 读出来的例子如下：</p>
-<pre><code>Sector 0 (0x00)
+<pre tabindex="0"><code>Sector 0 (0x00)
 [skipped]
 [01]  F3 01 03 E1 03 E1 00 00
  rW-  00 00 00 00 00 00 00 00
@@ -248,19 +248,19 @@ Sector 39:
 <p>那么，按照前面的这些知识，就可以构造出每一步的 MIFARE 命令了：</p>
 <p><strong>注意：下面的命令不一定能工作，在执行前请仔细理解每条命令的结果，本文作者对卡的损失概不负责</strong></p>
 <p>第一步：</p>
-<pre><code>60 00 YY YY YY YY FF FF FF FF FF FF
+<pre tabindex="0"><code>60 00 YY YY YY YY FF FF FF FF FF FF
 A0 01 F3 01 03 E1 03 E1 00 00 00 00 00 00 00 00 00 00
 A0 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 </code></pre><p>注意 YY 要填入 ID。这一步首先用 FF FF FF FF FF FF 认证了 Sector 0 的 Key A，然后写入了 Block 1 和 Block 2 。Info Byte 用的是 0x01，然后用在线工具计算了一下 CRC=F3 。</p>
 <p>第二步：</p>
-<pre><code>A0 03 A0 A1 A2 A3 A4 A5 78 77 88 C1 FF FF FF FF FF FF
+<pre tabindex="0"><code>A0 03 A0 A1 A2 A3 A4 A5 78 77 88 C1 FF FF FF FF FF FF
 </code></pre><p>这一步设置了 Key A 为 MAD access key，权限是 78 77 88，GPB 是 C1，Key B 为 FF FF FF FF FF FF</p>
 <p>第三步：</p>
-<pre><code>60 04 YY YY YY YY FF FF FF FF FF FF
+<pre tabindex="0"><code>60 04 YY YY YY YY FF FF FF FF FF FF
 A0 04 00 00 03 0B D1 01 07 54 02 65 6E 61 62 63 64 FE
 </code></pre><p>这一步认证了 Sector 1，然后往 Block 4 写入了一个 abcd 的 NDEF 记录。</p>
 <p>第四步：</p>
-<pre><code>A0 07 D3 F7 D3 F7 D3 F7 7F 07 88 40 FF FF FF FF FF FF
+<pre tabindex="0"><code>A0 07 D3 F7 D3 F7 D3 F7 7F 07 88 40 FF FF FF FF FF FF
 60 08 YY YY YY YY FF FF FF FF FF FF
 A0 0B D3 F7 D3 F7 D3 F7 7F 07 88 40 FF FF FF FF FF FF
 </code></pre><p>写入了 Sector 1 的 Sector Trailer，然后认证 Sector 2，再写入 Sector 2 的 Sector Trailer</p>

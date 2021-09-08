@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>一次从 RHEL 6 到 CentOS 7 的更新 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="一次从 RHEL 6 到 CentOS 7 的更新" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/system/2021/08/30/rhel6-upgrade-centos7/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.88.1" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">一次从 RHEL 6 到 CentOS 7 的更新</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/system/2021/08/30/rhel6-upgrade-centos7/" class="article-date">
+                <time datetime='2021-08-30T13:20:00.000&#43;08:00' itemprop="datePublished">2021-08-30</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/system/2021/08/30/rhel6-upgrade-centos7/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>有一台 RHEL 6 的服务器，各种软件版本太老了，用起来很难受，因此想升级。一开始想升级到 RHEL 7，但是发现必须要从 RedHat 下载 ISO，比较慢，所以我就先切换到 CentOS 6，再升级到 CentOS 7</p>
+<h2 id="过程">过程</h2>
+<h3 id="rhel-6-pre-upgrade">RHEL 6 Pre upgrade</h3>
+<p>一开始还是打算升级到 RHEL 7，所以跟随 RedHat 的文档去做 pre upgrade check，发现有一步要跑好久，网上搜了一下，发现这个步骤会扫描已有的各种程序，检查升级以后会不会出现不能运行的问题。但是如果有很多小文件，这一个过程就会进行很久，好在可以设置 exclusion 目录。最后检查出来的结果就是 GNOME 没法升级，建议卸载。</p>
+<p>倒腾了一下升级工具，发现需要离线安装，比较麻烦，我就干脆换 CentOS 了。</p>
+<h3 id="rhel-6---centos-6">RHEL 6 -&gt; CentOS 6</h3>
+<p>首先，把软件源都切换到 CentOS，这一步很简单，因为包都是一样的。只不过，因为 CentOS 6 在 centos-vault 里面，所以用起来比较麻烦。</p>
+<h3 id="centos-6---centos-7">CentOS 6 -&gt; CentOS 7</h3>
+<p>由于 CentOS 6 到 CentOS 7 升级涉及的改动比较多，官方提供了一个升级工具。一开始，我想直接升级到 CentOS 7 最新版本，但是报错，看到网上说可以升级到 CentOS 7 的早期版本，试了一下，确实没问题。</p>
+<p>一通升级以后，重启，进入更新过程，发现很多包都安装失败了。重启以后，因为找不到 rootfs，挂在了 dracut 的 initramfs 里面。</p>
+<h3 id="漫长的修复过程">漫长的修复过程</h3>
+<p>简单试了一下，发现 dracut 的 initramfs 里程序太少了，调试起来很痛苦。所以，我在 BMC 里通过 Virtual Media 挂了一个 Arch Linux 的 Live CD。因为通过 Web 访问延迟太高，我设了一个 root 密码，然后直接 ssh 到 live cd 系统中。</p>
+<p>接着，我发现，可以正常找到盘和里面的各个分区，所以怀疑是之前 initramfs 里缺了什么东西，导致找不到硬盘。我 arch-chroot 到 root 分区里，然后手动更新各个包，特别麻烦：我首先升级了 yum repos 到最新的 CentOS 7，然后手动删掉/升级 el6 的各个软件包。最后好不容易把 kernel 终于升级好了，又重新生成 grub2 的配置，因为 CentOS 6 是 grub1。这时候，重启进入系统，发现可以找到 rootfs 了，但是经过 selinux relabel 以后，仍然会遇到 systemd-logind 起不来的问题，伴随着一系列的 audit 报警。</p>
+<p>最后，使出了暴力的解决办法：在 cmdline 中设置 selinux=0 audit=0，然后终于进入系统了。再继续删掉一些 el6 的包，然后升级各种包，最后终于是恢复了正常。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#过程">过程</a>
+      <ul>
+        <li><a href="#rhel-6-pre-upgrade">RHEL 6 Pre upgrade</a></li>
+        <li><a href="#rhel-6---centos-6">RHEL 6 -&gt; CentOS 6</a></li>
+        <li><a href="#centos-6---centos-7">CentOS 6 -&gt; CentOS 7</a></li>
+        <li><a href="#漫长的修复过程">漫长的修复过程</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/rhel">rhel
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/centos">centos
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/upgrade">upgrade
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/linux">linux
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/software/2021/09/02/locale/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            Locale 影响排序的特殊副作用
+        </div>
+    </a>
+    
+    
+    <a href="/misc/2021/08/06/intel-intrinsics-guide/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">轶事一则&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
