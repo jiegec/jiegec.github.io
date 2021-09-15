@@ -120,7 +120,86 @@
 <p>有些时候，一些指令不方便后端实现，就会加一层转换，从指令转换为 uop，再由后端执行。这在 x86 处理器上很普遍，因为指令集太复杂了。像 AArch64 指令集，它在 Load/Store 的时候可以对地址进行计算，这种时候也是拆分为两条 uop 来执行。一些实用的指令需要三个操作数，比如 <code>D = A ? B : C</code>，在 Alpha 21264 中，这条指令会转换为两条 uop，这两条 uop 的操作数就只有两个，便于后端实现，否则在各个地方都允许三个操作数会导致一定的浪费。</p>
 <h2 id="例子分析">例子分析</h2>
 <p><a href="https://www.cis.upenn.edu/~milom/cis501-Fall09/papers/Alpha21264.pdf">Alpha 21264</a> 是一个采用了 Explicit Register Renaming 和 ReOrder Buffer（论文中叫 Inflight Window） 的一个处理器。可以看到，它把指令分为了两类，Integer 和 Floating Point。Issue Queue 大小分别为 20 和 15，而 Register File 大小分别为 80x2 和 72。ROB 大小为 80。</p>
+<h2 id="精确异常-vs-非精确异常">精确异常 vs 非精确异常</h2>
+<p>精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，<a href="http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf">网上资料</a> 说，这种情况下硬件实现更简单，但是软件上处理比较困难。</p>
+<p>一个非精确异常的例子是 <a href="https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf">Alpha</a>，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：<code>In general, it is not feasible to fix up the result value or to continue from the trap.</code>。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：</p>
+<pre><code>Alpha lets the software implementor determine the precision of arithmetic traps.
+With the Alpha architecture, arithmetic traps (such as overflow and underflow)
+are imprecise—they can be delivered an arbitrary number of instructions after the
+instruction that triggered the trap. Also, traps from many different instructions can
+be reported at once. That makes implementations that use pipelining and multiple
+issue substantially easier to build.
+However, if precise arithmetic exceptions are desired, trap barrier instructions can
+be explicitly inserted in the program to force traps to be delivered at specific points.
+</code></pre>
+<p>具体来说，在 <a href="http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf">Reference Manual</a> 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64位，低32位对应整数寄存器，高32位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。</p>
+<p>Linux 处理代码在 <code>arch/alpha/kernel/traps.c</code> 的 <code>do_entArith</code> 函数中。首先判断，如果是 software completion，那就要进行处理；否则直接 SIGFPE 让程序自己处理或者退出。如果是精确异常，那就对 PC-4 进行浮点模拟；如果是非精确异常，就从 trap shadow 的最后一条指令开始往前搜索，并同时记录遇到的指令写入的寄存器，如果发现指令的写入的寄存器已经覆盖了 register write mask，就说明找到了 trap shadow 的开头，则模拟这条指令，然后从下一条开始重新执行。具体代码如下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">long</span>
+<span style="color:#a6e22e">alpha_fp_emul_imprecise</span> (<span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">pt_regs</span> <span style="color:#f92672">*</span>regs, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> write_mask)
+{
+	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> trigger_pc <span style="color:#f92672">=</span> regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">-</span> <span style="color:#ae81ff">4</span>;
+	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> insn, opcode, rc, si_code <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
 
+	<span style="color:#75715e">/*
+</span><span style="color:#75715e">	 * Turn off the bits corresponding to registers that are the
+</span><span style="color:#75715e">	 * target of instructions that set bits in the exception
+</span><span style="color:#75715e">	 * summary register.  We have some slack doing this because a
+</span><span style="color:#75715e">	 * register that is the target of a trapping instruction can
+</span><span style="color:#75715e">	 * be written at most once in the trap shadow.
+</span><span style="color:#75715e">	 *
+</span><span style="color:#75715e">	 * Branches, jumps, TRAPBs, EXCBs and calls to PALcode all
+</span><span style="color:#75715e">	 * bound the trap shadow, so we need not look any further than
+</span><span style="color:#75715e">	 * up to the first occurrence of such an instruction.
+</span><span style="color:#75715e">	 */</span>
+	<span style="color:#66d9ef">while</span> (write_mask) {
+		get_user(insn, (__u32 __user <span style="color:#f92672">*</span>)(trigger_pc));
+		opcode <span style="color:#f92672">=</span> insn <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">26</span>;
+		rc <span style="color:#f92672">=</span> insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x1f</span>;
+
+		<span style="color:#66d9ef">switch</span> (opcode) {
+		      <span style="color:#66d9ef">case</span> OPC_PAL:
+		      <span style="color:#66d9ef">case</span> OPC_JSR:
+		      <span style="color:#66d9ef">case</span> <span style="color:#ae81ff">0x30</span> ... <span style="color:#ae81ff">0x3f</span><span style="color:#f92672">:</span>	<span style="color:#75715e">/* branches */</span>
+			<span style="color:#66d9ef">goto</span> egress;
+
+		      <span style="color:#66d9ef">case</span> OPC_MISC:
+			<span style="color:#66d9ef">switch</span> (insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffff</span>) {
+			      <span style="color:#66d9ef">case</span> MISC_TRAPB:
+			      <span style="color:#66d9ef">case</span> MISC_EXCB:
+				<span style="color:#66d9ef">goto</span> egress;
+
+			      <span style="color:#66d9ef">default</span><span style="color:#f92672">:</span>
+				<span style="color:#66d9ef">break</span>;
+			}
+			<span style="color:#66d9ef">break</span>;
+
+		      <span style="color:#66d9ef">case</span> OPC_INTA:
+		      <span style="color:#66d9ef">case</span> OPC_INTL:
+		      <span style="color:#66d9ef">case</span> OPC_INTS:
+		      <span style="color:#66d9ef">case</span> OPC_INTM:
+			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> rc);
+			<span style="color:#66d9ef">break</span>;
+
+		      <span style="color:#66d9ef">case</span> OPC_FLTC:
+		      <span style="color:#66d9ef">case</span> OPC_FLTV:
+		      <span style="color:#66d9ef">case</span> OPC_FLTI:
+		      <span style="color:#66d9ef">case</span> OPC_FLTL:
+			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> (rc <span style="color:#f92672">+</span> <span style="color:#ae81ff">32</span>));
+			<span style="color:#66d9ef">break</span>;
+		}
+		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>write_mask) {
+			<span style="color:#75715e">/* Re-execute insns in the trap-shadow.  */</span>
+			regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">=</span> trigger_pc <span style="color:#f92672">+</span> <span style="color:#ae81ff">4</span>;
+			si_code <span style="color:#f92672">=</span> alpha_fp_emul(trigger_pc);
+			<span style="color:#66d9ef">goto</span> egress;
+		}
+		trigger_pc <span style="color:#f92672">-=</span> <span style="color:#ae81ff">4</span>;
+	}
+
+egress:
+	<span style="color:#66d9ef">return</span> si_code;
+}
+</code></pre></div>
         </div>
 
         
@@ -135,6 +214,7 @@
     <li><a href="#explicit-register-renaming">Explicit Register Renaming</a></li>
     <li><a href="#其他优化的手段">其他优化的手段</a></li>
     <li><a href="#例子分析">例子分析</a></li>
+    <li><a href="#精确异常-vs-非精确异常">精确异常 vs 非精确异常</a></li>
   </ul>
 </nav>
         </div>
