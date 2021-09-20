@@ -116,14 +116,15 @@
 <p>还有一个问题，就是在遇到异常的时候，如何恢复在异常指令处的架构寄存器到物理寄存器的映射呢？一个办法是，利用我在 ROB 中记录的被覆盖的物理寄存器编号，从 ROB 队尾往前回滚，当发现一条指令覆盖了一个架构寄存器映射的时候，就恢复为覆盖之前的值。这样，当回滚到异常指令的时候，就会得到正确的映射。<a href="https://ieeexplore.ieee.org/document/491460">MIPS R10K 的论文</a>中是这么描述的：</p>
 <pre><code>The active list contains the logical-destination register number and its
 old physical-register number for each instruction. An instruction's
-graduation commits its new mapping, so the old physical register can return
-to the free list for reuse. When an exception occurs, however, subsequent
-instructions never graduate. Instead, the processor restores old mappings
-from the active list. The R1OOOO unmaps four instructions per cycle--in
-reverse order, in case it renamed the same logical register twice. Although
-this is slower than restoring a branch, exceptions are much rarer than
-mispredicted branches. The processor returns new physical registers to the
-free lists by restoring their read pointers.
+graduation commits its new mapping, so the old physical register can
+return to the free list for reuse. When an exception occurs, however,
+subsequent instructions never graduate. Instead, the processor restores
+old mappings from the active list. The R1OOOO unmaps four instructions
+per cycle--in reverse order, in case it renamed the same logical
+register twice. Although this is slower than restoring a branch,
+exceptions are much rarer than mispredicted branches. The processor
+returns new physical registers to the free lists by restoring their read
+pointers.
 </code></pre>
 <p>和 @CircuitCoder 讨论并参考 <a href="https://docs.boom-core.org/en/latest/sections/reorder-buffer.html#parameterization-rollback-versus-single-cycle-reset">BOOM 文档</a> 后发现，另一种办法是记录一个 Committed Map Table，也就是，只有当 ROB Head 的指令被 Commit 的时候，才更新 Committed Map Table，可以认为是顺序执行的寄存器映射表。当发生异常的时候，把 Committed Map Table 覆盖到 Register Map Table 上。这样需要的周期比较少，但是时序可能比较差。</p>
 <h2 id="其他优化的手段">其他优化的手段</h2>
@@ -134,31 +135,35 @@ free lists by restoring their read pointers.
 <p>内存访问是一个比较复杂的操作，它涉及到缓存、页表、内存序等问题。在乱序执行中，要尽量优化内存访问对其他指令的延迟的影响，同时也要保证正确性。这里参考的是 <a href="https://docs.boom-core.org/en/latest/sections/load-store-unit.html">BOOM 的 LSU 设计</a>。</p>
 <p>首先是正确性。一般来说可以认为，Load 是没有副作用的（实际上，Load 会导致 Cache 加载数据，这也引发了以 Meltdown 为首的一系列漏洞），因此可以很激进地预测执行 Load。但是，Store 是有副作用的，写出去的数据就没法还原了。因此，Store 指令只有在 ROB Head 被 Commit 的时候，才会写入到 Cache 中。</p>
 <p>其次是性能，我们希望 Load 指令可以尽快地完成，这样可以使得后续的计算指令可以尽快地开始进行。当 Load 指令的地址已经计算好的时候，就可以去取数据，这时候，首先要去 Store Queue 里面找，如果有 Store 指令要写入的地址等于 Load 的地址，说明后面的 Load 依赖于前面的 Store，如果 Store 的数据已经准备好了，就可以直接把数据转发过来，就不需要从 Cache 中获取，如果数据还没准备好，就需要等待这一条 Store 完成；如果没有找到匹配的 Store 指令，再从内存中取。不过，有一种情况就是，当 Store 指令的地址迟迟没有计算出来，而后面的 Load 已经提前从 Cache 中获取数据了，这时候就会出现错误，所以当 Store 计算出地址的时候，需要检查后面的 Load 指令是否出现地址重合，如果出现了，就要把这条 Load 以及依赖这条 Load 指令的其余指令重新执行。<a href="http://ieeexplore.ieee.org/abstract/document/7029183/">POWER8 处理器微架构论文</a>中对此也有类似的表述：</p>
-<pre><code>The POWER8 IFU also implements mechanisms to mitigate performance degradation
-associated with pipeline hazards. A Store-Hit-Load (SHL) is an out-of-order
-pipeline hazard condition, where an older store executes after a younger
-overlapping load, thus signaling that the load received stale data. The POWER8
-IFU has logic to detect when this condition exists and provide control to avoid
-the hazard by flushing the load instruction which received stale data (and any
-following instructions). When a load is flushed due to detection of a SHL, the
-fetch address of the load is saved and the load is marked on subsequent fetches
-allowing the downstream logic to prevent the hazard. When a marked load instruction
-is observed, the downstream logic introduces an explicit register dependency for
-the load to ensure that it is issued after the store operation.
+<pre><code>The POWER8 IFU also implements mechanisms to mitigate performance
+degradation associated with pipeline hazards. A Store-Hit-Load (SHL) is
+an out-of-order pipeline hazard condition, where an older store executes
+after a younger overlapping load, thus signaling that the load received
+stale data. The POWER8 IFU has logic to detect when this condition
+exists and provide control to avoid the hazard by flushing the load
+instruction which received stale data (and any following instructions).
+When a load is flushed due to detection of a SHL, the fetch address of
+the load is saved and the load is marked on subsequent fetches allowing
+the downstream logic to prevent the hazard. When a marked load
+instruction is observed, the downstream logic introduces an explicit
+register dependency for the load to ensure that it is issued after the
+store operation.
 </code></pre>
 <h2 id="例子分析">例子分析</h2>
 <p><a href="https://www.cis.upenn.edu/~milom/cis501-Fall09/papers/Alpha21264.pdf">Alpha 21264</a> 是一个采用了 Explicit Register Renaming 和 ReOrder Buffer（论文中叫 Inflight Window） 的一个处理器。可以看到，它把指令分为了两类，Integer 和 Floating Point。Issue Queue 大小分别为 20 和 15，而 Register File 大小分别为 80x2 和 72。ROB 大小为 80。</p>
 <h2 id="精确异常-vs-非精确异常">精确异常 vs 非精确异常</h2>
 <p>精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，<a href="http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf">网上资料</a> 说，这种情况下硬件实现更简单，但是软件上处理比较困难。</p>
 <p>一个非精确异常的例子是 <a href="https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf">Alpha</a>，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：<code>In general, it is not feasible to fix up the result value or to continue from the trap.</code>。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：</p>
-<pre><code>Alpha lets the software implementor determine the precision of arithmetic traps.
-With the Alpha architecture, arithmetic traps (such as overflow and underflow)
-are imprecise—they can be delivered an arbitrary number of instructions after the
-instruction that triggered the trap. Also, traps from many different instructions can
-be reported at once. That makes implementations that use pipelining and multiple
-issue substantially easier to build.
-However, if precise arithmetic exceptions are desired, trap barrier instructions can
-be explicitly inserted in the program to force traps to be delivered at specific points.
+<pre><code>Alpha lets the software implementor determine the precision of
+arithmetic traps.  With the Alpha architecture, arithmetic traps (such
+as overflow and underflow) are imprecise—they can be delivered an
+arbitrary number of instructions after the instruction that triggered
+the trap. Also, traps from many different instructions can be reported
+at once. That makes implementations that use pipelining and multiple
+issue substantially easier to build.  However, if precise arithmetic
+exceptions are desired, trap barrier instructions can be explicitly
+inserted in the program to force traps to be delivered at specific
+points.
 </code></pre>
 <p>具体来说，在 <a href="http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf">Reference Manual</a> 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64位，低32位对应整数寄存器，高32位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。</p>
 <p>Linux 处理代码在 <code>arch/alpha/kernel/traps.c</code> 的 <code>do_entArith</code> 函数中。首先判断，如果是 software completion，那就要进行处理；否则直接 SIGFPE 让程序自己处理或者退出。如果是精确异常，那就对 PC-4 进行浮点模拟；如果是非精确异常，就从 trap shadow 的最后一条指令开始往前搜索，并同时记录遇到的指令写入的寄存器，如果发现指令的写入的寄存器已经覆盖了 register write mask，就说明找到了 trap shadow 的开头，则模拟这条指令，然后从下一条开始重新执行。具体代码如下：</p>
@@ -230,11 +235,12 @@ egress:
 </code></pre></div><p>ARM 架构也有 imprecise asynchronous external abort：</p>
 <pre><code>Normally, external aborts are rare. An imprecise asynchronous external
 abort is likely to be fatal to the process that is running. An example
-of an event that might cause an external abort is an uncorrectable parity
-or ECC failure on a Level 2 Memory structure.
+of an event that might cause an external abort is an uncorrectable
+parity or ECC failure on a Level 2 Memory structure.
+
 Because imprecise asynchronous external aborts are normally fatal to the
-process that caused them, ARM recommends that implementations make external
-aborts precise wherever possible.
+process that caused them, ARM recommends that implementations make
+external aborts precise wherever possible.
 </code></pre>
 <p>不过这更多是因为内存的无法预知的错误，这种时候机器直接可以拿去维修了。</p>
 <p><a href="https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/5056/can-anyone-provide-an-example-of-asynchronous-exceptions">文章</a> 提到了两个 precise/imprecise async/sync的例子：</p>
