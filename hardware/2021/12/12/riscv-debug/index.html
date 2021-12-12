@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RISC-V Debug 分析 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="RISC-V Debug 分析" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2021/12/12/riscv-debug/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.90.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">RISC-V Debug 分析</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2021/12/12/riscv-debug/" class="article-date">
+                <time datetime='2021-12-12T14:01:00.000&#43;08:00' itemprop="datePublished">2021-12-12</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2021/12/12/riscv-debug/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="参考文档">参考文档</h2>
+<ol>
+<li>RISC-V Debug Spec 0.13</li>
+<li>IEEE Standard for JTAG 1149.1-2013</li>
+<li>OpenOCD 相关代码</li>
+</ol>
+<h2 id="背景">背景</h2>
+<p>之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。</p>
+<h2 id="架构">架构</h2>
+<p>为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：</p>
+<ol>
+<li>Debugger: GDB，连接到 OpenOCD 启动的 GDB Server</li>
+<li>Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG</li>
+<li>Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO</li>
+<li>Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准</li>
+<li>Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为</li>
+<li>Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer</li>
+</ol>
+<p>可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。</p>
+<h2 id="jtag">JTAG</h2>
+<p>首先什么是 JTAG ？简单来说，它工作流程是这样的：</p>
+<ol>
+<li>JTAG TAP 维护了一个状态机，由 TMS 信号控制</li>
+<li>当状态机进入 CaptureDR/CaptureIR 状态的时候，加载数据到 DR/IR 中</li>
+<li>在 ShiftDR/ShiftIR 状态下，寄存器从 TDI 移入，从 TDO 移出</li>
+<li>当进入 UpdateDR/UpdateIR 状态的时候，把 DR/IR 的结果输出到其他单元</li>
+</ol>
+<p>具体来说，JTAG 定义了两类寄存器：IR 和 DR。可以把 JTAG 理解成一个小的总线，我通过 IR 选择总线上的设备，通过 DR 向指定的设备上进行数据传输。比如在 RISC-V Debug Spec 里面，规定了以下的 5 位 IR 地址定义：</p>
+<ol>
+<li>0x00/0x1f: BYPASS</li>
+<li>0x01: IDCODE</li>
+<li>0x10: dtmcs</li>
+<li>0x11: dmi</li>
+</ol>
+<p>可以类比为有四个设备：BYPASS，IDCODE，dtmcs，dmi，对应了一些地址。如果要选择 dtmcs 这个设备，就在 ShiftIR 阶段向 TDI 输入二进制的 00001 即可。选择地址以后，再向 DR 写入时，操作的就是 dtmcs 设备。</p>
+<p>那么，每个设备是怎么操作的呢？假如我已经通过 IR 设置了当前设备是 dtmcs，然后进入 ShiftDR 模式时，JTAG 会同时输入和输出。输入的就是当前要输入的数据，输出的就是原来寄存器里的结果，这个结果可能是固定的，也可能是表示上一次输入对应的结果。</p>
+<p>举个例子：IDCODE 设备，在 CaptureDR 阶段的时候，DR 总会被设为一个固定的 IDCODE，表示设备的 ID；在 Shift 的时候，这个 IDCODE 就会一位一位从 TDO 中输出，而 TDI 输入的数据都会被忽略掉。BYPASS 设备则是一个 1 位的寄存器，直接从 TDI 到寄存器，寄存器到 TDO，数据就这么流过去了。</p>
+<p>那么，在 RISC-V Debug 里面，JTAG 是怎么用的呢？我们可以这么类比一下：CaptureDR 相当于读取寄存器到缓冲区，然后 ShiftDR 在读取缓冲区的同时写入缓冲区，最后 UpdateDR 则是把缓冲区中的数据写入到寄存器中。这和 MMIO 有点类似，只不过每次操作不是单独的写和读，而是一次操作等于先读后写。</p>
+<p>还是来看例子。dtmcs 这个设备表示的是 DTM 当前的状态，它有 32 位，读取的时候可以得到 DMI 的状态和配置，写入的时候可以 reset DMI。以 OpenOCD 代码 <code>dtmcontrol_scan</code> 为例子，它做了这么几个事情：</p>
+<ol>
+<li>首先设置 IR 为 0x10，对应 dtmcs。</li>
+<li>向 DR 中写入数据，同时读取数据。</li>
+<li>设置 IR 为 0x11，对应 dmi，因为 dmi 操作是比较多的，所以它默认恢复到 dmi。</li>
+</ol>
+<p>如果我只想读取 dtmcs 寄存器，那么只要设置写入数据为 0 即可，因为寄存器的设计里考虑到，如果写入全 0 是没有副作用的。同理，如果只想写入 dtmcs 寄存器，直接写入即可，因为设计的时候也保证读入寄存器的值是没有副作用的。这样，就在一个一读一写的操作中，实现了读或者写的功能。</p>
+<p>那么，dmi 寄存器的用途是什么呢？我们前面提到过，JTAG 其实是一个传输层，而 DMI 又定义了一系列的寄存器，这会让人有点混乱，为啥到处都是寄存器？又是 JTAG 的 IR/DR，又是 dmi，dmi 又有一堆寄存器，这是什么关系？</p>
+<p>首先我们来看 dmi 寄存器的定义。它由三部分组成：地址、数据和操作。由于 JTAG 每次操作是一读一写，虽然寄存器定义差不多，但是读和写的含义是不同的。</p>
+<p>比如读的时候，它表示的是上一次 dmi 请求的结果。地址还是上一次请求的地址，数据则是上一次请求的结果，操作字段 0 表示成功，2 表示失败，3 表示还没执行完。而写的时候，地址和数据表示了对哪个寄存器写入什么数据，操作字段 0 表示无操作，1 表示读，2 表示写。</p>
+<p>可以看到，如果想操作 dmi 定义的寄存器，需要如下几个步骤，这也是 OpenOCD <code>dmi_op_timeout</code> 要做的事情：</p>
+<ol>
+<li>设置 IR 为 0x11，对应 DMI。</li>
+<li>向 DR 写入请求的地址+数据+操作，丢弃读取的结果。</li>
+<li>等待若干个周期。</li>
+<li>向 DR 写入全 0，对应无操作，同时读取结果，这个结果就对应上面的请求。</li>
+</ol>
+<p>可以预期，如果首先写入了一个写操作，那么第二次 DR scan 得到的结果就是是否成功写入；如果首先写入了一个读操作，那么第二次 DR scan 得到的结果就是目标寄存器的值。</p>
+<p>可能看起来还是很绕，确实很绕，因为这里有一个封装的过程。首先，DMI 本身定义了一些寄存器，这些寄存器读/写都有一定的含义，比如控制某一个 RISC-V 核心暂停等等。接着，JTAG 需要传输 DMI 的读取和写入操作，同时还要考虑读写尚未完成的情况，怎么办？结论就是通过 DR 来实现，写入 DR 时，按照 DR 中的操作数，对应到 DMI 的写入/读取；然后读取 DR 的时候，按照 DMI 的状态，告诉 OpenOCD 目前是否已经完成了上一次 DMI 操作，和操作的结果。</p>
+<h2 id="dmi">DMI</h2>
+<p>讲完 JTAG 以后，终于来到了 DMI。其实 DMI 就是一系列的寄存器，类似于 MMIO 设备，只不过访问方式不是我们通常的内存读写，而是通过 JTAG 的方式进行。它有很多个寄存器，摘录如下：</p>
+<ol>
+<li>dmcontrol 0x10: Debug Module Control</li>
+<li>dmstatus 0x11: Debug Module Status</li>
+<li>hartinfo 0x12: Hart Info</li>
+<li>hartsum 0x13: Hart Summary</li>
+<li>command 0x16: Abstract Control and Status</li>
+<li>data0 0x04: Abstract Data 0</li>
+<li>progbuf0 0x20: Program Buffer 0</li>
+<li>sbcs 0x38: System Bus Access Control and Status</li>
+<li>sbaddress0 0x39: System Bus Address 31:0
+10 sbdata0 0x3c: System Bus Data 31:0</li>
+</ol>
+<p>OpenOCD 的 <code>examine</code> 函数对 DMI 初始化并进行一些参数的获取。它的操作如下：</p>
+<ol>
+<li>调用 dtmcontrol_scan，读取 JTAG 里的 dtmcs，可以得到 JTAG-DMI 的配置信息</li>
+<li>向 dmcontrol 写入，进行复位</li>
+<li>向 dmcontrol 写入，启用调试模块</li>
+<li>从 hartinfo 读取 hart 信息</li>
+<li>检查各个 hart 的状态</li>
+</ol>
+<p>类似地，其他各种调试操作都是对这些 DMI 寄存器的读和写进行。RISC-V Debug Spec 附录里还提到了如何实现调试器的一些功能。</p>
+<p>比如要读取 CPU 的寄存器（比如通用寄存器，CSR 等等）的话，有如下的方式：</p>
+<p>第一种是 Abstract Command，直接向 DMI 写入要寄存器编号，就可以实现读/写。</p>
+<p>第二种是 Program Buffer。它是一块小的代码存储，可以通过 DMI 向其中写入指令，比如 <code>csrw s0, mstatus; ebreak</code>，然后设置 s0 寄存器的值，再执行 Program Buffer 里的代码。</p>
+<p>以 OpenOCD 代码为例，<code>register_read_abstract</code> 做了以下操作：</p>
+<ol>
+<li>找到要读取的寄存器对应的 Abstract Register Number</li>
+<li>进行 transfer 命令，DM 会读取对应寄存器到 data0 中</li>
+<li>从 data0 中读取寄存器内容</li>
+</ol>
+<p>如果要读取内存的话，也有两种方法。一种是直接向 DMI 写入要读取的总线地址，然后再向指定的寄存器中读取数据。第二种还是利用 Program Buffer，写入一条 <code>lw s0, 0(s0)</code> 指令，然后先向 s0 写入地址，执行 Program Buffer 后，再把 s0 寄存器的值读出来。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#参考文档">参考文档</a></li>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#架构">架构</a></li>
+    <li><a href="#jtag">JTAG</a></li>
+    <li><a href="#dmi">DMI</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/riscv">riscv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/cpu">cpu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/debug">debug
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/jtag">jtag
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/hardware/2021/12/12/dram/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            DRAM 分析
+        </div>
+    </a>
+    
+    
+    <a href="/misc/2021/12/09/education/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">教学随想&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

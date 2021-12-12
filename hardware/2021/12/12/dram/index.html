@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DRAM 分析 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="DRAM 分析" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2021/12/12/dram/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.90.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">DRAM 分析</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2021/12/12/dram/" class="article-date">
+                <time datetime='2021-12-12T15:06:00.000&#43;08:00' itemprop="datePublished">2021-12-12</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2021/12/12/dram/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="参考文档">参考文档</h2>
+<ul>
+<li>Memory systems: Cache, DRAM &amp; Disk</li>
+<li><a href="https://zhuanlan.zhihu.com/p/262052220">译文： DDR4 SDRAM - Understanding the Basics（上）</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/263080272">译文： DDR4 SDRAM - Understanding the Basics（下）</a></li>
+<li><a href="http://www.softnology.biz/pdf/JESD79-4B.pdf">JEDEC STANDARD DDR4 SDRAM JESD79-4B</a></li>
+</ul>
+<h2 id="dram-是如何组织的">DRAM 是如何组织的</h2>
+<p>DRAM 分成很多层次：Bank Group，Bank，Row，Column，从大到小，容量也是各级别的乘积。</p>
+<p>举例子：</p>
+<ul>
+<li>4 Bank Group</li>
+<li>4 Bank per Bank Group</li>
+<li>32,768 Row per Bank</li>
+<li>1024 Column per Row</li>
+<li>4 Bits per Column</li>
+</ul>
+<p>那么总大小就是 <code>4*4*32768*1024*4=2 Gb</code>。</p>
+<h2 id="访问模式">访问模式</h2>
+<p>DRAM 的访问模式决定了访问内存的实际带宽。对于每次访问，需要这样的操作：</p>
+<ol>
+<li>用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe）</li>
+<li>用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。</li>
+<li>在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。</li>
+</ol>
+<p>可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。</p>
+<p>除了显式 PRE 以外，还可以在某次读写之后自动进行 PRE：WRA(Write with Auto-Precharge) 和 RDA(Read with Auto-Precharge)。</p>
+<p>总结一下上面提到的六种命令：</p>
+<ol>
+<li>ACT: Bank Activate，激活一个 Row，用于接下来的访问</li>
+<li>PRE: Single Bank Precharge，与 ACT 是逆操作，解除 Row 的激活状态</li>
+<li>RD: Read，读取当前 Row 的某个 Column 数据</li>
+<li>RDA: Read with Auto-Precharge，读取后执行 Precharge</li>
+<li>WR: Write，写入当前 Row 的某个 Column 数据</li>
+<li>WRA: Write with Auto-Precharge，写入后执行 Precharge</li>
+</ol>
+<p>除此之外，还有一些常用命令：</p>
+<ol>
+<li>REF: Refresh，需要定期执行，保证 DRAM 数据不会丢失。</li>
+</ol>
+<h2 id="参数">参数</h2>
+<p>DRAM 有很多参数，以 <a href="https://in.micron.com/products/dram-modules/rdimm/part-catalog/mta36asf2g72pz-2g3">MTA36ASF2G72PZ-2G3A3</a> 为例子：</p>
+<ul>
+<li>16GB 容量，DDR4 SDRAM RDIMM</li>
+<li>PC4-2400</li>
+<li>Row address: 64K A[15:0]</li>
+<li>Column address: 1K A[9:0]</li>
+<li>Device bank group address: 4 BG[1:0]</li>
+<li>Device bank address per group: 4 BA[1:0]</li>
+<li>Device configuration: 4Gb (1Gig x 4), 16 banks</li>
+<li>Module rank address: 2 CS_n[1:0]</li>
+<li>Configuration: 2Gig x 72</li>
+<li>Module Bandwidth: 19.2 GB/s=2400 MT/s * 8B/T</li>
+<li>Memory Clock: 0.83ns(1200 MHz)</li>
+<li>Data Rate: 2400 MT/s</li>
+<li>Clock Cycles: CL-nRCD-nRP = 17-17-17</li>
+</ul>
+<p>容量：每个 DRAM 颗粒 <code>64K*1K*4*4*4=4Gb</code>，不考虑 ECC，一共有 <code>16*2=32</code> 个这样的颗粒，实际容量是 16 GB。32 个颗粒分为两组，每组 16 个颗粒，两组之间通过 CS_n 片选信号区分。每组 16 个颗粒，每个颗粒 4 位 DQ 数据信号，合并起来就是 64 位，如果考虑 ECC 就是 72 位。</p>
+<h2 id="时序">时序</h2>
+<p>可以看到，上面的 DRAM Datasheet 里提到了三个时序参数：</p>
+<ol>
+<li>CL=17: CAS Latency，从发送读请求到第一个数据的延迟周期数</li>
+<li>RCD=17: RAS Latency，ACT to internal read or write delay time，表示从 ACT 到读/写需要的延迟周期数</li>
+<li>RP=17: Row Precharge Time，表示 Precharge 后需要延迟周期数</li>
+</ol>
+<p>如果第一次访问一个 Row 中的数据，并且之前没有已经打开的 Row，那么要执行命令 ACT 和 RD，需要的周期数是 RCD+CL；如果之前已经有打开了的 Row，那么要执行命令 PRE，ACT 和 RD，需要的周期数是 RP+RCD+CL。但如果是连续访问，虽然还需要 CL 的延迟，但是可以流水线起来，充分利用 DDR 的带宽。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#参考文档">参考文档</a></li>
+    <li><a href="#dram-是如何组织的">DRAM 是如何组织的</a></li>
+    <li><a href="#访问模式">访问模式</a></li>
+    <li><a href="#参数">参数</a></li>
+    <li><a href="#时序">时序</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/dram">dram
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ddr">ddr
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2021/12/12/riscv-debug/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">RISC-V Debug 分析&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
