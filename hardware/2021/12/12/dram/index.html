@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.90.0" />
+    <meta name="generator" content="Hugo 0.90.1" />
 </head>
 
 
@@ -123,7 +123,7 @@
 <li>REF: Refresh，需要定期执行，保证 DRAM 数据不会丢失。</li>
 </ol>
 <h2 id="参数">参数</h2>
-<p>DRAM 有很多参数，以 <a href="https://in.micron.com/products/dram-modules/rdimm/part-catalog/mta36asf2g72pz-2g3">MTA36ASF2G72PZ-2G3A3</a> 为例子：</p>
+<p>DRAM 有很多参数，以服务器上的内存 <a href="https://in.micron.com/products/dram-modules/rdimm/part-catalog/mta36asf2g72pz-2g3">MTA36ASF2G72PZ-2G3A3</a> 为例子：</p>
 <ul>
 <li>16GB 容量，DDR4 SDRAM RDIMM</li>
 <li>PC4-2400</li>
@@ -140,15 +140,51 @@
 <li>Clock Cycles: CL-nRCD-nRP = 17-17-17</li>
 </ul>
 <p>容量：每个 DRAM 颗粒 <code>64K*1K*4*4*4=4Gb</code>，不考虑 ECC，一共有 <code>16*2=32</code> 个这样的颗粒，实际容量是 16 GB。32 个颗粒分为两组，每组 16 个颗粒，两组之间通过 CS_n 片选信号区分。每组 16 个颗粒，每个颗粒 4 位 DQ 数据信号，合并起来就是 64 位，如果考虑 ECC 就是 72 位。</p>
+<p>再举一个 FPGA 开发板上内存的例子：<a href="https://www.micron.com/products/dram/ddr4-sdram/part-catalog/mt40a512m16ly-075">MT40A512M16LY-075E</a>，参数如下：</p>
+<ol>
+<li>Data Rate: 2666 MT/s, Clock Frequency: 1333 MHz, tCK=0.750ns=750ps</li>
+<li>Target CL-nRCD-nRP: 18-18-18</li>
+<li>tAA(Internal READ command to first data)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRCD(ACTIVATE to internal READ or WRITE delay time)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRP(PRECHARGE command period)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRAS(ACTIVATE-to-PRECHARGE command period)=32ns</li>
+<li>512 Meg x 16</li>
+<li>Number of bank groups: 2</li>
+<li>Bank count per group: 4</li>
+<li>Row addressing: 64K</li>
+<li>Column addressing: 1K</li>
+<li>Page size: 2KB=2K*16b</li>
+</ol>
+<p>总大小：<code>2*4*64K*1K*16=1GB</code>。这个开发板用了 5 个 DRAM 芯片，只采用了其中的 4.5 个芯片：最后一个芯片只用了 8 位数据，这样就是 <code>4.5*16=72</code> 位的数据线，对应 64 位+ECC。</p>
 <h2 id="时序">时序</h2>
 <p>可以看到，上面的 DRAM Datasheet 里提到了三个时序参数：</p>
 <ol>
 <li>CL=17: CAS Latency，从发送读请求到第一个数据的延迟周期数</li>
-<li>RCD=17: RAS Latency，ACT to internal read or write delay time，表示从 ACT 到读/写需要的延迟周期数</li>
+<li>RCD=17: ACT to internal read or write delay time，表示从 ACT 到读/写需要的延迟周期数</li>
 <li>RP=17: Row Precharge Time，表示 Precharge 后需要延迟周期数</li>
 </ol>
-<p>如果第一次访问一个 Row 中的数据，并且之前没有已经打开的 Row，那么要执行命令 ACT 和 RD，需要的周期数是 RCD+CL；如果之前已经有打开了的 Row，那么要执行命令 PRE，ACT 和 RD，需要的周期数是 RP+RCD+CL。但如果是连续访问，虽然还需要 CL 的延迟，但是可以流水线起来，充分利用 DDR 的带宽。</p>
+<p>如果第一次访问一个 Row 中的数据，并且之前没有已经打开的 Row，那么要执行 ACT 和 RD 命令，需要的周期数是 RCD+CL；如果之前已经有打开了的 Row，那么要执行 PRE，ACT 和 RD 命令，需要的周期数是 RP+RCD+CL。但如果是连续访问，虽然还需要 CL 的延迟，但是可以流水线起来，充分利用 DDR 的带宽。</p>
 <p>如果把这个换算到 CPU 角度的内存访问延迟的话，如果每次访问都是最坏情况，那么需要 17+17+17=51 个 DRAM 时钟周期，考虑 DRAM 时钟是 1200MHz，那就是 42.5ns，这个相当于是 DRAM 内部的延迟，实际上测得的是 100ns 左右。</p>
+<p>更严格来说，读延迟 READ Latency = AL + CL + PL，其中 AL 和 PL 是可以配置的，CL 是固有的，所以简单可以认为 READ Latency = CL。同理 WRITE Latency = AL + CWL + PL，可以简单认为 WRITE Latency = CWL。CWL 也是可以配置的，不同的 DDR 速率对应不同的 CWL，范围从 1600 MT/s 的 CWL=9 到 3200 MT/s 的 CWL=20，具体见 JESD79-4B 标准的 Table 7 CWL (CAS Write Latency)。</p>
+<h2 id="波形">波形</h2>
+<p>用 Micron 提供的 <a href="https://media-www.micron.com/-/media/client/global/documents/products/sim-model/dram/ddr4/ddr4_verilog_models.zip?rev=caf27a5eaf6b4a9f81eb894a874a4492">Verilog Model</a> 进行仿真，可以看到如下的波形图：</p>
+<p><img src="/ddr4_waveform.png" alt=""></p>
+<p>首先看第一个命令，ACT_n=0, ADDR=0x009C, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=0, WE_n_A14=1，查阅标准可知这是 ACT(Bank Activate) 命令。接着第二个命令，ACT_n=1, ADDR=0x0400, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=1, WE_n_A14=1, A10=1, 这是 RDA(Read with Auto Precharge) 命令。若干个周期后，读取的数据从 DQ 上输出，一共 8 个字节的数据。</p>
+<h2 id="刷新">刷新</h2>
+<p>DRAM 的一个特点是需要定期刷新。有一个参数 tREFI，表示刷新的时间周期。在刷新之前，所有的 bank 都需要 Precharge 完成并等待 RP 的时间，这时候所有的 Bank 都是空闲的，再执行 REF(Refresh) 命令。等待 tRFC(Refresh Cycle) 时间后，可以继续正常使用。</p>
+<p>为了更好的性能，DDR4 标准允许推迟一定次数的刷新，但是要在之后补充，保证平均下来依然满足每过 tREFI 时间至少一次刷新。</p>
+<h2 id="地址映射">地址映射</h2>
+<p>如果研究 DRAM 内存控制器，比如 <a href="https://www.xilinx.com/support/documentation/ip_documentation/ultrascale_memory_ip/v1_4/pg150-ultrascale-memory-ip.pdf">FPGA 上的 MIG</a>，可以发现它可以配置不同的地址映射方式，例如：</p>
+<ul>
+<li>ROW_COLUMN_BANK</li>
+<li>ROW_BANK_COLUMN</li>
+<li>BANK_ROW_COLUMN</li>
+<li>ROW_COLUMN_LRANK_BANK</li>
+<li>ROW_LRANK_COLUMN_BANK</li>
+<li>ROW_COLUMN_BANK_INTLV</li>
+</ul>
+<p>就是将地址的不同部分映射到 DRAM 的几个地址：Row，Column，Bank。可以想象，不同的地址映射方式针对不同的访存模式会有不同的性能。对于连续的内存访问，ROW_COLUMN_BANK 方式是比较适合的，因为连续的访问会分布到不同的 Bank 上，这样性能就会更好。</p>
+<p>此外，如果访问会连续命中同一个 Page，那么直接读写即可；反之如果每次读写几乎都不会命中同一个 Page，那么可以设置 Auto Precharge，即读写以后自动 Precharge，减少了下一次访问前因为 Row 不同导致的 PRE 命令。一个思路是在对每个 Page 的最后一次访问采用 Auto Precharge。</p>
 
         </div>
 
@@ -163,6 +199,9 @@
     <li><a href="#访问模式">访问模式</a></li>
     <li><a href="#参数">参数</a></li>
     <li><a href="#时序">时序</a></li>
+    <li><a href="#波形">波形</a></li>
+    <li><a href="#刷新">刷新</a></li>
+    <li><a href="#地址映射">地址映射</a></li>
   </ul>
 </nav>
         </div>
@@ -230,6 +269,12 @@
     </div>
     
 <nav id="article-nav">
+    
+    <a href="/hardware/2021/12/13/dram-fpga-vref-problem/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            DRAM 在 Kintex 7 FPGA 上内部 Vref 的性能问题
+        </div>
+    </a>
     
     
     <a href="/hardware/2021/12/12/riscv-debug/" id="article-nav-older" class="article-nav-link-wrap">
