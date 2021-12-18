@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>缓存一致性协议分析 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="缓存一致性协议分析" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2021/12/17/cache-coherency-protocol/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.90.1" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">缓存一致性协议分析</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2021/12/17/cache-coherency-protocol/" class="article-date">
+                <time datetime='2021-12-17T07:39:00.000&#43;08:00' itemprop="datePublished">2021-12-17</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2021/12/17/cache-coherency-protocol/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Cache_coherence">Cache coherence</a></li>
+<li><a href="https://en.wikipedia.org/wiki/MSI_protocol">MSI protocol</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Write-once_(cache_coherence)">Write-once (cache coherence)</a></li>
+<li><a href="https://en.wikipedia.org/wiki/MESI_protocol">MESI protocol</a></li>
+<li><a href="https://en.wikipedia.org/wiki/MOESI_protocol">MOESI protocol</a></li>
+<li><a href="https://blogs.synopsys.com/vip-central/2014/12/23/a-strategy-to-verify-an-axi-ace-compliant-interconnect-part-2-of-4/">A Strategy to Verify an AXI/ACE Compliant Interconnect (2 of 4)</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Directory-based_cache_coherence">Directory-based cache coherence</a></li>
+</ul>
+<h2 id="write-invalidate-和-write-update">Write-invalidate 和 Write-update</h2>
+<p>最基础的缓存一致性思想有两种：</p>
+<ol>
+<li>Write-invalidate：写入数据的时候，将其他 Cache 中这条 Cache Line 设为 Invalid</li>
+<li>Write-update：写入数据的时候，把新的结果写入到有这条 Cache Line 的其他 Cache</li>
+</ol>
+<h2 id="write-once-协议">Write-once 协议</h2>
+<p>Write-once 协议定义了四个状态：</p>
+<ol>
+<li>Invalid：表示这个块不合法</li>
+<li>Valid：表示这个块合法，并可能是共享的，同时数据没有修改</li>
+<li>Reserved：表示这个块合法，不是共享的，同时数据没有更改</li>
+<li>Dirty：表示这个块合法，不是共享的，数据做了修改，和内存不同。</li>
+</ol>
+<p>可见，当一个缓存状态在 R 或者 D，其他缓存只能是 I；而缓存状态是 V 的时候，可以有多个缓存在 V 状态。</p>
+<p>Write-once 协议的特点是，第一次写的时候，会写入到内存（类似 Write-through），连续写入则只写到缓存中，类似 Write-back。</p>
+<p>当 Read hit 的时候，状态不变。</p>
+<pre><code>Read hit: The information is supplied by the current cache. No state change.
+</code></pre>
+<p>当 Read miss 的时候，会查看所有缓存，如果有其他缓存处于 Valid/Reserved/Dirty 状态，就从其他缓存处读取数据，然后设为 Valid，其他缓存也设为 Valid。如果其他缓存处于 Dirty 状态，还要把数据写入内存。</p>
+<pre><code>Read miss: The data is read from main memory. The read is snooped by other caches; if any of them have the line in the Dirty state, the read is interrupted long enough to write the data back to memory before it is allowed to continue. Any copies in the Dirty or Reserved states are set to the Valid state.
+</code></pre>
+<p>当 Write hit 的时候，如果是 Valid 状态，首先写入内存，把其他 Cache 都设为 Invalid，进入 Reserved 状态，这意味着第一次写是 Write-through。如果是 Reserved/Dirty 状态，则不修改内存，进入 Dirty 状态，这表示后续的写入都是 Write-back。</p>
+<pre><code>Write hit: If the information in the cache is in Dirty or Reserved state, the cache line is updated in place and its state is set to Dirty without updating memory. If the information is in Valid state, a write-through operation is executed updating the block and the memory and the block state is changed to Reserved. Other caches snoop the write and set their copies to Invalid.
+</code></pre>
+<p>当 Write miss 的时候，这个行为 Wikipedia 上和上课讲的不一样。按照 Wikipedia 的说法，首先按照 Read miss 处理，再按照 Write hit 处理，类似于 Write Allocate 的思路。如果是这样的话，那么首先从其他缓存或者内存读取数据，然后把其他缓存都设为 Invalid，把更新后的数据写入内存，进入 Reserved 状态。相当于 Write miss 的时候，也是按照 Write-through 实现。</p>
+<pre><code>Write miss: A partial cache line write is handled as a read miss (if necessary to fetch the unwritten portion of the cache line) followed by a write hit. This leaves all other caches in the Invalid state, and the current cache in the Reserved state.
+</code></pre>
+<p>教材上则是 Write miss 的时候按照 Write-back 处理。如果其他缓存都是 Invalid 时，从内存里读取数据，然后写入到缓存中，进入 Dirty 状态。如果其他缓存是 Valid/Reserved/Dirty 状态，就从其他缓存里读取数据，让其他缓存都进入 Invalid 状态，然后更新自己的数据，进入 Dirty 状态。</p>
+<h2 id="msi-协议">MSI 协议</h2>
+<p>MSI 协议比较简单，它定义了三个状态：</p>
+<ol>
+<li>Modified：表示数据已经修改，和内存里不一致</li>
+<li>Shared：数据和内存一致，可以有一到多个缓存同时处在 Shared 状态</li>
+<li>Invalid：不在缓存中</li>
+</ol>
+<p>当 Read hit 的时候，状态不变。</p>
+<p>当 Read miss 的时候，检查其他缓存的状态，如果都是 Invalid，就从内存里读取，然后进入 Shared 状态。如果有 Shared，就从其他缓存处读取。如果有 Dirty，那就要把其他缓存的数据写入内存和本地缓存，然后进入 Shared 状态。</p>
+<p>当 Write hit 的时候，如果现在是 Shared 状态，则要让其他的 Shared 缓存进入 Invalid 状态，然后更新数据，进入 Modified 状态。如果是 Modified 状态，那就修改数据，状态保持不变。</p>
+<p>当 Write miss 的时候，如果有其他缓存处于 Modified/Shared 状态，那就从其他缓存处读取数据，并让其他缓存进入 Invalid 状态，然后修改本地数据，进入 Modified 状态。如果所有缓存都是 Invalid 状态，那就从内存读入，然后修改缓存数据，进入 Modified 状态。</p>
+<h2 id="mesi-协议">MESI 协议</h2>
+<p>MESI 协议定义了四种状态：</p>
+<ol>
+<li>Modified：数据与内存不一致，并且只有一个缓存有数据</li>
+<li>Exclusive：数据与内存一致，并且只有一个缓存有数据</li>
+<li>Shared：数据与内存一致，可以有多个缓存同时有数据</li>
+<li>Invalid：不在缓存中</li>
+</ol>
+<p>当 Read hit 的时候，状态不变。</p>
+<p>当 Read miss 的时候，首先会检查其他缓存的状态，如果有数据，就从其他缓存读取数据，并且都进入 Shared 状态，如果其他缓存处于 Modified 状态，还需要把数据写入内存；如果其他缓存都没有数据，就从内存里读取，然后进入 Exclusive 状态。</p>
+<p>当 Write hit 的时候，进入 Modified 状态，同时让其他缓存进入 Invalid 状态。</p>
+<p>当 Write miss 的时候，检查其他缓存的状态，如果有数据，就从其他缓存读取，否则从内存读取。然后，其他缓存都进入 Invalid 状态，本地缓存更新数据，进入 Modified 状态。</p>
+<p>值得一提的是，Shared 状态不一定表示只有一个缓存有数据：比如本来有两个缓存都是 Shared 状态，然后其中一个因为缓存替换变成了 Invalid，那么另一个是不会受到通知变成 Exclusive 的。Exclusive 的设置是为了减少一些总线请求，比如当数据只有一个核心访问的时候，只有第一次 Read miss 会发送总线请求，之后一直在 Exclusive/Modified 状态中，不需要发送总线请求。</p>
+<h2 id="moesi-协议">MOESI 协议</h2>
+<p>MOESI 定义了五个状态：</p>
+<ol>
+<li>Modified：数据经过修改，并且只有一个缓存有这个数据</li>
+<li>Owned：同时有多个缓存有这个数据，但是只有这个缓存可以修改数据</li>
+<li>Exclusive：数据没有修改，并且只有一个缓存有这个数据</li>
+<li>Shared：同时有多个缓存有这个数据，但是不能修改数据</li>
+<li>Invalid：不在缓存中</li>
+</ol>
+<p>状态中，M 和 E 是独占的，所有缓存里只能有一个。此外，可以同时有多个 S，或者多个 S 加一个 O，但是不能同时有多个 O。</p>
+<p>它的状态转移与 MESI 类似，区别在于：当核心写入 Owned 状态的缓存时，有两种方式：1）通知其他 Shared 的缓存更新数据；2）把其他 Shared 缓存设为 Invalid，然后本地缓存进入 Modified 状态。在 Read miss 的时候，则可以从 Owned 缓存读取数据，进入 Shared 状态，而不用写入内存。它相比 MESI 的好处是，减少了写回内存的次数。</p>
+<p>AMD64 文档里采用的就是 MOESI 协议。AMBA ACE 协议其实也是 MOESI 协议，只不过换了一些名称，表示可以兼容 MEI/MESI/MOESI 中的一个协议。ACE 对应关系如下：</p>
+<ol>
+<li>UniqueDirty: Modified</li>
+<li>SharedDirty: Owned</li>
+<li>UniqueClean: Exclusive</li>
+<li>SharedClean: Shared</li>
+<li>Invalid: Invalid</li>
+</ol>
+<p>需要注意的是，SharedClean 并不代表它的数据和内存一致，比如说和 SharedDirty 缓存一致，它只是说缓存替换的时候，不需要写回内存。</p>
+<h2 id="ace-协议">ACE 协议</h2>
+<p>ACE 协议在 AXI 的基础上，添加了三个 channel：</p>
+<ol>
+<li>AC：Coherent address channel，Input to master：ACADDR，ACSNOOP，ACPROT</li>
+<li>CR：Coherent response channel，Output from master：CRRESP</li>
+<li>CD：Coherent data channel，Output from master：CDDATA，CDLAST</li>
+</ol>
+<p>此外，已有的 Channel 也添加了信号：</p>
+<ol>
+<li>ARSNOOP[3:0]/ARBAR[1:0]/ARDOMAIN[1:0]</li>
+<li>AWSNOOP[3:0]/AWBAR[1:0]/AWDOMAIN[1:0]/AWUNIQUE</li>
+<li>RRESP[3:2]</li>
+<li>RACK/WACK</li>
+</ol>
+<p>ACE-lite 只在已有 Channel 上添加了新信号，没有添加新的 Channel。因此它内部不能有 Cache，但是可以访问一致的缓存内容。</p>
+<p>当 Read miss 的时候，首先 AXI master 发送 read transaction 给 Interconnect，Interconnect 向保存了这个缓存行的缓存发送 AC 请求，如果有其他 master 提供了数据，就向请求的 master 返回数据；如果没有其他 master 提供数据，则向内存发起读请求，并把结果返回给 master，最后 master 提供 RACK 信号。</p>
+<p>当 Write miss 的时候，也是类似地，AXI master 发送 MakeUnique 请求给 Interconnect，Interconnect 向保存了该缓存行的缓存发送请求，要求其他 master 状态改为 Invalid；当所有 master 都已经 invalidate 成功，就向原 AXI master 返回结果。</p>
+<h2 id="基于目录的缓存一致性">基于目录的缓存一致性</h2>
+<p>上面的缓存一致性协议中，经常有这么一个操作：向所有有这个缓存行的缓存发送/接受消息。简单的方法是直接广播，然后接受端自己判断是否处理。但是这个方法在核心很多的时候会导致广播流量太大，因此需要先保存下来哪些缓存会有这个缓存的信息，然后对这些缓存点对点地发送。这样就可以节省一些网络流量。</p>
+<p>那么，怎么记录这个信息呢？一个简单的办法（Full bit vector format）是，有一个全局的表，对每个缓存行，都记录一个大小为 N（N 为核心数）的位向量，1 表示对应的核心中有这个缓存行。但这个方法保存数据量太大：缓存行数正比于 N，还要再乘以一次 N，总容量是 O(N^2) 的。</p>
+<p>一个稍微好一些的方法（Coarse bit vector format）是，我把核心分组，比如按照 NUMA 节点进行划分，此时每个缓存行都保存一个大小为 M（M 为 NUMA 数量）的位向量，只要这个 NUMA 节点里有这个缓存行，对应位就取 1。这样相当于是以牺牲一部分流量为代价（NUMA 节点内部广播），来节省一些目录的存储空间。</p>
+<p>但实际上，通常情况下，一个缓存行通常只会在很少的核心中保存，所以这里有很大的优化空间。比如说，可以设置一个缓存行同时出现的缓存数量上限(Limited pointer format)，然后保存核心的下标而不是位向量，这样的存储空间就是 O(Nlog2N)。但是呢，这样限制了缓存行同时出现的次数，如果超过了上限，需要替换掉已有的缓存，可能在一些场景下性能会降低。</p>
+<p>还有一种方式，就是链表(Chained directory format)。目录中保存最后一次访问的核心编号，然后每个核心的缓存里，保存了下一个保存了这个缓存行的核心编号，或者表示链表终止。这样存储空间也是 O(Nlog2N)，不过发送消息的延迟更长，因为要串行遍历一遍，而不能同时发送。类似地，可以用二叉树(Number-balanced binary tree format)来组织：每个缓存保存两个指针，指向左子树和右子树，然后分别遍历，目的还是加快遍历的速度，可以同时发送消息给多个核心。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#参考文档">参考文档</a></li>
+    <li><a href="#write-invalidate-和-write-update">Write-invalidate 和 Write-update</a></li>
+    <li><a href="#write-once-协议">Write-once 协议</a></li>
+    <li><a href="#msi-协议">MSI 协议</a></li>
+    <li><a href="#mesi-协议">MESI 协议</a></li>
+    <li><a href="#moesi-协议">MOESI 协议</a></li>
+    <li><a href="#ace-协议">ACE 协议</a></li>
+    <li><a href="#基于目录的缓存一致性">基于目录的缓存一致性</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/cpu">cpu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/cache">cache
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/coherence">coherence
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/msi">msi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/mesi">mesi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/moesi">moesi
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2021/12/13/dram-fpga-vref-problem/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">DRAM 在 Kintex 7 FPGA 上内部 Vref 的性能问题&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2021 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
