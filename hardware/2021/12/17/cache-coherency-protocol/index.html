@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.90.1" />
+    <meta name="generator" content="Hugo 0.91.2" />
 </head>
 
 
@@ -89,6 +89,7 @@
 <li><a href="https://en.wikipedia.org/wiki/Write-once_(cache_coherence)">Write-once (cache coherence)</a></li>
 <li><a href="https://en.wikipedia.org/wiki/MESI_protocol">MESI protocol</a></li>
 <li><a href="https://en.wikipedia.org/wiki/MOESI_protocol">MOESI protocol</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Dragon_protocol">Dragon protocol</a></li>
 <li><a href="https://blogs.synopsys.com/vip-central/2014/12/23/a-strategy-to-verify-an-axi-ace-compliant-interconnect-part-2-of-4/">A Strategy to Verify an AXI/ACE Compliant Interconnect (2 of 4)</a></li>
 <li><a href="https://en.wikipedia.org/wiki/Directory-based_cache_coherence">Directory-based cache coherence</a></li>
 </ul>
@@ -165,6 +166,19 @@
 <li>Invalid: Invalid</li>
 </ol>
 <p>需要注意的是，SharedClean 并不代表它的数据和内存一致，比如说和 SharedDirty 缓存一致，它只是说缓存替换的时候，不需要写回内存。</p>
+<h2 id="dragon-协议">Dragon 协议</h2>
+<p>Dragon 协议是一个基于更新的协议，意味着写入缓存的时候，会把更新的数据同步到拥有这个缓存行的其他核心。它定义了四个状态：</p>
+<ol>
+<li>Exclusive clean(E)：独占，并且数据和内存一致</li>
+<li>Shared clean(Sc)：数据同时存在多个缓存中，并且自己不是最后一个写入该缓存数据的</li>
+<li>Shared modified(Sm)：数据同时存在多个缓存中，并且自己设最后一个写入该缓存数据的，类似于前面 MOESI 协议的 Owner 状态</li>
+<li>Modify(M)：独占，并且数据和内存不一致</li>
+</ol>
+<p>可以看到，E 和 M 都是独占的，如果出现了多个缓存有同一个缓存行，那就是若干个 Sc 和一个 Sm。</p>
+<p>当 Read miss 的时候，在总线上检查是否有缓存已经有这个缓存行的数据，如果没有，则从内存读取并转到 Exclusive clean 状态；如果已经在其他缓存中，则从其他缓存读取，将其他缓存转移到 Shared clean/Shared modified 状态，然后该缓存转移到 Shared clean 状态。</p>
+<p>当 Write miss 的时候，同样检查其他缓存的状态，如果是第一个访问的，就从内存读取，更新数据，然后转到 Modify 状态；如果不是第一个访问的，就进入 Shared modified 状态，并且让原来 Shared modified 的缓存进入 Shared clean 状态。</p>
+<p>当 Write hit 的时候，如果状态是 Shared modified，这时候需要通知其他缓存更新数据；如果状态是 Shared clean，则要通知其他缓存更新数据的同时，让原来 Shared modified 的缓存进入 Shared clean 状态；如果状态是 Exclusive clean，则进入 Modify 状态。</p>
+<p>在这里，Shared modified 的缓存负责在换出的时候，写入数据到内存中。</p>
 <h2 id="ace-协议">ACE 协议</h2>
 <p>ACE 协议在 AXI 的基础上，添加了三个 channel：</p>
 <ol>
@@ -203,6 +217,7 @@
     <li><a href="#msi-协议">MSI 协议</a></li>
     <li><a href="#mesi-协议">MESI 协议</a></li>
     <li><a href="#moesi-协议">MOESI 协议</a></li>
+    <li><a href="#dragon-协议">Dragon 协议</a></li>
     <li><a href="#ace-协议">ACE 协议</a></li>
     <li><a href="#基于目录的缓存一致性">基于目录的缓存一致性</a></li>
   </ul>
@@ -292,6 +307,12 @@
     </div>
     
 <nav id="article-nav">
+    
+    <a href="/software/2021/12/26/nvidia-cuda/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            NVIDIA 驱动和 CUDA 版本信息速查
+        </div>
+    </a>
     
     
     <a href="/hardware/2021/12/13/dram-fpga-vref-problem/" id="article-nav-older" class="article-nav-link-wrap">
