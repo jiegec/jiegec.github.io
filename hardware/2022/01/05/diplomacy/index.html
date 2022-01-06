@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>分析 Rocket Chip 中 Diplomacy 系统 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="分析 Rocket Chip 中 Diplomacy 系统" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/01/05/diplomacy/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.91.2" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">分析 Rocket Chip 中 Diplomacy 系统</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/01/05/diplomacy/" class="article-date">
+                <time datetime='2022-01-05T00:29:00.000&#43;08:00' itemprop="datePublished">2022-01-05</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/01/05/diplomacy/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="概念">概念</h2>
+<p>Diplomacy 主要实现了两个功能：</p>
+<ol>
+<li>把整个总线结构在代码中表现出来</li>
+<li>自动配置总线中各个端口的参数</li>
+</ol>
+<p>具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。</p>
+<p>Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，Node 和 Node 之间连接形成一个图。Node 的类型主要有以下几个：</p>
+<ol>
+<li>Client：对应 AXI 里面的 Master，发起请求</li>
+<li>Manager：对应 AXI 里面的 Slave，处理请求</li>
+<li>Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出</li>
+<li>Nexus：对应 AXI Crossbar，多个输入和多个输出</li>
+</ol>
+<p>每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。</p>
+<p>连接方式采用的是 <code>:=</code> <code>:=*</code> <code>:*=</code> <code>:*=*</code> 操作符，左侧是 Client，右侧是 Manager。</p>
+<h2 id="rocket-chip-总线结构">Rocket Chip 总线结构</h2>
+<p>Rocket Chip 主要有以下几个总线：</p>
+<ol>
+<li>sbus: System Bus</li>
+<li>mbus: Memory Bus</li>
+<li>cbus: Control Bus</li>
+<li>pbus: Periphery Bus</li>
+<li>fbus: Frontend Bus</li>
+</ol>
+<p>图示可以见参考文档中的链接，不过链接中的结构和实际的有一些区别。目前的 Rocket Chip 内存结构大致是这样：</p>
+<pre tabindex="0"><code>fbus -&gt; sbus -&gt; mbus
+tile --/    \-&gt; cbus -&gt; pbus
+</code></pre><p>主要是 pbus 的位置从连接 sbus 移动到了连接 cbus。</p>
+<p>相关代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#75715e">/** Parameterization of a topology containing three additional, optional buses for attaching MMIO devices. */</span>
+<span style="color:#66d9ef">case</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">HierarchicalBusTopologyParams</span><span style="color:#f92672">(</span>
+  pbus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">PeripheryBusParams</span><span style="color:#f92672">,</span>
+  fbus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">FrontBusParams</span><span style="color:#f92672">,</span>
+  cbus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">PeripheryBusParams</span><span style="color:#f92672">,</span>
+  xTypes<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">SubsystemCrossingParams</span><span style="color:#f92672">,</span>
+  driveClocksFromSBus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+<span style="color:#f92672">)</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">TLBusWrapperTopology</span><span style="color:#f92672">(</span>
+  instantiations <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">List</span><span style="color:#f92672">(</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">PBUS</span><span style="color:#f92672">,</span> pbus<span style="color:#f92672">),</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">FBUS</span><span style="color:#f92672">,</span> fbus<span style="color:#f92672">),</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">CBUS</span><span style="color:#f92672">,</span> cbus<span style="color:#f92672">)),</span>
+  connections <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">List</span><span style="color:#f92672">(</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">SBUS</span><span style="color:#f92672">,</span> <span style="color:#a6e22e">CBUS</span><span style="color:#f92672">,</span> <span style="color:#a6e22e">TLBusWrapperConnection</span>  <span style="color:#f92672">.</span>crossTo<span style="color:#f92672">(</span>xTypes<span style="color:#f92672">.</span>sbusToCbusXType<span style="color:#f92672">,</span> <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>driveClocksFromSBus<span style="color:#f92672">)</span> <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span><span style="color:#66d9ef">true</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">None</span><span style="color:#f92672">)),</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">CBUS</span><span style="color:#f92672">,</span> <span style="color:#a6e22e">PBUS</span><span style="color:#f92672">,</span> <span style="color:#a6e22e">TLBusWrapperConnection</span>  <span style="color:#f92672">.</span>crossTo<span style="color:#f92672">(</span>xTypes<span style="color:#f92672">.</span>cbusToPbusXType<span style="color:#f92672">,</span> <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>driveClocksFromSBus<span style="color:#f92672">)</span> <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span><span style="color:#66d9ef">true</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">None</span><span style="color:#f92672">)),</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">FBUS</span><span style="color:#f92672">,</span> <span style="color:#a6e22e">SBUS</span><span style="color:#f92672">,</span> <span style="color:#a6e22e">TLBusWrapperConnection</span><span style="color:#f92672">.</span>crossFrom<span style="color:#f92672">(</span>xTypes<span style="color:#f92672">.</span>fbusToSbusXType<span style="color:#f92672">,</span> <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>driveClocksFromSBus<span style="color:#f92672">)</span> <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span><span style="color:#66d9ef">false</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">None</span><span style="color:#f92672">)))</span>
+<span style="color:#f92672">)</span>
+</code></pre></div><p>当然了，也有简化版的 JustOneBusTopology，那就只有 SystemBus 了。如果再配置了 CoherentBusTopology，那么 SBUS 和 MBUS 之间还有一层 L2:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-scala" data-lang="scala"><span style="color:#75715e">/** Parameterization of a topology containing a banked coherence manager and a bus for attaching memory devices. */</span>
+<span style="color:#66d9ef">case</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CoherentBusTopologyParams</span><span style="color:#f92672">(</span>
+  sbus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">SystemBusParams</span><span style="color:#f92672">,</span> <span style="color:#75715e">// TODO remove this after better width propagation
+</span><span style="color:#75715e"></span>  mbus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">MemoryBusParams</span><span style="color:#f92672">,</span>
+  l2<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">BankedL2Params</span><span style="color:#f92672">,</span>
+  sbusToMbusXType<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ClockCrossingType</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">NoCrossing</span><span style="color:#f92672">,</span>
+  driveMBusClockFromSBus<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+<span style="color:#f92672">)</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">TLBusWrapperTopology</span><span style="color:#f92672">(</span>
+  instantiations <span style="color:#66d9ef">=</span> <span style="color:#f92672">(</span><span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>l2<span style="color:#f92672">.</span>nBanks <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span><span style="color:#f92672">)</span> <span style="color:#a6e22e">Nil</span> <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">List</span><span style="color:#f92672">(</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">MBUS</span><span style="color:#f92672">,</span> mbus<span style="color:#f92672">),</span>
+    <span style="color:#f92672">(</span>L2<span style="color:#f92672">,</span> <span style="color:#a6e22e">CoherenceManagerWrapperParams</span><span style="color:#f92672">(</span>mbus<span style="color:#f92672">.</span>blockBytes<span style="color:#f92672">,</span> mbus<span style="color:#f92672">.</span>beatBytes<span style="color:#f92672">,</span> l2<span style="color:#f92672">.</span>nBanks<span style="color:#f92672">,</span> L2<span style="color:#f92672">.</span>name<span style="color:#f92672">,</span> sbus<span style="color:#f92672">.</span>dtsFrequency<span style="color:#f92672">)(</span>l2<span style="color:#f92672">.</span>coherenceManager<span style="color:#f92672">)))),</span>
+  connections <span style="color:#66d9ef">=</span> <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>l2<span style="color:#f92672">.</span>nBanks <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span><span style="color:#f92672">)</span> <span style="color:#a6e22e">Nil</span> <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">List</span><span style="color:#f92672">(</span>
+    <span style="color:#f92672">(</span><span style="color:#a6e22e">SBUS</span><span style="color:#f92672">,</span> L2<span style="color:#f92672">,</span>   <span style="color:#a6e22e">TLBusWrapperConnection</span><span style="color:#f92672">(</span>driveClockFromMaster <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span><span style="color:#66d9ef">true</span><span style="color:#f92672">),</span> nodeBinding <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">BIND_STAR</span><span style="color:#f92672">)()),</span>
+    <span style="color:#f92672">(</span>L2<span style="color:#f92672">,</span>  <span style="color:#a6e22e">MBUS</span><span style="color:#f92672">,</span>  <span style="color:#a6e22e">TLBusWrapperConnection</span><span style="color:#f92672">.</span>crossTo<span style="color:#f92672">(</span>
+      xType <span style="color:#66d9ef">=</span> sbusToMbusXType<span style="color:#f92672">,</span>
+      driveClockFromMaster <span style="color:#66d9ef">=</span> <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>driveMBusClockFromSBus<span style="color:#f92672">)</span> <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span><span style="color:#66d9ef">true</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">None</span><span style="color:#f92672">,</span>
+      nodeBinding <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">BIND_QUERY</span><span style="color:#f92672">))</span>
+  <span style="color:#f92672">)</span>
+<span style="color:#f92672">)</span>
+</code></pre></div><h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html">TileLink and Diplomacy Reference</a></li>
+<li><a href="https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system">Rocket Chip - Memory System</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#概念">概念</a></li>
+    <li><a href="#rocket-chip-总线结构">Rocket Chip 总线结构</a></li>
+    <li><a href="#参考文档">参考文档</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/chisel">chisel
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/rocketchip">rocketchip
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/diplomacy">diplomacy
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2022/01/03/chisel3-cookbook/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Chisel3 Cookbook&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
