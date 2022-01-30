@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RISC-V Vector 1.0 工具链构建 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="RISC-V Vector 1.0 工具链构建" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2022/01/25/rvv-1.0-toolchain/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.92.1" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">RISC-V Vector 1.0 工具链构建</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2022/01/25/rvv-1.0-toolchain/" class="article-date">
+                <time datetime='2022-01-25T21:41:00.000&#43;08:00' itemprop="datePublished">2022-01-25</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2022/01/25/rvv-1.0-toolchain/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>不久前 RVV 1.0 标准终于是出来了，但是工具链的支持目前基本还处于刚 upstream 还没有 release 的状态。而目前 RVV 1.0 的支持主要在 LLVM 上比较活跃，因此也是采用 LLVM Clang + GCC Newlib Toolchain 的方式进行配合，前者做 RVV 1.0 的编译，后者提供 libc 等基础库。</p>
+<p>LLVM Clang 直接采用 upstream 即可。编译选项：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER<span style="color:#f92672">=</span>clang -DCMAKE_CXX_COMPILER<span style="color:#f92672">=</span>clang++ -DCMAKE_INSTALL_PREFIX<span style="color:#f92672">=</span>/prefix/llvm -DCMAKE_BUILD_TYPE<span style="color:#f92672">=</span>Release -DLLVM_ENABLE_PROJECTS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;clang&#34;</span> -DLLVM_TARGETS_TO_BUILD<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;RISCV&#34;</span>
+$ ninja
+$ ninja install
+$ /prefix/llvm/bin/clang --version
+clang version 14.0.0 <span style="color:#f92672">(</span>https://github.com/llvm/llvm-project.git 8d298355ca3778a47fd6b3110aeee03ea5e8e02b<span style="color:#f92672">)</span>
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /data/llvm/bin
+</code></pre></div><p>还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 <a href="https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.01.17/riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz">riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz</a>。下载以后解压，得到 riscv 目录，GCC 版本是比较新的：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ~/riscv/bin/riscv64-unknown-elf-gcc --version
+riscv64-unknown-elf-gcc <span style="color:#f92672">(</span>GCC<span style="color:#f92672">)</span> 11.1.0
+Copyright <span style="color:#f92672">(</span>C<span style="color:#f92672">)</span> <span style="color:#ae81ff">2021</span> Free Software Foundation, Inc.
+This is free software; see the source <span style="color:#66d9ef">for</span> copying conditions.  There is NO
+warranty; not even <span style="color:#66d9ef">for</span> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+</code></pre></div><p>但是如果编译 C++ 程序，链接的时候就会报错：<code>prefixed ISA extension must separate with _</code>，这是因为 riscv-gnu-toolchain 仓库的 binutils 版本不够新，在 upstream 的 binutils 里面已经修复了这个问题。所以 clone 下来，然后编译，覆盖掉 riscv-gnu-toolchain 里面的 binutils：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ../configure --target<span style="color:#f92672">=</span>riscv64-unknown-elf --prefix<span style="color:#f92672">=</span>$HOME/riscv --disable-gdb --disable-sim --disable-libdecnumber --disable-readline
+$ make
+$ make install
+$ ~/riscv/bin/riscv64-unknown-elf-ld --version
+GNU ld <span style="color:#f92672">(</span>GNU Binutils<span style="color:#f92672">)</span> 2.38.50.20220125
+Copyright <span style="color:#f92672">(</span>C<span style="color:#f92672">)</span> <span style="color:#ae81ff">2022</span> Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version <span style="color:#ae81ff">3</span> or <span style="color:#f92672">(</span>at your option<span style="color:#f92672">)</span> a later version.
+This program has absolutely no warranty.
+</code></pre></div><p>然后编译程序的时候，使用 clang，配置参数 <code>--gcc-toolchain=~/riscv</code> 即可让 clang 找到 GNU 工具链。这样就可以编译出来 RVV 1.0 的程序了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ /llvm/bin/clang --target<span style="color:#f92672">=</span>riscv64-unknown-elf -O2 -march<span style="color:#f92672">=</span>rv64gcv1p0 -menable-experimental-extensions -mllvm --riscv-v-vector-bits-min<span style="color:#f92672">=</span><span style="color:#ae81ff">256</span> --gcc-toolchain<span style="color:#f92672">=</span>$HOME/riscv add.cpp -o add
+$ /data/llvm/bin/llvm-objdump --mattr<span style="color:#f92672">=</span>+v -S add
+   1020e: <span style="color:#ae81ff">57</span> <span style="color:#ae81ff">70</span> <span style="color:#ae81ff">04</span> c5   vsetivli        zero, 8, e32, m1, ta, mu
+   10212: <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">64</span> <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">02</span>   vle32.v v8, <span style="color:#f92672">(</span>t1<span style="color:#f92672">)</span>
+   10216: <span style="color:#ae81ff">87</span> e4 <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">02</span>   vle32.v v9, <span style="color:#f92672">(</span>t2<span style="color:#f92672">)</span>
+   1021a: <span style="color:#ae81ff">93</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">07</span> fe   addi    a5, a4, -32
+   1021e: <span style="color:#ae81ff">07</span> e5 <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vle32.v v10, <span style="color:#f92672">(</span>a5<span style="color:#f92672">)</span>
+   10222: <span style="color:#ae81ff">87</span> <span style="color:#ae81ff">65</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vle32.v v11, <span style="color:#f92672">(</span>a4<span style="color:#f92672">)</span>
+   10226: <span style="color:#ae81ff">57</span> <span style="color:#ae81ff">14</span> <span style="color:#ae81ff">85</span> <span style="color:#ae81ff">02</span>   vfadd.vv        v8, v8, v10
+   1022a: d7 <span style="color:#ae81ff">94</span> <span style="color:#ae81ff">95</span> <span style="color:#ae81ff">02</span>   vfadd.vv        v9, v9, v11
+   1022e: <span style="color:#ae81ff">93</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">05</span> fe   addi    a5, a0, -32
+   10232: <span style="color:#ae81ff">27</span> e4 <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vse32.v v8, <span style="color:#f92672">(</span>a5<span style="color:#f92672">)</span>
+   10236: a7 <span style="color:#ae81ff">64</span> <span style="color:#ae81ff">05</span> <span style="color:#ae81ff">02</span>   vse32.v v9, <span style="color:#f92672">(</span>a0<span style="color:#f92672">)</span>
+</code></pre></div><p>可以看到 llvm 的自动向量化是工作的。此外，也可以编写 rvv intrinsic。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents"></nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/riscv">riscv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/vector">vector
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/rvv">rvv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/llvm">llvm
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/clang">clang
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/binutils">binutils
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/os/2022/01/30/windows-on-arm-on-m1/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            在 M1 上运行 Windows ARM 虚拟机
+        </div>
+    </a>
+    
+    
+    <a href="/misc/2022/01/12/deprecating-jiege-ch/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">jiege.ch 停用&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
