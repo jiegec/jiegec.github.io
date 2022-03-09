@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -83,33 +83,33 @@
         </div>
         <div class="article-entry" itemprop="articleBody">
             <p>之前在机器上试验了一下 kubernetes，感觉挺不错的，所以就想把腾讯云上面的机器也交给 kubernetes 管理。找到容器服务，新建集群，选择模板里的标准托管集群就可以了。然后开启下面的公网访问，设置一个比较小的 IP 地址段，按照页面下面的要求合并一下 kube config（因为还有别的 k8s cluster）：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ KUBECONFIG<span style="color:#f92672">=</span>~/.kube/config:/path/to/new/config kubectl config view --merge --flatten &gt; new_config
-$ cp new_config ~/.kube/config
-</code></pre></div><p>覆盖之前先确认原来的配置还在，然后就可以用 kubectl 切换到新的 context：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ kubectl config get-contexts
-$ kubectl config use-context new-context-here
-$ kubectl get node
-NAME          STATUS   ROLES    AGE   VERSION
-172.21.0.17   Ready    &lt;none&gt;   75m   v1.16.3-tke.3
-</code></pre></div><p>可以看到我们的 k8s node 已经上线了。我一般习惯先配好 kubernetes-dashboard：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ kubectl create -f https://raw.githubusercontent.com/cilium/cilium/v1.6/install/kubernetes/quick-install.yaml
-$ kubectl proxy &amp;
-$ kubectl -n kubernetes-dashboard describe secret <span style="color:#f92672">(</span>kubectl -n kubernetes-dashboard get secret | grep admin-user | awk <span style="color:#e6db74">&#39;{print \$1}&#39;</span><span style="color:#f92672">)</span> | tail -n1 | awk <span style="color:#e6db74">&#39;{print \$2}&#39;</span> | pbcopy
-</code></pre></div><p>然后在浏览器里访问 http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default 然后把剪贴板里的 token 粘贴进去即可。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ KUBECONFIG<span style="color:#f92672">=</span>~/.kube/config:/path/to/new/config kubectl config view --merge --flatten &gt; new_config
+</span></span><span style="display:flex;"><span>$ cp new_config ~/.kube/config
+</span></span></code></pre></div><p>覆盖之前先确认原来的配置还在，然后就可以用 kubectl 切换到新的 context：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ kubectl config get-contexts
+</span></span><span style="display:flex;"><span>$ kubectl config use-context new-context-here
+</span></span><span style="display:flex;"><span>$ kubectl get node
+</span></span><span style="display:flex;"><span>NAME          STATUS   ROLES    AGE   VERSION
+</span></span><span style="display:flex;"><span>172.21.0.17   Ready    &lt;none&gt;   75m   v1.16.3-tke.3
+</span></span></code></pre></div><p>可以看到我们的 k8s node 已经上线了。我一般习惯先配好 kubernetes-dashboard：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ kubectl create -f https://raw.githubusercontent.com/cilium/cilium/v1.6/install/kubernetes/quick-install.yaml
+</span></span><span style="display:flex;"><span>$ kubectl proxy &amp;
+</span></span><span style="display:flex;"><span>$ kubectl -n kubernetes-dashboard describe secret <span style="color:#f92672">(</span>kubectl -n kubernetes-dashboard get secret | grep admin-user | awk <span style="color:#e6db74">&#39;{print \$1}&#39;</span><span style="color:#f92672">)</span> | tail -n1 | awk <span style="color:#e6db74">&#39;{print \$2}&#39;</span> | pbcopy
+</span></span></code></pre></div><p>然后在浏览器里访问 http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default 然后把剪贴板里的 token 粘贴进去即可。</p>
 <p>默认情况下 kubernetes-dashboard 的权限比较少，可以让它获得更多权限：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ kubectl edit clusterrole.rbac.authorization.k8s.io/kubernetes-dashboard
-<span style="color:#75715e"># use &#39;*&#39; for ultimate </span>
-<span style="color:#75715e"># use `kubectl get clusterrole.rbac.authorization.k8s.io/cluster-admin -o yaml` to see full permissions</span>
-</code></pre></div><p>接下来配置 metrics-server 。下载 metrics-server 仓库，然后修改镜像地址：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ wget https://github.com/kubernetes-sigs/metrics-server/archive/v0.3.6.zip
-$ unar v0.3.6.zip
-$ cd metrics-server-0.3.6/deploy/1.8+
-$ vim metrics-server-deployment
-<span style="color:#75715e"># change: k8s.gcr.io/metrics-server-amd64:v0.3.6</span>
-<span style="color:#75715e"># to: registry.cn-hangzhou.aliyuncs.com/google_containers/metrics-server-amd64:v0.3.6</span>
-<span style="color:#75715e"># add line below image: args: [&#34;--kubelet-insecure-tls&#34;]</span>
-$ kubectl apply -f .
-</code></pre></div><p>等一段时间，就可以看到 metrics server 正常运行了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ kubectl edit clusterrole.rbac.authorization.k8s.io/kubernetes-dashboard
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># use &#39;*&#39; for ultimate </span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># use `kubectl get clusterrole.rbac.authorization.k8s.io/cluster-admin -o yaml` to see full permissions</span>
+</span></span></code></pre></div><p>接下来配置 metrics-server 。下载 metrics-server 仓库，然后修改镜像地址：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ wget https://github.com/kubernetes-sigs/metrics-server/archive/v0.3.6.zip
+</span></span><span style="display:flex;"><span>$ unar v0.3.6.zip
+</span></span><span style="display:flex;"><span>$ cd metrics-server-0.3.6/deploy/1.8+
+</span></span><span style="display:flex;"><span>$ vim metrics-server-deployment
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># change: k8s.gcr.io/metrics-server-amd64:v0.3.6</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># to: registry.cn-hangzhou.aliyuncs.com/google_containers/metrics-server-amd64:v0.3.6</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># add line below image: args: [&#34;--kubelet-insecure-tls&#34;]</span>
+</span></span><span style="display:flex;"><span>$ kubectl apply -f .
+</span></span></code></pre></div><p>等一段时间，就可以看到 metrics server 正常运行了。</p>
 <p>参考：https://tencentcloudcontainerteam.github.io/tke-handbook/</p>
 
         </div>
@@ -214,7 +214,7 @@ $ kubectl apply -f .
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

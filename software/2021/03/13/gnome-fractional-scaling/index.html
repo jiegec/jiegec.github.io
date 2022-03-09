@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -130,31 +130,31 @@
 <p>在 <a href="https://www.x.org/releases/X11R7.5/doc/man/man1/xrandr.1.html">xrandr 文档</a> 中，写了：transform 是一个 3x3 矩阵，矩阵乘以输出的点的坐标得到图形缓存里面的坐标。</p>
 <p>由此可以猜想：fractional scaling 的工作方式是，把绘制的 buffer 调大，然后再用 transform 把最终输出分辨率调成 1920x1080 。可以看到，xrandr 显示的分辨率除以 transform 对应的值，就是 1920x1080。但这并不能解释 100% 和 200% 的区别，所以肯定还漏了什么信息。</p>
 <p>翻了翻 <a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_376_422">mutter 实现 fractional scaling 的 pr</a>，找到了实现 scale 的一部分：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">if</span> (clutter_actor_get_resource_scale (priv<span style="color:#f92672">-&gt;</span>actor, <span style="color:#f92672">&amp;</span>resource_scale) <span style="color:#f92672">&amp;&amp;</span>
-    resource_scale <span style="color:#f92672">!=</span> <span style="color:#ae81ff">1.0f</span>)
-  {
-    <span style="color:#66d9ef">float</span> paint_scale <span style="color:#f92672">=</span> <span style="color:#ae81ff">1.0f</span> <span style="color:#f92672">/</span> resource_scale;
-    cogl_matrix_scale (<span style="color:#f92672">&amp;</span>modelview, paint_scale, paint_scale, <span style="color:#ae81ff">1</span>);
-  }
-</code></pre></div><p>然后找到了一段对 scale 做 ceiling 的<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_238_265">代码</a>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">if</span> (_clutter_actor_get_real_resource_scale (priv<span style="color:#f92672">-&gt;</span>actor, <span style="color:#f92672">&amp;</span>resource_scale))
-  {
-    ceiled_resource_scale <span style="color:#f92672">=</span> ceilf (resource_scale);
-    stage_width <span style="color:#f92672">*=</span> ceiled_resource_scale;
-    stage_height <span style="color:#f92672">*=</span> ceiled_resource_scale;
-  }
-</code></pre></div><p>这样，100% 和其他比例就区分开了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (clutter_actor_get_resource_scale (priv<span style="color:#f92672">-&gt;</span>actor, <span style="color:#f92672">&amp;</span>resource_scale) <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>    resource_scale <span style="color:#f92672">!=</span> <span style="color:#ae81ff">1.0f</span>)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> paint_scale <span style="color:#f92672">=</span> <span style="color:#ae81ff">1.0f</span> <span style="color:#f92672">/</span> resource_scale;
+</span></span><span style="display:flex;"><span>    cogl_matrix_scale (<span style="color:#f92672">&amp;</span>modelview, paint_scale, paint_scale, <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span></code></pre></div><p>然后找到了一段对 scale 做 ceiling 的<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_238_265">代码</a>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (_clutter_actor_get_real_resource_scale (priv<span style="color:#f92672">-&gt;</span>actor, <span style="color:#f92672">&amp;</span>resource_scale))
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    ceiled_resource_scale <span style="color:#f92672">=</span> ceilf (resource_scale);
+</span></span><span style="display:flex;"><span>    stage_width <span style="color:#f92672">*=</span> ceiled_resource_scale;
+</span></span><span style="display:flex;"><span>    stage_height <span style="color:#f92672">*=</span> ceiled_resource_scale;
+</span></span><span style="display:flex;"><span>  }
+</span></span></code></pre></div><p>这样，100% 和其他比例就区分开了。</p>
 <p>另外，也在<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#d66a28cda989fbb17c8a7302b3f6360640c3c152_33_33">代码</a> 中发现：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#75715e">#define SCALE_FACTORS_PER_INTEGER 4
-</span><span style="color:#75715e">#define SCALE_FACTORS_STEPS (1.0 / (float) SCALE_FACTORS_PER_INTEGER)
-</span><span style="color:#75715e">#define MINIMUM_SCALE_FACTOR 1.0f
-</span><span style="color:#75715e">#define MAXIMUM_SCALE_FACTOR 4.0f
-</span></code></pre></div><p>这段代码规定了比例只能是 25% 的倍数。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">#define SCALE_FACTORS_PER_INTEGER 4
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define SCALE_FACTORS_STEPS (1.0 / (float) SCALE_FACTORS_PER_INTEGER)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define MINIMUM_SCALE_FACTOR 1.0f
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define MAXIMUM_SCALE_FACTOR 4.0f
+</span></span></span></code></pre></div><p>这段代码规定了比例只能是 25% 的倍数。</p>
 <p>我也试了一下用 xrandr &ndash;scale 1.5x1.5：效果就是窗口看起来都更小了，分辨率变成了 2880x1620，transform 是 diag(1.5, 1.5, 1.0)。</p>
 <h2 id="虚拟机测试">虚拟机测试</h2>
 <p>接着，用虚拟机做了一些测试。为了在 GNOME over Wayland 上使用 fractional scaling，需要运行：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ gsettings set org.gnome.mutter experimental-features <span style="color:#e6db74">&#34;[&#39;scale-monitor-framebuffer&#39;]&#34;</span>
-</code></pre></div><p>接着又做了类似上面的测试（GNOME 设置分辨率一直是 2560x1600）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ gsettings set org.gnome.mutter experimental-features <span style="color:#e6db74">&#34;[&#39;scale-monitor-framebuffer&#39;]&#34;</span>
+</span></span></code></pre></div><p>接着又做了类似上面的测试（GNOME 设置分辨率一直是 2560x1600）：</p>
 <table>
 <thead>
 <tr>
@@ -199,23 +199,23 @@
     - Dropped, applied upstream
 </code></pre><p>也找到了对应的 <a href="https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch?h=applied/ubuntu/groovy">patch 文件</a>。这也就解释了，为什么网上会说 GNOME over X11 支持 fractional scaling，并且需要用 gsettings 打开，而我在 Debian 和 Arch Linux 上设置这个选项也没有用了。原来是 Ubuntu 加的私货啊。</p>
 <p>在 patch 中，找到了这么一段配置的解释：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-patch" data-lang="patch"><span style="color:#a6e22e">+    &lt;key name=&#34;fractional-scale-mode&#34; enum=&#34;org.gnome.mutter.X11.scale-mode&#34;&gt;
-</span><span style="color:#a6e22e">+      &lt;default&gt;&#34;scale-ui-down&#34;&lt;/default&gt;
-</span><span style="color:#a6e22e">+      &lt;description&gt;
-</span><span style="color:#a6e22e">+        Choose the scaling mode to be used under X11 via Randr extension.
-</span><span style="color:#a6e22e">+
-</span><span style="color:#a6e22e">+        Supported methods are:
-</span><span style="color:#a6e22e">+
-</span><span style="color:#a6e22e">+        • “scale-up”     — Scale everything up to the requested scale, shrinking
-</span><span style="color:#a6e22e">+                           the UI. The applications will look blurry when scaling
-</span><span style="color:#a6e22e">+                           at higher values and the resolution will be lowered.
-</span><span style="color:#a6e22e">+        • “scale-ui-down — Scale up the UI toolkits to the closest integer
-</span><span style="color:#a6e22e">+                           scaling value upwards, while scale down the display
-</span><span style="color:#a6e22e">+                           to match the requested scaling level.
-</span><span style="color:#a6e22e">+                           It increases the resolution of the logical display.
-</span><span style="color:#a6e22e">+      &lt;/description&gt;
-</span><span style="color:#a6e22e">+    &lt;/key&gt;
-</span></code></pre></div><p>这样就可以解释前面看到的现象了：默认是 <code>scale-ui-down</code>，也就是先放大到两倍（closest integer scaling value upwards），再缩小（scale down the display to match the requested scaling level）。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-patch" data-lang="patch"><span style="display:flex;"><span><span style="color:#a6e22e">+    &lt;key name=&#34;fractional-scale-mode&#34; enum=&#34;org.gnome.mutter.X11.scale-mode&#34;&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+      &lt;default&gt;&#34;scale-ui-down&#34;&lt;/default&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+      &lt;description&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+        Choose the scaling mode to be used under X11 via Randr extension.
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+        Supported methods are:
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+        • “scale-up”     — Scale everything up to the requested scale, shrinking
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+                           the UI. The applications will look blurry when scaling
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+                           at higher values and the resolution will be lowered.
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+        • “scale-ui-down — Scale up the UI toolkits to the closest integer
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+                           scaling value upwards, while scale down the display
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+                           to match the requested scaling level.
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+                           It increases the resolution of the logical display.
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+      &lt;/description&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    &lt;/key&gt;
+</span></span></span></code></pre></div><p>这样就可以解释前面看到的现象了：默认是 <code>scale-ui-down</code>，也就是先放大到两倍（closest integer scaling value upwards），再缩小（scale down the display to match the requested scaling level）。</p>
 
         </div>
 
@@ -331,7 +331,7 @@
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

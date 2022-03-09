@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/03/09/rocket-chip-jtag-debug/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.93.2" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/" class="article-date">
+                <time datetime='2022-03-09T19:04:00.000&#43;08:00' itemprop="datePublished">2022-03-09</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="前言">前言</h2>
+<p>两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。</p>
+<h2 id="寻找-jtag-接口">寻找 JTAG 接口</h2>
+<p>前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：</p>
+<pre><code>The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted
+UART connections through the single micro-AB USB connector J2.
+• Channel A is configured in JTAG mode to support the JTAG chain
+• Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections
+• Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections
+• Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections
+</code></pre>
+<p>其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</p>
+<p>查询了一下 FT4232H 的文档，发现它的 Channel A 和 Channel B 是支持 MPSSE 模式的，在 MPSSE 模式下，可以当成 JTAG 使用：</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Channel A</th>
+<th>Channel B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCK</td>
+<td>12</td>
+<td>22</td>
+</tr>
+<tr>
+<td>TDI</td>
+<td>13</td>
+<td>23</td>
+</tr>
+<tr>
+<td>TDO</td>
+<td>14</td>
+<td>24</td>
+</tr>
+<tr>
+<td>TMS</td>
+<td>15</td>
+<td>25</td>
+</tr>
+</tbody>
+</table>
+<p>对照 VCU128 的 Schematic 看，虽然引脚的编号不大一样，可以发现，Channel A 和 B 分别对应了 ADBUS0-4 和 BDBUS 0-4，对应到 schematic 上的名字是：</p>
+<ul>
+<li>ADBUS0 - FT4232_TCK</li>
+<li>ADBUS1 - FT4232_TDI</li>
+<li>ADBUS2 - FMCP_HSPC_TDO</li>
+<li>ADBUS3 - FT4232_TMS</li>
+</ul>
+<p>这一组是直接连到 FPGA 上专用的 JTAG 引脚，其中 TDO 是连接了额外的逻辑，可以把 FMC 接口上的 JTAG 连接成 daisy chain。</p>
+<ul>
+<li>ADBUS0 - FTDI_UART0_TXD_LS - UART0_RXD - BP26 -&gt; TCK</li>
+<li>ADBUS1 - FTDI_UART0_RXD_LS - UART0_TXD - BN26 -&gt; TDI</li>
+<li>ADBUS2 - FTDI_UART0_RTS_B_LS - UART0_RTS_B - BP22 -&gt; TDO</li>
+<li>ADBUS3 - FTDI_UART0_CTS_B_LS - UART0_CTS_B - BP23 -&gt; TMS</li>
+</ul>
+<p>这里的 RXD/TXD 名字交换也是很容易看错，要小心，只要记住 FT4232H 要求的顺序一定是 TCK-TDI-TDO-TMS 即可。对应到 vivado 内的 xdc 就是这么写：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span>set_property <span style="color:#f92672">-</span>dict <span style="color:#66d9ef">{</span>PACKAGE_PIN BP26 IOSTANDARD LVCMOS18<span style="color:#66d9ef">}</span> <span style="color:#66d9ef">[</span>get_ports jtag_TCK<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_property <span style="color:#f92672">-</span>dict <span style="color:#66d9ef">{</span>PACKAGE_PIN BN26 IOSTANDARD LVCMOS18<span style="color:#66d9ef">}</span> <span style="color:#66d9ef">[</span>get_ports jtag_TDI<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_property <span style="color:#f92672">-</span>dict <span style="color:#66d9ef">{</span>PACKAGE_PIN BP22 IOSTANDARD LVCMOS18<span style="color:#66d9ef">}</span> <span style="color:#66d9ef">[</span>get_ports jtag_TDO<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_property <span style="color:#f92672">-</span>dict <span style="color:#66d9ef">{</span>PACKAGE_PIN BP23 IOSTANDARD LVCMOS18<span style="color:#66d9ef">}</span> <span style="color:#66d9ef">[</span>get_ports jtag_TMS<span style="color:#66d9ef">]</span>
+</span></span></code></pre></div><p>接下来，我们要把 Rocket Chip 的 JTAG 信号接出来。</p>
+<h2 id="配置-rocket-chip-的-jtag">配置 Rocket Chip 的 JTAG</h2>
+<p>配置 Rocket Chip 的 JTAG，大概需要如下几步：</p>
+<ol>
+<li>给 Config 加上 WithJtagDTM，以 JTAG 作为 DTM 模块</li>
+<li>给 Subsystem 加上 HasPeripheryDebug</li>
+<li>给 SubsystemModuleImp 加上 HasPeripheryDebugModuleImp</li>
+<li>把 JTAG 信号连到自己的顶层模块上</li>
+</ol>
+<p>最后一步的相关代码，首先，按照 spec 要求，把 DM 输出的 ndreset 信号连到整个 Rocket 的 reset 上：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// ndreset can reset all harts
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">val</span> childReset <span style="color:#66d9ef">=</span> reset<span style="color:#f92672">.</span>asBool <span style="color:#f92672">|</span> target<span style="color:#f92672">.</span>debug<span style="color:#f92672">.</span>map<span style="color:#f92672">(</span><span style="color:#66d9ef">_</span><span style="color:#f92672">.</span>ndreset<span style="color:#f92672">).</span>getOrElse<span style="color:#f92672">(</span><span style="color:#66d9ef">false</span><span style="color:#f92672">.</span>B<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>target<span style="color:#f92672">.</span>reset <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> childReset
+</span></span></code></pre></div><p>接着，把 JTAG 的信号连到顶层：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> systemJtag <span style="color:#66d9ef">=</span> target<span style="color:#f92672">.</span>debug<span style="color:#f92672">.</span>get<span style="color:#f92672">.</span>systemjtag<span style="color:#f92672">.</span>get
+</span></span><span style="display:flex;"><span>systemJtag<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TCK</span> <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> io<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TCK</span>
+</span></span><span style="display:flex;"><span>systemJtag<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TMS</span> <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> io<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TMS</span>
+</span></span><span style="display:flex;"><span>systemJtag<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TDI</span> <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> io<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TDI</span>
+</span></span><span style="display:flex;"><span>io<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TDO</span> <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> systemJtag<span style="color:#f92672">.</span>jtag<span style="color:#f92672">.</span><span style="color:#a6e22e">TDO</span>
+</span></span></code></pre></div><p>除了 JTAG 信号以外，还需要配置 IDCODE 相关的变量：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span>systemJtag<span style="color:#f92672">.</span>mfr_id <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> p<span style="color:#f92672">(</span><span style="color:#a6e22e">JtagDTMKey</span><span style="color:#f92672">).</span>idcodeManufId<span style="color:#f92672">.</span>U<span style="color:#f92672">(</span><span style="color:#ae81ff">11.</span>W<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>systemJtag<span style="color:#f92672">.</span>part_number <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> p<span style="color:#f92672">(</span><span style="color:#a6e22e">JtagDTMKey</span><span style="color:#f92672">).</span>idcodePartNum<span style="color:#f92672">.</span>U<span style="color:#f92672">(</span><span style="color:#ae81ff">16.</span>W<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>systemJtag<span style="color:#f92672">.</span>version <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> p<span style="color:#f92672">(</span><span style="color:#a6e22e">JtagDTMKey</span><span style="color:#f92672">).</span>idcodeVersion<span style="color:#f92672">.</span>U<span style="color:#f92672">(</span><span style="color:#ae81ff">4.</span>W<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>最后这一部分比较关键：首先，JTAG 部分的 reset 是独立于其余部分的，这里简单期间就连到了外部的 reset，其实可以改成 FPGA program 的时候进行 reset，然后等时钟来了就释放，实现方法可以参考文末的链接。resetctrl 是给 DM 知道哪些核心被 reset 了，最后是调用 rocket chip 自带的函数。这里踩的一个坑是，传给 systemJtag.reset 一定得是异步的，因为这个时钟域的时钟都是 jtag 的 TCK 信号，所以很可能错过一开始的 reset 信号，所以这里要用异步的 reset。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// MUST use async reset here
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// otherwise the internal logic(e.g. TLXbar) might not function
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// if reset deasserted before TCK rises
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>systemJtag<span style="color:#f92672">.</span>reset <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> reset<span style="color:#f92672">.</span>asAsyncReset
+</span></span><span style="display:flex;"><span>target<span style="color:#f92672">.</span>resetctrl<span style="color:#f92672">.</span>foreach <span style="color:#f92672">{</span> rc <span style="color:#66d9ef">=&gt;</span>
+</span></span><span style="display:flex;"><span>  rc<span style="color:#f92672">.</span>hartIsInReset<span style="color:#f92672">.</span>foreach <span style="color:#f92672">{</span> <span style="color:#66d9ef">_</span> <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> childReset <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Debug</span><span style="color:#f92672">.</span>connectDebugClockAndReset<span style="color:#f92672">(</span>target<span style="color:#f92672">.</span>debug<span style="color:#f92672">,</span> clock<span style="color:#f92672">)</span>
+</span></span></code></pre></div><h2 id="配置-jtag-相关的约束">配置 JTAG 相关的约束</h2>
+<p>这部分是参考了 pulp 的 VCU118 中 jtag 信号的约束文件。照着抄就行：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span>create_clock <span style="color:#f92672">-</span>period <span style="color:#ae81ff">100.000</span> <span style="color:#f92672">-</span>name jtag_TCK <span style="color:#66d9ef">[</span>get_ports jtag_TCK<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_input_jitter jtag_TCK <span style="color:#ae81ff">1.000</span>
+</span></span><span style="display:flex;"><span>set_property CLOCK_DEDICATED_ROUTE FALSE <span style="color:#66d9ef">[</span>get_nets jtag_TCK_IBUF_inst<span style="color:#f92672">/</span>O<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_input_delay <span style="color:#f92672">-</span>clock jtag_TCK <span style="color:#f92672">-</span>clock_fall <span style="color:#ae81ff">5.000</span> <span style="color:#66d9ef">[</span>get_ports jtag_TDI<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_input_delay <span style="color:#f92672">-</span>clock jtag_TCK <span style="color:#f92672">-</span>clock_fall <span style="color:#ae81ff">5.000</span> <span style="color:#66d9ef">[</span>get_ports jtag_TMS<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_output_delay <span style="color:#f92672">-</span>clock jtag_TCK <span style="color:#ae81ff">5.000</span> <span style="color:#66d9ef">[</span>get_ports jtag_TDO<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>set_max_delay <span style="color:#f92672">-</span>to <span style="color:#66d9ef">[</span>get_ports jtag_TDO<span style="color:#66d9ef">]</span> <span style="color:#ae81ff">20.000</span>
+</span></span><span style="display:flex;"><span>set_max_delay <span style="color:#f92672">-</span>from <span style="color:#66d9ef">[</span>get_ports jtag_TMS<span style="color:#66d9ef">]</span> <span style="color:#ae81ff">20.000</span>
+</span></span><span style="display:flex;"><span>set_max_delay <span style="color:#f92672">-</span>from <span style="color:#66d9ef">[</span>get_ports jtag_TDI<span style="color:#66d9ef">]</span> <span style="color:#ae81ff">20.000</span>
+</span></span><span style="display:flex;"><span>set_clock_groups <span style="color:#f92672">-</span>asynchronous <span style="color:#f92672">-</span>group <span style="color:#66d9ef">[</span>get_clocks jtag_TCK<span style="color:#66d9ef">]</span> <span style="color:#f92672">-</span>group <span style="color:#66d9ef">[</span>get_clocks <span style="color:#f92672">-</span>of_objects <span style="color:#66d9ef">[</span>get_pins system_i<span style="color:#f92672">/</span>clk_wiz_0<span style="color:#f92672">/</span>inst<span style="color:#f92672">/</span>mmcme4_adv_inst<span style="color:#f92672">/</span>CLKOUT1<span style="color:#66d9ef">]]</span>
+</span></span><span style="display:flex;"><span>set_property ASYNC_REG TRUE <span style="color:#66d9ef">[</span>get_cells <span style="color:#f92672">-</span>hier <span style="color:#f92672">-</span>regexp <span style="color:#e6db74">&#34;system_i/rocketchip_wrapper_0/.*/cdc_reg_reg.*&#34;</span><span style="color:#66d9ef">]</span>
+</span></span></code></pre></div><p>和原版本稍微改了一下，一个区别是 <code>set_clock_groups</code> 的时候，第二个时钟参数用的是 Clocking Wizard 的输出，同时也是 Rocket Chip 自己的时钟输入；另一个区别是用的 ASYNC_REG 查询语句不大一样。我没有具体分析过这些约束为什么这么写，不确定这些约束是否都合理，是否都是需要的，没有测试过不带这些约束会不会出问题。</p>
+<h2 id="运行-openocd-和-gdb">运行 OpenOCD 和 GDB</h2>
+<p>最后，采用如下的 OpenOCD 配置来连接：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span><span style="color:#75715e"># openocd config
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"># use ftdi channel 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"># vcu128 uart0 as jtag
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>adapter speed <span style="color:#ae81ff">10000</span>
+</span></span><span style="display:flex;"><span>adapter driver ftdi
+</span></span><span style="display:flex;"><span>ftdi_vid_pid <span style="color:#ae81ff">0x0403</span> <span style="color:#ae81ff">0x6011</span> <span style="color:#960050;background-color:#1e0010">#</span> FT4232H
+</span></span><span style="display:flex;"><span>ftdi_layout_init <span style="color:#ae81ff">0x0008</span> <span style="color:#ae81ff">0x000b</span> <span style="color:#960050;background-color:#1e0010">#</span> Output: TCK TDI TMS
+</span></span><span style="display:flex;"><span>ftdi_tdo_sample_edge falling
+</span></span><span style="display:flex;"><span>ftdi_channel <span style="color:#ae81ff">1</span> <span style="color:#960050;background-color:#1e0010">#</span> channel B
+</span></span><span style="display:flex;"><span>reset_config none
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">set</span> _CHIPNAME riscv
+</span></span><span style="display:flex;"><span>jtag newtap $_CHIPNAME cpu <span style="color:#f92672">-</span>irlen <span style="color:#ae81ff">5</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">set</span> _TARGETNAME $_CHIPNAME.cpu
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>target create $_TARGETNAME.0 riscv <span style="color:#f92672">-</span>chain-position $_TARGETNAME
+</span></span><span style="display:flex;"><span>$_TARGETNAME.0 configure <span style="color:#f92672">-</span>work-area-phys <span style="color:#ae81ff">0x80000000</span> <span style="color:#f92672">-</span>work-area-size <span style="color:#ae81ff">10000</span> <span style="color:#f92672">-</span>work-area-backup <span style="color:#ae81ff">1</span>
+</span></span></code></pre></div><p>然后就可以连接到 Rocket Chip 上：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>&gt; openocd -f openocd.cfg
+</span></span><span style="display:flex;"><span>Open On-Chip Debugger 0.11.0-rc2
+</span></span><span style="display:flex;"><span>Licensed under GNU GPL v2
+</span></span><span style="display:flex;"><span>For bug reports, read
+</span></span><span style="display:flex;"><span>        http://openocd.org/doc/doxygen/bugs.html
+</span></span><span style="display:flex;"><span>Info : auto-selecting first available session transport <span style="color:#e6db74">&#34;jtag&#34;</span>. To override use <span style="color:#e6db74">&#39;transport select &lt;transport&gt;&#39;</span>.
+</span></span><span style="display:flex;"><span>Info : Listening on port <span style="color:#ae81ff">6666</span> <span style="color:#66d9ef">for</span> tcl connections
+</span></span><span style="display:flex;"><span>Info : Listening on port <span style="color:#ae81ff">4444</span> <span style="color:#66d9ef">for</span> telnet connections
+</span></span><span style="display:flex;"><span>Info : clock speed <span style="color:#ae81ff">10000</span> kHz
+</span></span><span style="display:flex;"><span>Info : JTAG tap: riscv.cpu tap/device found: 0x10000913 <span style="color:#f92672">(</span>mfg: 0x489 <span style="color:#f92672">(</span>SiFive Inc<span style="color:#f92672">)</span>, part: 0x0000, ver: 0x1<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Info : datacount<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span> progbufsize<span style="color:#f92672">=</span><span style="color:#ae81ff">16</span>
+</span></span><span style="display:flex;"><span>Info : Disabling abstract command reads from CSRs.
+</span></span><span style="display:flex;"><span>Info : Examined RISC-V core; found <span style="color:#ae81ff">1</span> harts
+</span></span><span style="display:flex;"><span>Info :  hart 0: XLEN<span style="color:#f92672">=</span>64, misa<span style="color:#f92672">=</span>0x800000000094112d
+</span></span><span style="display:flex;"><span>Info : starting gdb server <span style="color:#66d9ef">for</span> riscv.cpu.0 on <span style="color:#ae81ff">3333</span>
+</span></span><span style="display:flex;"><span>Info : Listening on port <span style="color:#ae81ff">3333</span> <span style="color:#66d9ef">for</span> gdb connections
+</span></span><span style="display:flex;"><span>&gt; riscv64-unknown-elf-gdb
+</span></span><span style="display:flex;"><span><span style="color:#f92672">(</span>gdb<span style="color:#f92672">)</span> target remote localhost:3333
+</span></span><span style="display:flex;"><span>Remote debugging using localhost:3333
+</span></span><span style="display:flex;"><span>0x00000000800001a4 in ?? <span style="color:#f92672">()</span>
+</span></span></code></pre></div><p>可以看到调试功能都正常了。</p>
+<h2 id="总结">总结</h2>
+<p>调试这个功能大概花了一天的时间，主要遇到了下面这些问题：</p>
+<ol>
+<li>调试模块的 reset 信号需要是异步的，这个是通过仿真（Remote Bitbang 连接 OpenOCD）调试出来的</li>
+<li>看 schematic 的时候 rxd/txd 搞反了，后来仔细对比才找到了正确的对应关系</li>
+<li>OpenOCD 配置的 irlen 一开始写的不对，dmcontrol 读出来是 0，一直以为是有别的问题，结果改了 irlen 后立马就成功了</li>
+</ol>
+<h2 id="参考">参考</h2>
+<ul>
+<li><a href="https://www.xilinx.com/support/documentation/boards_and_kits/vcu128/ug1302-vcu128-eval-bd.pdf">VCU128 User Guide</a></li>
+<li><a href="https://ftdichip.com/wp-content/uploads/2020/08/DS_FT4232H.pdf">FT4232H</a></li>
+<li><a href="https://github.com/sequencer/rocket-doc/blob/e55f7af549c5859b3c8f5a52c81c4c802153ed60/sanitytests/vcu118/src/DesignKeyWrapper.scala">DesignKeyWrapper from 中国 Chisel 之父 @sequencer</a></li>
+<li><a href="https://github.com/pulp-platform/pulp/blob/770b4e1d69baf7daceaadcb301ba7212a4310577/fpga/pulp-vcu118/constraints/vcu118.xdc">pulp VCU118 constraints</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#前言">前言</a></li>
+    <li><a href="#寻找-jtag-接口">寻找 JTAG 接口</a></li>
+    <li><a href="#配置-rocket-chip-的-jtag">配置 Rocket Chip 的 JTAG</a></li>
+    <li><a href="#配置-jtag-相关的约束">配置 JTAG 相关的约束</a></li>
+    <li><a href="#运行-openocd-和-gdb">运行 OpenOCD 和 GDB</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/fpga">fpga
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/riscv">riscv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/rocketchip">rocketchip
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/jtag">jtag
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/openocd">openocd
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/vcu128">vcu128
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/ft4232">ft4232
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/devops/2022/02/22/k3s-traefik-client-ip/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">解决 k3s 中 traefik 不会转发 X-Forwarded-For 等头部的问题&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

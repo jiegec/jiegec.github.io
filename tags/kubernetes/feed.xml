@@ -6,7 +6,19 @@
     <description>Recent content in kubernetes on 杰哥的{运维,编程,调板子}小笔记</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 02 Apr 2021 23:19:00 +0800</lastBuildDate><atom:link href="https://jia.je/tags/kubernetes/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Tue, 22 Feb 2022 17:20:00 +0800</lastBuildDate><atom:link href="https://jia.je/tags/kubernetes/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>解决 k3s 中 traefik 不会转发 X-Forwarded-For 等头部的问题</title>
+      <link>https://jia.je/devops/2022/02/22/k3s-traefik-client-ip/</link>
+      <pubDate>Tue, 22 Feb 2022 17:20:00 +0800</pubDate>
+      
+      <guid>https://jia.je/devops/2022/02/22/k3s-traefik-client-ip/</guid>
+      <description>背景 把应用迁移到 k3s 中，然后用了 traefik 作为 Ingress Controller，发现无法获得真实的用户 IP 地址，而是 cni 内部的地址。搜索了一番，找到了靠谱的解决方案：
+Traefik Kubernetes Ingress and X-Forwarded-Headers
+具体来说，需要给 traefik 传额外的参数，方法是在 k3s 的配置目录下，添加一个 HelmChartConfig：
+# edit /var/lib/rancher/k3s/server/manifests/traefik-config.yaml # content: apiVersion: helm.cattle.io/v1 kind: HelmChartConfig metadata:  name: traefik  namespace: kube-system spec:  valuesContent: |-  additionalArguments:  - &amp;#34;--entryPoints.web.proxyProtocol.insecure&amp;#34;  - &amp;#34;--entryPoints.web.forwardedHeaders.insecure&amp;#34; 这样相当于让 traefik 信任前一级代理传过来的这些头部。更精细的话，还可以设置信任的 IP 地址范围，不过如果 traefik 不会直接暴露出去，就不用考虑这个问题了。</description>
+    </item>
+    
     <item>
       <title>用 fluentd 收集 k8s 中容器的日志</title>
       <link>https://jia.je/devops/2021/04/02/k8s-fluentd-log-collect/</link>
@@ -18,7 +30,7 @@
 实现 实现主要参考官方的仓库：https://github.com/fluent/fluentd-kubernetes-daemonset。它把一些常用的插件打包到 docker 镜像中，然后提供了一些默认的设置，比如获取 k8s 日志和 pod 日志等等。为了达到我的需求，我希望：
  每个结点上有一个 fluentd 收集日志，forward 到单独的 log server 上的 fluentd log server 上的 fluentd 把收到的日志保存到文件  由于 log server 不由 k8s 管理，所以按照官网的方式手动安装：
 $ curl -L https://toolbelt.treasuredata.com/sh/install-debian-buster-td-agent4.sh | sh 然后，编辑配置 /etc/td-agent/td-agent.conf：
-&amp;lt;source&amp;gt; @type forward @id input_forward bind x.x.x.x &amp;lt;/source&amp;gt; &amp;lt;match **&amp;gt; @type file path /var/log/fluentd/k8s compress gzip &amp;lt;buffer&amp;gt; timekey 1d timekey_use_utc true timekey_wait 10m &amp;lt;/buffer&amp;gt; &amp;lt;/match&amp;gt; 分别设置输入：监听 fluentd forward 协议；输出：设置输出文件，和 buffer 配置。如有需要，可以加鉴权。</description>
+&amp;lt;source&amp;gt;  @type forward  @id input_forward  bind x.x.x.x &amp;lt;/source&amp;gt;  &amp;lt;match **&amp;gt;  @type file  path /var/log/fluentd/k8s  compress gzip  &amp;lt;buffer&amp;gt;  timekey 1d  timekey_use_utc true  timekey_wait 10m  &amp;lt;/buffer&amp;gt; &amp;lt;/match&amp;gt; 分别设置输入：监听 fluentd forward 协议；输出：设置输出文件，和 buffer 配置。如有需要，可以加鉴权。</description>
     </item>
     
     <item>
@@ -30,7 +42,7 @@ $ curl -L https://toolbelt.treasuredata.com/sh/install-debian-buster-td-agent4.s
       <description>背景 在 k8s 集群中部署了 gitlab-runner，并且希望在 gitlab ci 构建完成后，把新的 docker image push 到 private repo，然后更新应用。
 参考文档：Gitlab CI 与 Kubernetes 的结合，Using Docker to build Docker images。
 在 gitlab ci 中构建 docker 镜像 这一步需要 DinD 来实现在容器中构建容器。为了达到这个目的，首先要在 gitlab-runner 的配置中添加一个 volume 来共享 DinD 的证书路径：
-gitlabUrl: REDACTED rbac: create: true runnerRegistrationToken: REDACTED runners: config: |[[runners]] [runners.kubernetes] image = &amp;#34;ubuntu:20.04&amp;#34; privileged = true [[runners.kubernetes.volumes.empty_dir]] name = &amp;#34;docker-certs&amp;#34; mount_path = &amp;#34;/certs/client&amp;#34; medium = &amp;#34;Memory&amp;#34; privileged: true 注意两点：1. privileged 2.</description>
+gitlabUrl: REDACTED rbac:  create: true runnerRegistrationToken: REDACTED runners:  config: |[[runners]] [runners.kubernetes] image = &amp;#34;ubuntu:20.04&amp;#34; privileged = true [[runners.kubernetes.volumes.empty_dir]] name = &amp;#34;docker-certs&amp;#34; mount_path = &amp;#34;/certs/client&amp;#34; medium = &amp;#34;Memory&amp;#34;  privileged: true 注意两点：1.</description>
     </item>
     
     <item>
@@ -70,7 +82,7 @@ sudo apt install -y lvm2 # required kubectl apply -f rook/cluster/examples/kuber
 用 helm 进行配置：
 helm upgrade --install prometheus stable/prometheus 这样就可以了，如果已经有 StorageClass （比如腾讯云的话，CBS 和 CFS），它就能自己起来了，然后在 Lens 里面也可以看到各种 metrics 的可视化。
 如果是自建的单结点的 k8s 集群，那么还需要自己创造 PV，并且把 PVC 绑定上去。我采用的是 local 类型的 PV：
-apiVersion: v1 kind: PersistentVolume metadata: name: pv-volume-1 labels: type: local spec: storageClassName: manual capacity: storage: 10Gi accessModes: - ReadWriteOnce hostPath: path: &amp;#34;/srv/k8s-data-1&amp;#34; --- apiVersion: v1 kind: PersistentVolume metadata: name: pv-volume-2 labels: type: local spec: storageClassName: manual capacity: storage: 10Gi accessModes: - ReadWriteOnce hostPath: path: &amp;#34;/srv/k8s-data-2&amp;#34; 这样，结点上的两个路径分别对应两个 PV，然后只要让 PVC 也用 manual 的 StorageClass 就可以了：</description>
+apiVersion: v1 kind: PersistentVolume metadata:  name: pv-volume-1  labels:  type: local spec:  storageClassName: manual  capacity:  storage: 10Gi  accessModes:  - ReadWriteOnce  hostPath:  path: &amp;#34;/srv/k8s-data-1&amp;#34;  --- apiVersion: v1 kind: PersistentVolume metadata:  name: pv-volume-2  labels:  type: local spec:  storageClassName: manual  capacity:  storage: 10Gi  accessModes:  - ReadWriteOnce  hostPath:  path: &amp;#34;/srv/k8s-data-2&amp;#34; 这样，结点上的两个路径分别对应两个 PV，然后只要让 PVC 也用 manual 的 StorageClass 就可以了：</description>
     </item>
     
     <item>
@@ -80,7 +92,7 @@ apiVersion: v1 kind: PersistentVolume metadata: name: pv-volume-1 labels: type: 
       
       <guid>https://jia.je/devops/2020/04/22/k8s-code-server/</guid>
       <description>实验了一下在 k8s 中部署 code-server，并不复杂，和之前几篇博客的配置是类似的：
-apiVersion: extensions/v1beta1 kind: Deployment metadata: name: code labels: app: code spec: selector: matchLabels: app: code replicas: 1 template: metadata: labels: app: code spec: volumes: - name: code-volume persistentVolumeClaim: claimName: code-pvc initContainers: - name: home-init image: busybox command: [&amp;#34;sh&amp;#34;, &amp;#34;-c&amp;#34;, &amp;#34;chown -R 1000:1000 /home/coder&amp;#34;] volumeMounts: - mountPath: &amp;#34;/home/coder&amp;#34; name: code-volume containers: - image: codercom/code-server:latest imagePullPolicy: Always name: code volumeMounts: - mountPath: &amp;#34;/home/coder&amp;#34; name: code-volume resources: limits: cpu: &amp;#34;0.</description>
+apiVersion: extensions/v1beta1 kind: Deployment metadata:  name: code  labels:  app: code spec:  selector:  matchLabels:  app: code  replicas: 1  template:  metadata:  labels:  app: code  spec:  volumes:  - name: code-volume  persistentVolumeClaim:  claimName: code-pvc  initContainers:  - name: home-init  image: busybox  command: [&amp;#34;sh&amp;#34;, &amp;#34;-c&amp;#34;, &amp;#34;chown -R 1000:1000 /home/coder&amp;#34;]  volumeMounts:  - mountPath: &amp;#34;/home/coder&amp;#34;  name: code-volume  containers:  - image: codercom/code-server:latest  imagePullPolicy: Always  name: code  volumeMounts:  - mountPath: &amp;#34;/home/coder&amp;#34;  name: code-volume  resources:  limits:  cpu: &amp;#34;0.</description>
     </item>
     
     <item>
@@ -92,7 +104,7 @@ apiVersion: extensions/v1beta1 kind: Deployment metadata: name: code labels: app
       <description>实验了一下在 k8s 中部署 CI，在 drone gitlab-ci 和 jenkins 三者中选择了 drone，因为它比较轻量，并且基于 docker，可以用 GitHub 上的仓库，比较方便。
 首先，配置 helm：
 helm repo add drone https://charts.drone.io kubectl create ns drone 参考 drone 的文档，编写 drone-values.yml:
-ingress: enabled: true annotations: kubernetes.io/ingress.class: &amp;#34;nginx&amp;#34; cert-manager.io/cluster-issuer: &amp;#34;letsencrypt-prod&amp;#34; hosts: - host: drone.example.com paths: - &amp;#34;/&amp;#34; tls: - hosts: - drone.example.com secretName: drone-tls env: DRONE_SERVER_HOST: drone.example.com DRONE_SERVER_PROTO: https DRONE_USER_CREATE: username:YOUR_GITHUB_USERNAME,admin:true DRONE_USER_FILTER: YOUR_GITHUB_USERNAME DRONE_RPC_SECRET: REDACTED DRONE_GITHUB_CLIENT_ID: REDACTED DRONE_GITHUB_CLIENT_SECRET: REDACTED 需要首先去 GitHub 上配置 OAuth application，具体参考 drone 的文档。然后，生成一个 secret，设置 admin 用户并只允许 admin 用户使用 drone，防止其他人使用。然后应用：</description>
+ingress:  enabled: true  annotations:  kubernetes.io/ingress.class: &amp;#34;nginx&amp;#34;  cert-manager.io/cluster-issuer: &amp;#34;letsencrypt-prod&amp;#34;  hosts:  - host: drone.example.com  paths:  - &amp;#34;/&amp;#34;  tls:  - hosts:  - drone.example.com  secretName: drone-tls env:  DRONE_SERVER_HOST: drone.example.com  DRONE_SERVER_PROTO: https  DRONE_USER_CREATE: username:YOUR_GITHUB_USERNAME,admin:true  DRONE_USER_FILTER: YOUR_GITHUB_USERNAME  DRONE_RPC_SECRET: REDACTED  DRONE_GITHUB_CLIENT_ID: REDACTED  DRONE_GITHUB_CLIENT_SECRET: REDACTED 需要首先去 GitHub 上配置 OAuth application，具体参考 drone 的文档。然后，生成一个 secret，设置 admin 用户并只允许 admin 用户使用 drone，防止其他人使用。然后应用：</description>
     </item>
     
     <item>
@@ -103,7 +115,7 @@ ingress: enabled: true annotations: kubernetes.io/ingress.class: &amp;#34;nginx&
       <guid>https://jia.je/devops/2020/04/17/k8s-nginx-cert-manager-le/</guid>
       <description>上一篇博客讲了 nginx ingress 的配置，那自然第一步要配上 https。首先配置 cert-manager：
 $ kubectl create namespace cert-manager $ kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.14.1/cert-manager.crds.yaml $ helm repo add jetstack https://charts.jetstack.io $ helm repo update $ helm install \  cert-manager jetstack/cert-manager \  --namespace cert-manager \  --version v0.14.1 然后，配置 Cluster Issuer，应用以下的 yaml：
-apiVersion: cert-manager.io/v1alpha2 kind: ClusterIssuer metadata: name: letsencrypt-prod namespace: cert-manager spec: acme: email: example@example.com server: https://acme-v02.api.letsencrypt.org/directory privateKeySecretRef: name: letsencrypt-prod solvers: - http01: ingress: class: nginx 然后在 ingress 里面进行配置：</description>
+apiVersion: cert-manager.io/v1alpha2 kind: ClusterIssuer metadata:  name: letsencrypt-prod  namespace: cert-manager spec:  acme:  email: example@example.com  server: https://acme-v02.api.letsencrypt.org/directory  privateKeySecretRef:  name: letsencrypt-prod  solvers:  - http01:  ingress:  class: nginx 然后在 ingress 里面进行配置：</description>
     </item>
     
     <item>
@@ -116,7 +128,7 @@ apiVersion: cert-manager.io/v1alpha2 kind: ClusterIssuer metadata: name: letsenc
 方法 首先安装 nginx-ingress：
 $ helm repo add nginx-stable https://helm.nginx.com/stable $ helm repo update $ helm install ingress-controller nginx-stable/nginx-ingress --set controller.service.type=NodePort --set controller.hostNetwork=true 这里给 ingress controller chart 传了两个参数：第一个指定 service 类型是 NodePort，替代默认的 LoadBalancer；第二个指定 ingress controller 直接在节点上监听，这样就可以用节点的公网 IP 访问了。
 然后配一个 ingress：
-apiVersion: networking.k8s.io/v1beta1 kind: Ingress metadata: name: ingress-example annotations: kubernetes.io/ingress.class: &amp;#34;nginx&amp;#34; spec: rules: - host: example.com http: paths: - path: / backend: serviceName: example-service servicePort: 80 然后就可以发现请求被正确路由到 example-service 的 80 端口了。</description>
+apiVersion: networking.k8s.io/v1beta1 kind: Ingress metadata:  name: ingress-example  annotations:  kubernetes.io/ingress.class: &amp;#34;nginx&amp;#34; spec:  rules:  - host: example.com  http:  paths:  - path: /  backend:  serviceName: example-service  servicePort: 80 然后就可以发现请求被正确路由到 example-service 的 80 端口了。</description>
     </item>
     
     <item>
@@ -139,7 +151,7 @@ $ kubectl create -f https://raw.githubusercontent.com/cilium/cilium/v1.6/install
       <guid>https://jia.je/devops/2020/03/14/k8s-gitlab-runner/</guid>
       <description>按照 GitLab 上的教程试着把 gitlab-runner 部署到 k8s 集群上，发现异常地简单，所以简单做个笔记：
 编辑 values.yaml
-gitlabUrl: GITLAB_URL runnerRegistrationToken: &amp;#34;REDACTED&amp;#34; rbac: create: true 此处的信息按照 &amp;ldquo;Set up a specific Runner manually&amp;rdquo; 下面的提示填写。然后用 Helm 进行安装：
+gitlabUrl: GITLAB_URL runnerRegistrationToken: &amp;#34;REDACTED&amp;#34; rbac:  create: true 此处的信息按照 &amp;ldquo;Set up a specific Runner manually&amp;rdquo; 下面的提示填写。然后用 Helm 进行安装：
 $ helm repo add gitlab https://charts.gitlab.io $ kubectl create namespace gitlab-runner $ helm install --namespace gitlab-runner gitlab-runner -f values.yaml gitlab/gitlab-runner 然后去 Kubernetes Dashboard 就可以看到部署的情况，回到 GitLab 也可以看到出现了 “Runners activated for this project” ，表示配置成功。
 参考配置：https://docs.gitlab.com/runner/install/kubernetes.html</description>
     </item>

@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -175,72 +175,72 @@ points.
 </code></pre>
 <p>具体来说，在 <a href="http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf">Reference Manual</a> 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64位，低32位对应整数寄存器，高32位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。</p>
 <p>Linux 处理代码在 <code>arch/alpha/kernel/traps.c</code> 的 <code>do_entArith</code> 函数中。首先判断，如果是 software completion，那就要进行处理；否则直接 SIGFPE 让程序自己处理或者退出。如果是精确异常，那就对 PC-4 进行浮点模拟；如果是非精确异常，就从 trap shadow 的最后一条指令开始往前搜索，并同时记录遇到的指令写入的寄存器，如果发现指令的写入的寄存器已经覆盖了 register write mask，就说明找到了 trap shadow 的开头，则模拟这条指令，然后从下一条开始重新执行。具体代码如下：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">long</span>
-<span style="color:#a6e22e">alpha_fp_emul_imprecise</span> (<span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">pt_regs</span> <span style="color:#f92672">*</span>regs, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> write_mask)
-{
-	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> trigger_pc <span style="color:#f92672">=</span> regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">-</span> <span style="color:#ae81ff">4</span>;
-	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> insn, opcode, rc, si_code <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-
-	<span style="color:#75715e">/*
-</span><span style="color:#75715e">	 * Turn off the bits corresponding to registers that are the
-</span><span style="color:#75715e">	 * target of instructions that set bits in the exception
-</span><span style="color:#75715e">	 * summary register.  We have some slack doing this because a
-</span><span style="color:#75715e">	 * register that is the target of a trapping instruction can
-</span><span style="color:#75715e">	 * be written at most once in the trap shadow.
-</span><span style="color:#75715e">	 *
-</span><span style="color:#75715e">	 * Branches, jumps, TRAPBs, EXCBs and calls to PALcode all
-</span><span style="color:#75715e">	 * bound the trap shadow, so we need not look any further than
-</span><span style="color:#75715e">	 * up to the first occurrence of such an instruction.
-</span><span style="color:#75715e">	 */</span>
-	<span style="color:#66d9ef">while</span> (write_mask) {
-		get_user(insn, (__u32 __user <span style="color:#f92672">*</span>)(trigger_pc));
-		opcode <span style="color:#f92672">=</span> insn <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">26</span>;
-		rc <span style="color:#f92672">=</span> insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x1f</span>;
-
-		<span style="color:#66d9ef">switch</span> (opcode) {
-		      <span style="color:#66d9ef">case</span> OPC_PAL:
-		      <span style="color:#66d9ef">case</span> OPC_JSR:
-		      <span style="color:#66d9ef">case</span> <span style="color:#ae81ff">0x30</span> ... <span style="color:#ae81ff">0x3f</span><span style="color:#f92672">:</span>	<span style="color:#75715e">/* branches */</span>
-			<span style="color:#66d9ef">goto</span> egress;
-
-		      <span style="color:#66d9ef">case</span> OPC_MISC:
-			<span style="color:#66d9ef">switch</span> (insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffff</span>) {
-			      <span style="color:#66d9ef">case</span> MISC_TRAPB:
-			      <span style="color:#66d9ef">case</span> MISC_EXCB:
-				<span style="color:#66d9ef">goto</span> egress;
-
-			      <span style="color:#66d9ef">default</span><span style="color:#f92672">:</span>
-				<span style="color:#66d9ef">break</span>;
-			}
-			<span style="color:#66d9ef">break</span>;
-
-		      <span style="color:#66d9ef">case</span> OPC_INTA:
-		      <span style="color:#66d9ef">case</span> OPC_INTL:
-		      <span style="color:#66d9ef">case</span> OPC_INTS:
-		      <span style="color:#66d9ef">case</span> OPC_INTM:
-			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> rc);
-			<span style="color:#66d9ef">break</span>;
-
-		      <span style="color:#66d9ef">case</span> OPC_FLTC:
-		      <span style="color:#66d9ef">case</span> OPC_FLTV:
-		      <span style="color:#66d9ef">case</span> OPC_FLTI:
-		      <span style="color:#66d9ef">case</span> OPC_FLTL:
-			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> (rc <span style="color:#f92672">+</span> <span style="color:#ae81ff">32</span>));
-			<span style="color:#66d9ef">break</span>;
-		}
-		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>write_mask) {
-			<span style="color:#75715e">/* Re-execute insns in the trap-shadow.  */</span>
-			regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">=</span> trigger_pc <span style="color:#f92672">+</span> <span style="color:#ae81ff">4</span>;
-			si_code <span style="color:#f92672">=</span> alpha_fp_emul(trigger_pc);
-			<span style="color:#66d9ef">goto</span> egress;
-		}
-		trigger_pc <span style="color:#f92672">-=</span> <span style="color:#ae81ff">4</span>;
-	}
-
-egress:
-	<span style="color:#66d9ef">return</span> si_code;
-}
-</code></pre></div><p>ARM 架构也有 imprecise asynchronous external abort：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">long</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">alpha_fp_emul_imprecise</span> (<span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">pt_regs</span> <span style="color:#f92672">*</span>regs, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> write_mask)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> trigger_pc <span style="color:#f92672">=</span> regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">-</span> <span style="color:#ae81ff">4</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> insn, opcode, rc, si_code <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Turn off the bits corresponding to registers that are the
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * target of instructions that set bits in the exception
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * summary register.  We have some slack doing this because a
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * register that is the target of a trapping instruction can
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * be written at most once in the trap shadow.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Branches, jumps, TRAPBs, EXCBs and calls to PALcode all
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * bound the trap shadow, so we need not look any further than
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * up to the first occurrence of such an instruction.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">while</span> (write_mask) {
+</span></span><span style="display:flex;"><span>		get_user(insn, (__u32 __user <span style="color:#f92672">*</span>)(trigger_pc));
+</span></span><span style="display:flex;"><span>		opcode <span style="color:#f92672">=</span> insn <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">26</span>;
+</span></span><span style="display:flex;"><span>		rc <span style="color:#f92672">=</span> insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x1f</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">switch</span> (opcode) {
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_PAL:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_JSR:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> <span style="color:#ae81ff">0x30</span> ... <span style="color:#ae81ff">0x3f</span><span style="color:#f92672">:</span>	<span style="color:#75715e">/* branches */</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> egress;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_MISC:
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">switch</span> (insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffff</span>) {
+</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">case</span> MISC_TRAPB:
+</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">case</span> MISC_EXCB:
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">goto</span> egress;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">default</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTA:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTL:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTS:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTM:
+</span></span><span style="display:flex;"><span>			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> rc);
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTC:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTV:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTI:
+</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTL:
+</span></span><span style="display:flex;"><span>			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> (rc <span style="color:#f92672">+</span> <span style="color:#ae81ff">32</span>));
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>write_mask) {
+</span></span><span style="display:flex;"><span>			<span style="color:#75715e">/* Re-execute insns in the trap-shadow.  */</span>
+</span></span><span style="display:flex;"><span>			regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">=</span> trigger_pc <span style="color:#f92672">+</span> <span style="color:#ae81ff">4</span>;
+</span></span><span style="display:flex;"><span>			si_code <span style="color:#f92672">=</span> alpha_fp_emul(trigger_pc);
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> egress;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		trigger_pc <span style="color:#f92672">-=</span> <span style="color:#ae81ff">4</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>egress:
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> si_code;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>ARM 架构也有 imprecise asynchronous external abort：</p>
 <pre><code>Normally, external aborts are rare. An imprecise asynchronous external
 abort is likely to be fatal to the process that is running. An example
 of an event that might cause an external abort is an uncorrectable
@@ -261,6 +261,7 @@ external aborts precise wherever possible.
 <p>首先，我们希望前端能够尽可能快地取指令，前端的取指能力要和后端匹配，比如对于一个四发射的 CPU，前端对应地需要一个周期取 <code>4*4=16</code> 字节的指令。但是，这 16 字节可能是 4 条非压缩指令，也可能是 8 条压缩指令，也可能是混合的情况。所以，这里会出现一个可能出现指令条数不匹配的情况，所以中间可以添加一个 Fetch Buffer，比如 <a href="https://github.com/riscv-boom/riscv-boom">BOOM</a> 的实现中，L1 ICache 每周期读取 16 字节，然后进行预译码，出来 8 条指令，保存到 Fetch Buffer 中。这里需要考虑以下几点：首先从 ICache 读取的数据是对齐的，但是 PC 可能不是，比如中间的地址。其次，可能一个 4 字节的非压缩指令跨越了两次 Fetch，比如前 2 个字节在前一个 Fetch Bundle，后 2 个字节在后一个 Fetch Bundle；此外，每个 2 字节的边界都需要判断一下是压缩指令还是非压缩指令。一个非常特殊的情况就是，一个 4 字节的指令跨越了两个页，所以两个页都需要查询页表；如果恰好在第二个页处发生了页缺失，此时 epc 是指令的起始地址，但 tval 是第二个页的地址，这样内核才知道是哪个页发生了缺失。</p>
 <p>其次，需要配合分支预测。如果需要保证分支预测正确的情况下，能够在循环中达到接近 100% 的性能，那么，在 Fetch 分支结尾的分支指令的同时，需要保证下一次 Fetch 已经得到了分支预测的目的地址。这个就是 BOOM 里面的 L0 BTB (1-cycle redirect)。但是，一个周期内完成的分支预测，它的面积肯定不能大，否则时序无法满足，所以 BOOM 里面还设计了 2-cycle 和 3-cycle 的比较高级的分支预测器，还有针对函数调用的 RAS（Return Address Stack）。</p>
 <p>分支预测也有很多方法。比较简单的方法是实现一个 BHT，每个项是一个 2 位的饱和计数器，超过一半的时候增加，少于一半时减少。但是，如果遇到了跳转/不跳转/跳转/不跳转这种来回切换的情况，准确率就很低。一个复杂一些的设计，就是用 BHR，记录这个分支指令最近几次的历史，对于每种可能的历史，都对应一个 2 位的饱和计数器。这样，遇到刚才所说的情况就会很好地预测。但实践中会遇到问题：如果在写回之前，又进行了一次预测，因为预测是在取指的时候做的，但是更新 BPU 是在写回的时候完成的，这时候预测就是基于旧的状态进行预测，这时候 BHR 就会出现不准确的问题；而且写回 BPU 的时候，会按照原来的状态进行更新，这个状态可能也是错误的，导致丢失一次更新，识别的模式从跳转/不跳转/跳转/不跳转变成了跳转/跳转/跳转/不跳转，这样又会预测错误。一个解决办法是，在取指阶段，BPU 预测完就立即按照预测的结果更新 BHR，之后写回阶段会恢复到实际的 BHR 取值。论文 <a href="https://dl.acm.org/doi/10.1145/192724.192756">The effect of speculatively updating branch history on branch prediction accuracy, revisited</a> 和 <a href="https://jilp.org/vol2/v2paper1.pdf">Speculative Updates of Local and Global Branch History: A Quantitative Analysis</a> 讨论了这个实现方式对性能的影响。</p>
+<p>比较容易做预测更新和恢复的是全局分支历史，可以维护两个 GHR（Global History Register），一个是目前取指令最新的，一个是提交的最新的。在预测的时候，用 GHR 去找对应的 2-bit 状态，然后把预测结果更新到 GHR 上。在预测失败的时候，把 GHR 恢复为提交的状态。如果要支持一个 Fetch Packet 中有多个分支，可以让 GHR 对应若干个 2-bit 状态，分别对应相应位置上的分支的状态，当然这样面积也会增加很多。</p>
 <h2 id="处理器内存仿真模型">处理器/内存仿真模型</h2>
 <ul>
 <li>gem5: <a href="https://arxiv.org/abs/2007.03152">论文</a> <a href="https://gem5.googlesource.com/public/gem5">代码</a></li>
@@ -391,7 +392,7 @@ external aborts precise wherever possible.
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

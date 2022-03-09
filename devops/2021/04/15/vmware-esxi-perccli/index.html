@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -91,116 +91,115 @@
 </ol>
 <h2 id="安装-perccli">安装 PERCCli</h2>
 <p>首先，因为系统是 VMware ESXi 6.7，所以在<a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">DELL 官网</a>下载对应的文件。按照里面的 README 安装 vib：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">esxcli software vib install -v /vmware-perccli-007.1420.vib
-</code></pre></div><p>如果要升级系统，需要先卸载 vib：<code>esxcli software vib remove -n vmware-perccli</code>，因为升级的时候会发现缺少新版系统的 perccli，建议先卸载，升级后再安装新的。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>esxcli software vib install -v /vmware-perccli-007.1420.vib
+</span></span></code></pre></div><p>如果要升级系统，需要先卸载 vib：<code>esxcli software vib remove -n vmware-perccli</code>，因为升级的时候会发现缺少新版系统的 perccli，建议先卸载，升级后再安装新的。</p>
 <p>需要注意的是，如果复制上去 Linux 版本的 PERCCli，虽然也可以运行，但是找不到控制器。安装好以后，就可以运行 <code>/opt/lsi/perccli/perccli</code> 。接着，运行 <code>perccli show all</code>，可以看到类似下面的信息：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli show all
---------------------------------------------------------------------------------
-EID:Slt DID State  DG     Size Intf Med SED PI SeSz Model               Sp Type
---------------------------------------------------------------------------------
-32:2      <span style="color:#ae81ff">2</span> Failed  <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
-32:4      <span style="color:#ae81ff">4</span> UGood   F 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
---------------------------------------------------------------------------------
-</code></pre></div><p>其中 E32S2 是 Failed 的盘，属于 Disk Group 1；E32S4 是新插入的盘，准备替换掉 E32S2，目前不属于任何的 Disk Group。查看一下 Disk Group ：<code>perccli /c0/dall show</code></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/dall show
------------------------------------------------------------------------------
-DG Arr Row EID:Slot DID Type  State BT       Size PDC  PI SED DS3  FSpace TR
------------------------------------------------------------------------------
- <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd   N    7.276 TB dflt N  N   dflt N      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd   N    7.276 TB dflt N  N   dflt N      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:2     <span style="color:#ae81ff">2</span>   DRIVE Failed N    3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
-</code></pre></div><p>可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 <a href="https://dl.dell.com/topicspdf/cli_guide_en-us.pdf">PERCCli 文档</a>，它告诉我们要这么做：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set offline
-perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set missing
-perccli /cx /dall show
-perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx insert dg<span style="color:#f92672">=</span>a array<span style="color:#f92672">=</span>b row<span style="color:#f92672">=</span>c
-perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx start rebuild
-</code></pre></div><p>具体到我们这个情景，就是把 E32S2 设为 offline，然后用 E32S4 来替换它：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">perccli /c0/e32/s2 set offline
-perccli /c0/e32/s2 set missing
-perccli /cx /dall show
-perccli /cx/e32/s4 insert dg<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> array<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> row<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>
-perccli /cx/e32/s4 start rebuild
-</code></pre></div><p>完成以后的状态：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">TOPOLOGY :
-<span style="color:#f92672">========</span>
-
----------------------------------------------------------------------------
-DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
----------------------------------------------------------------------------
- <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:4     <span style="color:#ae81ff">4</span>   DRIVE Rbld  Y  3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
----------------------------------------------------------------------------
-</code></pre></div><p>可以看到 E32S4 替换了原来 E32S2 的位置，并且开始重建。查看重建进度：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/32/s4 show rebuild
------------------------------------------------------
-Drive-ID   Progress% Status      Estimated Time Left
------------------------------------------------------
-/c0/e32/s4         <span style="color:#ae81ff">3</span> In progress -
------------------------------------------------------
-$ perccli show all
-Need Attention :
-<span style="color:#f92672">==============</span>
-
-Controller <span style="color:#ae81ff">0</span> :
-<span style="color:#f92672">============</span>
-
--------------------------------------------------------------------------------
-EID:Slt DID State DG     Size Intf Med SED PI SeSz Model               Sp Type
--------------------------------------------------------------------------------
-32:4      <span style="color:#ae81ff">4</span> Rbld   <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
--------------------------------------------------------------------------------
-</code></pre></div><p>然后，查看一下出错的盘：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 show all
-Drive /c0/e32/s2 State :
-<span style="color:#f92672">======================</span>
-Shield Counter <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
-Media Error Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
-Other Error Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>
-Drive Temperature <span style="color:#f92672">=</span>  36C <span style="color:#f92672">(</span>96.80 F<span style="color:#f92672">)</span>
-Predictive Failure Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
-S.M.A.R.T alert flagged by drive <span style="color:#f92672">=</span> No
-</code></pre></div><p>果然有错误，但是也看不到更多信息了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ perccli show all
+</span></span><span style="display:flex;"><span>--------------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>EID:Slt DID State  DG     Size Intf Med SED PI SeSz Model               Sp Type
+</span></span><span style="display:flex;"><span>--------------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>32:2      <span style="color:#ae81ff">2</span> Failed  <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
+</span></span><span style="display:flex;"><span>32:4      <span style="color:#ae81ff">4</span> UGood   F 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
+</span></span><span style="display:flex;"><span>--------------------------------------------------------------------------------
+</span></span></code></pre></div><p>其中 E32S2 是 Failed 的盘，属于 Disk Group 1；E32S4 是新插入的盘，准备替换掉 E32S2，目前不属于任何的 Disk Group。查看一下 Disk Group ：<code>perccli /c0/dall show</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ perccli /c0/dall show
+</span></span><span style="display:flex;"><span>-----------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>DG Arr Row EID:Slot DID Type  State BT       Size PDC  PI SED DS3  FSpace TR
+</span></span><span style="display:flex;"><span>-----------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd   N    7.276 TB dflt N  N   dflt N      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd   N    7.276 TB dflt N  N   dflt N      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:2     <span style="color:#ae81ff">2</span>   DRIVE Failed N    3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
+</span></span></code></pre></div><p>可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 <a href="https://dl.dell.com/topicspdf/cli_guide_en-us.pdf">PERCCli 文档</a>，它告诉我们要这么做：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set offline
+</span></span><span style="display:flex;"><span>perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx set missing
+</span></span><span style="display:flex;"><span>perccli /cx /dall show
+</span></span><span style="display:flex;"><span>perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx insert dg<span style="color:#f92672">=</span>a array<span style="color:#f92672">=</span>b row<span style="color:#f92672">=</span>c
+</span></span><span style="display:flex;"><span>perccli /cx<span style="color:#f92672">[</span>/ex<span style="color:#f92672">]</span>/sx start rebuild
+</span></span></code></pre></div><p>具体到我们这个情景，就是把 E32S2 设为 offline，然后用 E32S4 来替换它：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>perccli /c0/e32/s2 set offline
+</span></span><span style="display:flex;"><span>perccli /c0/e32/s2 set missing
+</span></span><span style="display:flex;"><span>perccli /cx /dall show
+</span></span><span style="display:flex;"><span>perccli /cx/e32/s4 insert dg<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> array<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> row<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>perccli /cx/e32/s4 start rebuild
+</span></span></code></pre></div><p>完成以后的状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>TOPOLOGY :
+</span></span><span style="display:flex;"><span><span style="color:#f92672">========</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
+</span></span><span style="display:flex;"><span>---------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:4     <span style="color:#ae81ff">4</span>   DRIVE Rbld  Y  3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span>---------------------------------------------------------------------------
+</span></span></code></pre></div><p>可以看到 E32S4 替换了原来 E32S2 的位置，并且开始重建。查看重建进度：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ perccli /c0/32/s4 show rebuild
+</span></span><span style="display:flex;"><span>-----------------------------------------------------
+</span></span><span style="display:flex;"><span>Drive-ID   Progress% Status      Estimated Time Left
+</span></span><span style="display:flex;"><span>-----------------------------------------------------
+</span></span><span style="display:flex;"><span>/c0/e32/s4         <span style="color:#ae81ff">3</span> In progress -
+</span></span><span style="display:flex;"><span>-----------------------------------------------------
+</span></span><span style="display:flex;"><span>$ perccli show all
+</span></span><span style="display:flex;"><span>Need Attention :
+</span></span><span style="display:flex;"><span><span style="color:#f92672">==============</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Controller <span style="color:#ae81ff">0</span> :
+</span></span><span style="display:flex;"><span><span style="color:#f92672">============</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>-------------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>EID:Slt DID State DG     Size Intf Med SED PI SeSz Model               Sp Type
+</span></span><span style="display:flex;"><span>-------------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>32:4      <span style="color:#ae81ff">4</span> Rbld   <span style="color:#ae81ff">1</span> 3.637 TB SATA HDD N   N  512B ST4000NM0033-9ZM170 U  -
+</span></span><span style="display:flex;"><span>-------------------------------------------------------------------------------
+</span></span></code></pre></div><p>然后，查看一下出错的盘：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ perccli /c0/e32/s2 show all
+</span></span><span style="display:flex;"><span>Drive /c0/e32/s2 State :
+</span></span><span style="display:flex;"><span><span style="color:#f92672">======================</span>
+</span></span><span style="display:flex;"><span>Shield Counter <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>Media Error Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>Other Error Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>
+</span></span><span style="display:flex;"><span>Drive Temperature <span style="color:#f92672">=</span>  36C <span style="color:#f92672">(</span>96.80 F<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Predictive Failure Count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>S.M.A.R.T alert flagged by drive <span style="color:#f92672">=</span> No
+</span></span></code></pre></div><p>果然有错误，但是也看不到更多信息了。</p>
 <p>坏块统计：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0 show badblocks
-Detailed Status :
-<span style="color:#f92672">===============</span>
-
--------------------------------------------------------------
-Ctrl Status Ctrl_Prop       Value ErrMsg               ErrCd
--------------------------------------------------------------
-   <span style="color:#ae81ff">0</span> Failed Bad Block Count -     BadBlockCount failed     <span style="color:#ae81ff">2</span>
--------------------------------------------------------------
-
-</code></pre></div><p>经过检查以后，发现 E32S2 盘的 SMART 并没有报告什么问题，所以也没有把盘取走，而是作为 hot spare 当备用：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ perccli /c0/e32/s2 add hotsparedrive DG<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>
-$ perccli /c0/d1 show
-TOPOLOGY :
-<span style="color:#f92672">========</span>
-
----------------------------------------------------------------------------
-DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
----------------------------------------------------------------------------
- <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:4     <span style="color:#ae81ff">4</span>   DRIVE Rbld  Y  3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
- <span style="color:#ae81ff">1</span> -   -   32:2     <span style="color:#ae81ff">2</span>   DRIVE DHS   -  3.637 TB -    -  -   -    -      N
----------------------------------------------------------------------------
-
-DG<span style="color:#f92672">=</span>Disk Group Index|Arr<span style="color:#f92672">=</span>Array Index|Row<span style="color:#f92672">=</span>Row Index|EID<span style="color:#f92672">=</span>Enclosure Device ID
-DID<span style="color:#f92672">=</span>Device ID|Type<span style="color:#f92672">=</span>Drive Type|Onln<span style="color:#f92672">=</span>Online|Rbld<span style="color:#f92672">=</span>Rebuild|Optl<span style="color:#f92672">=</span>Optimal|Dgrd<span style="color:#f92672">=</span>Degraded
-Pdgd<span style="color:#f92672">=</span>Partially degraded|Offln<span style="color:#f92672">=</span>Offline|BT<span style="color:#f92672">=</span>Background Task Active
-PDC<span style="color:#f92672">=</span>PD Cache|PI<span style="color:#f92672">=</span>Protection Info|SED<span style="color:#f92672">=</span>Self Encrypting Drive|Frgn<span style="color:#f92672">=</span>Foreign
-DS3<span style="color:#f92672">=</span>Dimmer Switch 3|dflt<span style="color:#f92672">=</span>Default|Msng<span style="color:#f92672">=</span>Missing|FSpace<span style="color:#f92672">=</span>Free Space Present
-TR<span style="color:#f92672">=</span>Transport Ready
-</code></pre></div><p>这样就可以做后备盘，当别的盘坏的时候，作为备用。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ perccli /c0 show badblocks
+</span></span><span style="display:flex;"><span>Detailed Status :
+</span></span><span style="display:flex;"><span><span style="color:#f92672">===============</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>-------------------------------------------------------------
+</span></span><span style="display:flex;"><span>Ctrl Status Ctrl_Prop       Value ErrMsg               ErrCd
+</span></span><span style="display:flex;"><span>-------------------------------------------------------------
+</span></span><span style="display:flex;"><span>   <span style="color:#ae81ff">0</span> Failed Bad Block Count -     BadBlockCount failed     <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>-------------------------------------------------------------
+</span></span></code></pre></div><p>经过检查以后，发现 E32S2 盘的 SMART 并没有报告什么问题，所以也没有把盘取走，而是作为 hot spare 当备用：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ perccli /c0/e32/s2 add hotsparedrive DG<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>$ perccli /c0/d1 show
+</span></span><span style="display:flex;"><span>TOPOLOGY :
+</span></span><span style="display:flex;"><span><span style="color:#f92672">========</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>DG Arr Row EID:Slot DID Type  State BT     Size PDC  PI SED DS3  FSpace TR
+</span></span><span style="display:flex;"><span>---------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> -   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   -   -        -   RAID5 Dgrd  N  7.276 TB dflt N  N   dflt N      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">0</span>   32:1     <span style="color:#ae81ff">1</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">1</span>   32:4     <span style="color:#ae81ff">4</span>   DRIVE Rbld  Y  3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span>   <span style="color:#ae81ff">2</span>   32:3     <span style="color:#ae81ff">3</span>   DRIVE Onln  N  3.637 TB dflt N  N   dflt -      N
+</span></span><span style="display:flex;"><span> <span style="color:#ae81ff">1</span> -   -   32:2     <span style="color:#ae81ff">2</span>   DRIVE DHS   -  3.637 TB -    -  -   -    -      N
+</span></span><span style="display:flex;"><span>---------------------------------------------------------------------------
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>DG<span style="color:#f92672">=</span>Disk Group Index|Arr<span style="color:#f92672">=</span>Array Index|Row<span style="color:#f92672">=</span>Row Index|EID<span style="color:#f92672">=</span>Enclosure Device ID
+</span></span><span style="display:flex;"><span>DID<span style="color:#f92672">=</span>Device ID|Type<span style="color:#f92672">=</span>Drive Type|Onln<span style="color:#f92672">=</span>Online|Rbld<span style="color:#f92672">=</span>Rebuild|Optl<span style="color:#f92672">=</span>Optimal|Dgrd<span style="color:#f92672">=</span>Degraded
+</span></span><span style="display:flex;"><span>Pdgd<span style="color:#f92672">=</span>Partially degraded|Offln<span style="color:#f92672">=</span>Offline|BT<span style="color:#f92672">=</span>Background Task Active
+</span></span><span style="display:flex;"><span>PDC<span style="color:#f92672">=</span>PD Cache|PI<span style="color:#f92672">=</span>Protection Info|SED<span style="color:#f92672">=</span>Self Encrypting Drive|Frgn<span style="color:#f92672">=</span>Foreign
+</span></span><span style="display:flex;"><span>DS3<span style="color:#f92672">=</span>Dimmer Switch 3|dflt<span style="color:#f92672">=</span>Default|Msng<span style="color:#f92672">=</span>Missing|FSpace<span style="color:#f92672">=</span>Free Space Present
+</span></span><span style="display:flex;"><span>TR<span style="color:#f92672">=</span>Transport Ready
+</span></span></code></pre></div><p>这样就可以做后备盘，当别的盘坏的时候，作为备用。</p>
 <h2 id="相关软件下载">相关软件下载</h2>
 <p>可以在<a href="https://www.broadcom.com/products/storage/raid-controllers/megaraid-sas-9361-8i#downloads">这里</a>寻找 StorCLI 版本。</p>
 <p>StorCLI：</p>
@@ -349,7 +348,7 @@ TR<span style="color:#f92672">=</span>Transport Ready
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

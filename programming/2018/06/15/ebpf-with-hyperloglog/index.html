@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -84,58 +84,58 @@
         <div class="article-entry" itemprop="articleBody">
             <p>前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 <a href="https://github.com/jiegec/hll_ebpf">jiegec/hll_ebpf</a> ，大致原理如下：</p>
 <p>由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;maps&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
-    .type <span style="color:#f92672">=</span> BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
-    .value_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
-    .max_entries <span style="color:#f92672">=</span> <span style="color:#ae81ff">256</span>,
-    .pinning <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span> <span style="color:#75715e">// PIN_GLOBAL_NS
-</span><span style="color:#75715e"></span>};
-
-SEC(<span style="color:#e6db74">&#34;out_daddr&#34;</span>)
-<span style="color:#66d9ef">int</span> bpf_out_daddr(<span style="color:#66d9ef">struct</span> __sk_buff <span style="color:#f92672">*</span>skb) {
-  u32 daddr <span style="color:#f92672">=</span> get_daddr(skb);
-  u32 hash <span style="color:#f92672">=</span> Murmur3(daddr, <span style="color:#ae81ff">0</span>);
-  update_hll(<span style="color:#f92672">&amp;</span>hll_ebpf_out_daddr, hash);
-  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
-}
-</code></pre></div><p>首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;maps&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>    .type <span style="color:#f92672">=</span> BPF_MAP_TYPE_PERCPU_ARRAY,
+</span></span><span style="display:flex;"><span>    .key_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
+</span></span><span style="display:flex;"><span>    .value_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
+</span></span><span style="display:flex;"><span>    .max_entries <span style="color:#f92672">=</span> <span style="color:#ae81ff">256</span>,
+</span></span><span style="display:flex;"><span>    .pinning <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span> <span style="color:#75715e">// PIN_GLOBAL_NS
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>SEC(<span style="color:#e6db74">&#34;out_daddr&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> bpf_out_daddr(<span style="color:#66d9ef">struct</span> __sk_buff <span style="color:#f92672">*</span>skb) {
+</span></span><span style="display:flex;"><span>  u32 daddr <span style="color:#f92672">=</span> get_daddr(skb);
+</span></span><span style="display:flex;"><span>  u32 hash <span style="color:#f92672">=</span> Murmur3(daddr, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  update_hll(<span style="color:#f92672">&amp;</span>hll_ebpf_out_daddr, hash);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</p>
 <p>接着，我们可以把这个 eBPF 函数进行编译，并且应用起来：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ export KERN<span style="color:#f92672">=</span>4.16.0-2 <span style="color:#75715e"># or use uname -r with awk, see Makefile</span>
-$ clang -O2 -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/include -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/arch/x86/include -emit-llvm -c bpf.c -o - | llc -march<span style="color:#f92672">=</span>bpf -filetype<span style="color:#f92672">=</span>obj -o bpf.o
-$ export IFACE<span style="color:#f92672">=</span>en0 
-$ sudo tc qdisc add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> clsact <span style="color:#f92672">||</span> true
-$ sudo tc filter del dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> egress
-$ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> egress bpf obj bpf.o sec out_daddr
-$ sudo tc filter del dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress
-$ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress bpf obj bpf.o sec in_saddr
-</code></pre></div><p>我们需要在用户态读出上面这个 MAP 中的内容。由于它是全局的，我们可以在 <code>/sys/fs/bpf/tc/globals</code> 中找到他们。然后，把统计得到的数据进行综合，得到结果：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-c" data-lang="c"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">read_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>file) {
-  <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> bpf_obj_get(file);
-  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>;
-  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> m <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> b;
-  <span style="color:#66d9ef">int</span> M[m] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
-  <span style="color:#66d9ef">int</span> V <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-  <span style="color:#66d9ef">double</span> sum <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-  <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span>m; i<span style="color:#f92672">++</span>) {
-    <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> value[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
-    bpf_map_lookup_elem(fd, <span style="color:#f92672">&amp;</span>i, <span style="color:#f92672">&amp;</span>value);
-    M[i] <span style="color:#f92672">=</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">&gt;</span> value[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">?</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">:</span> value[<span style="color:#ae81ff">1</span>]; <span style="color:#75715e">// assuming 2 CPUs, will change later
-</span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (M[i] <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)
-      V<span style="color:#f92672">++</span>;
-    sum <span style="color:#f92672">+=</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#f92672">-</span>M[i]);
-  }
-  <span style="color:#66d9ef">double</span> E <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.709</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> sum;
-  <span style="color:#66d9ef">if</span> (E <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">5</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>) {
-    <span style="color:#66d9ef">if</span> (V <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
-      E <span style="color:#f92672">=</span> m <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> V);
-    }
-  } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (E<span style="color:#f92672">&gt;</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">/</span> <span style="color:#ae81ff">30</span>) {
-    E <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> E <span style="color:#f92672">/</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>));
-  }
-  printf(<span style="color:#e6db74">&#34;%ld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, lround(E));
-}
-</code></pre></div><p>可以手动通过 <code>nmap</code> 测试，例如扫描一个段，可以看到数据会增长许多。如果扫描相同的段，则数字不会变化，但如果扫描新的段，数字会有变化。这是一个 利用了 eBPF 的 HyperLogLog 的实现。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ export KERN<span style="color:#f92672">=</span>4.16.0-2 <span style="color:#75715e"># or use uname -r with awk, see Makefile</span>
+</span></span><span style="display:flex;"><span>$ clang -O2 -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/include -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/arch/x86/include -emit-llvm -c bpf.c -o - | llc -march<span style="color:#f92672">=</span>bpf -filetype<span style="color:#f92672">=</span>obj -o bpf.o
+</span></span><span style="display:flex;"><span>$ export IFACE<span style="color:#f92672">=</span>en0 
+</span></span><span style="display:flex;"><span>$ sudo tc qdisc add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> clsact <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>$ sudo tc filter del dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> egress
+</span></span><span style="display:flex;"><span>$ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> egress bpf obj bpf.o sec out_daddr
+</span></span><span style="display:flex;"><span>$ sudo tc filter del dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress
+</span></span><span style="display:flex;"><span>$ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress bpf obj bpf.o sec in_saddr
+</span></span></code></pre></div><p>我们需要在用户态读出上面这个 MAP 中的内容。由于它是全局的，我们可以在 <code>/sys/fs/bpf/tc/globals</code> 中找到他们。然后，把统计得到的数据进行综合，得到结果：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">read_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>file) {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> bpf_obj_get(file);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> m <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> b;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> M[m] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> V <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">double</span> sum <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span>m; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> value[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
+</span></span><span style="display:flex;"><span>    bpf_map_lookup_elem(fd, <span style="color:#f92672">&amp;</span>i, <span style="color:#f92672">&amp;</span>value);
+</span></span><span style="display:flex;"><span>    M[i] <span style="color:#f92672">=</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">&gt;</span> value[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">?</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">:</span> value[<span style="color:#ae81ff">1</span>]; <span style="color:#75715e">// assuming 2 CPUs, will change later
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (M[i] <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>      V<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    sum <span style="color:#f92672">+=</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#f92672">-</span>M[i]);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">double</span> E <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.709</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> sum;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (E <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">5</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (V <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>      E <span style="color:#f92672">=</span> m <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> V);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (E<span style="color:#f92672">&gt;</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">/</span> <span style="color:#ae81ff">30</span>) {
+</span></span><span style="display:flex;"><span>    E <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> E <span style="color:#f92672">/</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>));
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  printf(<span style="color:#e6db74">&#34;%ld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, lround(E));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以手动通过 <code>nmap</code> 测试，例如扫描一个段，可以看到数据会增长许多。如果扫描相同的段，则数字不会变化，但如果扫描新的段，数字会有变化。这是一个 利用了 eBPF 的 HyperLogLog 的实现。</p>
 
         </div>
 
@@ -239,7 +239,7 @@ $ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

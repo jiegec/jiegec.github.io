@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -84,45 +84,45 @@
         <div class="article-entry" itemprop="articleBody">
             <p>不久前 RVV 1.0 标准终于是出来了，但是工具链的支持目前基本还处于刚 upstream 还没有 release 的状态。而目前 RVV 1.0 的支持主要在 LLVM 上比较活跃，因此也是采用 LLVM Clang + GCC Newlib Toolchain 的方式进行配合，前者做 RVV 1.0 的编译，后者提供 libc 等基础库。</p>
 <p>LLVM Clang 直接采用 upstream 即可。编译选项：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER<span style="color:#f92672">=</span>clang -DCMAKE_CXX_COMPILER<span style="color:#f92672">=</span>clang++ -DCMAKE_INSTALL_PREFIX<span style="color:#f92672">=</span>/prefix/llvm -DCMAKE_BUILD_TYPE<span style="color:#f92672">=</span>Release -DLLVM_ENABLE_PROJECTS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;clang&#34;</span> -DLLVM_TARGETS_TO_BUILD<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;RISCV&#34;</span>
-$ ninja
-$ ninja install
-$ /prefix/llvm/bin/clang --version
-clang version 14.0.0 <span style="color:#f92672">(</span>https://github.com/llvm/llvm-project.git 8d298355ca3778a47fd6b3110aeee03ea5e8e02b<span style="color:#f92672">)</span>
-Target: x86_64-unknown-linux-gnu
-Thread model: posix
-InstalledDir: /data/llvm/bin
-</code></pre></div><p>还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 <a href="https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.01.17/riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz">riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz</a>。下载以后解压，得到 riscv 目录，GCC 版本是比较新的：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ~/riscv/bin/riscv64-unknown-elf-gcc --version
-riscv64-unknown-elf-gcc <span style="color:#f92672">(</span>GCC<span style="color:#f92672">)</span> 11.1.0
-Copyright <span style="color:#f92672">(</span>C<span style="color:#f92672">)</span> <span style="color:#ae81ff">2021</span> Free Software Foundation, Inc.
-This is free software; see the source <span style="color:#66d9ef">for</span> copying conditions.  There is NO
-warranty; not even <span style="color:#66d9ef">for</span> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-</code></pre></div><p>但是如果编译 C++ 程序，链接的时候就会报错：<code>prefixed ISA extension must separate with _</code>，这是因为 riscv-gnu-toolchain 仓库的 binutils 版本不够新，在 upstream 的 binutils 里面已经修复了这个问题。所以 clone 下来，然后编译，覆盖掉 riscv-gnu-toolchain 里面的 binutils：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ ../configure --target<span style="color:#f92672">=</span>riscv64-unknown-elf --prefix<span style="color:#f92672">=</span>$HOME/riscv --disable-gdb --disable-sim --disable-libdecnumber --disable-readline
-$ make
-$ make install
-$ ~/riscv/bin/riscv64-unknown-elf-ld --version
-GNU ld <span style="color:#f92672">(</span>GNU Binutils<span style="color:#f92672">)</span> 2.38.50.20220125
-Copyright <span style="color:#f92672">(</span>C<span style="color:#f92672">)</span> <span style="color:#ae81ff">2022</span> Free Software Foundation, Inc.
-This program is free software; you may redistribute it under the terms of
-the GNU General Public License version <span style="color:#ae81ff">3</span> or <span style="color:#f92672">(</span>at your option<span style="color:#f92672">)</span> a later version.
-This program has absolutely no warranty.
-</code></pre></div><p>然后编译程序的时候，使用 clang，配置参数 <code>--gcc-toolchain=~/riscv</code> 即可让 clang 找到 GNU 工具链。这样就可以编译出来 RVV 1.0 的程序了：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ /llvm/bin/clang --target<span style="color:#f92672">=</span>riscv64-unknown-elf -O2 -march<span style="color:#f92672">=</span>rv64gcv1p0 -menable-experimental-extensions -mllvm --riscv-v-vector-bits-min<span style="color:#f92672">=</span><span style="color:#ae81ff">256</span> --gcc-toolchain<span style="color:#f92672">=</span>$HOME/riscv add.cpp -o add
-$ /data/llvm/bin/llvm-objdump --mattr<span style="color:#f92672">=</span>+v -S add
-   1020e: <span style="color:#ae81ff">57</span> <span style="color:#ae81ff">70</span> <span style="color:#ae81ff">04</span> c5   vsetivli        zero, 8, e32, m1, ta, mu
-   10212: <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">64</span> <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">02</span>   vle32.v v8, <span style="color:#f92672">(</span>t1<span style="color:#f92672">)</span>
-   10216: <span style="color:#ae81ff">87</span> e4 <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">02</span>   vle32.v v9, <span style="color:#f92672">(</span>t2<span style="color:#f92672">)</span>
-   1021a: <span style="color:#ae81ff">93</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">07</span> fe   addi    a5, a4, -32
-   1021e: <span style="color:#ae81ff">07</span> e5 <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vle32.v v10, <span style="color:#f92672">(</span>a5<span style="color:#f92672">)</span>
-   10222: <span style="color:#ae81ff">87</span> <span style="color:#ae81ff">65</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vle32.v v11, <span style="color:#f92672">(</span>a4<span style="color:#f92672">)</span>
-   10226: <span style="color:#ae81ff">57</span> <span style="color:#ae81ff">14</span> <span style="color:#ae81ff">85</span> <span style="color:#ae81ff">02</span>   vfadd.vv        v8, v8, v10
-   1022a: d7 <span style="color:#ae81ff">94</span> <span style="color:#ae81ff">95</span> <span style="color:#ae81ff">02</span>   vfadd.vv        v9, v9, v11
-   1022e: <span style="color:#ae81ff">93</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">05</span> fe   addi    a5, a0, -32
-   10232: <span style="color:#ae81ff">27</span> e4 <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vse32.v v8, <span style="color:#f92672">(</span>a5<span style="color:#f92672">)</span>
-   10236: a7 <span style="color:#ae81ff">64</span> <span style="color:#ae81ff">05</span> <span style="color:#ae81ff">02</span>   vse32.v v9, <span style="color:#f92672">(</span>a0<span style="color:#f92672">)</span>
-</code></pre></div><p>可以看到 llvm 的自动向量化是工作的。此外，也可以编写 rvv intrinsic。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER<span style="color:#f92672">=</span>clang -DCMAKE_CXX_COMPILER<span style="color:#f92672">=</span>clang++ -DCMAKE_INSTALL_PREFIX<span style="color:#f92672">=</span>/prefix/llvm -DCMAKE_BUILD_TYPE<span style="color:#f92672">=</span>Release -DLLVM_ENABLE_PROJECTS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;clang&#34;</span> -DLLVM_TARGETS_TO_BUILD<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;RISCV&#34;</span>
+</span></span><span style="display:flex;"><span>$ ninja
+</span></span><span style="display:flex;"><span>$ ninja install
+</span></span><span style="display:flex;"><span>$ /prefix/llvm/bin/clang --version
+</span></span><span style="display:flex;"><span>clang version 14.0.0 <span style="color:#f92672">(</span>https://github.com/llvm/llvm-project.git 8d298355ca3778a47fd6b3110aeee03ea5e8e02b<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Target: x86_64-unknown-linux-gnu
+</span></span><span style="display:flex;"><span>Thread model: posix
+</span></span><span style="display:flex;"><span>InstalledDir: /data/llvm/bin
+</span></span></code></pre></div><p>还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 <a href="https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.01.17/riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz">riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz</a>。下载以后解压，得到 riscv 目录，GCC 版本是比较新的：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ~/riscv/bin/riscv64-unknown-elf-gcc --version
+</span></span><span style="display:flex;"><span>riscv64-unknown-elf-gcc <span style="color:#f92672">(</span>GCC<span style="color:#f92672">)</span> 11.1.0
+</span></span><span style="display:flex;"><span>Copyright <span style="color:#f92672">(</span>C<span style="color:#f92672">)</span> <span style="color:#ae81ff">2021</span> Free Software Foundation, Inc.
+</span></span><span style="display:flex;"><span>This is free software; see the source <span style="color:#66d9ef">for</span> copying conditions.  There is NO
+</span></span><span style="display:flex;"><span>warranty; not even <span style="color:#66d9ef">for</span> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+</span></span></code></pre></div><p>但是如果编译 C++ 程序，链接的时候就会报错：<code>prefixed ISA extension must separate with _</code>，这是因为 riscv-gnu-toolchain 仓库的 binutils 版本不够新，在 upstream 的 binutils 里面已经修复了这个问题。所以 clone 下来，然后编译，覆盖掉 riscv-gnu-toolchain 里面的 binutils：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ../configure --target<span style="color:#f92672">=</span>riscv64-unknown-elf --prefix<span style="color:#f92672">=</span>$HOME/riscv --disable-gdb --disable-sim --disable-libdecnumber --disable-readline
+</span></span><span style="display:flex;"><span>$ make
+</span></span><span style="display:flex;"><span>$ make install
+</span></span><span style="display:flex;"><span>$ ~/riscv/bin/riscv64-unknown-elf-ld --version
+</span></span><span style="display:flex;"><span>GNU ld <span style="color:#f92672">(</span>GNU Binutils<span style="color:#f92672">)</span> 2.38.50.20220125
+</span></span><span style="display:flex;"><span>Copyright <span style="color:#f92672">(</span>C<span style="color:#f92672">)</span> <span style="color:#ae81ff">2022</span> Free Software Foundation, Inc.
+</span></span><span style="display:flex;"><span>This program is free software; you may redistribute it under the terms of
+</span></span><span style="display:flex;"><span>the GNU General Public License version <span style="color:#ae81ff">3</span> or <span style="color:#f92672">(</span>at your option<span style="color:#f92672">)</span> a later version.
+</span></span><span style="display:flex;"><span>This program has absolutely no warranty.
+</span></span></code></pre></div><p>然后编译程序的时候，使用 clang，配置参数 <code>--gcc-toolchain=~/riscv</code> 即可让 clang 找到 GNU 工具链。这样就可以编译出来 RVV 1.0 的程序了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ /llvm/bin/clang --target<span style="color:#f92672">=</span>riscv64-unknown-elf -O2 -march<span style="color:#f92672">=</span>rv64gcv1p0 -menable-experimental-extensions -mllvm --riscv-v-vector-bits-min<span style="color:#f92672">=</span><span style="color:#ae81ff">256</span> --gcc-toolchain<span style="color:#f92672">=</span>$HOME/riscv add.cpp -o add
+</span></span><span style="display:flex;"><span>$ /data/llvm/bin/llvm-objdump --mattr<span style="color:#f92672">=</span>+v -S add
+</span></span><span style="display:flex;"><span>   1020e: <span style="color:#ae81ff">57</span> <span style="color:#ae81ff">70</span> <span style="color:#ae81ff">04</span> c5   vsetivli        zero, 8, e32, m1, ta, mu
+</span></span><span style="display:flex;"><span>   10212: <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">64</span> <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">02</span>   vle32.v v8, <span style="color:#f92672">(</span>t1<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>   10216: <span style="color:#ae81ff">87</span> e4 <span style="color:#ae81ff">03</span> <span style="color:#ae81ff">02</span>   vle32.v v9, <span style="color:#f92672">(</span>t2<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>   1021a: <span style="color:#ae81ff">93</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">07</span> fe   addi    a5, a4, -32
+</span></span><span style="display:flex;"><span>   1021e: <span style="color:#ae81ff">07</span> e5 <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vle32.v v10, <span style="color:#f92672">(</span>a5<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>   10222: <span style="color:#ae81ff">87</span> <span style="color:#ae81ff">65</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vle32.v v11, <span style="color:#f92672">(</span>a4<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>   10226: <span style="color:#ae81ff">57</span> <span style="color:#ae81ff">14</span> <span style="color:#ae81ff">85</span> <span style="color:#ae81ff">02</span>   vfadd.vv        v8, v8, v10
+</span></span><span style="display:flex;"><span>   1022a: d7 <span style="color:#ae81ff">94</span> <span style="color:#ae81ff">95</span> <span style="color:#ae81ff">02</span>   vfadd.vv        v9, v9, v11
+</span></span><span style="display:flex;"><span>   1022e: <span style="color:#ae81ff">93</span> <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">05</span> fe   addi    a5, a0, -32
+</span></span><span style="display:flex;"><span>   10232: <span style="color:#ae81ff">27</span> e4 <span style="color:#ae81ff">07</span> <span style="color:#ae81ff">02</span>   vse32.v v8, <span style="color:#f92672">(</span>a5<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>   10236: a7 <span style="color:#ae81ff">64</span> <span style="color:#ae81ff">05</span> <span style="color:#ae81ff">02</span>   vse32.v v9, <span style="color:#f92672">(</span>a0<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>可以看到 llvm 的自动向量化是工作的。此外，也可以编写 rvv intrinsic。</p>
 
         </div>
 
@@ -236,7 +236,7 @@ $ /data/llvm/bin/llvm-objdump --mattr<span style="color:#f92672">=</span>+v -S a
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

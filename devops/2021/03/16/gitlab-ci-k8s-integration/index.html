@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -87,116 +87,116 @@
 <p>参考文档：<a href="https://www.qikqiak.com/post/gitlab-ci-k8s-cluster-feature/">Gitlab CI 与 Kubernetes 的结合</a>，<a href="https://docs.gitlab.com/ee/ci/docker/using_docker_build.html">Using Docker to build Docker images</a>。</p>
 <h2 id="在-gitlab-ci-中构建-docker-镜像">在 gitlab ci 中构建 docker 镜像</h2>
 <p>这一步需要 DinD 来实现在容器中构建容器。为了达到这个目的，首先要在 gitlab-runner 的配置中添加一个 volume 来共享 DinD 的证书路径：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">gitlabUrl</span>: <span style="color:#ae81ff">REDACTED</span>
-<span style="color:#f92672">rbac</span>:
-  <span style="color:#f92672">create</span>: <span style="color:#66d9ef">true</span>
-<span style="color:#f92672">runnerRegistrationToken</span>: <span style="color:#ae81ff">REDACTED</span>
-<span style="color:#f92672">runners</span>:
-  <span style="color:#f92672">config</span>: |<span style="color:#e6db74">
-</span><span style="color:#e6db74">    [[runners]]
-</span><span style="color:#e6db74">      [runners.kubernetes]
-</span><span style="color:#e6db74">        image = &#34;ubuntu:20.04&#34;
-</span><span style="color:#e6db74">        privileged = true
-</span><span style="color:#e6db74">      [[runners.kubernetes.volumes.empty_dir]]
-</span><span style="color:#e6db74">        name = &#34;docker-certs&#34;
-</span><span style="color:#e6db74">        mount_path = &#34;/certs/client&#34;
-</span><span style="color:#e6db74">        medium = &#34;Memory&#34;</span>    
-  <span style="color:#f92672">privileged</span>: <span style="color:#66d9ef">true</span>
-</code></pre></div><p>注意两点：1. privileged 2. 多出来的 volume</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">gitlabUrl</span>: <span style="color:#ae81ff">REDACTED</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">rbac</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">create</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">runnerRegistrationToken</span>: <span style="color:#ae81ff">REDACTED</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">runners</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">config</span>: |<span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    [[runners]]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      [runners.kubernetes]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        image = &#34;ubuntu:20.04&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        privileged = true
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      [[runners.kubernetes.volumes.empty_dir]]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        name = &#34;docker-certs&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        mount_path = &#34;/certs/client&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        medium = &#34;Memory&#34;</span>    
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">privileged</span>: <span style="color:#66d9ef">true</span>
+</span></span></code></pre></div><p>注意两点：1. privileged 2. 多出来的 volume</p>
 <p>用 helm 部署 gitlab runner 之后，按照下面的方式配置 gitlab-ci：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#f92672">image</span>: <span style="color:#ae81ff">docker:19.03.12</span>
-
-<span style="color:#f92672">variables</span>:
-  <span style="color:#f92672">DOCKER_HOST</span>: <span style="color:#ae81ff">tcp://docker:2376</span>
-  <span style="color:#75715e">#</span>
-  <span style="color:#75715e"># The &#39;docker&#39; hostname is the alias of the service container as described at</span>
-  <span style="color:#75715e"># https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#accessing-the-services.</span>
-  <span style="color:#75715e"># If you&#39;re using GitLab Runner 12.7 or earlier with the Kubernetes executor and Kubernetes 1.6 or earlier,</span>
-  <span style="color:#75715e"># the variable must be set to tcp://localhost:2376 because of how the</span>
-  <span style="color:#75715e"># Kubernetes executor connects services to the job container</span>
-  <span style="color:#75715e"># DOCKER_HOST: tcp://localhost:2376</span>
-  <span style="color:#75715e">#</span>
-  <span style="color:#75715e"># Specify to Docker where to create the certificates, Docker will</span>
-  <span style="color:#75715e"># create them automatically on boot, and will create</span>
-  <span style="color:#75715e"># `/certs/client` that will be shared between the service and job</span>
-  <span style="color:#75715e"># container, thanks to volume mount from config.toml</span>
-  <span style="color:#f92672">DOCKER_TLS_CERTDIR</span>: <span style="color:#e6db74">&#34;/certs&#34;</span>
-  <span style="color:#75715e"># These are usually specified by the entrypoint, however the</span>
-  <span style="color:#75715e"># Kubernetes executor doesn&#39;t run entrypoints</span>
-  <span style="color:#75715e"># https://gitlab.com/gitlab-org/gitlab-runner/-/issues/4125</span>
-  <span style="color:#f92672">DOCKER_TLS_VERIFY</span>: <span style="color:#ae81ff">1</span>
-  <span style="color:#f92672">DOCKER_CERT_PATH</span>: <span style="color:#e6db74">&#34;$DOCKER_TLS_CERTDIR/client&#34;</span>
-  <span style="color:#f92672">DOCKER_DAEMON_OPTIONS</span>: <span style="color:#e6db74">&#34;--insecure-registry=${REGISTRY}&#34;</span>
-
-<span style="color:#f92672">services</span>:
-  - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">docker:19.03.12-dind</span>
-    <span style="color:#f92672">entrypoint</span>: [<span style="color:#e6db74">&#34;sh&#34;</span>, <span style="color:#e6db74">&#34;-c&#34;</span>, <span style="color:#e6db74">&#34;dockerd-entrypoint.sh $DOCKER_DAEMON_OPTIONS&#34;</span>]
-
-<span style="color:#f92672">before_script</span>:
-  <span style="color:#75715e"># Wait until client certs are generated</span>
-  <span style="color:#75715e"># https://gitlab.com/gitlab-org/gitlab-runner/-/issues/27384</span>
-  - <span style="color:#ae81ff">until docker info; do sleep 1; done</span>
-  - <span style="color:#ae81ff">echo &#34;$REGISTRY_PASS&#34; | docker login $REGISTRY --username $REGISTRY_USER --password-stdin</span>
-
-<span style="color:#f92672">build</span>:
-  <span style="color:#f92672">stage</span>: <span style="color:#ae81ff">build</span>
-  <span style="color:#f92672">script</span>: <span style="color:#ae81ff">./build.sh</span>
-</code></pre></div><p>这里有很多细节，包括 DinD 的访问方式，等待 client cert，设置 docker 的 insecure registry 和 login 等等。经过 <a href="https://github.com/CircuitCoder">@CircuitCoder</a> 的不断摸索，终于写出了可以用的配置。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yml" data-lang="yml"><span style="display:flex;"><span><span style="color:#f92672">image</span>: <span style="color:#ae81ff">docker:19.03.12</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">variables</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">DOCKER_HOST</span>: <span style="color:#ae81ff">tcp://docker:2376</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># The &#39;docker&#39; hostname is the alias of the service container as described at</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#accessing-the-services.</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># If you&#39;re using GitLab Runner 12.7 or earlier with the Kubernetes executor and Kubernetes 1.6 or earlier,</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># the variable must be set to tcp://localhost:2376 because of how the</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># Kubernetes executor connects services to the job container</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># DOCKER_HOST: tcp://localhost:2376</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># Specify to Docker where to create the certificates, Docker will</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># create them automatically on boot, and will create</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># `/certs/client` that will be shared between the service and job</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># container, thanks to volume mount from config.toml</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">DOCKER_TLS_CERTDIR</span>: <span style="color:#e6db74">&#34;/certs&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># These are usually specified by the entrypoint, however the</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># Kubernetes executor doesn&#39;t run entrypoints</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># https://gitlab.com/gitlab-org/gitlab-runner/-/issues/4125</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">DOCKER_TLS_VERIFY</span>: <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">DOCKER_CERT_PATH</span>: <span style="color:#e6db74">&#34;$DOCKER_TLS_CERTDIR/client&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">DOCKER_DAEMON_OPTIONS</span>: <span style="color:#e6db74">&#34;--insecure-registry=${REGISTRY}&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">services</span>:
+</span></span><span style="display:flex;"><span>  - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">docker:19.03.12-dind</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">entrypoint</span>: [<span style="color:#e6db74">&#34;sh&#34;</span>, <span style="color:#e6db74">&#34;-c&#34;</span>, <span style="color:#e6db74">&#34;dockerd-entrypoint.sh $DOCKER_DAEMON_OPTIONS&#34;</span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">before_script</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># Wait until client certs are generated</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># https://gitlab.com/gitlab-org/gitlab-runner/-/issues/27384</span>
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">until docker info; do sleep 1; done</span>
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">echo &#34;$REGISTRY_PASS&#34; | docker login $REGISTRY --username $REGISTRY_USER --password-stdin</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">build</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">stage</span>: <span style="color:#ae81ff">build</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">script</span>: <span style="color:#ae81ff">./build.sh</span>
+</span></span></code></pre></div><p>这里有很多细节，包括 DinD 的访问方式，等待 client cert，设置 docker 的 insecure registry 和 login 等等。经过 <a href="https://github.com/CircuitCoder">@CircuitCoder</a> 的不断摸索，终于写出了可以用的配置。</p>
 <p>如此配置以后，就可以在 gitlab ci 的构建脚本里用 docker 来 build 并且 push 到自己的 registry 了。为了防止泄露密钥，建议把这些变量放到 gitlab ci 设置的 secrets 中。</p>
 <h2 id="自动部署到-k8s">自动部署到 k8s</h2>
 <p>为了让 k8s 重启一个 deployment，一般的做法是：</p>
 <pre tabindex="0"><code>kubectl -n NAMESPACE rollout restart deployment/NAME
 </code></pre><p>我们希望 gitlab ci 在 build 之后，去执行这一个命令，但又不希望提供太多的权限给 gitlab。所以，我们创建 Service Account 并设置最小权限：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml">---
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">default</span>
-
----
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">Role</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab-test</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">test</span>
-<span style="color:#f92672">rules</span>:
-- <span style="color:#f92672">verbs</span>:
-    - <span style="color:#ae81ff">get</span>
-    - <span style="color:#ae81ff">patch</span>
-  <span style="color:#f92672">apiGroups</span>:
-    - <span style="color:#e6db74">&#39;apps&#39;</span>
-  <span style="color:#f92672">resources</span>:
-    - <span style="color:#e6db74">&#39;deployments&#39;</span>
-  <span style="color:#f92672">resourceNames</span>:
-    - <span style="color:#e6db74">&#39;test-deployment&#39;</span>
-
----
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">RoleBinding</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">test</span>
-<span style="color:#f92672">subjects</span>:
-  - <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
-    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab</span>
-    <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">default</span>
-<span style="color:#f92672">roleRef</span>:
-  <span style="color:#f92672">apiGroup</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io</span>
-  <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">Role</span>
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab-test</span>
-</code></pre></div><p>要特别注意这几个配置的 namespace 的对应关系：Role 和 RoleBinding 需要放在同一个 ns 下。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yml" data-lang="yml"><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">default</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">Role</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab-test</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">test</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">rules</span>:
+</span></span><span style="display:flex;"><span>- <span style="color:#f92672">verbs</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">get</span>
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">patch</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">apiGroups</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#e6db74">&#39;apps&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">resources</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#e6db74">&#39;deployments&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">resourceNames</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#e6db74">&#39;test-deployment&#39;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">RoleBinding</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">test</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">subjects</span>:
+</span></span><span style="display:flex;"><span>  - <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">default</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">roleRef</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">apiGroup</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">Role</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gitlab-test</span>
+</span></span></code></pre></div><p>要特别注意这几个配置的 namespace 的对应关系：Role 和 RoleBinding 需要放在同一个 ns 下。</p>
 <p>接着，到 GitLab 的 Operations-&gt;Kubernetes 创建 cluster，把 service account 的 token 和 ca.crt 从 secret 里找到并贴到网页上。GitLab 会按照 Environment scope 匹配到 environment，如果某个 stage 的 environment 匹配上了，就会把 kube credentials 配置好。修改 gitlab-ci.yml：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yml" data-lang="yml"><span style="color:#f92672">deploy</span>:
-  <span style="color:#f92672">stage</span>: <span style="color:#ae81ff">deploy</span>
-  <span style="color:#f92672">image</span>: <span style="color:#ae81ff">bitnami/kubectl:1.20</span>
-  <span style="color:#f92672">environment</span>:
-    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">production</span>
-  <span style="color:#f92672">only</span>:
-    - <span style="color:#ae81ff">master</span>
-  <span style="color:#f92672">script</span>:
-    - <span style="color:#ae81ff">kubectl -n test rollout restart deployment/test</span>
-</code></pre></div><p>这样就完成配置了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yml" data-lang="yml"><span style="display:flex;"><span><span style="color:#f92672">deploy</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">stage</span>: <span style="color:#ae81ff">deploy</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">image</span>: <span style="color:#ae81ff">bitnami/kubectl:1.20</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">environment</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">production</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">only</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">master</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">script</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">kubectl -n test rollout restart deployment/test</span>
+</span></span></code></pre></div><p>这样就完成配置了。</p>
 
         </div>
 
@@ -321,7 +321,7 @@
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

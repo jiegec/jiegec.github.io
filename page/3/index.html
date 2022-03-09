@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 <body>
@@ -61,6 +61,145 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/devops/2021/09/18/k8s-networking/">研究 k8s 网络工作原理</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/devops/2021/09/18/k8s-networking/" class="article-date">
+                        <time datetime='2021-09-18T10:29:00.000&#43;08:00' itemprop="datePublished">2021-09-18</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/devops/2021/09/18/k8s-networking/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 用 k8s 也有一段时间了，之前遇到过 iptables 等出现问题，导致 k8s 节点间网络出现问题，于是想研究一下 k8s 的网络工作原理。
+Docker 网络 首先研究一下 Docker 网络连接是如何实现的。Docker 首先会创建一个 bridge，名为 bridge0:
+$ ip a show docker0 3: docker0: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP group default  link/ether 02:42:c4:87:73:bf brd ff:ff:ff:ff:ff:ff  inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0  valid_lft forever preferred_lft forever  inet6 fe80::42:c4ff:fe87:73bf/64 scope link  valid_lft forever preferred_lft forever 默认情况下，每个容器都会有单独的一个 netns，然后创建一对 veth pair，一端留在 global netns，另一端放到容器中。在 global netns 中的 veth 端口会加入到 docker0 中：
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/devops/2021/09/18/k8s-networking/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/k8s">k8s
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/cni">cni
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/flannel">flannel
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/docker">docker
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2021/09/14/brief-into-ooo/" class="article-date">
+                        <time datetime='2021-09-14T13:47:00.000&#43;08:00' itemprop="datePublished">2021-09-14</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2021/09/14/brief-into-ooo/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最早学习乱序执行 CPU 的时候，是在 Wikipedia 上自学的，后来在计算机系统结构课上又学了一遍，但发现学的和现在实际采用的乱序执行 CPU 又有很大区别，后来又仔细研究了一下，觉得理解更多了，就想总结一下。
+经典 Tomasulo 参考 Stanford 教材
+经典 Tomasulo，也是 Wikipedia 上描述的 Tomasulo 算法，它的核心是保留站。指令在 Decode 之后，会被分配到一个保留站中。保留站有以下的这些属性：
+ Op：需要执行的操作 Qj，Qk：操作数依赖的指令目前所在的保留站 ID Vj，Qk：操作数的值 Rj，Rk：操作数是否 ready（或者用特殊的 Qj，Qk 值表示是否 ready） Busy：这个保留站被占用  此外还有一个 mapping（Wikipedia 上叫做 RegisterStat），记录了寄存器是否会被某个保留站中的指令写入。
+指令分配到保留站的时候，会查询 RegisterStat，得知操作数寄存器是否 ready，如果不 ready，说明有一个先前的指令要写入这个寄存器，那就记录下对应的保留站 ID。当操作数都 ready 了，就可以进入计算单元计算。当一条指令在执行单元中完成的时候，未出现 WAW 时会把结果写入寄存器堆，并且通过 Common Data Bus 进行广播，目前在保留站中的指令如果发现，它所需要的操作数刚好计算出来了，就会把取值保存下来。
+这里有一些细节：因为保留站中的指令可能要等待其他指令的完成，为了保证计算单元利用率更高，对于同一个计算类型（比如 ALU），需要有若干个同类的保留站（比如 Add1，Add2，Add3）。在 Wikipedia 的表述中，每个保留站对应了一个计算单元，这样性能比较好，但自然面积也就更大。如果节省面积，也可以减少计算单元的数量，然后每个计算单元从多个保留站中获取计算的指令。
+可以思考一下，这种方法的瓶颈在什么地方。首先，每条指令都放在一个保留站中，当保留站满的时候就不能发射新的指令。其次，如果计算单元的吞吐跟不上保留站的填充速度，也会导致阻塞。
+这种方法的一个比较麻烦的点在于难以实现精确异常。精确异常的关键在于，异常之前的指令都生效，异常和异常之后的指令不生效，但这种方法无法进行区分。
+从寄存器重命名的角度来看，可以认为这种方法属于 Implicit Register Renaming，也就是说，把 Register 重命名为保留站的 ID。
+再分析一下寄存器堆需要哪些读写口。有一条规律是，寄存器堆的面积与读写口个数的平方成正比。对于每条发射的指令，都需要从寄存器堆读操作数，所以读口是操作数x指令发射数。当执行单元完成计算的时候，需要写入寄存器堆，所以每个执行单元都对应一个寄存器堆的写口。
+硬件实现的时候，为了性能，希望保留站可以做的比较多，这样可以容纳更多的指令。但是，保留站里面至少要保存操作数的值，会比较占用面积，并且时延也比较大。
+ROB（ReOrder Buffer） 参考教材
+为了实现精确异常，我们需要引入 ROB。在上面的 Tomasulo 算法中，计算单元计算完成的时候，就会把结果写入到寄存器堆中，因此精确异常时难以得到正确的寄存器堆取值。既然我们希望寄存器堆的状态与顺序执行的结果一致，我们需要引入 ROB。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2021/09/14/brief-into-ooo/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/ooo">ooo
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/cpu">cpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/tomasulo">tomasulo
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/outoforder">outoforder
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="https://jia.je/tags/renaming">renaming
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -257,7 +396,7 @@ Our backend team is still working on this issue.
                     背景 最近发现空调遥控器电池有点不足，有时候会自动关机，于是拿出以前买的 Broadlink RM mini 3 充当远程的空调遥控器使用。为了方便手机上配置，分别采用了官方的 App 智慧星和 homebridge 进行配置。
 步骤 首先用官方的智慧星配置好 Broadlink RM mini 3 的网络，然后配置 homebridge-broadlink-rm-pro。最早的插件作者不怎么更新了，这个版本是目前用的比较多的一个 fork。
 安装好以后，在 Home 里面可以看到 Scan Code 的开关。打开以后，用遥控器在 Broadlink RM mini 3 附近按按键，就可以在 Homebridge 日志里看到 hex code 了。然后，就按照插件教程里的方法写配置，例子如下：
-{ &#34;platform&#34;: &#34;BroadlinkRM&#34;, &#34;name&#34;: &#34;Broadlink RM&#34;, &#34;accessories&#34;: [ { &#34;name&#34;: &#34;Air Conditioner&#34;, &#34;type&#34;: &#34;air-conditioner&#34;, &#34;noHumidity&#34;: true, &#34;minTemperature&#34;: 26, &#34;maxTemperature&#34;: 28, &#34;defaultCoolTemperature&#34;: 27, &#34;data&#34;: { &#34;off&#34;: &#34;2600...&#34;, &#34;cool28&#34;: { &#34;data&#34;: &#34;2600...&#34; }, &#34;cool27&#34;: { &#34;data&#34;: &#34;2600.
+{  &#34;platform&#34;: &#34;BroadlinkRM&#34;,  &#34;name&#34;: &#34;Broadlink RM&#34;,  &#34;accessories&#34;: [  {  &#34;name&#34;: &#34;Air Conditioner&#34;,  &#34;type&#34;: &#34;air-conditioner&#34;,  &#34;noHumidity&#34;: true,  &#34;minTemperature&#34;: 26,  &#34;maxTemperature&#34;: 28,  &#34;defaultCoolTemperature&#34;: 27,  &#34;data&#34;: {  &#34;off&#34;: &#34;2600.
                     </p>
                     <p class="article-more-link">
                         <a href="/software/2021/07/24/homebridge-rm-mini-3/">Read More</a>
@@ -506,7 +645,7 @@ cephadm bootstrap --mon-ip HOST1_IP 此时，在主节点上会运行最基础�
                     背景 有同学遇到这样的一个问题，代码中链接了一个第三方的动态库，在链接的时候出现了不一致的问题，比如有一个函数签名如下：
 void foobar(std::string s) {} 使用 GCC 11.1.0 编译上面的代码，可以发现它需要的符号是 _Z6foobarNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE，但是第三方库里面却是 _Z6foobarSs，因此找不到对应的符号，链接失败。
 问题 经过一番研究，发现 Ss 在 Itanium ABI 中表示的是缩写：
-In addition, the following catalog of abbreviations of the form &quot;Sx&quot; are used: &lt;substitution&gt; ::= St # ::std:: &lt;substitution&gt; ::= Sa # ::std::allocator &lt;substitution&gt; ::= Sb # ::std::basic_string &lt;substitution&gt; ::= Ss # ::std::basic_string &lt; char, ::std::char_traits&lt;char&gt;, ::std::allocator&lt;char&gt; &gt; &lt;substitution&gt; ::= Si # ::std::basic_istream&lt;char, std::char_traits&lt;char&gt; &gt; &lt;substitution&gt; ::= So # ::std::basic_ostream&lt;char, std::char_traits&lt;char&gt; &gt; &lt;substitution&gt; ::= Sd # ::std::basic_iostream&lt;char, std::char_traits&lt;char&gt; &gt; 这看起来很正常，_Z6foobarSs 表示的是 foobar(std::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;)，但是 GCC 11.
+In addition, the following catalog of abbreviations of the form &#34;Sx&#34; are used: &lt;substitution&gt; ::= St # ::std:: &lt;substitution&gt; ::= Sa # ::std::allocator &lt;substitution&gt; ::= Sb # ::std::basic_string &lt;substitution&gt; ::= Ss # ::std::basic_string &lt; char, ::std::char_traits&lt;char&gt;, ::std::allocator&lt;char&gt; &gt; &lt;substitution&gt; ::= Si # ::std::basic_istream&lt;char, std::char_traits&lt;char&gt; &gt; &lt;substitution&gt; ::= So # ::std::basic_ostream&lt;char, std::char_traits&lt;char&gt; &gt; &lt;substitution&gt; ::= Sd # ::std::basic_iostream&lt;char, std::char_traits&lt;char&gt; &gt; 这看起来很正常，_Z6foobarSs 表示的是 foobar(std::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;)，但是 GCC 11.
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2021/06/23/cpp-11-abi-problem/">Read More</a>
@@ -544,162 +683,6 @@ In addition, the following catalog of abbreviations of the form &quot;Sx&quot; a
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="https://jia.je/tags/abi">abi
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2021/05/06/disk/">硬盘相关的概念</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2021/05/06/disk/" class="article-date">
-                        <time datetime='2021-05-06T11:37:00.000&#43;08:00' itemprop="datePublished">2021-05-06</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2021/05/06/disk/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    ATA ATA 定义了发送给硬盘的命令，标准定义了命令:
- ech IDENTIFY DEVICE: 获取设备信息 25h READ DMA EXT: 读取扇区 35h WRITE DMA EXT: 写入扇区  ATA 同时也是接口，图片如下。ATA 前身是 IDE，现在 ATA 叫做 PATA。
-AHCI AHCI 可以简单理解为 PCIe &lt;-&gt; SATA 的转换器。AHCI 暴露为一个 PCIe 设备：
-$ lspci -vv 00:1f.2 SATA controller: Intel Corporation C600/X79 series chipset 6-Port SATA AHCI Controller (rev 05) Kernel modules: ahci 处理器通过 IO port/MMIO 访问 AHCI，然后 AHCI HBA 连接到 SATA 设备。
-SATA SATA 一般说的是接口。它一般分为两个部分，数据和电源。数据部分只有 7 个 pin，三个 GND 和两对差分线（A+A- B+B-），图片如下：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2021/05/06/disk/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/disk">disk
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/pcie">pcie
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/ahci">ahci
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/sata">sata
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/sas">sas
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/nvme">nvme
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/devops/2021/04/15/vmware-esxi-perccli/">在 ESXi 中用 PERCCli 换 RAID 中的盘</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/devops/2021/04/15/vmware-esxi-perccli/" class="article-date">
-                        <time datetime='2021-04-15T14:31:00.000&#43;08:00' itemprop="datePublished">2021-04-15</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/devops/2021/04/15/vmware-esxi-perccli/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近有一台机器的盘出现了报警，需要换掉，然后重建 RAID5 阵列。iDRAC 出现报错：
- Disk 2 in Backplane 1 of Integrated RAID Controller 1 is not functioning correctly. Virtual Disk 1 on Integrated RAID Controller 1 has become degraded. Error occurred on Disk2 in Backplane 1 of Integrated RAID Controller 1 : (Error 2)  安装 PERCCli 首先，因为系统是 VMware ESXi 6.7，所以在DELL 官网下载对应的文件。按照里面的 README 安装 vib：
-esxcli software vib install -v /vmware-perccli-007.1420.vib 如果要升级系统，需要先卸载 vib：esxcli software vib remove -n vmware-perccli，因为升级的时候会发现缺少新版系统的 perccli，建议先卸载，升级后再安装新的。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/devops/2021/04/15/vmware-esxi-perccli/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/esxi">esxi
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/vmware">vmware
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/perc">perc
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/perccli">perccli
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/raid">raid
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/megaraid">megaraid
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/lsi">lsi
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="https://jia.je/tags/avago">avago
                             </a>
                         </li>
                         

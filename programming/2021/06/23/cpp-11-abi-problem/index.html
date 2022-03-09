@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -84,11 +84,11 @@
         <div class="article-entry" itemprop="articleBody">
             <h2 id="背景">背景</h2>
 <p>有同学遇到这样的一个问题，代码中链接了一个第三方的动态库，在链接的时候出现了不一致的问题，比如有一个函数签名如下：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">foobar</span>(std<span style="color:#f92672">::</span>string s) {}
-</code></pre></div><p>使用 GCC 11.1.0 编译上面的代码，可以发现它需要的符号是 <code>_Z6foobarNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE</code>，但是第三方库里面却是 <code>_Z6foobarSs</code>，因此找不到对应的符号，链接失败。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">foobar</span>(std<span style="color:#f92672">::</span>string s) {}
+</span></span></code></pre></div><p>使用 GCC 11.1.0 编译上面的代码，可以发现它需要的符号是 <code>_Z6foobarNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE</code>，但是第三方库里面却是 <code>_Z6foobarSs</code>，因此找不到对应的符号，链接失败。</p>
 <h2 id="问题">问题</h2>
 <p>经过一番研究，发现 <code>Ss</code> 在 <a href="https://itanium-cxx-abi.github.io/cxx-abi/abi.html">Itanium ABI</a> 中表示的是缩写：</p>
-<pre tabindex="0"><code>In addition, the following catalog of abbreviations of the form &quot;Sx&quot; are used:
+<pre tabindex="0"><code>In addition, the following catalog of abbreviations of the form &#34;Sx&#34; are used:
 
 
    &lt;substitution&gt; ::= St # ::std::
@@ -102,14 +102,14 @@
    &lt;substitution&gt; ::= Sd # ::std::basic_iostream&lt;char, std::char_traits&lt;char&gt; &gt;
 </code></pre><p>这看起来很正常，<code>_Z6foobarSs</code> 表示的是 <code>foobar(std::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;)</code>，但是 GCC 11.1.0 编译出来的上面的代码却没有用这个符号，而是 <code>foobar(std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;)</code>。差别就在于 <code>__cxx11</code> 中。</p>
 <p>经过一番搜索，找到了 GCC <a href="https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html">关于这个问题的文档</a>和<a href="https://developers.redhat.com/blog/2015/02/05/gcc5-and-the-c11-abi">网上的文章</a>，找到了原因：从 GCC5 开始，为了兼容 C++11 标准的改变，做了这个变动。如果要恢复原来的行为，需要添加一个定义：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ g++ -D_GLIBCXX_USE_CXX11_ABI<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm test.o | grep foobar
-<span style="color:#ae81ff">0000000000000000</span> T _Z6foobarSs
-$ g++ -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm test.o | grep foobar
-<span style="color:#ae81ff">0000000000000000</span> T _Z6foobarNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
-<span style="color:#75715e"># install g++-4.9 in ubuntu 16.04</span>
-$ g++-4.9 -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm test.o | grep foobar
-<span style="color:#ae81ff">0000000000000000</span> T _Z6foobarSs
-</code></pre></div><p>这样就可以正常链接到第三方的动态库了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ g++ -D_GLIBCXX_USE_CXX11_ABI<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm test.o | grep foobar
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">0000000000000000</span> T _Z6foobarSs
+</span></span><span style="display:flex;"><span>$ g++ -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm test.o | grep foobar
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">0000000000000000</span> T _Z6foobarNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># install g++-4.9 in ubuntu 16.04</span>
+</span></span><span style="display:flex;"><span>$ g++-4.9 -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm test.o | grep foobar
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">0000000000000000</span> T _Z6foobarSs
+</span></span></code></pre></div><p>这样就可以正常链接到第三方的动态库了。</p>
 
         </div>
 
@@ -228,7 +228,7 @@ $ g++-4.9 -c test.cpp -o test.o <span style="color:#f92672">&amp;&amp;</span> nm
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

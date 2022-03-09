@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -92,138 +92,138 @@
 <li>log server 上的 fluentd 把收到的日志保存到文件</li>
 </ol>
 <p>由于 log server 不由 k8s 管理，所以按照<a href="https://docs.fluentd.org/installation/install-by-deb">官网</a>的方式手动安装：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">$ curl -L https://toolbelt.treasuredata.com/sh/install-debian-buster-td-agent4.sh | sh
-</code></pre></div><p>然后，编辑配置 <code>/etc/td-agent/td-agent.conf</code>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">&lt;source&gt;
-  @type forward
-  @id input_forward
-  bind x.x.x.x
-&lt;/source&gt;
-
-&lt;match **&gt;
-  @type file
-  path /var/log/fluentd/k8s
-  compress gzip
-  &lt;buffer&gt;
-    timekey 1d
-    timekey_use_utc true
-    timekey_wait 10m
-  &lt;/buffer&gt;
-&lt;/match&gt;
-</code></pre></div><p>分别设置输入：监听 fluentd forward 协议；输出：设置输出文件，和 buffer 配置。如有需要，可以加鉴权。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ curl -L https://toolbelt.treasuredata.com/sh/install-debian-buster-td-agent4.sh | sh
+</span></span></code></pre></div><p>然后，编辑配置 <code>/etc/td-agent/td-agent.conf</code>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>&lt;source&gt;
+</span></span><span style="display:flex;"><span>  @type forward
+</span></span><span style="display:flex;"><span>  @id input_forward
+</span></span><span style="display:flex;"><span>  bind x.x.x.x
+</span></span><span style="display:flex;"><span>&lt;/source&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>&lt;match **&gt;
+</span></span><span style="display:flex;"><span>  @type file
+</span></span><span style="display:flex;"><span>  path /var/log/fluentd/k8s
+</span></span><span style="display:flex;"><span>  compress gzip
+</span></span><span style="display:flex;"><span>  &lt;buffer&gt;
+</span></span><span style="display:flex;"><span>    timekey 1d
+</span></span><span style="display:flex;"><span>    timekey_use_utc true
+</span></span><span style="display:flex;"><span>    timekey_wait 10m
+</span></span><span style="display:flex;"><span>  &lt;/buffer&gt;
+</span></span><span style="display:flex;"><span>&lt;/match&gt;
+</span></span></code></pre></div><p>分别设置输入：监听 fluentd forward 协议；输出：设置输出文件，和 buffer 配置。如有需要，可以加鉴权。</p>
 <p>接着，按照 <a href="https://github.com/fluent/fluentd-kubernetes-daemonset/blob/master/fluentd-daemonset-forward.yaml">https://github.com/fluent/fluentd-kubernetes-daemonset/blob/master/fluentd-daemonset-forward.yaml</a>，我做了一些修改，得到了下面的配置：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml">---
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
-
----
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRole</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
-<span style="color:#f92672">rules</span>:
-- <span style="color:#f92672">apiGroups</span>:
-  - <span style="color:#e6db74">&#34;&#34;</span>
-  <span style="color:#f92672">resources</span>:
-  - <span style="color:#ae81ff">pods</span>
-  - <span style="color:#ae81ff">namespaces</span>
-  <span style="color:#f92672">verbs</span>:
-  - <span style="color:#ae81ff">get</span>
-  - <span style="color:#ae81ff">list</span>
-  - <span style="color:#ae81ff">watch</span>
-
----
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRoleBinding</span>
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-<span style="color:#f92672">roleRef</span>:
-  <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRole</span>
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-  <span style="color:#f92672">apiGroup</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io</span>
-<span style="color:#f92672">subjects</span>:
-- <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
-
----
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">apps/v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">DaemonSet</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
-  <span style="color:#f92672">labels</span>:
-    <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
-    <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
-<span style="color:#f92672">spec</span>:
-  <span style="color:#f92672">selector</span>:
-    <span style="color:#f92672">matchLabels</span>:
-      <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
-      <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
-  <span style="color:#f92672">template</span>:
-    <span style="color:#f92672">metadata</span>:
-      <span style="color:#f92672">labels</span>:
-        <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
-        <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
-    <span style="color:#f92672">spec</span>:
-      <span style="color:#f92672">serviceAccount</span>: <span style="color:#ae81ff">fluentd</span>
-      <span style="color:#f92672">serviceAccountName</span>: <span style="color:#ae81ff">fluentd</span>
-      <span style="color:#f92672">tolerations</span>:
-      - <span style="color:#f92672">key</span>: <span style="color:#ae81ff">node-role.kubernetes.io/master</span>
-        <span style="color:#f92672">effect</span>: <span style="color:#ae81ff">NoSchedule</span>
-      <span style="color:#f92672">containers</span>:
-      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
-        <span style="color:#f92672">image</span>: <span style="color:#ae81ff">fluent/fluentd-kubernetes-daemonset:v1-debian-forward</span>
-        <span style="color:#f92672">env</span>:
-          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENT_FOWARD_HOST</span>
-            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;x.x.x.x&#34;</span>
-          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENT_FOWARD_PORT</span>
-            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;24224&#34;</span>
-          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENTD_SYSTEMD_CONF</span>
-            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;disable&#34;</span>
-        <span style="color:#f92672">resources</span>:
-          <span style="color:#f92672">limits</span>:
-            <span style="color:#f92672">memory</span>: <span style="color:#ae81ff">200Mi</span>
-          <span style="color:#f92672">requests</span>:
-            <span style="color:#f92672">cpu</span>: <span style="color:#ae81ff">100m</span>
-            <span style="color:#f92672">memory</span>: <span style="color:#ae81ff">200Mi</span>
-        <span style="color:#f92672">volumeMounts</span>:
-        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">config-volume</span>
-          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/fluentd/etc/tail_container_parse.conf</span>
-          <span style="color:#f92672">subPath</span>: <span style="color:#ae81ff">tail_container_parse.conf</span>
-        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlog</span>
-          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/var/log</span>
-        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlibdockercontainers</span>
-          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/var/lib/docker/containers</span>
-          <span style="color:#f92672">readOnly</span>: <span style="color:#66d9ef">true</span>
-      <span style="color:#f92672">terminationGracePeriodSeconds</span>: <span style="color:#ae81ff">30</span>
-      <span style="color:#f92672">volumes</span>:
-      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">config-volume</span>
-        <span style="color:#f92672">configMap</span>:
-          <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd-config</span>
-      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlog</span>
-        <span style="color:#f92672">hostPath</span>:
-          <span style="color:#f92672">path</span>: <span style="color:#ae81ff">/var/log</span>
-      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlibdockercontainers</span>
-        <span style="color:#f92672">hostPath</span>:
-          <span style="color:#f92672">path</span>: <span style="color:#ae81ff">/var/lib/docker/containers</span>
-
----
-<span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
-<span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ConfigMap</span>
-<span style="color:#f92672">metadata</span>:
-  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd-config</span>
-  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
-<span style="color:#f92672">data</span>:
-  <span style="color:#f92672">tail_container_parse.conf</span>: |-<span style="color:#e6db74">
-</span><span style="color:#e6db74">    &lt;parse&gt;
-</span><span style="color:#e6db74">      @type cri
-</span><span style="color:#e6db74">    &lt;/parse&gt;</span>    
-</code></pre></div><p>和原版有几点细节上的不同：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRole</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">rules</span>:
+</span></span><span style="display:flex;"><span>- <span style="color:#f92672">apiGroups</span>:
+</span></span><span style="display:flex;"><span>  - <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">resources</span>:
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">pods</span>
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">namespaces</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">verbs</span>:
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">get</span>
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">list</span>
+</span></span><span style="display:flex;"><span>  - <span style="color:#ae81ff">watch</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRoleBinding</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io/v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">roleRef</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ClusterRole</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">apiGroup</span>: <span style="color:#ae81ff">rbac.authorization.k8s.io</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">subjects</span>:
+</span></span><span style="display:flex;"><span>- <span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ServiceAccount</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">apps/v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">DaemonSet</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">labels</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">spec</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">selector</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">matchLabels</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">template</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">labels</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">k8s-app</span>: <span style="color:#ae81ff">fluentd-logging</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">version</span>: <span style="color:#ae81ff">v1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">spec</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">serviceAccount</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">serviceAccountName</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">tolerations</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#f92672">key</span>: <span style="color:#ae81ff">node-role.kubernetes.io/master</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">effect</span>: <span style="color:#ae81ff">NoSchedule</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">containers</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">image</span>: <span style="color:#ae81ff">fluent/fluentd-kubernetes-daemonset:v1-debian-forward</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">env</span>:
+</span></span><span style="display:flex;"><span>          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENT_FOWARD_HOST</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;x.x.x.x&#34;</span>
+</span></span><span style="display:flex;"><span>          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENT_FOWARD_PORT</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;24224&#34;</span>
+</span></span><span style="display:flex;"><span>          - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">FLUENTD_SYSTEMD_CONF</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">value</span>: <span style="color:#e6db74">&#34;disable&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">resources</span>:
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">limits</span>:
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">memory</span>: <span style="color:#ae81ff">200Mi</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">requests</span>:
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">cpu</span>: <span style="color:#ae81ff">100m</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">memory</span>: <span style="color:#ae81ff">200Mi</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">volumeMounts</span>:
+</span></span><span style="display:flex;"><span>        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">config-volume</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/fluentd/etc/tail_container_parse.conf</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">subPath</span>: <span style="color:#ae81ff">tail_container_parse.conf</span>
+</span></span><span style="display:flex;"><span>        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlog</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/var/log</span>
+</span></span><span style="display:flex;"><span>        - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlibdockercontainers</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">mountPath</span>: <span style="color:#ae81ff">/var/lib/docker/containers</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">readOnly</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">terminationGracePeriodSeconds</span>: <span style="color:#ae81ff">30</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">volumes</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">config-volume</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">configMap</span>:
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd-config</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlog</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">hostPath</span>:
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">path</span>: <span style="color:#ae81ff">/var/log</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">varlibdockercontainers</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">hostPath</span>:
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">path</span>: <span style="color:#ae81ff">/var/lib/docker/containers</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>---
+</span></span><span style="display:flex;"><span><span style="color:#f92672">apiVersion</span>: <span style="color:#ae81ff">v1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">kind</span>: <span style="color:#ae81ff">ConfigMap</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">metadata</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">name</span>: <span style="color:#ae81ff">fluentd-config</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">namespace</span>: <span style="color:#ae81ff">kube-system</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">data</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">tail_container_parse.conf</span>: |-<span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;parse&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      @type cri
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;/parse&gt;</span>    
+</span></span></code></pre></div><p>和原版有几点细节上的不同：</p>
 <ol>
 <li>k8s 启用了 rbac，所以需要对应的配置；照着仓库里其他带 rbac 配置的文件抄一下即可。</li>
 <li>禁用了 SYSTEMD 日志的抓取，因为我用的是 k3s，而不是 kubeadm，自然找不到 kubelet 的 systemd service。</li>
@@ -338,7 +338,7 @@
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

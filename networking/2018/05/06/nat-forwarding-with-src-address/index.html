@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -90,24 +90,24 @@
 </ol>
 <p>实现方法：</p>
 <p>在 NAT Router 上配置 DNAT ，这样发到 NAT Router 上的包就可以转发到服务器上：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">iptables -t nat -A PREROUTING -i external_interface -p tcp -m tcp --dport <span style="color:#ae81ff">2222</span> -j DNAT --to-destination internal_server_ip:22
-</code></pre></div><p>但是，从服务器回来的包到了 NAT Router 上后，由于路由表的配置问题，默认的路由并不能把包送达对方。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>iptables -t nat -A PREROUTING -i external_interface -p tcp -m tcp --dport <span style="color:#ae81ff">2222</span> -j DNAT --to-destination internal_server_ip:22
+</span></span></code></pre></div><p>但是，从服务器回来的包到了 NAT Router 上后，由于路由表的配置问题，默认的路由并不能把包送达对方。</p>
 <p>方法1:
 我们首先给包打上 mark：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">iptables -t mangle -A PREROUTING -i internal_interface -p tcp -m tcp --sport <span style="color:#ae81ff">22</span> -j MARK --set-mark 0x2222
-</code></pre></div><p>然后配置策略路由：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">ip rule add fwmark 0x2222 table <span style="color:#ae81ff">2222</span>
-ip route add table <span style="color:#ae81ff">2222</span> default via gateway_address
-</code></pre></div><p>方法2: (UPD 2018-07-07)
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>iptables -t mangle -A PREROUTING -i internal_interface -p tcp -m tcp --sport <span style="color:#ae81ff">22</span> -j MARK --set-mark 0x2222
+</span></span></code></pre></div><p>然后配置策略路由：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ip rule add fwmark 0x2222 table <span style="color:#ae81ff">2222</span>
+</span></span><span style="display:flex;"><span>ip route add table <span style="color:#ae81ff">2222</span> default via gateway_address
+</span></span></code></pre></div><p>方法2: (UPD 2018-07-07)
 利用 <code>ip rule</code> 直接达成同样的效果</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">ip rule add from internal_ip/prefix table <span style="color:#ae81ff">2222</span>
-<span style="color:#75715e"># or</span>
-ip rule add iif internal_interface table <span style="color:#ae81ff">2222</span>
-ip route add table <span style="color:#ae81ff">2222</span> default via gateway_address
-</code></pre></div><p>这样就可以保证 ssh 的回包可以原路返回了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ip rule add from internal_ip/prefix table <span style="color:#ae81ff">2222</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or</span>
+</span></span><span style="display:flex;"><span>ip rule add iif internal_interface table <span style="color:#ae81ff">2222</span>
+</span></span><span style="display:flex;"><span>ip route add table <span style="color:#ae81ff">2222</span> default via gateway_address
+</span></span></code></pre></div><p>这样就可以保证 ssh 的回包可以原路返回了。</p>
 <p>由于前面提到的原因，上面我们配置的 DNAT 规则只对外网过来的包有效。为了内网的访问，我们仍然采用了 socat 的方式：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">socat TCP-LISTEN:2222,reuseaddr,fork TCP:internal_server_ip:22
-</code></pre></div><p>从不同的机器测试，都可以在 <code>who</code> 看到，地址确实是我们想看到的源地址。接下来配置 <code>fail2ban </code>即可。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>socat TCP-LISTEN:2222,reuseaddr,fork TCP:internal_server_ip:22
+</span></span></code></pre></div><p>从不同的机器测试，都可以在 <code>who</code> 看到，地址确实是我们想看到的源地址。接下来配置 <code>fail2ban </code>即可。</p>
 
         </div>
 
@@ -206,7 +206,7 @@ ip route add table <span style="color:#ae81ff">2222</span> default via gateway_a
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     

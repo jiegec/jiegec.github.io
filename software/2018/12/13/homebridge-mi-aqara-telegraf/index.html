@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.92.2" />
+    <meta name="generator" content="Hugo 0.93.2" />
 </head>
 
 
@@ -84,26 +84,26 @@
         <div class="article-entry" itemprop="articleBody">
             <p>最近有了设备，想把设备拿到的数据都导一份存到 influxdb 里，但是目前找到的只有 <a href="https://github.com/YinHangCode/homebridge-mi-aqara">homebridge-mi-aqara</a> 可以访问并拿到数据，然后它又提供了 mqtt 的数据获取方案，于是自己写了个脚本去读取这些数据。</p>
 <p>首先当然是配置一下 homebridge-mi-aqara ，按照网上的教程来，这个不难。然后本地开一个 MQTT Broker （如 mosquitto ），配置为本地监听，然后我编写了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara.py">脚本 telegraf-mi-aqara.py</a> ，使用前需要 <code>pip install paho-mqtt</code>，并且按照实际路径修改一下内容 。验证能够跑起来后，写一个 telegraf 配置：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-toml" data-lang="toml">[[<span style="color:#a6e22e">inputs</span>.<span style="color:#a6e22e">exec</span>]]
-        <span style="color:#a6e22e">commands</span> = [<span style="color:#e6db74">&#34;/usr/bin/python3 /path/to/telegraf-mi-aqara.py&#34;</span>]
-        <span style="color:#a6e22e">timeout</span> = <span style="color:#e6db74">&#34;5s&#34;</span>
-        <span style="color:#a6e22e">data_format</span> = <span style="color:#e6db74">&#34;influx&#34;</span>
-</code></pre></div><p>现在就可以读取到各项信息，如温度，湿度，是否开门，开关用电情况等等。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-toml" data-lang="toml"><span style="display:flex;"><span>[[<span style="color:#a6e22e">inputs</span>.<span style="color:#a6e22e">exec</span>]]
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">commands</span> = [<span style="color:#e6db74">&#34;/usr/bin/python3 /path/to/telegraf-mi-aqara.py&#34;</span>]
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">timeout</span> = <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">data_format</span> = <span style="color:#e6db74">&#34;influx&#34;</span>
+</span></span></code></pre></div><p>现在就可以读取到各项信息，如温度，湿度，是否开门，开关用电情况等等。</p>
 <p>2018-12-16 更新：</p>
 <p>研究了一下<a href="https://github.com/aqara/aiot-gateway-local-api">绿米网关局域网通信协议</a>，得到了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara-v2.py">第二个版本 telegraf-mi-aqara-v2.py</a>，它与第一版的区别是，第一版是主动向网关读取信息，而这一版则是监听组播包，等待网关发消息。这个脚本负责把读取到的组播信息发送到 MQTT ，再让 telegraf 从 MQTT 里解析 JSON 消息，写入数据库。Telegraf 配置如下：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-toml" data-lang="toml">[[<span style="color:#a6e22e">inputs</span>.<span style="color:#a6e22e">mqtt_consumer</span>]]
-        <span style="color:#a6e22e">servers</span> = [<span style="color:#e6db74">&#34;tcp://127.0.0.1:1883&#34;</span>]
-        <span style="color:#a6e22e">qos</span> = <span style="color:#ae81ff">0</span>
-        <span style="color:#a6e22e">connection_timeout</span> = <span style="color:#e6db74">&#34;30s&#34;</span>
-        <span style="color:#a6e22e">topics</span> = [
-                <span style="color:#e6db74">&#34;/telegraf-mi-aqara&#34;</span>
-        ]
-        <span style="color:#a6e22e">persistent_session</span> = <span style="color:#66d9ef">true</span>
-        <span style="color:#a6e22e">client_id</span> = <span style="color:#e6db74">&#34;Telegraf&#34;</span>
-        <span style="color:#a6e22e">data_format</span> = <span style="color:#e6db74">&#34;json&#34;</span>
-        <span style="color:#a6e22e">json_string_fields</span> = [<span style="color:#e6db74">&#34;model&#34;</span>, <span style="color:#e6db74">&#34;sid&#34;</span>, <span style="color:#e6db74">&#34;status&#34;</span>]
-        <span style="color:#a6e22e">tag_keys</span> = [<span style="color:#e6db74">&#34;model&#34;</span>, <span style="color:#e6db74">&#34;sid&#34;</span>, <span style="color:#e6db74">&#34;short_id&#34;</span>]
-</code></pre></div><p>由于设备不全，有些字段可能不完整。如果大家自己要用的话，可能需要自行修改一下。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-toml" data-lang="toml"><span style="display:flex;"><span>[[<span style="color:#a6e22e">inputs</span>.<span style="color:#a6e22e">mqtt_consumer</span>]]
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">servers</span> = [<span style="color:#e6db74">&#34;tcp://127.0.0.1:1883&#34;</span>]
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">qos</span> = <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">connection_timeout</span> = <span style="color:#e6db74">&#34;30s&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">topics</span> = [
+</span></span><span style="display:flex;"><span>                <span style="color:#e6db74">&#34;/telegraf-mi-aqara&#34;</span>
+</span></span><span style="display:flex;"><span>        ]
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">persistent_session</span> = <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">client_id</span> = <span style="color:#e6db74">&#34;Telegraf&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">data_format</span> = <span style="color:#e6db74">&#34;json&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">json_string_fields</span> = [<span style="color:#e6db74">&#34;model&#34;</span>, <span style="color:#e6db74">&#34;sid&#34;</span>, <span style="color:#e6db74">&#34;status&#34;</span>]
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">tag_keys</span> = [<span style="color:#e6db74">&#34;model&#34;</span>, <span style="color:#e6db74">&#34;sid&#34;</span>, <span style="color:#e6db74">&#34;short_id&#34;</span>]
+</span></span></code></pre></div><p>由于设备不全，有些字段可能不完整。如果大家自己要用的话，可能需要自行修改一下。</p>
 
         </div>
 
@@ -212,7 +212,7 @@
         
             <div id="disqus_thread"></div>
 <script type="application/javascript">
-    var disqus_config = function () {
+    window.disqus_config = function () {
     
     
     
