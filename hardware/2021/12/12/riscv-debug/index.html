@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.93.2" />
+    <meta name="generator" content="Hugo 0.94.2" />
 </head>
 
 
@@ -175,6 +175,21 @@
 <h2 id="abstract-command-实现">Abstract Command 实现</h2>
 <p>那么，如何实现上面提到的 Abstract Command （比如读写寄存器，读写内存等）呢？Debug Spec 里面提到一种 Execution-Based 的方式，即在 Debug mode 下，核心依然在执行代码，只不过执行的是调试用的特殊代码。它做的就是轮询 Debug Module 等待命令，接受到命令以后，就去读写寄存器/内存，然后通过 data0-12 来传输数据。</p>
 <p>这里还有一个比较特别的点，就是读取寄存器的时候，寄存器的编号是直接记录在指令中的，所以可以让 Debug Module 动态生成指令，然后让核心刷新 ICache 然后跳转过去。另外，还可以利用 dscratch0/dscratch1 寄存器来保存 gpr，然后用 dret 退出的时候再恢复，这样就有两个 gpr 可以用来实现功能了，实际上这已经够用了（一个技巧是，把地址设为 0 附近，然后直接用 zero 寄存器加偏移来寻址）。</p>
+<h2 id="单步调试实现">单步调试实现</h2>
+<p>在 dcsr 中，有一个值 step 表示是否在单步调试状态。设 step 为 1 的时候，如果不在 debug mode 中，只需要记录以及执行的指令数，当执行了一条指令后，视为下一个指令发生了进入 debug mode 的异常，这样就实现了单步调试。</p>
+<h2 id="软件断点实现">软件断点实现</h2>
+<p>调试器为了打断点，一种简单的方式是，往断点处写入 ebreak 指令，然后设置 dcsr 的 ebreakm/s/u，表示在这些特权集里，ebreak 是进入 debug mode，而不是原来的处理过程。然后，程序运行到 ebreak 指令的时候，进入 debug mode，openocd 发现核心进入 halted 状态后，让 gdb 继续进行调试。</p>
+<p>硬件方面的实现方法就是，在遇到 ebreak 的时候，判断一下当前的特权集，结合 ebreakm/s/u 判断跳转到什么状态。此外，由于它会写入指令到内存，所以还需要执行 fence.i 指令，而 OpenOCD 需要依赖 progbuf 来执行 fence.i 指令，所以为了让这个方案工作，还得实现 Program Buffer。</p>
+<p>当然了，软件断点也有局限性，比如内存不可写，比如 ROM，不能覆盖里面的指令，这样就有可能出问题。而且硬件断点性能也更好，不需要来回这样写指令。</p>
+<h2 id="semihosting">Semihosting</h2>
+<p>ARM 有一种 semihosting 机制，就是处理器执行一种特定的指令序列，然后调试器看到整个序列的时候，不是进入 GDB 调试状态，而是去进行一些操作，比如输出信息，读写文件等等，然后结果通过 JTAG 写回去。OpenOCD 给 RISC-V 也做了类似的 semihosting 机制，只不过触发的指令序列不大一样，但是机制是类似的。</p>
+<p>如果用过 Rocket Chip 仿真的或者以前的 ucb-bar/fpga-zynq 项目的话，会知道还有一个目的有些类似的东西：HTIF + fesvr，它是通过 fromhost/tohost 两组地址来进行通信，但是这个方法缺点是需要 poll tohost/fromhost 地址的内容，相对来说比较麻烦。</p>
+<h2 id="program-buffer">Program Buffer</h2>
+<p>此外，debug spec 还有一个可选的功能，就是 Program Buffer，调试器可以往里面插入自定义的指令，然后结合 abstract command 进行操作。这样就可以做一些比较高效的操作，比如 OpenOCD 实现的批量写入内存：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span><span style="color:#a6e22e">sw</span> <span style="color:#66d9ef">s1</span>, <span style="color:#ae81ff">0</span>(<span style="color:#66d9ef">a0</span>)
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">addi</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">4</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ebreak</span>
+</span></span></code></pre></div><p>并且设置 abstractauto，然后重复的操作是往 s1 里面写入新的数据，然后跳转到 program buffer，进行上面的 sw 操作，这样就可以一次 dmi 请求完成一次内存的写入，比较高效。</p>
 
         </div>
 
@@ -190,6 +205,10 @@
     <li><a href="#jtag">JTAG</a></li>
     <li><a href="#dmi">DMI</a></li>
     <li><a href="#abstract-command-实现">Abstract Command 实现</a></li>
+    <li><a href="#单步调试实现">单步调试实现</a></li>
+    <li><a href="#软件断点实现">软件断点实现</a></li>
+    <li><a href="#semihosting">Semihosting</a></li>
+    <li><a href="#program-buffer">Program Buffer</a></li>
   </ul>
 </nav>
         </div>
