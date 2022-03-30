@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用 sv2v&#43;yosys 把 fpnew 转为 verilog 网表 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="用 sv2v&#43;yosys 把 fpnew 转为 verilog 网表" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/03/30/sv2v-fpnew/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.96.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/tools/">工具</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">用 sv2v&#43;yosys 把 fpnew 转为 verilog 网表</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/03/30/sv2v-fpnew/" class="article-date">
+                <time datetime='2022-03-30T00:33:00.000&#43;08:00' itemprop="datePublished">2022-03-30</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/03/30/sv2v-fpnew/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>FPnew 是一个比较好用的浮点计算单元，但它是 SystemVerilog 编写的，并且用了很多高级特性，虽然闭源软件是支持的，但是开源拖拉机经常会遇到这样那样的问题。所以一直想用 sv2v 把它翻译成 Verilog，但此时的 Verilog 还有很多复杂的结构，再用 yosys 转换为一个通用可综合的网表。</p>
+<h2 id="步骤">步骤</h2>
+<p>经过一系列踩坑，一个很重要的点是要用最新的 sv2v(v0.0.9-24-gf868f06) 和 yosys(0.15+70)。Debian 打包的 yosys 版本比较老，不能满足需求。</p>
+<p>首先，用 verilator 进行预处理，把一堆 sv 文件合成一个：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ cat a.sv b.sv c.sv &gt; test.sv
+</span></span><span style="display:flex;"><span>$ verilator -E test.sv &gt; merged.sv
+</span></span><span style="display:flex;"><span>$ sed -i <span style="color:#e6db74">&#39;/^`line/d&#39;</span> merged.sv
+</span></span></code></pre></div><p>注意这里用 sed 去掉了无用的行号信息。然后，用 sv2v 进行转换：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sv2v merged.sv &gt; merge.v
+</span></span><span style="display:flex;"><span>$ sed -i <span style="color:#e6db74">&#39;/\$$fatal/d&#39;</span> merge.v
+</span></span></code></pre></div><p>这里又用 sed 把不支持的 $fatal 去掉。最后，用 yosys 进行处理：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ yosys -p <span style="color:#e6db74">&#39;read_verilog -defer merge.v&#39;</span> -p <span style="color:#e6db74">&#39;hierarchy -p fpnew_top&#39;</span> -p <span style="color:#e6db74">&#39;proc&#39;</span> -p <span style="color:#e6db74">&#39;opt&#39;</span> -p <span style="color:#e6db74">&#39;write_verilog -noattr output.v&#39;</span>
+</span></span></code></pre></div><p>注意这里要用 <code>read_verilog -defer</code>，否则 yosys 会遇到 TAG_WIDTH=0 默认参数就直接例化，然后就出现 <code>[0:-1]</code> 这样的下标。<code>read_verilog</code> 的文档告诉了我们可以分两步做：</p>
+<pre><code>-defer
+    only read the abstract syntax tree and defer actual compilation
+    to a later 'hierarchy' command. Useful in cases where the default
+    parameters of modules yield invalid or not synthesizable code.
+</code></pre>
+<p>这样就得到了简化后的 verilog 代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-verilog" data-lang="verilog"><span style="display:flex;"><span><span style="color:#66d9ef">module</span> <span style="color:#960050;background-color:#1e0010">\</span>$paramod<span style="color:#960050;background-color:#1e0010">$</span><span style="color:#ae81ff">011e4</span>d7ee08c34f246a38322dc9967d23ecc8081<span style="color:#960050;background-color:#1e0010">\</span>fpnew_opgroup_block_A94B6_B7406 (clk_i, rst_ni, operands_i, is_boxed_i, rnd_mode_i, op_i, op_mod_i, src_fmt_i, dst_fmt_i, int_fmt_i, vectorial_op_i, tag_i, in_valid_i, in_ready_o, flush_i, result_o, status_o, extension_bit_o, tag_o, out_valid_o, out_ready_i
+</span></span><span style="display:flex;"><span>, busy_o);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> _0_;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> _1_;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> [<span style="color:#ae81ff">71</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] arbiter_output;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">output</span> busy_o;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> busy_o;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> clk_i;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> clk_i;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">2</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] dst_fmt_i;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> [<span style="color:#ae81ff">2</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] dst_fmt_i;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">output</span> extension_bit_o;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">wire</span> extension_bit_o;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> flush_i;
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">endmodule</span>
+</span></span></code></pre></div><p>这样虽然比较丑陋，但是解决了 SystemVerilog 的问题。诚然，这样也失去了修改参数的能力，因为参数已经在 yosys 综合途中确定下来了。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#步骤">步骤</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/hdl">hdl
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/yosys">yosys
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/sv2v">sv2v
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/fpnew">fpnew
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/fpu">fpu
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2022/03/14/design-compiler-synthesis/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Synopsys Design Compiler 综合实践&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
