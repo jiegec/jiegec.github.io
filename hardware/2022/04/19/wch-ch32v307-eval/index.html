@@ -87,6 +87,7 @@
 <h2 id="开箱">开箱</h2>
 <p>收到的盒子里有一个 <a href="http://special.wch.cn/zh_cn/RISCV_MCU_Index/">CH32V307 评估板</a>，和一个 <a href="http://www.wch.cn/products/WCH-Link.html">WCH-Link</a>，相关资料可以在 <a href="http://www.wch.cn/products/CH32V307.html">官网</a> 或者 <a href="https://github.com/openwch/ch32v307">openwch/ch32v307</a> 下载。在说明书中有如下的图示：</p>
 <p><img src="/ch32v307.png" alt=""></p>
+<p>板子自带的跳线帽不是很多，建议自备一些，或者用杜邦线替代。比较重要的是 WCH-Link 子板上 CH549 和 CH2V307 连接的几个信号，和下面 BOOT0/1 的选择。</p>
 <h2 id="wch-link">WCH-Link</h2>
 <p>可以看到评估板自带了一个 WCH-Link，所以不需要附赠的那一个，直接把 11 号 Type-C 连接到电脑上即可。这里还遇到一个小插曲，用 Type-C to Type-C 的线连电脑上不工作，连 PWR LED 都点不亮，换一根 Type-A to Type-C 的就可以，没有继续研究是什么原因。电脑上可以看到 WCH-Link 的设备：VID=1a86, PID=8010。比较有意思的是，在 RISC-V 模式（CON 灯不亮）的时候 PID 是 8010，ARM 模式（CON 灯亮）的时候 PID 是 8011，从 RISC-V 模式切换到 ARM 模式的方法是连接 TX 和 GND 后上电，反过来要用 MounRiver，详见 WCH-Link 使用说明 <a href="http://www.wch.cn/uploads/file/20210707/1625645582172366.pdf">V1.0</a> <a href="http://www.wch.cn/uploads/file/20210906/1630922260396691.pdf">V1.3</a> 和原理图 <a href="http://www.wch.cn/uploads/file/20210104/1609725144187113.pdf">V1.1</a>。</p>
 <p>给沁恒开源 WCH-Link 原理图并开放固件点个赞，在淘宝上也可以看到不少 WCH-Link 的仿真器，挺有意思的。</p>
@@ -180,6 +181,134 @@
 </span></span><span style="display:flex;"><span>         <span style="color:#ae81ff">111</span>
 </span></span><span style="display:flex;"><span>            <span style="color:#ae81ff">111</span>
 </span></span></code></pre></div><p>之后则是针对各个外设，基于沁恒提供的示例代码进行相应的开发了。</p>
+<h2 id="baremetal-代码">Baremetal 代码</h2>
+<p>接下来看看沁恒提供的代码是如何配置的。在 EVT/EXAM/SRC/Startup/startup_ch32v30x_D8C.S 可以看到初始化的汇编代码。比较有意思的是，这个核心扩展了 mtvec，支持 ARM 的 vector table 模式，即放一个指针数组，而不是指令：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span>    <span style="color:#a6e22e">.section</span>    <span style="color:#66d9ef">.vector</span>,<span style="color:#e6db74">&#34;ax&#34;</span>,<span style="color:#a6e22e">@progbits</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">.align</span>  <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>_vector_base:
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">.option</span> <span style="color:#66d9ef">norvc</span><span style="color:#75715e">;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">.word</span>   <span style="color:#66d9ef">_start</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">.word</span>   <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">.word</span>   <span style="color:#66d9ef">NMI_Handler</span>                <span style="color:#960050;background-color:#1e0010">/</span>* <span style="color:#66d9ef">NMI</span> *<span style="color:#960050;background-color:#1e0010">/</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">.word</span>   <span style="color:#66d9ef">HardFault_Handler</span>          <span style="color:#960050;background-color:#1e0010">/</span>* <span style="color:#66d9ef">Hard</span> <span style="color:#66d9ef">Fault</span> *<span style="color:#960050;background-color:#1e0010">/</span>
+</span></span></code></pre></div><p>这些名字如此熟悉，只能说这是 ARVM 了（ARM + RV）。后面的部分比较常规，把 data 段复制到 sram，然后清空 bss：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span>handle_reset:
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">.option</span> <span style="color:#66d9ef">push</span> 
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">.option</span>	<span style="color:#66d9ef">norelax</span> 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">la</span> <span style="color:#66d9ef">gp</span>, <span style="color:#66d9ef">__global_pointer$</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">.option</span>	<span style="color:#66d9ef">pop</span> 
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">1</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">sp</span>, <span style="color:#66d9ef">_eusrstack</span> 
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">2</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#960050;background-color:#1e0010">/*</span> <span style="color:#a6e22e">Load</span> <span style="color:#66d9ef">data</span> <span style="color:#66d9ef">section</span> <span style="color:#66d9ef">from</span> <span style="color:#66d9ef">flash</span> <span style="color:#66d9ef">to</span> <span style="color:#66d9ef">RAM</span> *<span style="color:#960050;background-color:#1e0010">/</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">_data_lma</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">a1</span>, <span style="color:#66d9ef">_data_vma</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">a2</span>, <span style="color:#66d9ef">_edata</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">bgeu</span> <span style="color:#66d9ef">a1</span>, <span style="color:#66d9ef">a2</span>, <span style="color:#ae81ff">2</span><span style="color:#66d9ef">f</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">1:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">lw</span> <span style="color:#66d9ef">t0</span>, (<span style="color:#66d9ef">a0</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">sw</span> <span style="color:#66d9ef">t0</span>, (<span style="color:#66d9ef">a1</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">addi</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">4</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">addi</span> <span style="color:#66d9ef">a1</span>, <span style="color:#66d9ef">a1</span>, <span style="color:#ae81ff">4</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">bltu</span> <span style="color:#66d9ef">a1</span>, <span style="color:#66d9ef">a2</span>, <span style="color:#ae81ff">1</span><span style="color:#66d9ef">b</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">2:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#960050;background-color:#1e0010">/*</span> <span style="color:#a6e22e">Clear</span> <span style="color:#66d9ef">bss</span> <span style="color:#66d9ef">section</span> *<span style="color:#960050;background-color:#1e0010">/</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">_sbss</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">a1</span>, <span style="color:#66d9ef">_ebss</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">bgeu</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">a1</span>, <span style="color:#ae81ff">2</span><span style="color:#66d9ef">f</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">1:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">sw</span> <span style="color:#66d9ef">zero</span>, (<span style="color:#66d9ef">a0</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">addi</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">4</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">bltu</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">a1</span>, <span style="color:#ae81ff">1</span><span style="color:#66d9ef">b</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">2:</span>
+</span></span></code></pre></div><p>最后是进行一些 csr 的配置，然后进入 C 代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span>    <span style="color:#a6e22e">li</span> <span style="color:#66d9ef">t0</span>, <span style="color:#ae81ff">0x1f</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">csrw</span> <span style="color:#ae81ff">0xbc0</span>, <span style="color:#66d9ef">t0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#960050;background-color:#1e0010">/*</span> <span style="color:#a6e22e">Enable</span> <span style="color:#66d9ef">nested</span> <span style="color:#66d9ef">and</span> <span style="color:#66d9ef">hardware</span> <span style="color:#66d9ef">stack</span> *<span style="color:#960050;background-color:#1e0010">/</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">li</span> <span style="color:#66d9ef">t0</span>, <span style="color:#ae81ff">0x1f</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">csrw</span> <span style="color:#ae81ff">0x804</span>, <span style="color:#66d9ef">t0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#960050;background-color:#1e0010">/*</span> <span style="color:#a6e22e">Enable</span> <span style="color:#66d9ef">floating</span> <span style="color:#66d9ef">point</span> <span style="color:#66d9ef">and</span> <span style="color:#66d9ef">interrupt</span> *<span style="color:#960050;background-color:#1e0010">/</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">li</span> <span style="color:#66d9ef">t0</span>, <span style="color:#ae81ff">0x6088</span>           
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">csrs</span> <span style="color:#66d9ef">mstatus</span>, <span style="color:#66d9ef">t0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">t0</span>, <span style="color:#66d9ef">_vector_base</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">ori</span> <span style="color:#66d9ef">t0</span>, <span style="color:#66d9ef">t0</span>, <span style="color:#ae81ff">3</span>           
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">csrw</span> <span style="color:#66d9ef">mtvec</span>, <span style="color:#66d9ef">t0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">lui</span> <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">0x1ffff</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">li</span> <span style="color:#66d9ef">a1</span>, <span style="color:#ae81ff">0x300</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sh</span> <span style="color:#66d9ef">a1</span>, <span style="color:#ae81ff">0x1b0</span>(<span style="color:#66d9ef">a0</span>)
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">1:</span>  <span style="color:#a6e22e">lui</span> <span style="color:#66d9ef">s2</span>, <span style="color:#ae81ff">0x40022</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">lw</span> <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">0xc</span>(<span style="color:#66d9ef">s2</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">andi</span> <span style="color:#66d9ef">a0</span>, <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">bnez</span> <span style="color:#66d9ef">a0</span>, <span style="color:#ae81ff">1</span><span style="color:#66d9ef">b</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">jal</span>  <span style="color:#66d9ef">SystemInit</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">la</span> <span style="color:#66d9ef">t0</span>, <span style="color:#66d9ef">main</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">csrw</span> <span style="color:#66d9ef">mepc</span>, <span style="color:#66d9ef">t0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mret</span>
+</span></span></code></pre></div><p>这里有一些自定义的 csr，比如 corecfgr(0xbc0)，intsyscr(0x804，设置了 HWSTKEN=1, INESTEN=1, PMTCFG=0b11, HWSTKOVEN=1)，具体参考 <a href="http://www.wch.cn/downloads/QingKeV4_Processor_Manual_PDF.html">QingKeV4_Processor_Manual</a>。接着代码往 0x1ffff1b0 写入 0x300，然后不断读取 FLASH Interface (0x40022000) 的 STATR 字段，没有找到代码中相关的定义，简单猜测与 Flash 的零等待/非零等待区有关，因为后续代码要提高频率，因此 Flash 控制器需要增加 wait state。</p>
+<h2 id="编译">编译</h2>
+<p>可以用 MounRiver 编译，也可以用 SiFive 的 riscv64-unknown-elf 工具链进行编译，参考 <a href="https://git.minori.work/Embedded_Projects/CH32V307_Template">Embedded_Projects/CH32V307_Template</a> 项目中的编译方式，修改 <code>riscv64-elf.cmake</code> 为：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span>set(<span style="color:#e6db74">CMAKE_SYSTEM_NAME</span> <span style="color:#e6db74">Generic</span>)<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>set(<span style="color:#e6db74">CMAKE_C_COMPILER</span> <span style="color:#e6db74">riscv64-unknown-elf-gcc</span>)<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>set(<span style="color:#e6db74">CMAKE_CXX_COMPILER</span> <span style="color:#e6db74">riscv64-unknown-elf-g++</span>)<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#75715e"># Make CMake happy about those compilers
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set(<span style="color:#e6db74">CMAKE_TRY_COMPILE_TARGET_TYPE</span> <span style="color:#e6db74">&#34;STATIC_LIBRARY&#34;</span>)<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>然后交叉编译就可以了。比较有意思的是，代码中对 <code>_fstat</code> 进行了覆盖，如果不这么做，它会进行 syscall(ecall)，但是 ecall 的处理是死循环。</p>
+<h2 id="烧写-flash">烧写 Flash</h2>
+<p>编译好以后，根据 WCH OpenOCD 的文档，可以用下面的配置来进行烧写：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span><span style="color:#75715e">#interface wlink
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>adapter driver wlink
+</span></span><span style="display:flex;"><span>wlink_set
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">set</span> _CHIPNAME riscv
+</span></span><span style="display:flex;"><span>jtag newtap $_CHIPNAME cpu <span style="color:#f92672">-</span>irlen <span style="color:#ae81ff">5</span> <span style="color:#f92672">-</span>expected-id <span style="color:#ae81ff">0x00001</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">set</span> _TARGETNAME $_CHIPNAME.cpu
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>target create $_TARGETNAME.0 riscv <span style="color:#f92672">-</span>chain-position $_TARGETNAME
+</span></span><span style="display:flex;"><span>$_TARGETNAME.0 configure  <span style="color:#f92672">-</span>work-area-phys <span style="color:#ae81ff">0x80000000</span> <span style="color:#f92672">-</span>work-area-size <span style="color:#ae81ff">10000</span> <span style="color:#f92672">-</span>work-area-backup <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">set</span> _FLASHNAME $_CHIPNAME.flash
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>flash bank $_FLASHNAME wch_riscv <span style="color:#ae81ff">0x00000000</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> $_TARGETNAME.0
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>init
+</span></span><span style="display:flex;"><span>halt
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>flash erase_sector wch_riscv <span style="color:#ae81ff">0</span> last
+</span></span><span style="display:flex;"><span>program <span style="color:#f92672">/</span>path<span style="color:#f92672">/</span>to<span style="color:#f92672">/</span>firmware
+</span></span><span style="display:flex;"><span>verify_image <span style="color:#f92672">/</span>path<span style="color:#f92672">/</span>to<span style="color:#f92672">/</span>firmware
+</span></span><span style="display:flex;"><span>wlink_reset_resume
+</span></span><span style="display:flex;"><span>exit
+</span></span></code></pre></div><p>输出：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ openocd -f program.cfg
+</span></span><span style="display:flex;"><span>Open On-Chip Debugger 0.11.0+dev-01623-gbfa3bc7f9 <span style="color:#f92672">(</span>2022-04-20-09:55<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Licensed under GNU GPL v2
+</span></span><span style="display:flex;"><span>For bug reports, read
+</span></span><span style="display:flex;"><span>        http://openocd.org/doc/doxygen/bugs.html
+</span></span><span style="display:flex;"><span>Info : only one transport option; autoselect <span style="color:#e6db74">&#39;jtag&#39;</span>
+</span></span><span style="display:flex;"><span>Ready <span style="color:#66d9ef">for</span> Remote Connections
+</span></span><span style="display:flex;"><span>Info : WCH-Link version 2.3
+</span></span><span style="display:flex;"><span>Info : wlink_init ok
+</span></span><span style="display:flex;"><span>Info : This adapter doesn<span style="color:#960050;background-color:#1e0010">&#39;</span>t support configurable speed
+</span></span><span style="display:flex;"><span>Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 <span style="color:#f92672">(</span>mfg: 0x000 <span style="color:#f92672">(</span>&lt;invalid&gt;<span style="color:#f92672">)</span>, part: 0x0000, ver: 0x0<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Warn : Bypassing JTAG setup events due to errors
+</span></span><span style="display:flex;"><span>Info : <span style="color:#f92672">[</span>riscv.cpu.0<span style="color:#f92672">]</span> datacount<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span> progbufsize<span style="color:#f92672">=</span><span style="color:#ae81ff">8</span>
+</span></span><span style="display:flex;"><span>Info : Examined RISC-V core; found <span style="color:#ae81ff">1</span> harts
+</span></span><span style="display:flex;"><span>Info :  hart 0: XLEN<span style="color:#f92672">=</span>32, misa<span style="color:#f92672">=</span>0x40901125
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>riscv.cpu.0<span style="color:#f92672">]</span> Target successfully examined.
+</span></span><span style="display:flex;"><span>Info : starting gdb server <span style="color:#66d9ef">for</span> riscv.cpu.0 on <span style="color:#ae81ff">3333</span>
+</span></span><span style="display:flex;"><span>Info : Listening on port <span style="color:#ae81ff">3333</span> <span style="color:#66d9ef">for</span> gdb connections
+</span></span><span style="display:flex;"><span>Info : device id <span style="color:#f92672">=</span> REDACTED
+</span></span><span style="display:flex;"><span>Info : flash size <span style="color:#f92672">=</span> 256kbytes
+</span></span><span style="display:flex;"><span>Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 <span style="color:#f92672">(</span>mfg: 0x000 <span style="color:#f92672">(</span>&lt;invalid&gt;<span style="color:#f92672">)</span>, part: 0x0000, ver: 0x0<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Warn : Bypassing JTAG setup events due to errors
+</span></span><span style="display:flex;"><span>** Programming Started **
+</span></span><span style="display:flex;"><span>** Programming Finished **
+</span></span><span style="display:flex;"><span>Info : Verify Success
+</span></span></code></pre></div><p>访问串口 <code>screen /dev/tty.usbmodem* 115200</code>，可以看到正确地输出了内容。</p>
 
         </div>
 
@@ -193,6 +322,9 @@
     <li><a href="#开箱">开箱</a></li>
     <li><a href="#wch-link">WCH-Link</a></li>
     <li><a href="#openocd">OpenOCD</a></li>
+    <li><a href="#baremetal-代码">Baremetal 代码</a></li>
+    <li><a href="#编译">编译</a></li>
+    <li><a href="#烧写-flash">烧写 Flash</a></li>
   </ul>
 </nav>
         </div>
