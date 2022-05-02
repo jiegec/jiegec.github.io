@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
 
-    <meta name="generator" content="Hugo 0.97.2" />
+    <meta name="generator" content="Hugo 0.98.0" />
 </head>
 
 
@@ -257,8 +257,43 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>set(<span style="color:#e6db74">CMAKE_CXX_COMPILER</span> <span style="color:#e6db74">riscv64-unknown-elf-g++</span>)<span style="color:#960050;background-color:#1e0010">
 </span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#75715e"># Make CMake happy about those compilers
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set(<span style="color:#e6db74">CMAKE_TRY_COMPILE_TARGET_TYPE</span> <span style="color:#e6db74">&#34;STATIC_LIBRARY&#34;</span>)<span style="color:#960050;background-color:#1e0010">
-</span></span></span></code></pre></div><p>然后交叉编译就可以了。比较有意思的是，代码中对 <code>_fstat</code> 进行了覆盖，如果不这么做，它会进行 syscall(ecall)，但是 ecall 的处理是死循环。</p>
-<h2 id="烧写-flash">烧写 Flash</h2>
+</span></span></span></code></pre></div><p>然后交叉编译就可以了。需要注意的是对 libnosys 的处理，如果没有正确链接，就会出现 syscall，然后在 ecall handler 里面死循环。</p>
+<p>如果不想用 CMake，也可以用下面的精简版 Makefile：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-make" data-lang="make"><span style="display:flex;"><span>USER <span style="color:#f92672">:=</span> User/main.c User/ch32v30x_it.c User/system_ch32v30x.c
+</span></span><span style="display:flex;"><span>LIBRARY <span style="color:#f92672">:=</span> ../../SRC/Peripheral/src/ch32v30x_misc.c <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	../../SRC/Peripheral/src/ch32v30x_usart.c <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	../../SRC/Peripheral/src/ch32v30x_gpio.c <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	../../SRC/Peripheral/src/ch32v30x_rcc.c <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	../../SRC/Debug/debug.c <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	../../SRC/Startup/startup_ch32v30x_D8C.S
+</span></span><span style="display:flex;"><span>LDSCRIPT <span style="color:#f92672">=</span> ../../SRC/Ld/Link.ld
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># disable libc first
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>CFLAGS <span style="color:#f92672">:=</span> -march<span style="color:#f92672">=</span>rv32imafc -mabi<span style="color:#f92672">=</span>ilp32f <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-flto -ffunction-sections -fdata-sections <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-nostartfiles -nostdlib <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-T <span style="color:#66d9ef">$(</span>LDSCRIPT<span style="color:#66d9ef">)</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-I../../SRC/Debug <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-I../../SRC/Core <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-I../../SRC/Peripheral/inc <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-I./User <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-O2 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-Wl,--print-memory-usage
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># link libc &amp; libnosys in the end
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>CFLAGS_END <span style="color:#f92672">:=</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>	-lc -lgcc -lnosys
+</span></span><span style="display:flex;"><span>PREFIX <span style="color:#f92672">:=</span> riscv64-unknown-elf-
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">all</span><span style="color:#f92672">:</span> obj/build.bin
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">obj/build.bin</span><span style="color:#f92672">:</span> obj/build.elf
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>PREFIX<span style="color:#66d9ef">)</span>objcopy -O binary $^ $@
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">obj/build.elf</span><span style="color:#f92672">:</span> <span style="color:#66d9ef">$(</span>USER<span style="color:#66d9ef">)</span> <span style="color:#66d9ef">$(</span>LIBRARY<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>PREFIX<span style="color:#66d9ef">)</span>gcc <span style="color:#66d9ef">$(</span>CFLAGS<span style="color:#66d9ef">)</span> $^ <span style="color:#66d9ef">$(</span>CFLAGS_END<span style="color:#66d9ef">)</span> -o $@
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">clean</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	rm -rf obj/*
+</span></span></code></pre></div><h2 id="烧写-flash">烧写 Flash</h2>
 <p>编译好以后，根据 WCH OpenOCD 的文档，可以用下面的配置来进行烧写：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span><span style="color:#75715e">#interface wlink
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>adapter driver wlink
@@ -407,6 +442,12 @@
     </div>
     
 <nav id="article-nav">
+    
+    <a href="/software/2022/05/02/loongarch64-toolchain/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            LoongArch64 工具链构建
+        </div>
+    </a>
     
     
     <a href="/hardware/2022/04/10/vivado-program-bitstream-svf/" id="article-nav-older" class="article-nav-link-wrap">
