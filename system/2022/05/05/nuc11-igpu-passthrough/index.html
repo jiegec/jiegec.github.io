@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NUC11 ESXi 中 iGPU 直通虚拟机 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="NUC11 ESXi 中 iGPU 直通虚拟机" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/system/2022/05/05/nuc11-igpu-passthrough/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.98.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">NUC11 ESXi 中 iGPU 直通虚拟机</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/system/2022/05/05/nuc11-igpu-passthrough/" class="article-date">
+                <time datetime='2022-05-05T10:24:00.000&#43;08:00' itemprop="datePublished">2022-05-05</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/system/2022/05/05/nuc11-igpu-passthrough/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>之前在 NUC11PAKi5 上装了 ESXI 加几个虚拟机系统，但是自带的 iGPU Intel Iris Xe Graphics(Tiger Lake GT-2) 没用上，感觉有些浪费。因此想要给 Windows 直通。在直通到 Windows 后发现会无限重启，最后直通到 Linux 中。</p>
+<h2 id="步骤">步骤</h2>
+<p>第一步是到 esxi 的设备设置的地方，把 iGPU 的 Passthrough 打开，这时候会提示需要重启，但是如果重启，会发现还是处于 Needs reboot 状态。网上进行搜索，发现是 ESXi 自己占用了 iGPU 的输出，<a href="https://williamlam.com/2020/06/passthrough-of-integrated-gpu-igpu-for-standard-intel-nuc.html">解决方法</a>如下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ esxcli system settings kernel set -s vga -v FALSE
+</span></span></code></pre></div><p>这样设置以后就不会在显卡输出上显示 dcui 了，这是一个比较大的缺点，但是平时也不用自带的显示输出，就无所谓了。</p>
+<p>第二步，重启以后，这时候看设备状态就是 Active。回到 Windows 虚拟机，添加 PCI device，然后启动。这时候，我遇到了这样的错误：</p>
+<pre tabindex="0"><code>Module ‘DevicePowerOn’ power on failed
+Failed to register the device pciPassthru0
+</code></pre><p>搜索了一番，<a href="https://shuttletitan.com/vsphere/pci-passthrough-module-devicepoweron-power-on-failed/">解决方法</a>是关掉 IOMMU。在虚拟机设计中关掉 IOMMU，就可以正常启动了。</p>
+<p>第三步，进入 Windows，这时候就可以看到有一个新的未知设备了，VID=8086，PID=9a49；等待一段时间，Windows 自动安装好了驱动，就可以正常识别了。GPU-Z 中可以看到效果如下：</p>
+<p><img src="/igpu.png" alt=""></p>
+<p>不过关机重启的时候会蓝屏，可能还有一些问题，有人在<a href="https://community.intel.com/t5/Graphics/SR-IOV-support-for-intel-Iris-Xe-Graphics-on-i7-1165G7/td-p/1293264">论坛</a>上也说 passthrough 之后会蓝屏。这个问题一直没有解决。</p>
+<p>再尝试 Passthrough 到 Linux：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo dmesg | grep i915
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.173500<span style="color:#f92672">]</span> i915 0000:13:00.0: enabling device <span style="color:#f92672">(</span><span style="color:#ae81ff">0000</span> -&gt; 0003<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.180137<span style="color:#f92672">]</span> i915 0000:13:00.0: <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> VT-d active <span style="color:#66d9ef">for</span> gfx access
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.182109<span style="color:#f92672">]</span> i915 0000:13:00.0: BAR 6: can<span style="color:#960050;background-color:#1e0010">&#39;</span>t assign <span style="color:#f92672">[</span>??? 0x00000000 flags 0x20000000<span style="color:#f92672">]</span> <span style="color:#f92672">(</span>bogus alignment<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.182110<span style="color:#f92672">]</span> i915 0000:13:00.0: <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> Failed to find VBIOS tables <span style="color:#f92672">(</span>VBT<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.182541<span style="color:#f92672">]</span> i915 0000:13:00.0: vgaarb: changed VGA decodes: olddecodes<span style="color:#f92672">=</span>io+mem,decodes<span style="color:#f92672">=</span>none:owns<span style="color:#f92672">=</span>none
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.197374<span style="color:#f92672">]</span> i915 0000:13:00.0: firmware: direct-loading firmware i915/tgl_dmc_ver2_08.bin
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    2.198037<span style="color:#f92672">]</span> i915 0000:13:00.0: <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> Finished loading DMC firmware i915/tgl_dmc_ver2_08.bin <span style="color:#f92672">(</span>v2.8<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    3.401676<span style="color:#f92672">]</span> i915 0000:13:00.0: <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> failed to retrieve link info, disabling eDP
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    3.515822<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> Initialized i915 1.6.0 <span style="color:#ae81ff">20200917</span> <span style="color:#66d9ef">for</span> 0000:13:00.0 on minor <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    3.516054<span style="color:#f92672">]</span> i915 0000:13:00.0: <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> Cannot find any crtc or sizes
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>    3.516144<span style="color:#f92672">]</span> i915 0000:13:00.0: <span style="color:#f92672">[</span>drm<span style="color:#f92672">]</span> Cannot find any crtc or sizes
+</span></span></code></pre></div><p>OpenCL 也可以检测到：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo apt install intel-opencl-icd clinfo
+</span></span><span style="display:flex;"><span>Number of devices                                 <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>  Device Name                                     Intel<span style="color:#f92672">(</span>R<span style="color:#f92672">)</span> Graphics Gen12LP <span style="color:#f92672">[</span>0x9a49<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  Device Vendor                                   Intel<span style="color:#f92672">(</span>R<span style="color:#f92672">)</span> Corporation
+</span></span><span style="display:flex;"><span>  Device Vendor ID                                0x8086
+</span></span><span style="display:flex;"><span>  Device Version                                  OpenCL 3.0 NEO
+</span></span><span style="display:flex;"><span>  Device Numeric Version                          0xc00000 <span style="color:#f92672">(</span>3.0.0<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>  Driver Version                                  1.0.0
+</span></span></code></pre></div><p>Vulkan：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ vulkaninfo
+</span></span><span style="display:flex;"><span>Group 1:
+</span></span><span style="display:flex;"><span>        Properties:
+</span></span><span style="display:flex;"><span>                physicalDevices: count <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>                        Intel<span style="color:#f92672">(</span>R<span style="color:#f92672">)</span> Xe Graphics <span style="color:#f92672">(</span>TGL GT2<span style="color:#f92672">)</span> <span style="color:#f92672">(</span>ID: 0<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>                subsetAllocation <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        Present Capabilities:
+</span></span><span style="display:flex;"><span>                Intel<span style="color:#f92672">(</span>R<span style="color:#f92672">)</span> Xe Graphics <span style="color:#f92672">(</span>TGL GT2<span style="color:#f92672">)</span> <span style="color:#f92672">(</span>ID: 0<span style="color:#f92672">)</span>:
+</span></span><span style="display:flex;"><span>                        Can present images from the following devices: count <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>                                Intel<span style="color:#f92672">(</span>R<span style="color:#f92672">)</span> Xe Graphics <span style="color:#f92672">(</span>TGL GT2<span style="color:#f92672">)</span> <span style="color:#f92672">(</span>ID: 0<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>                Present modes: count <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>                        DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR
+</span></span></code></pre></div><p>不过目前还没找到显示输出的方法，只能用 VMware SVGA 或者远程桌面。</p>
+<h2 id="吐槽">吐槽</h2>
+<p>需要吐槽的是，11 代的核显不再支持 Intel GVT-g，而是提供了 SR-IOV 的虚拟化。但是，Linux i915 驱动没有做相应的支持。</p>
+<p>参考文档：</p>
+<ul>
+<li><a href="https://williamlam.com/2020/06/passthrough-of-integrated-gpu-igpu-for-standard-intel-nuc.html">Passthrough of Integrated GPU (iGPU) for standard Intel NUC</a></li>
+<li><a href="https://shuttletitan.com/vsphere/pci-passthrough-module-devicepoweron-power-on-failed/">PCI Passthrough – “Module ‘DevicePowerOn’ power on failed”</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#步骤">步骤</a></li>
+    <li><a href="#吐槽">吐槽</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/windows">windows
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/win11">win11
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/esxi">esxi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/vmware">vmware
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/gpu">gpu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/igpu">igpu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/passthrough">passthrough
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/hardware/2022/05/09/tilelink/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            TileLink 总线协议分析
+        </div>
+    </a>
+    
+    
+    <a href="/software/2022/05/02/loongarch64-toolchain/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">LoongArch64 工具链构建&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

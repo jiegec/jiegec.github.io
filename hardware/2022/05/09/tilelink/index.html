@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TileLink 总线协议分析 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="TileLink 总线协议分析" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/05/09/tilelink/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.98.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">TileLink 总线协议分析</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/05/09/tilelink/" class="article-date">
+                <time datetime='2022-05-09T16:15:00.000&#43;08:00' itemprop="datePublished">2022-05-09</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/05/09/tilelink/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近在研究一些支持缓存一致性的缓存的实现，比如 rocket-chip 的实现和 sifive 的实现，因此需要研究一些 TileLink 协议。本文讨论的时候默认读者具有一定的 AXI 知识，因此很多内容会直接参考 AXI。</p>
+<h2 id="信号">信号</h2>
+<p>根据 <a href="https://github.com/chipsalliance/omnixtend/blob/master/OmniXtend-1.0.3/spec/TileLink-1.8.0.pdf">TileLink Spec 1.8.0</a>，TileLink 分为以下三种：</p>
+<ul>
+<li>TL-UL: 只支持读写，不支持 burst，类比 AXI-Lite</li>
+<li>TL-UH：支持读写，原子指令，预取，支持 burst，类比 AXI+ATOP（AXI5 引入的原子操作）</li>
+<li>TL-C：在 TL-UH 基础上支持缓存一致性协议，类比 AXI+ACE/CHI</li>
+</ul>
+<h2 id="tilelink-uncached">TileLink Uncached</h2>
+<p>TileLink Uncached(TL-UL 和 TL-UH)包括了两个 channel：</p>
+<ul>
+<li>A channel: M-&gt;S 发送请求，类比 AXI 的 AR/AW/W</li>
+<li>D channel: S-&gt;M 发送响应，类比 AXI 的 R/W</li>
+</ul>
+<p>因此 TileLink 每个周期只能发送读或者写的请求，而 AXI 可以同时在 AR 和 AW channel 上发送请求。</p>
+<p>一些请求的例子：</p>
+<ul>
+<li>读：M-&gt;S 在 A channel 上发送 Get，S-&gt;M 在 D channel 上发送 AccessAckData</li>
+<li>写：M-&gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&gt;M 在 D channel 是发送 AccessAck</li>
+<li>原子操作：M-&gt;S 在 A channel 上发送 ArithmeticData/LogicalData，S-&gt;M 在 D channel 上发送 AccessAckData</li>
+<li>预取操作：M-&gt;S 在 A channel 上发送 Intent，S-&gt;M 在 D channel 上发送 AccessAck</li>
+</ul>
+<h2 id="axi4totl">AXI4ToTL</h2>
+<p>针对 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L59">AXI4ToTL</a> 模块的例子，来分析一下如何把一个 AXI4 Master 转换为 TileLink。</p>
+<p>首先考虑一下 AXI4 和 TileLink 的区别：一个是读写 channel 合并了，所以这里需要一个 Arbiter；其次 AXI4 中 AW 和 W 是分开的，这里也需要进行合并。这个模块并不考虑 Burst 的情况，而是由 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/Fragmenter.scala#L14=">AXI4Fragmenter</a> 来进行拆分，即添加若干个 AW beat，和 W 进行配对。</p>
+<p>具体到代码实现上，首先把 AR channel <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L86=">对应到</a> 到 A channel 上：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> r_out <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Wire</span><span style="color:#f92672">(</span>out<span style="color:#f92672">.</span>a<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>r_out<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> in<span style="color:#f92672">.</span>ar<span style="color:#f92672">.</span>valid
+</span></span><span style="display:flex;"><span>r_out<span style="color:#f92672">.</span>bits <span style="color:#66d9ef">:</span><span style="color:#66d9ef">&lt;=</span> <span style="color:#66d9ef">edgeOut.Get</span><span style="color:#f92672">(</span><span style="color:#66d9ef">r_id</span><span style="color:#f92672">,</span> <span style="color:#66d9ef">r_addr</span><span style="color:#f92672">,</span> r_size<span style="color:#f92672">).</span>_2
+</span></span></code></pre></div><p>然后 AW+W channel 也<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L119=">连接</a> 到 A channel，由于不用考虑 burst的情况，这里在 aw 和 w 同时 valid 的时候才认为有请求。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> w_out <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Wire</span><span style="color:#f92672">(</span>out<span style="color:#f92672">.</span>a<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>in<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> w_out<span style="color:#f92672">.</span>ready <span style="color:#f92672">&amp;&amp;</span> in<span style="color:#f92672">.</span>w<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> in<span style="color:#f92672">.</span>w<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>last
+</span></span><span style="display:flex;"><span>in<span style="color:#f92672">.</span>w<span style="color:#f92672">.</span>ready  <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> w_out<span style="color:#f92672">.</span>ready <span style="color:#f92672">&amp;&amp;</span> in<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>valid
+</span></span><span style="display:flex;"><span>w_out<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> in<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> in<span style="color:#f92672">.</span>w<span style="color:#f92672">.</span>valid
+</span></span><span style="display:flex;"><span>w_out<span style="color:#f92672">.</span>bits <span style="color:#66d9ef">:</span><span style="color:#66d9ef">&lt;=</span> <span style="color:#66d9ef">edgeOut.Put</span><span style="color:#f92672">(</span><span style="color:#66d9ef">w_id</span><span style="color:#f92672">,</span> <span style="color:#66d9ef">w_addr</span><span style="color:#f92672">,</span> w_size<span style="color:#f92672">,</span> in<span style="color:#f92672">.</span>w<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>data<span style="color:#f92672">,</span> in<span style="color:#f92672">.</span>w<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>strb<span style="color:#f92672">).</span>_2
+</span></span></code></pre></div><p>比较有意思的是读写的 id 增加了若干位，最低位 0 表示读，1 表示写，剩下几位是请求编号，这样发出去的是不同 id 的多个请求。</p>
+<p>然后，把读和写的 A channel <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L155=">连接</a>到 Arbiter 上：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#a6e22e">TLArbiter</span><span style="color:#f92672">(</span><span style="color:#a6e22e">TLArbiter</span><span style="color:#f92672">.</span>roundRobin<span style="color:#f92672">)(</span>out<span style="color:#f92672">.</span>a<span style="color:#f92672">,</span> <span style="color:#f92672">(</span><span style="color:#a6e22e">UInt</span><span style="color:#f92672">(</span><span style="color:#ae81ff">0</span><span style="color:#f92672">),</span> r_out<span style="color:#f92672">),</span> <span style="color:#f92672">(</span>in<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>len<span style="color:#f92672">,</span> w_out<span style="color:#f92672">))</span>
+</span></span></code></pre></div><p>其余的部分则是对 D channel 进行判断，有数据的转给 R channel，没有数据的转给 B channel：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span>out<span style="color:#f92672">.</span>d<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>d_hasData<span style="color:#f92672">,</span> ok_r<span style="color:#f92672">.</span>ready<span style="color:#f92672">,</span> ok_b<span style="color:#f92672">.</span>ready<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>ok_r<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> out<span style="color:#f92672">.</span>d<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> d_hasData
+</span></span><span style="display:flex;"><span>ok_b<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> out<span style="color:#f92672">.</span>d<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>d_hasData
+</span></span></code></pre></div><p>最后处理了一下 TileLink 和 AXI4 对写请求返回确认的区别：TileLink 中，可以在第一个 burst beat 就返回确认，而 AXI4 需要在最后一个 burst beat 之后返回确认。</p>
+<h2 id="tltoaxi4">TLToAXI4</h2>
+<p>再来看一下反过来的转换，从 TileLink Master 到 AXI。由于 TileLink 同时只能进行读或者写，所以它首先做了一个虚构的 arw channel，可以理解为合并了 ar 和 aw channel 的 AXI4，这个设计在 SpinalHDL 的代码中也能看到。然后再根据是否是写入，分别<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/ToAXI4.scala#L153=">连接</a>到 ar 和 aw channel：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> queue_arw <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Queue</span><span style="color:#f92672">.</span>irrevocable<span style="color:#f92672">(</span>out_arw<span style="color:#f92672">,</span> entries<span style="color:#66d9ef">=</span>depth<span style="color:#f92672">,</span> flow<span style="color:#66d9ef">=</span>combinational<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>out<span style="color:#f92672">.</span>ar<span style="color:#f92672">.</span>bits <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> queue_arw<span style="color:#f92672">.</span>bits
+</span></span><span style="display:flex;"><span>out<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>bits <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> queue_arw<span style="color:#f92672">.</span>bits
+</span></span><span style="display:flex;"><span>out<span style="color:#f92672">.</span>ar<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> queue_arw<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>queue_arw<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>wen
+</span></span><span style="display:flex;"><span>out<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> queue_arw<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span>  queue_arw<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>wen
+</span></span><span style="display:flex;"><span>queue_arw<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>queue_arw<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>wen<span style="color:#f92672">,</span> out<span style="color:#f92672">.</span>aw<span style="color:#f92672">.</span>ready<span style="color:#f92672">,</span> out<span style="color:#f92672">.</span>ar<span style="color:#f92672">.</span>ready<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p><a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/ToAXI4.scala#L197=">这里</a>处理了 aw 和 w 的 valid 信号：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span>in<span style="color:#f92672">.</span>a<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#f92672">!</span>stall <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>a_isPut<span style="color:#f92672">,</span> <span style="color:#f92672">(</span>doneAW <span style="color:#f92672">||</span> out_arw<span style="color:#f92672">.</span>ready<span style="color:#f92672">)</span> <span style="color:#f92672">&amp;&amp;</span> out_w<span style="color:#f92672">.</span>ready<span style="color:#f92672">,</span> out_arw<span style="color:#f92672">.</span>ready<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>out_arw<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#f92672">!</span>stall <span style="color:#f92672">&amp;&amp;</span> in<span style="color:#f92672">.</span>a<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>a_isPut<span style="color:#f92672">,</span> <span style="color:#f92672">!</span>doneAW <span style="color:#f92672">&amp;&amp;</span> out_w<span style="color:#f92672">.</span>ready<span style="color:#f92672">,</span> <span style="color:#a6e22e">Bool</span><span style="color:#f92672">(</span><span style="color:#66d9ef">true</span><span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span>out_w<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#f92672">!</span>stall <span style="color:#f92672">&amp;&amp;</span> in<span style="color:#f92672">.</span>a<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> a_isPut <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">(</span>doneAW <span style="color:#f92672">||</span> out_arw<span style="color:#f92672">.</span>ready<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>这样做的原因是，在 TileLink 中，每个 burst 都是一个 a channel 上的请求，而 AXI4 中，只有第一个 burst 有 aw 请求，所有 burst 都有 w 请求，因此这里用 doneAW 信号来进行区分。</p>
+<p>接着，要把 b 和 r channel 上的结果连接到 d channel，根据上面的经验，<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/ToAXI4.scala#L205=">这里</a> 又是一个 arbitration：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> r_wins <span style="color:#66d9ef">=</span> <span style="color:#f92672">(</span>out<span style="color:#f92672">.</span>r<span style="color:#f92672">.</span>valid <span style="color:#f92672">&amp;&amp;</span> b_delay <span style="color:#f92672">=/=</span> <span style="color:#a6e22e">UInt</span><span style="color:#f92672">(</span><span style="color:#ae81ff">7</span><span style="color:#f92672">))</span> <span style="color:#f92672">||</span> r_holds_d
+</span></span><span style="display:flex;"><span>out<span style="color:#f92672">.</span>r<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> in<span style="color:#f92672">.</span>d<span style="color:#f92672">.</span>ready <span style="color:#f92672">&amp;&amp;</span> r_wins
+</span></span><span style="display:flex;"><span>out<span style="color:#f92672">.</span>b<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> in<span style="color:#f92672">.</span>d<span style="color:#f92672">.</span>ready <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>r_wins
+</span></span><span style="display:flex;"><span>in<span style="color:#f92672">.</span>d<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>r_wins<span style="color:#f92672">,</span> out<span style="color:#f92672">.</span>r<span style="color:#f92672">.</span>valid<span style="color:#f92672">,</span> out<span style="color:#f92672">.</span>b<span style="color:#f92672">.</span>valid<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>最后还处理了一下请求和结果顺序的问题。</p>
+<h2 id="tilelink-cached">TileLink Cached</h2>
+<p>上面说的两个模块都是 TileLink Uncached，那么它如何支持缓存一致性呢？首先，它引入了三个 channel：C、D 和 E，支持三种操作：</p>
+<ul>
+<li>Acquire：M-&gt;S 在 A channel 上发送 Acquire，S-&gt;M 在 D channel 上发送 Grant，然后 M-&gt;S 在 E channel 上发送 GrantAck；功能是获取一个 copy</li>
+<li>Release：M-&gt;S 在 C channel 上发送 Release，S-&gt;M 在 D channel 上发送 ReleaseAck；功能是删除自己的 copy</li>
+<li>Probe：S-&gt;M 在 B channel 上发送 Probe，M-&gt;S 在 C channel 上发送 ProbeAck；功能是要求 M 删除自己的 copy</li>
+</ul>
+<p>可以看到，A C E 三个 channel 是 M-&gt;S，B D 两个 channel 是 S-&gt;M。</p>
+<p>假如一个缓存（Master A）要写入一块只读数据，或者读取一块 miss 的缓存行，如果是广播式的缓存一致性协议，那么需要经历如下的过程：</p>
+<ul>
+<li>Master A -&gt; Slave: Acquire</li>
+<li>Slave -&gt; Master B: Probe</li>
+<li>Master B -&gt; Slave: ProbeAck</li>
+<li>Slave -&gt; Master A: Grant</li>
+<li>Master A -&gt; Slave: GrantAck</li>
+</ul>
+<p>首先 Master A 发出 Acquire 请求，然后 Slave 向其他 Master 广播 Probe，等到其他 Master 返回 ProbeAck 后，再向 Master A 返回 Grant，最后 Master A 发送 GrantAck 给 Slave。这样 Master A 就获得了这个缓存行的一份拷贝，并且让 Master B 的缓存行失效或者状态变成只读。</p>
+<p>TileLink 的缓存行有三个状态：None，Branch 和 Trunk(Tip)。基本对应 MSI 模型： None-&gt;Invalid，Branch-&gt;Shared 和 Trunk-&gt;Modified。Rocket Chip 代码中 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Metadata.scala#L10=">ClientStates</a> 还定义了 Dirty 状态，大致对应 MESI 模型：None-&gt;Invalid，Branch-&gt;Shared，Trunk-&gt;Exclusive，Dirty-&gt;Modified。</p>
+<p>此外，标准还说可以在 B 和 C channel 上进行 TL-UH 的操作。标准这么设计的意图是可以让 Slave 转发操作到拥有缓存数据的 Master 上。比如 Master A 在 A channel 上发送 Put 请求，那么 Slave 向 Master B 的 B channel 上发送 Put 请求，Master B 在 C channel 上发送 AccessAck 响应，Slave 再把响应转回 Master A 的 D channel。这就像是一个片上的网络，Slave 负责在 Master 之间路由请求。</p>
+<h2 id="broadcast">Broadcast</h2>
+<p>接下来看看 Rocket Chip 自带的基于广播的缓存一致性协议实现。核心实现是 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala">TLBroadcast</a>，核心的逻辑就是，如果一个 Master A 发送了 Acquire，那么 TLBroadcast 需要发送 Probe 到其他的 Master，当其他的 Master 都响应了 ProbeAck 后，再返回 Grant 到 Master A。</p>
+<p>首先来看 B channel 上的 Probe <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala#L214=">逻辑</a>。它记录了一个 todo bitmask，表示哪些 Master 需要发送 Probe，这里采用了 Probe Filter 来减少发送 Probe 的次数，因为只需要向拥有这个缓存行的 Master 发送 Probe：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> probe_todo <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">RegInit</span><span style="color:#f92672">(</span><span style="color:#ae81ff">0.</span>U<span style="color:#f92672">(</span>max<span style="color:#f92672">(</span><span style="color:#ae81ff">1</span><span style="color:#f92672">,</span> caches<span style="color:#f92672">.</span>size<span style="color:#f92672">).</span>W<span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> probe_line <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Reg</span><span style="color:#f92672">(</span><span style="color:#a6e22e">UInt</span><span style="color:#f92672">())</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> probe_perms <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Reg</span><span style="color:#f92672">(</span><span style="color:#a6e22e">UInt</span><span style="color:#f92672">(</span><span style="color:#ae81ff">2.</span>W<span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> probe_next <span style="color:#66d9ef">=</span> probe_todo <span style="color:#f92672">&amp;</span> <span style="color:#f92672">~(</span>leftOR<span style="color:#f92672">(</span>probe_todo<span style="color:#f92672">)</span> <span style="color:#f92672">&lt;&lt;</span> <span style="color:#ae81ff">1</span><span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> probe_busy <span style="color:#66d9ef">=</span> probe_todo<span style="color:#f92672">.</span>orR<span style="color:#f92672">()</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> probe_target <span style="color:#66d9ef">=</span> <span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>caches<span style="color:#f92672">.</span>size <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span><span style="color:#f92672">)</span> <span style="color:#ae81ff">0.</span>U <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">Mux1H</span><span style="color:#f92672">(</span>probe_next<span style="color:#f92672">,</span> cache_targets<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// Probe whatever the FSM wants to do next
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>in<span style="color:#f92672">.</span>b<span style="color:#f92672">.</span>valid <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> probe_busy
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">(</span>caches<span style="color:#f92672">.</span>size <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span><span style="color:#f92672">)</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>	in<span style="color:#f92672">.</span>b<span style="color:#f92672">.</span>bits <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> edgeIn<span style="color:#f92672">.</span><span style="color:#a6e22e">Probe</span><span style="color:#f92672">(</span>probe_line <span style="color:#f92672">&lt;&lt;</span> lineShift<span style="color:#f92672">,</span> probe_target<span style="color:#f92672">,</span> lineShift<span style="color:#f92672">.</span>U<span style="color:#f92672">,</span> probe_perms<span style="color:#f92672">).</span>_2
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>when <span style="color:#f92672">(</span>in<span style="color:#f92672">.</span>b<span style="color:#f92672">.</span>fire<span style="color:#f92672">())</span> <span style="color:#f92672">{</span> probe_todo <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> probe_todo <span style="color:#f92672">&amp;</span> <span style="color:#f92672">~</span>probe_next <span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>这里 <code>probe_next</code> 就是被 probe 的那个 Master 对应的 bitmask，<code>probe_target</code> 就是 Master 的 Id。这个 Probe FSM 的输入就是 Probe Filter，它会<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala#L256=">给出</a>哪些 Cache 拥有当前的缓存行的信息：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">val</span> leaveB <span style="color:#66d9ef">=</span> <span style="color:#f92672">!</span>filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>needT <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>gaveT
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> others <span style="color:#66d9ef">=</span> filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>cacheOH <span style="color:#f92672">&amp;</span> <span style="color:#f92672">~</span>filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>allocOH
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> todo <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>leaveB<span style="color:#f92672">,</span> <span style="color:#ae81ff">0.</span>U<span style="color:#f92672">,</span> others<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>ready <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#f92672">!</span>probe_busy
+</span></span><span style="display:flex;"><span>when <span style="color:#f92672">(</span>filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>fire<span style="color:#f92672">())</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>	probe_todo  <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> todo
+</span></span><span style="display:flex;"><span>	probe_line  <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>address <span style="color:#f92672">&gt;&gt;</span> lineShift
+</span></span><span style="display:flex;"><span>	probe_perms <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#a6e22e">Mux</span><span style="color:#f92672">(</span>filter<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>response<span style="color:#f92672">.</span>bits<span style="color:#f92672">.</span>needT<span style="color:#f92672">,</span> <span style="color:#a6e22e">TLPermissions</span><span style="color:#f92672">.</span>toN<span style="color:#f92672">,</span> <span style="color:#a6e22e">TLPermissions</span><span style="color:#f92672">.</span>toB<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>这里又区分两种情况：如果 Acquire 需要进入 Trunk 状态（比如是个写入操作），意味着其他 Master 需要进入 None 状态，所以这里要发送 toN；如果 Acquire 不需要进入 Trunk 状态（比如是个读取操作），那么只需要其他 Master 进入 Branch 状态，所以这里要发送 toB。</p>
+<p>在 B channel 发送 Probe 的同时，也要<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala#L152=">处理</a> C channel 上的 ProbeAck 和 ProbeAckData：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// Incoming C can be:
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// ProbeAck     =&gt; decrement tracker, drop 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// ProbeAckData =&gt; decrement tracker, send out A as PutFull(DROP)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// ReleaseData  =&gt;                    send out A as PutFull(TRANSFORM)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Release      =&gt; send out D as ReleaseAck
+</span></span></span></code></pre></div><p>由于这里采用的是 invalidation based，所以如果某个 Master 之前处于 Dirty 状态，那么它会发送 ProbeAckData，此时需要把数据写回，所以需要用 PutFull 把数据写出去。</p>
+<h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://github.com/chipsalliance/omnixtend/blob/master/OmniXtend-1.0.3/spec/TileLink-1.8.0.pdf">TileLink spec</a></li>
+<li><a href="https://github.com/chipsalliance/rocket-chip">rocket-chip</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#信号">信号</a></li>
+    <li><a href="#tilelink-uncached">TileLink Uncached</a></li>
+    <li><a href="#axi4totl">AXI4ToTL</a></li>
+    <li><a href="#tltoaxi4">TLToAXI4</a></li>
+    <li><a href="#tilelink-cached">TileLink Cached</a></li>
+    <li><a href="#broadcast">Broadcast</a></li>
+    <li><a href="#参考文档">参考文档</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/tilelink">tilelink
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/axi">axi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/bus">bus
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/system/2022/05/05/nuc11-igpu-passthrough/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">NUC11 ESXi 中 iGPU 直通虚拟机&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
