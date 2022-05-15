@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ACE 缓存一致性协议分析 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="ACE 缓存一致性协议分析" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/05/16/ace/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.98.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">ACE 缓存一致性协议分析</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/05/16/ace/" class="article-date">
+                <time datetime='2022-05-16T00:34:00.000&#43;08:00' itemprop="datePublished">2022-05-16</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/05/16/ace/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近几天分析了 TileLink 的缓存一致性协议部分内容，见<a href="/hardware/2022/05/09/tilelink/">TileLink 总线协议分析</a>，趁此机会研究一下之前尝试过研究，但是因为缺少一些基础知识而弃坑的 ACE 协议分析。</p>
+<p>下面主要参考了 IHI0022E 的版本，也就是 AXI4 对应的 ACE 版本。</p>
+<h2 id="回顾">回顾</h2>
+<p>首先回顾一下一个缓存一致性协议需要支持哪些操作。对于较上一级 Cache 来说，它需要这么几件事情：</p>
+<ol>
+<li>读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
+<li>写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。</li>
+<li>需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知，也可以选择不通知下一级。</li>
+<li>收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。</li>
+<li>需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。</li>
+</ol>
+<p>如果之前看过我的 TileLink 分析，那么上面的这些操作对应到 TileLink 就是：</p>
+<ol>
+<li>读或写 miss 的时候，需要请求这个缓存行的数据（发送 AcquireBlock，等待 GrantData），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
+<li>写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态（发送 AcquirePerm，等待 Grant），比如从 Shared 到 Modified。</li>
+<li>需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回（发送 ReleaseData，等待 ReleaseAck），并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知（发送 Release，等待 ReleaseAck），也可以选择不通知下一级。</li>
+<li>收到 snoop 请求的时候（收到 Probe），需要返回当前的缓存数据（发送 ProbeAck/ProbeAckData），并且更新状态。</li>
+<li>需要一个方法（发送 GrantAck）来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。</li>
+</ol>
+<p>秉承着这个思路，再往下看 ACE 的设计，就会觉得很自然了。</p>
+<h2 id="cache-state-model">Cache state model</h2>
+<p>首先来看一下 ACE 的缓存状态模型，我在之前的<a href="/hardware/2021/12/17/cache-coherency-protocol/">缓存一致性协议分析</a>中也分析过，它有这么五种，就是 MOESI 的不同说法：</p>
+<ol>
+<li>UniqueDirty: Modified</li>
+<li>SharedDirty: Owned</li>
+<li>UniqueClean: Exclusive</li>
+<li>SharedClean: Shared</li>
+<li>Invalid: Invalid</li>
+</ol>
+<p>文档中的定义如下：</p>
+<ul>
+<li>Valid, Invalid: When valid, the cache line is present in the cache. When invalid, the cache line is not present in the cache.</li>
+<li>Unique, Shared: When unique, the cache line exists only in one cache. When shared, the cache line might exist in more than one cache, but this is not guaranteed.</li>
+<li>Clean, Dirty: When clean, the cache does not have responsibility for updating main memory. When dirty, the cache line has been modified with respect to main memory, and this cache must ensure that main memory is eventually updated.</li>
+</ul>
+<p>大致理解的话，Unique 表示只有一个缓存有这个缓存行，Shared 表示有可能有多个缓存有这个缓存行；Clean 表示它不负责更新内存，Dirty 表示它负责更新内存。下面的很多操作都是围绕这些状态进行的。</p>
+<p>文档中也说，它支持 MOESI 的不同子集：MESI, ESI, MEI, MOESI，所以也许在一个简化的系统里，一些状态可以不存在，实现会有所不同。</p>
+<h2 id="channel-usage-examples">Channel usage examples</h2>
+<p>到目前为止，我还没有介绍 ACE 的信号，但是我们可以尝试一下，如果我们是协议的设计者，我们要如何添加信号来完成这个事情。</p>
+<p>首先考虑上面提到的第一件事情：读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</p>
+<p>我们知道，AXI 有 AR 和 R channel 用于读取数据，那么遇到读或者写 miss 的时候，可以在 AR channel 上捎带一些信息，让下一级的 Interconnect 知道自己的意图是读还是写，然后 Interconnect 就在 R channel 上返回数据。</p>
+<p>那么，具体要捎带什么信息呢？我们“不妨”用这样一种命名方式：<code>操作+目的状态</code>，比如我读 miss 的时候，需要读取数据，进入 Shared 状态，那就叫 ReadShared；我写 miss 的时候，需要读取数据（通常写入缓存的只是一个缓存行的一部分，所以先要把完整的读进来），那就叫 ReadUnique。这个操作可以编码到一个信号中，传递给 Interconnect。</p>
+<p>再来考虑上面提到的第二件事情：写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。</p>
+<p>这个操作，需要让 Interconnect 把其他缓存中的这个缓存行数据清空，并且把自己升级到 Unique。根据上面的 <code>操作+目的状态</code> 的命名方式，我们可以命名为 CleanUnique，即把其他缓存都 Clean 掉，然后自己变成 Unique。</p>
+<p>接下来考虑上面提到的第三件事情：需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。</p>
+<p>按照前面的 <code>操作+目的状态</code> 命名法，可以命名为 WriteBackInvalid。ACE 实际采用的命名是 WriteBack。</p>
+<p>终于到了第四件事情：收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。</p>
+<p>既然 snoop 是从 Interconnect 发给 Master，在已有的 AR R AW W B channel 里没办法做这个事情，不然会打破已有的逻辑。那不得不添加一对 channel，比如我规定一个 AC channel 发送 snoop 请求，规定一个 C channel 让 master 发送响应，这样就可以了。这就相当于 TileLink 里面的 B channel（Probe 请求）和 C channel（ProbeAck 响应）。实际 ACE 和刚才设计的实际有一些区别，把 C channel 拆成了两个：CR 用于返回所有响应，CD 用于返回那些需要数据的响应。这就像 AW 和 W 的关系，一个传地址，一个传数据；类似地，CR 传状态，CD 传数据。</p>
+<p>那么，接下来考虑一下 AC channel 上要发送什么请求呢？我们回顾一下上面已经用到的请求类型：需要 snoop 的有 ReadShared，ReadUnique 和 CleanUnique，不需要 snoop 的有 WriteBack。那我们直接通过 AC channel 把 ReadShared，ReadUnique 和 CleanUnique 这三种请求原样发送给需要 snoop 的 cache 那里就可以了。</p>
+<p>Cache 在 AC channel 收到这些请求的时候，可以做相应的动作。由于 MOESI 协议下同样的请求可以有不同的响应方法，这里就不细说了。</p>
+<p>这时候我们已经基本把 ACE 协议的信号和大题的工作流程推导出来了。哦，我们还忘了第五件事情：需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。TileLink 添加了一个额外的 E channel 来做这个事情，ACE 更加粗暴：直接用一对 RACK 和 WACK 信号来分别表示最后一次读和写已经完成。</p>
+<p>关于 WACK 和 RACK 详见 <a href="https://community.arm.com/support-forums/f/soc-design-and-simulation-forum/9888/what-s-the-purpose-for-wack-and-rack-for-ace-and-what-s-the-relationship-with-wvalid-and-rvalid">What&rsquo;s the purpose for WACK and RACK for ACE and what&rsquo;s the relationship with WVALID and RVALID?</a> 的讨论。</p>
+<h2 id="总结">总结</h2>
+<p>到这里就暂时不继续分析了，其他的很多请求类型是服务于更多场景，比如一次写整个 Cache Line 的话，就不需要读取已有的数据了；或者一次性读取完就不管了，或者这是一个不带缓存的加速器，DMA 等，有一些针对性的优化或者简化的处理，比如对于不带缓存的 master，可以简化为 ACE-Lite，比如 ARM 的 CCI-400 支持两个 ACE master 和 三个 ACE-Lite Master，这些 Master 可以用来接 GPU 等外设。再简化一下 ACE-Lite，就得到了 ACP（Accelerator Coherency Port）。</p>
+<h2 id="参考文献">参考文献</h2>
+<ul>
+<li><a href="https://developer.arm.com/documentation/ihi0022/e/">IHI0022E-AMBA AXI and ACE</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#回顾">回顾</a></li>
+    <li><a href="#cache-state-model">Cache state model</a></li>
+    <li><a href="#channel-usage-examples">Channel usage examples</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考文献">参考文献</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/axi">axi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/bus">bus
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/cache">cache
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/coherence">coherence
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2022/05/13/rocket-chip-custom-debug/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">向 Rocket Chip 添加自定义调试信号&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

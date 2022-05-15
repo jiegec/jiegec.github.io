@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>向 Rocket Chip 添加自定义调试信号 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="向 Rocket Chip 添加自定义调试信号" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/05/13/rocket-chip-custom-debug/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="https://jia.je/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="https://jia.je/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="https://jia.je/css/style.css">
+    
+
+    <meta name="generator" content="Hugo 0.98.0" />
+</head>
+
+
+<body>
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="https://jia.je/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">向 Rocket Chip 添加自定义调试信号</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/05/13/rocket-chip-custom-debug/" class="article-date">
+                <time datetime='2022-05-13T08:35:00.000&#43;08:00' itemprop="datePublished">2022-05-13</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/05/13/rocket-chip-custom-debug/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。</p>
+<h2 id="分析-trace-信号连接方式">分析 Trace 信号连接方式</h2>
+<p>首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 <code>testchipip.CanHaveTraceIO</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">trait</span> <span style="color:#a6e22e">CanHaveTraceIO</span> <span style="color:#f92672">{</span> <span style="color:#66d9ef">this:</span> <span style="color:#66d9ef">HasTiles</span> <span style="color:#f92672">=&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">val</span> module<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">CanHaveTraceIOModuleImp</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// Bind all the trace nodes to a BB; we&#39;ll use this to generate the IO in the imp
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">val</span> traceNexus <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">BundleBridgeNexusNode</span><span style="color:#f92672">[</span><span style="color:#66d9ef">Vec</span><span style="color:#f92672">[</span><span style="color:#66d9ef">TracedInstruction</span><span style="color:#f92672">]]()</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">val</span> tileTraceNodes <span style="color:#66d9ef">=</span> tiles<span style="color:#f92672">.</span>flatMap <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> ext_tile<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">WithExtendedTraceport</span> <span style="color:#f92672">=&gt;</span> <span style="color:#a6e22e">None</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> tile <span style="color:#66d9ef">=&gt;</span> <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span>tile<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}.</span>map <span style="color:#f92672">{</span> <span style="color:#66d9ef">_</span><span style="color:#f92672">.</span>traceNode <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  tileTraceNodes<span style="color:#f92672">.</span>foreach <span style="color:#f92672">{</span> traceNexus <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#66d9ef">_</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>可以看到，它采用了 diplomacy 的 BundleBridgeNexusNode，把每个 tile 取出来，把它的 traceNode 接到 traceNexus 上。再看一下模块 <code>CanHaveTraceIOModuleImp</code> 是怎么实现的：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">trait</span> <span style="color:#a6e22e">CanHaveTraceIOModuleImp</span> <span style="color:#f92672">{</span> <span style="color:#66d9ef">this:</span> <span style="color:#66d9ef">LazyModuleImpLike</span> <span style="color:#f92672">=&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">val</span> outer<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">CanHaveTraceIO</span> <span style="color:#66d9ef">with</span> <span style="color:#66d9ef">HasTiles</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">implicit</span> <span style="color:#66d9ef">val</span> p<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Parameters</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">val</span> traceIO <span style="color:#66d9ef">=</span> p<span style="color:#f92672">(</span><span style="color:#a6e22e">TracePortKey</span><span style="color:#f92672">)</span> map <span style="color:#f92672">(</span> traceParams <span style="color:#66d9ef">=&gt;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">val</span> extTraceSeqVec <span style="color:#66d9ef">=</span> <span style="color:#f92672">(</span>outer<span style="color:#f92672">.</span>traceNexus<span style="color:#f92672">.</span>in<span style="color:#f92672">.</span>map<span style="color:#f92672">(</span><span style="color:#66d9ef">_</span><span style="color:#f92672">.</span>_1<span style="color:#f92672">)).</span>map<span style="color:#f92672">(</span><span style="color:#a6e22e">ExtendedTracedInstruction</span><span style="color:#f92672">.</span>fromVec<span style="color:#f92672">(</span><span style="color:#66d9ef">_</span><span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">val</span> tio <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">IO</span><span style="color:#f92672">(</span><span style="color:#a6e22e">Output</span><span style="color:#f92672">(</span><span style="color:#a6e22e">TraceOutputTop</span><span style="color:#f92672">(</span>extTraceSeqVec<span style="color:#f92672">)))</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">val</span> tileInsts <span style="color:#66d9ef">=</span> <span style="color:#f92672">((</span>outer<span style="color:#f92672">.</span>traceNexus<span style="color:#f92672">.</span>in<span style="color:#f92672">)</span> <span style="color:#f92672">.</span>map <span style="color:#f92672">{</span> <span style="color:#66d9ef">case</span> <span style="color:#f92672">(</span>tileTrace<span style="color:#f92672">,</span> <span style="color:#66d9ef">_</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">=&gt;</span> <span style="color:#a6e22e">DeclockedTracedInstruction</span><span style="color:#f92672">.</span>fromVec<span style="color:#f92672">(</span>tileTrace<span style="color:#f92672">)</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Since clock &amp; reset are not included with the traced instruction, plumb that out manually
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">(</span>tio<span style="color:#f92672">.</span>traces zip <span style="color:#f92672">(</span>outer<span style="color:#f92672">.</span>tile_prci_domains zip tileInsts<span style="color:#f92672">)).</span>foreach <span style="color:#f92672">{</span> <span style="color:#66d9ef">case</span> <span style="color:#f92672">(</span>port<span style="color:#f92672">,</span> <span style="color:#f92672">(</span>prci<span style="color:#f92672">,</span> insts<span style="color:#f92672">))</span> <span style="color:#66d9ef">=&gt;</span>
+</span></span><span style="display:flex;"><span>      port<span style="color:#f92672">.</span>clock <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> prci<span style="color:#f92672">.</span>module<span style="color:#f92672">.</span>clock
+</span></span><span style="display:flex;"><span>      port<span style="color:#f92672">.</span>reset <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> prci<span style="color:#f92672">.</span>module<span style="color:#f92672">.</span>reset<span style="color:#f92672">.</span>asBool
+</span></span><span style="display:flex;"><span>      port<span style="color:#f92672">.</span>insns <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> insts
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    tio
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">})</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>可以看到，它从 traceNexus 上接了若干的 trace 信号，然后通过 <code>IO(TraceOutputTop())</code> 接到了顶层的输出信号。</p>
+<p>再来看看 Rocket 是如何连接的，首先是 <code>traceNode</code> 的定义：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">/** Node for the core to drive legacy &#34;raw&#34; instruction trace. */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> traceSourceNode <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">BundleBridgeSource</span><span style="color:#f92672">(()</span> <span style="color:#66d9ef">=&gt;</span> <span style="color:#a6e22e">Vec</span><span style="color:#f92672">(</span>traceRetireWidth<span style="color:#f92672">,</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">TracedInstruction</span><span style="color:#f92672">()))</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/** Node for external consumers to source a legacy instruction trace from the core. */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> traceNode<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">BundleBridgeOutwardNode</span><span style="color:#f92672">[</span><span style="color:#66d9ef">Vec</span><span style="color:#f92672">[</span><span style="color:#66d9ef">TracedInstruction</span><span style="color:#f92672">]]</span> <span style="color:#66d9ef">=</span> traceNexus <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> traceSourceNode
+</span></span></code></pre></div><p>然后 Rocket Tile 实现的时候，把自己的 trace 接到 traceSourceNode 上：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span>outer<span style="color:#f92672">.</span>traceSourceNode<span style="color:#f92672">.</span>bundle <span style="color:#f92672">&lt;&gt;</span> core<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>trace
+</span></span></code></pre></div><h2 id="添加自定义调试信号">添加自定义调试信号</h2>
+<p>到这里，整个思路已经比较清晰了，我们只需要照猫画虎地做一个就行。比如要把自己的 Custom Debug 接口暴露出去，首先也是在 Tile 里面创建一个 SourceNode：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// expose debug
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">val</span> customDebugSourceNode <span style="color:#66d9ef">=</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">BundleBridgeSource</span><span style="color:#f92672">(()</span> <span style="color:#66d9ef">=&gt;</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">CustomDebug</span><span style="color:#f92672">())</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> customDebugNode<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">BundleBridgeOutwardNode</span><span style="color:#f92672">[</span><span style="color:#66d9ef">CustomDebug</span><span style="color:#f92672">]</span> <span style="color:#66d9ef">=</span>
+</span></span><span style="display:flex;"><span>customDebugSourceNode
+</span></span></code></pre></div><p>在 BaseTileModuleImp 里，进行信号的连接：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// expose debug
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>outer<span style="color:#f92672">.</span>customDebugSourceNode<span style="color:#f92672">.</span>bundle <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> core<span style="color:#f92672">.</span>io<span style="color:#f92672">.</span>debug
+</span></span></code></pre></div><p>为了暴露到顶层，我们可以类似地做。在 Subsystem 中：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// expose debug
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">val</span> customDebugNexus <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">BundleBridgeNexusNode</span><span style="color:#f92672">[</span><span style="color:#66d9ef">CustomDebug</span><span style="color:#f92672">]()</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> tileCustomDebugNodes <span style="color:#66d9ef">=</span> tiles
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">.</span>flatMap <span style="color:#f92672">{</span> <span style="color:#66d9ef">case</span> tile<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">MeowV64Tile</span> <span style="color:#f92672">=&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">Some</span><span style="color:#f92672">(</span>tile<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">.</span>map <span style="color:#f92672">{</span> <span style="color:#66d9ef">_</span><span style="color:#f92672">.</span>customDebugNode <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>tileCustomDebugNodes<span style="color:#f92672">.</span>foreach <span style="color:#f92672">{</span> customDebugNexus <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> <span style="color:#66d9ef">_</span> <span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>最后在 SubsystemModule Imp 中连接到 IO：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#75715e">// wire custom debug signals
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">val</span> customDebugIO <span style="color:#66d9ef">=</span> outer<span style="color:#f92672">.</span>customDebugNexus<span style="color:#f92672">.</span>in<span style="color:#f92672">.</span>map<span style="color:#f92672">(</span><span style="color:#66d9ef">_</span><span style="color:#f92672">.</span>_1<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> customDebug <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">IO</span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">Output</span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">Vec</span><span style="color:#f92672">(</span>customDebugIO<span style="color:#f92672">.</span>length<span style="color:#f92672">,</span> customDebugIO<span style="color:#f92672">(</span><span style="color:#ae81ff">0</span><span style="color:#f92672">).</span>cloneType<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> <span style="color:#f92672">(</span>i <span style="color:#66d9ef">&lt;-</span> <span style="color:#ae81ff">0</span> until customDebug<span style="color:#f92672">.</span>length<span style="color:#f92672">)</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  customDebug<span style="color:#f92672">(</span>i<span style="color:#f92672">)</span> <span style="color:#66d9ef">:</span><span style="color:#f92672">=</span> customDebugIO<span style="color:#f92672">(</span>i<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>这样就搞定了。</p>
+<h2 id="总结">总结</h2>
+<p>找到这个实现方法，基本是对着自带的 trace 接口做的，比较重要的是理解 diplomacy 里面的两层，第一层是把不同的模块进行一些连接，然后第二层在 ModuleImp 中处理实际的信号和逻辑。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#分析-trace-信号连接方式">分析 Trace 信号连接方式</a></li>
+    <li><a href="#添加自定义调试信号">添加自定义调试信号</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/rocketchip">rocketchip
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/riscv">riscv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="https://jia.je/tags/debug">debug
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/hardware/2022/05/16/ace/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            ACE 缓存一致性协议分析
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2022/05/10/memory-authentication/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">内存认证算法分析&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-185962713-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/tomorrow-night.min.css" integrity="sha256-2wL88NKUqvJi/ExflDzkzUumjUM73mcK2gBvBBeLvTk=" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js" integrity="sha256-KbfTjB0WZ8vvXngdpJGY3Yp3xKk+tttbqClO11anCIU=" crossorigin="anonymous"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js" integrity="sha384-/y1Nn9+QQAipbNQWU65krzJralCnuOasHncUFXGkdwntGeSvQicrYkiUBwsgUqc1" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/contrib/auto-render.min.js" integrity="sha256-ExtbCSBuYA7kq1Pz362ibde9nnsHYPt6JxuxYeZbU+c=" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
