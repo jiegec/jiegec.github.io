@@ -24,12 +24,14 @@
 
     <link rel="stylesheet" href="https://jia.je/css/style.css">
     
+    <script src="https://jia.je/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="https://jia.je/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.98.0" />
+    <meta name="generator" content="Hugo 0.99.0" />
 </head>
 
 
-<body>
+<body onload="WaveDrom.ProcessAll()">
 <div id="container">
     <header id="header">
     <div id="header-outer" class="outer">
@@ -137,6 +139,14 @@
 <p>关于 WACK 和 RACK 详见 <a href="https://community.arm.com/support-forums/f/soc-design-and-simulation-forum/9888/what-s-the-purpose-for-wack-and-rack-for-ace-and-what-s-the-relationship-with-wvalid-and-rvalid">What&rsquo;s the purpose for WACK and RACK for ACE and what&rsquo;s the relationship with WVALID and RVALID?</a> 的讨论。</p>
 <h2 id="总结">总结</h2>
 <p>到这里就暂时不继续分析了，其他的很多请求类型是服务于更多场景，比如一次写整个 Cache Line 的话，就不需要读取已有的数据了；或者一次性读取完就不管了，或者这是一个不带缓存的加速器，DMA 等，有一些针对性的优化或者简化的处理，比如对于不带缓存的 master，可以简化为 ACE-Lite，比如 ARM 的 CCI-400 支持两个 ACE master 和 三个 ACE-Lite Master，这些 Master 可以用来接 GPU 等外设。再简化一下 ACE-Lite，就得到了 ACP（Accelerator Coherency Port）。</p>
+<p>最后我们再把文章开头的五件事对应到 ACE 上，作为一个前后的呼应：</p>
+<ol>
+<li>读或写 miss 的时候，需要请求这个缓存行的数据（AR 上发送 ReadShared/ReadUnique），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
+<li>写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态（AR 上发送 CleanUnique），比如从 Shared 到 Modified。</li>
+<li>需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回（AW 上发送 WriteBack），并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知（AW 上发送 Evict），也可以选择不通知下一级。</li>
+<li>收到 snoop 请求的时候（AC 上收到 snoop 请求），需要返回当前的缓存数据（通过 CR 和 CD），并且更新状态。</li>
+<li>需要一个方法（读 RACK 写 WACK）来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。</li>
+</ol>
 <h2 id="参考文献">参考文献</h2>
 <ul>
 <li><a href="https://developer.arm.com/documentation/ihi0022/e/">IHI0022E-AMBA AXI and ACE</a></li>
