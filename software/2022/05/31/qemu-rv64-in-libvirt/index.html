@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在 libvirt 中运行 RISC-V 虚拟机 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="在 libvirt 中运行 RISC-V 虚拟机" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2022/05/31/qemu-rv64-in-libvirt/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.99.1" />
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在 libvirt 中运行 RISC-V 虚拟机</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2022/05/31/qemu-rv64-in-libvirt/" class="article-date">
+                <time datetime='2022-05-31T09:22:00.000&#43;08:00' itemprop="datePublished">2022-05-31</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2022/05/31/qemu-rv64-in-libvirt/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>我在 libvirt 中跑了几个 KVM 加速的虚拟机，然后突发奇想，既然 libvirt 背后是 qemu，然后 qemu 是支持跨指令集的，那是否可以让 libvirt 来运行 RISC-V 架构的虚拟机？经过一番搜索，发现可以跑 ARM：<a href="https://fedoraproject.org/wiki/Architectures/ARM/HowToQemu#Using_QEMU_with_libvirt">How To: Running Fedora-ARM under QEMU</a>，既然如此，我们也可以试试用 libvirt 来运行 RV64 虚拟机。</p>
+<h2 id="准备-rootfs">准备 rootfs</h2>
+<p>第一步是根据 Debian 的文档 <a href="https://wiki.debian.org/RISC-V#Creating_a_riscv64_chroot">Creating a riscv64 chroot</a> 来创建 rootfs，然后再用 virt-make-fs 来打包。</p>
+<p>首先是用 mmdebstrap 来生成一个 chroot：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo mkdir -p /tmp/riscv64-chroot
+</span></span><span style="display:flex;"><span>$ sudo apt install mmdebstrap qemu-user-static binfmt-support debian-ports-archive-keyring
+</span></span><span style="display:flex;"><span>$ sudo mmdebstrap --architectures<span style="color:#f92672">=</span>riscv64 --include<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;debian-ports-archive-keyring&#34;</span> sid /tmp/riscv64-chroot <span style="color:#e6db74">&#34;deb http://deb.debian.org/debian-ports sid main&#34;</span> <span style="color:#e6db74">&#34;deb http://deb.debian.org/debian-ports unreleased main&#34;</span>
+</span></span></code></pre></div><p>进入 chroot 以后，进行一些配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo chroot /tmp/riscv64-chroot
+</span></span><span style="display:flex;"><span>$ apt update
+</span></span><span style="display:flex;"><span>$ apt install linux-image-riscv64 u-boot-menu vim
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># set root password</span>
+</span></span><span style="display:flex;"><span>$ passwd
+</span></span></code></pre></div><p>然后修改 <code>/etc/default/u-boot</code> 文件，添加如下的配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># change ro to rw, set root device</span>
+</span></span><span style="display:flex;"><span>U_BOOT_PARAMETERS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;rw noquiet root=/dev/vda1&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># fdt is provided by qemu</span>
+</span></span><span style="display:flex;"><span>U_BOOT_FDT_DIR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;noexist&#34;</span>
+</span></span></code></pre></div><p>然后运行 <code>u-boot-update</code> 生成配置文件 <code>/boot/extlinux/extlinux.conf</code>。</p>
+<p>到这里，rootfs 已经准备完毕。</p>
+<h2 id="尝试在-qemu-中启动">尝试在 QEMU 中启动</h2>
+<p>接下来，可以参考 <a href="https://wiki.debian.org/RISC-V#Setting_up_a_riscv64_virtual_machine">Setting up a riscv64 virtual machine</a> 先启动一个 qemu 来测试一下是否可以正常工作：</p>
+<p>首先制作一个 qcow2 格式的镜像：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo virt-make-fs --partition<span style="color:#f92672">=</span>gpt --type<span style="color:#f92672">=</span>ext4 --size<span style="color:#f92672">=</span>+10G --format<span style="color:#f92672">=</span>qcow2 /tmp/riscv64-chroot rootfs.qcow2
+</span></span><span style="display:flex;"><span>$ qemu-img info rootfs.qcow2
+</span></span><span style="display:flex;"><span>image: rootfs.qcow2
+</span></span><span style="display:flex;"><span>file format: qcow2
+</span></span><span style="display:flex;"><span>virtual size: 11.4 GiB <span style="color:#f92672">(</span><span style="color:#ae81ff">12231971328</span> bytes<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>disk size: 1.33 GiB
+</span></span><span style="display:flex;"><span>cluster_size: <span style="color:#ae81ff">65536</span>
+</span></span><span style="display:flex;"><span>Format specific information:
+</span></span><span style="display:flex;"><span>    compat: 1.1
+</span></span><span style="display:flex;"><span>    compression type: zlib
+</span></span><span style="display:flex;"><span>    lazy refcounts: false
+</span></span><span style="display:flex;"><span>    refcount bits: <span style="color:#ae81ff">16</span>
+</span></span><span style="display:flex;"><span>    corrupt: false
+</span></span><span style="display:flex;"><span>    extended l2: false
+</span></span></code></pre></div><p>然后启动 qemu，配置好 OpenSBI 和 U-Boot 的路径：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo apt install qemu-system-misc opensbi u-boot-qemu
+</span></span><span style="display:flex;"><span>$ sudo qemu-system-riscv64 -nographic -machine virt -m 8G <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -bios /usr/lib/riscv64-linux-gnu/opensbi/generic/fw_jump.elf <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -kernel /usr/lib/u-boot/qemu-riscv64_smode/uboot.elf <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -object rng-random,filename<span style="color:#f92672">=</span>/dev/urandom,id<span style="color:#f92672">=</span>rng0 -device virtio-rng-device,rng<span style="color:#f92672">=</span>rng0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -append <span style="color:#e6db74">&#34;console=ttyS0 rw root=/dev/vda1&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -device virtio-blk-device,drive<span style="color:#f92672">=</span>hd0 -drive file<span style="color:#f92672">=</span>rootfs.qcow2,format<span style="color:#f92672">=</span>qcow2,id<span style="color:#f92672">=</span>hd0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -device virtio-net-device,netdev<span style="color:#f92672">=</span>usernet -netdev user,id<span style="color:#f92672">=</span>usernet,hostfwd<span style="color:#f92672">=</span>tcp::22222-:22
+</span></span></code></pre></div><p>如果系统可以正常工作，看到下面的输出，下一步就可以配置 libvirt 了。</p>
+<pre tabindex="0"><code>[    6.285024] Run /init as init process
+Loading, please wait...
+Starting version 251.1-1
+[    7.743714] virtio_ring: module verification failed: signature and/or required key missing - tainting kernel
+[    8.071762] virtio_blk virtio1: [vda] 23838189 512-byte logical blocks (12.2 GB/11.4 GiB)
+[    8.181210]  vda: vda1
+Begin: Loading essential drivers ... done.
+Begin: Running /scripts/init-premount ... done.
+Begin: Mounting root file system ... Begin: Running /scripts/local-top ... done.
+Begin: Running /scripts/local-premount ... done.
+Warning: fsck not present, so skipping root file system
+[    9.003143] EXT4-fs (vda1): mounted filesystem with ordered data mode. Quota mode: none.
+done.
+Begin: Running /scripts/local-bottom ... done.
+Begin: Running /scripts/init-bottom ... done.
+[    9.754151] Not activating Mandatory Access Control as /sbin/tomoyo-init does not exist.
+[    9.808860] random: fast init done
+[   10.651361] systemd[1]: Inserted module &#39;autofs4&#39;
+[   10.735574] systemd[1]: systemd 251.1-1 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY -P11KIT -QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[   10.736902] systemd[1]: Detected architecture riscv64.
+
+Welcome to Debian GNU/Linux bookworm/sid!
+</code></pre><h2 id="配置-libvirt">配置 libvirt</h2>
+<p>首先，打开 virt-manager，在向导中，可以在下拉菜单选择自定义的架构，选择 riscv64 和 virt，然后选择 Import existing disk image，找到刚刚创建的 qcow2 文件。</p>
+<p>创建好以后，我们还不能直接启动，因为此时还没有配置 OpenSBI 和 U-Boot。由于 virt-aa-helper 会<a href="https://github.com/wiedi/libvirt/blob/435b4ad22bf812d97f30e4d6b71e6b3a967f4f75/src/security/virt-aa-helper.c#L529">检查 OpenSBI 和 U-Boot 的路径，要求它们不能在 /usr/lib 路径下</a>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * Don&#39;t allow access to special files or restricted paths such as /bin, /sbin,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * /usr/bin, /usr/sbin and /etc. This is in an effort to prevent read/write
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * access to system files which could be used to elevate privileges. This is a
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * safety measure in case libvirtd is under a restrictive profile and is
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * subverted and trying to escape confinement.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * Note that we cannot exclude block devices because they are valid devices.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * The TEMPLATE file can be adjusted to explicitly disallow these if needed.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * RETURN: -1 on error, 0 if ok, 1 if blocked
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span> <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">restricted</span>[] <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/bin/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/etc/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/lib&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/lost+found/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/proc/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/sbin/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/selinux/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/sys/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/bin/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/lib&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/sbin/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/share/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/local/bin/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/local/etc/&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/local/lib&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;/usr/local/sbin/&#34;</span>
+</span></span><span style="display:flex;"><span>    };
+</span></span></code></pre></div><p>所以，我手动把 U-Boot 和 OpenSBI 复制一份到 /var/lib 下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo mkdir -p /var/lib/custom
+</span></span><span style="display:flex;"><span>$ cd /var/lib/custom
+</span></span><span style="display:flex;"><span>$ sudo cp -r /usr/lib/u-boot/qemu-riscv64_smode .
+</span></span><span style="display:flex;"><span>$ sudo cp -r /usr/lib/riscv64-linux-gnu .
+</span></span></code></pre></div><p>此时，再去配置 libvirt 的 XML 配置文件：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span>  <span style="color:#f92672">&lt;os&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;type</span> <span style="color:#a6e22e">arch=</span><span style="color:#e6db74">&#39;riscv64&#39;</span> <span style="color:#a6e22e">machine=</span><span style="color:#e6db74">&#39;virt&#39;</span><span style="color:#f92672">&gt;</span>hvm<span style="color:#f92672">&lt;/type&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;loader</span> <span style="color:#a6e22e">type=</span><span style="color:#e6db74">&#39;rom&#39;</span><span style="color:#f92672">&gt;</span>/var/lib/custom/riscv64-linux-gnu/opensbi/generic/fw_jump.elf<span style="color:#f92672">&lt;/loader&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;kernel&gt;</span>/var/lib/custom/qemu-riscv64_smode/uboot.elf<span style="color:#f92672">&lt;/kernel&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;boot</span> <span style="color:#a6e22e">dev=</span><span style="color:#e6db74">&#39;hd&#39;</span><span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;/os&gt;</span>
+</span></span></code></pre></div><p>其余部分不用修改。在下面可以看到 virt-manager 已经设置好了 qemu-system-riscv64:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-XML" data-lang="XML"><span style="display:flex;"><span><span style="color:#f92672">&lt;devices&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;emulator&gt;</span>/usr/bin/qemu-system-riscv64<span style="color:#f92672">&lt;/emulator&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;disk</span> <span style="color:#a6e22e">type=</span><span style="color:#e6db74">&#39;file&#39;</span> <span style="color:#a6e22e">device=</span><span style="color:#e6db74">&#39;disk&#39;</span><span style="color:#f92672">&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;driver</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#39;qemu&#39;</span> <span style="color:#a6e22e">type=</span><span style="color:#e6db74">&#39;qcow2&#39;</span><span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;source</span> <span style="color:#a6e22e">file=</span><span style="color:#e6db74">&#39;/path/to/rootfs.qcow2&#39;</span><span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;target</span> <span style="color:#a6e22e">dev=</span><span style="color:#e6db74">&#39;vda&#39;</span> <span style="color:#a6e22e">bus=</span><span style="color:#e6db74">&#39;virtio&#39;</span><span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;address</span> <span style="color:#a6e22e">type=</span><span style="color:#e6db74">&#39;pci&#39;</span> <span style="color:#a6e22e">domain=</span><span style="color:#e6db74">&#39;0x0000&#39;</span> <span style="color:#a6e22e">bus=</span><span style="color:#e6db74">&#39;0x04&#39;</span> <span style="color:#a6e22e">slot=</span><span style="color:#e6db74">&#39;0x00&#39;</span> <span style="color:#a6e22e">function=</span><span style="color:#e6db74">&#39;0x0&#39;</span><span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;/disk&gt;</span>
+</span></span></code></pre></div><p>保存以后直接启动，就完成了在 libvirt 中运行 Debian RV64 虚拟机的目的。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#准备-rootfs">准备 rootfs</a></li>
+    <li><a href="#尝试在-qemu-中启动">尝试在 QEMU 中启动</a></li>
+    <li><a href="#配置-libvirt">配置 libvirt</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/qemu">qemu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/libvirt">libvirt
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/virtmanager">virtmanager
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/debian">debian
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/riscv">riscv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/rv64">rv64
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2022/05/19/async-sram-timing/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">异步 SRAM 时序分析&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
