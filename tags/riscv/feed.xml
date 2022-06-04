@@ -27,7 +27,7 @@ $ sudo mkdir -p /tmp/riscv64-chroot $ sudo apt install mmdebstrap qemu-user-stat
       <guid>https://jia.je/hardware/2022/05/13/rocket-chip-custom-debug/</guid>
       <description>背景 最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。
 分析 Trace 信号连接方式 首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 testchipip.CanHaveTraceIO:
-trait CanHaveTraceIO { this: HasTiles =&amp;gt;  val module: CanHaveTraceIOModuleImp   // Bind all the trace nodes to a BB; we&amp;#39;ll use this to generate the IO in the imp  val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]()  val tileTraceNodes = tiles.flatMap {  case ext_tile: WithExtendedTraceport =&amp;gt; None  case tile =&amp;gt; Some(tile)  }.</description>
+trait CanHaveTraceIO { this: HasTiles =&amp;gt; val module: CanHaveTraceIOModuleImp // Bind all the trace nodes to a BB; we&amp;#39;ll use this to generate the IO in the imp val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]() val tileTraceNodes = tiles.flatMap { case ext_tile: WithExtendedTraceport =&amp;gt; None case tile =&amp;gt; Some(tile) }.map { _.</description>
     </item>
     
     <item>
@@ -50,7 +50,7 @@ WCH-Link 可以看到评估板自带了一个 WCH-Link，所以不需要附赠�
       <guid>https://jia.je/hardware/2022/03/09/rocket-chip-jtag-debug/</guid>
       <description>前言 两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
 寻找 JTAG 接口 前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：
-The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections  其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</description>
+The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections 其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</description>
     </item>
     
     <item>
@@ -71,9 +71,9 @@ $ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -
       <pubDate>Sun, 12 Dec 2021 14:01:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2021/12/12/riscv-debug/</guid>
-      <description>参考文档  RISC-V Debug Spec 0.13 IEEE Standard for JTAG 1149.1-2013 OpenOCD 相关代码  背景 之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。
+      <description>参考文档 RISC-V Debug Spec 0.13 IEEE Standard for JTAG 1149.1-2013 OpenOCD 相关代码 背景 之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。
 架构 为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：
- Debugger: GDB，连接到 OpenOCD 启动的 GDB Server Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准 Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为 Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer  可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。</description>
+Debugger: GDB，连接到 OpenOCD 启动的 GDB Server Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准 Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为 Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer 可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。</description>
     </item>
     
     <item>
@@ -83,9 +83,9 @@ $ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -
       
       <guid>https://jia.je/hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/</guid>
       <description>背景 最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：
- rocket-chip-vcu128 opensbi u-boot linux  Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
- 添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode  主要踩过的坑：
- BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突  U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
+rocket-chip-vcu128 opensbi u-boot linux Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
+添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode 主要踩过的坑：
+BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突 U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
     </item>
     
     <item>
@@ -96,8 +96,8 @@ $ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -
       <guid>https://jia.je/hardware/2020/03/17/rocket-chip-tlram-load/</guid>
       <description>最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM ，这样每次修改内容不需要重新跑一次 Chisel -&amp;gt; Verilog 的流程。然后到处研究了一下，找到了解决的方案：
 首先是新建一个 TLRAM 然后挂接到 cbus 上：
-import freechips.rocketchip.tilelink.TLRAM import freechips.rocketchip.tilelink.TLFragmenter import freechips.rocketchip.diplomacy.LazyModule import freechips.rocketchip.diplomacy.AddressSet  trait HasTestRAM { this: BaseSubsystem =&amp;gt;  val testRAM = LazyModule(  new TLRAM(AddressSet(0x40000000, 0x1FFF), beatBytes = cbus.beatBytes)  )   testRAM.node := cbus.coupleTo(&amp;#34;bootrom&amp;#34;) { TLFragmenter(cbus) := _ } } 这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：
-class TestTop(implicit p:Parameters) 	extends RocketSystem 	// .</description>
+import freechips.rocketchip.tilelink.TLRAM import freechips.rocketchip.tilelink.TLFragmenter import freechips.rocketchip.diplomacy.LazyModule import freechips.rocketchip.diplomacy.AddressSet trait HasTestRAM { this: BaseSubsystem =&amp;gt; val testRAM = LazyModule( new TLRAM(AddressSet(0x40000000, 0x1FFF), beatBytes = cbus.beatBytes) ) testRAM.node := cbus.coupleTo(&amp;#34;bootrom&amp;#34;) { TLFragmenter(cbus) := _ } } 这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：
+class TestTop(implicit p:Parameters) extends RocketSystem // ... with HasTestRAM //... { override lazy .</description>
     </item>
     
     <item>
@@ -120,7 +120,7 @@ Remote debugging using localhost:3333 0x0001018c in getc () at bootloader.</desc
       <guid>https://jia.je/hardware/2020/02/09/rocket-chip-bscan-analysis/</guid>
       <description>前言 最近 @jsteward 在研究如何通过 JTAG 对 FPGA 里的 Rocket Chip 进行调试。之前 @sequencer 已经做了一些实践，我们在重复他的工作，同时也研究了一下这是怎么工作的。
 原理 我们从 @sequencer 得到了一份可用的 Scala 代码 和 OpenOCD 配置，并且了解到：
- 可以通过 openocd 找到并调试 Rocket Chip openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。  这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的操作代码：
+可以通过 openocd 找到并调试 Rocket Chip openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。 这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的操作代码：
 tunneled_ir[3].num_bits = 3; tunneled_ir[3].out_value = bscan_zero; tunneled_ir[3].in_value = NULL; tunneled_ir[2].num_bits = bscan_tunnel_ir_width; tunneled_ir[2].out_value = ir_dtmcontrol; tunneled_ir[1].in_value = NULL; tunneled_ir[1].</description>
     </item>
     
@@ -132,7 +132,7 @@ tunneled_ir[3].num_bits = 3; tunneled_ir[3].out_value = bscan_zero; tunneled_ir[
       <guid>https://jia.je/software/2019/03/22/cross-compiling-nginx-to-riscv/</guid>
       <description>最近又把一定的精力放到了 RISC-V 64 上的 rCore 用户态程序的支持上，同时也借到了 HiFive Unleashed 板子，所以有真实硬件可以拿来跑了。在这之前先在 QEMU 上把能跑的都跑起来。
 由于 rCore 对 glibc 的支持一直有问题，RISC-V 也不例外，所以还是选择用 musl 来做这件事情。一般搜索，终于找到了 Linux 下能用的 musl-riscv-toolchain 。编译好工具链以后，很多需要 libc 的用户态都能跑了，于是想着试一下 nginx 的编译。试着编译了一下，遇到了各种问题，最后搜到了交叉编译Hi3536上面使用的nginx，里面的方法解决了这个问题。最后总结出了这样的 patch :
-diff --git a/nginx-1.14.2/auto/cc/name b/nginx-1.14.2/auto/cc/name index ded93f5..d6ab27a 100644 --- a/nginx-1.14.2/auto/cc/name +++ b/nginx-1.14.2/auto/cc/name @@ -7,7 +7,7 @@ if [ &amp;#34;$NGX_PLATFORM&amp;#34; != win32 ]; then   ngx_feature=&amp;#34;C compiler&amp;#34;  ngx_feature_name= - ngx_feature_run=yes + ngx_feature_run=no  ngx_feature_incs=  ngx_feature_path=  ngx_feature_libs= diff --git a/nginx-1.14.2/auto/lib/openssl/make b/nginx-1.</description>
+diff --git a/nginx-1.14.2/auto/cc/name b/nginx-1.14.2/auto/cc/name index ded93f5..d6ab27a 100644 --- a/nginx-1.14.2/auto/cc/name +++ b/nginx-1.14.2/auto/cc/name @@ -7,7 +7,7 @@ if [ &amp;#34;$NGX_PLATFORM&amp;#34; != win32 ]; then ngx_feature=&amp;#34;C compiler&amp;#34; ngx_feature_name= - ngx_feature_run=yes + ngx_feature_run=no ngx_feature_incs= ngx_feature_path= ngx_feature_libs= diff --git a/nginx-1.14.2/auto/lib/openssl/make b/nginx-1.14.2/auto/lib/openssl/make index 126a238..7a0e768 100644 --- a/nginx-1.14.2/auto/lib/openssl/make +++ b/nginx-1.</description>
     </item>
     
     <item>
@@ -144,7 +144,7 @@ diff --git a/nginx-1.14.2/auto/cc/name b/nginx-1.14.2/auto/cc/name index ded93f5
       <description>看到 RISCV 很久了，但一直没能体验。最近工具链不断更新， QEMU 在 2.12.0 也正式加入了 riscv 的模拟。但是自己编译一个内核又太麻烦，就找到了 Fedora 做的 RISCV port，下载下来试用了一下。之前试过一次，但是遇到了一些问题，刚才总算是成功地搞出来了。
 官方文档地址： https://fedorapeople.org/groups/risc-v/disk-images/readme.txt 首先下载 https://fedorapeople.org/groups/risc-v/disk-images/ 下的 bbl vmlinux 和 stage4-disk.img.xz 三个文件，然后解压 stage4-disk.img.xz ，大约有 5G 的样子。之前作者在脚本里作死开得特别大，导致我以前光是解压这一步就成功不了。现在终于解决了。
 然后启动 qemu 命令打开虚拟机：
-qemu-system-riscv64 \  -nographic \  -machine virt \  -m 2G \  -kernel bbl \  -object rng-random,filename=/dev/urandom,id=rng0 \  -device virtio-rng-device,rng=rng0 \  -append &amp;#34;console=ttyS0 ro root=/dev/vda&amp;#34; \  -device virtio-blk-device,drive=hd0 \  -drive file=stage4-disk.img,format=raw,id=hd0 \  -device virtio-net-device,netdev=usernet \  -netdev user,id=usernet,hostfwd=tcp::10000-:22 这段命令摘自 readme.</description>
+qemu-system-riscv64 \ -nographic \ -machine virt \ -m 2G \ -kernel bbl \ -object rng-random,filename=/dev/urandom,id=rng0 \ -device virtio-rng-device,rng=rng0 \ -append &amp;#34;console=ttyS0 ro root=/dev/vda&amp;#34; \ -device virtio-blk-device,drive=hd0 \ -drive file=stage4-disk.img,format=raw,id=hd0 \ -device virtio-net-device,netdev=usernet \ -netdev user,id=usernet,hostfwd=tcp::10000-:22 这段命令摘自 readme.txt ，区别只在于把 -smp 4 去掉了。不知道为什么不能正常工作，可能和作者提到的 FPU patch 有关。然后系统就可以正常起来了（firewalld和systemd-logind不止为啥起不来，但是不用管）。</description>
     </item>
     
   </channel>
