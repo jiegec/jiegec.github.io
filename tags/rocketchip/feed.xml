@@ -15,7 +15,7 @@
       <guid>https://jia.je/hardware/2022/05/13/rocket-chip-custom-debug/</guid>
       <description>背景 最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。
 分析 Trace 信号连接方式 首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 testchipip.CanHaveTraceIO:
-trait CanHaveTraceIO { this: HasTiles =&amp;gt; val module: CanHaveTraceIOModuleImp // Bind all the trace nodes to a BB; we&amp;#39;ll use this to generate the IO in the imp val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]() val tileTraceNodes = tiles.flatMap { case ext_tile: WithExtendedTraceport =&amp;gt; None case tile =&amp;gt; Some(tile) }.map { _.</description>
+trait CanHaveTraceIO { this: HasTiles =&amp;gt;  val module: CanHaveTraceIOModuleImp   // Bind all the trace nodes to a BB; we&amp;#39;ll use this to generate the IO in the imp  val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]()  val tileTraceNodes = tiles.flatMap {  case ext_tile: WithExtendedTraceport =&amp;gt; None  case tile =&amp;gt; Some(tile)  }.</description>
     </item>
     
     <item>
@@ -26,7 +26,7 @@ trait CanHaveTraceIO { this: HasTiles =&amp;gt; val module: CanHaveTraceIOModule
       <guid>https://jia.je/hardware/2022/03/09/rocket-chip-jtag-debug/</guid>
       <description>前言 两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
 寻找 JTAG 接口 前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：
-The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections 其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</description>
+The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections  其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</description>
     </item>
     
     <item>
@@ -36,9 +36,9 @@ The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level
       
       <guid>https://jia.je/hardware/2022/01/05/diplomacy/</guid>
       <description>概念 Diplomacy 主要实现了两个功能：
-把整个总线结构在代码中表现出来 自动配置总线中各个端口的参数 具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。
+ 把整个总线结构在代码中表现出来 自动配置总线中各个端口的参数  具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。
 Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，Node 和 Node 之间连接形成一个图。Node 的类型主要有以下几个：
-Client：对应 AXI 里面的 Master，发起请求 Manager：对应 AXI 里面的 Slave，处理请求 Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出 Nexus：对应 AXI Crossbar，多个输入和多个输出 每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。
+ Client：对应 AXI 里面的 Master，发起请求 Manager：对应 AXI 里面的 Slave，处理请求 Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出 Nexus：对应 AXI Crossbar，多个输入和多个输出  每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。
 连接方式采用的是 := :=* :*= :*=* 操作符，左侧是 Client，右侧是 Manager。
 Rocket Chip 总线结构 Rocket Chip 主要有以下几个总线：</description>
     </item>
@@ -50,9 +50,9 @@ Rocket Chip 总线结构 Rocket Chip 主要有以下几个总线：</description
       
       <guid>https://jia.je/hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/</guid>
       <description>背景 最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：
-rocket-chip-vcu128 opensbi u-boot linux Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
-添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode 主要踩过的坑：
-BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突 U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
+ rocket-chip-vcu128 opensbi u-boot linux  Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
+ 添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode  主要踩过的坑：
+ BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突  U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
     </item>
     
     <item>
@@ -63,8 +63,8 @@ BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu �
       <guid>https://jia.je/hardware/2020/03/17/rocket-chip-tlram-load/</guid>
       <description>最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM ，这样每次修改内容不需要重新跑一次 Chisel -&amp;gt; Verilog 的流程。然后到处研究了一下，找到了解决的方案：
 首先是新建一个 TLRAM 然后挂接到 cbus 上：
-import freechips.rocketchip.tilelink.TLRAM import freechips.rocketchip.tilelink.TLFragmenter import freechips.rocketchip.diplomacy.LazyModule import freechips.rocketchip.diplomacy.AddressSet trait HasTestRAM { this: BaseSubsystem =&amp;gt; val testRAM = LazyModule( new TLRAM(AddressSet(0x40000000, 0x1FFF), beatBytes = cbus.beatBytes) ) testRAM.node := cbus.coupleTo(&amp;#34;bootrom&amp;#34;) { TLFragmenter(cbus) := _ } } 这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：
-class TestTop(implicit p:Parameters) extends RocketSystem // ... with HasTestRAM //... { override lazy .</description>
+import freechips.rocketchip.tilelink.TLRAM import freechips.rocketchip.tilelink.TLFragmenter import freechips.rocketchip.diplomacy.LazyModule import freechips.rocketchip.diplomacy.AddressSet  trait HasTestRAM { this: BaseSubsystem =&amp;gt;  val testRAM = LazyModule(  new TLRAM(AddressSet(0x40000000, 0x1FFF), beatBytes = cbus.beatBytes)  )   testRAM.node := cbus.coupleTo(&amp;#34;bootrom&amp;#34;) { TLFragmenter(cbus) := _ } } 这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：
+class TestTop(implicit p:Parameters) 	extends RocketSystem 	// .</description>
     </item>
     
     <item>
@@ -87,7 +87,7 @@ Remote debugging using localhost:3333 0x0001018c in getc () at bootloader.</desc
       <guid>https://jia.je/hardware/2020/02/09/rocket-chip-bscan-analysis/</guid>
       <description>前言 最近 @jsteward 在研究如何通过 JTAG 对 FPGA 里的 Rocket Chip 进行调试。之前 @sequencer 已经做了一些实践，我们在重复他的工作，同时也研究了一下这是怎么工作的。
 原理 我们从 @sequencer 得到了一份可用的 Scala 代码 和 OpenOCD 配置，并且了解到：
-可以通过 openocd 找到并调试 Rocket Chip openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。 这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的操作代码：
+ 可以通过 openocd 找到并调试 Rocket Chip openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。  这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的操作代码：
 tunneled_ir[3].num_bits = 3; tunneled_ir[3].out_value = bscan_zero; tunneled_ir[3].in_value = NULL; tunneled_ir[2].num_bits = bscan_tunnel_ir_width; tunneled_ir[2].out_value = ir_dtmcontrol; tunneled_ir[1].in_value = NULL; tunneled_ir[1].</description>
     </item>
     
