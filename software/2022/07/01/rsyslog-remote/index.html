@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>rsyslog 收集远程日志 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="rsyslog 收集远程日志" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2022/07/01/rsyslog-remote/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.99.1" />
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">rsyslog 收集远程日志</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2022/07/01/rsyslog-remote/" class="article-date">
+                <time datetime='2022-07-01T20:14:00.000&#43;08:00' itemprop="datePublished">2022-07-01</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2022/07/01/rsyslog-remote/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近在运维的时候发现网络设备（如交换机）有一个远程发送日志的功能，即可以通过 syslog udp 协议发送日志到指定的服务器。为此，可以在服务器上运行 rsyslog 并收集日志。</p>
+<h2 id="rsyslog-配置">rsyslog 配置</h2>
+<p>默认的 rsyslog 配置是收集系统本地的配置，因此我们需要编写一个 rsyslog 配置，用于收集远程的日志。</p>
+<p>首先复制 <code>/etc/rsyslog.conf</code> 到 <code>/etc/rsyslog-remote.conf</code>，然后修改：</p>
+<ol>
+<li>注释掉 <code>imuxsock</code> 和 <code>imklog</code> 相关的 module 加载</li>
+<li>去掉 <code>imudp</code> 和 <code>imtcp</code> 相关的注释，这样就会监听在相应的端口上</li>
+<li>修改 <code>$WorkDirectory</code>，例如 <code>$WorkDirectory /var/spool/rsyslog-remote</code>，防止与已有的 rsyslog 冲突</li>
+<li>注释 <code>$IncludeConfig</code>，防止引入了不必要的配置</li>
+<li>注释所有已有的 <code>RULES</code> 下面的配置</li>
+<li>添加如下配置：</li>
+</ol>
+<pre tabindex="0"><code class="language-conf" data-lang="conf">$template FromIp,&#34;/var/log/rsyslog-remote/%FROMHOST-IP%.log&#34;
+*.* ?FromIp
+</code></pre><p>这样，就会按照来源的 IP 地址进行分类，然后都写入到 <code>/var/log/rsyslog-remote/x.x.x.x.log</code> 文件里。</p>
+<h2 id="systemd-service">systemd service</h2>
+<p>最后，写一个 systemd service 让它自动启动：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-toml" data-lang="toml"><span style="display:flex;"><span>[<span style="color:#a6e22e">Unit</span>]
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ConditionPathExists</span>=<span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">etc</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">rsyslog-remote</span>.<span style="color:#a6e22e">conf</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span>=<span style="color:#a6e22e">Remote</span> <span style="color:#a6e22e">Syslog</span> <span style="color:#a6e22e">Service</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[<span style="color:#a6e22e">Service</span>]
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Type</span>=<span style="color:#a6e22e">simple</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PIDFile</span>=<span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">var</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">run</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">rsyslogd-remote</span>.<span style="color:#a6e22e">pid</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span>=<span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">usr</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">sbin</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">rsyslogd</span> <span style="color:#a6e22e">-n</span> <span style="color:#a6e22e">-f</span> <span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">etc</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">rsyslog-remote</span>.<span style="color:#a6e22e">conf</span> <span style="color:#a6e22e">-i</span> <span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">var</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">run</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">rsyslogd-remote</span>.<span style="color:#a6e22e">pid</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecReload</span>=<span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">bin</span><span style="color:#960050;background-color:#1e0010">/</span><span style="color:#a6e22e">kill</span> <span style="color:#a6e22e">-HUP</span> <span style="color:#960050;background-color:#1e0010">$</span><span style="color:#a6e22e">MAINPID</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[<span style="color:#a6e22e">Install</span>]
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span>=<span style="color:#a6e22e">multi-user</span>.<span style="color:#a6e22e">target</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>systemctl daemon-reload
+</span></span><span style="display:flex;"><span>systemctl enable --now rsyslog-remote
+</span></span></code></pre></div><p>这样就实现了远程日志的收集。</p>
+<h2 id="logrotate-设置">logrotate 设置</h2>
+<p>为了防止日志太多，还需要配置 logrotate。</p>
+<p>复制 <code>/etc/logrotate.d/rsyslog</code> 到 <code>/etc/logrotate.d/rsyslog-remote</code>，然后修改开头为 <code>/var/log/rsyslog-remote/*.log</code> 即可，路径和上面对应。</p>
+<h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://www.makeuseof.com/set-up-linux-remote-logging-using-rsyslog/">How to Set Up Remote Logging on Linux Using rsyslog</a></li>
+<li><a href="https://www.thegeekdiary.com/configuring-remote-logging-using-rsyslog-in-centos-rhel/">Configuring Remote Logging using rsyslog in CentOS/RHEL</a></li>
+<li><a href="https://www.tecmint.com/install-rsyslog-centralized-logging-in-centos-ubuntu/">How to Setup Central Logging Server with Rsyslog in Linux</a></li>
+<li><a href="https://www.tecmint.com/setup-rsyslog-client-to-send-logs-to-rsyslog-server-in-centos-7/">How to Setup Rsyslog Client to Send Logs to Rsyslog Server in CentOS 7</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#rsyslog-配置">rsyslog 配置</a></li>
+    <li><a href="#systemd-service">systemd service</a></li>
+    <li><a href="#logrotate-设置">logrotate 设置</a></li>
+    <li><a href="#参考文档">参考文档</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/linux">linux
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/rsyslog">rsyslog
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/remote">remote
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/logging">logging
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/software/2022/07/02/connectx-4-switch-to-ethernet/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            切换 ConnectX-4 为以太网模式
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2022/06/19/wishbone/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">「教学」Wishbone 总线协议&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

@@ -6,7 +6,33 @@
     <description>Recent content in Softwares on 杰哥的{运维,编程,调板子}小笔记</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Tue, 07 Jun 2022 22:29:00 +0800</lastBuildDate><atom:link href="https://jia.je/software/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 02 Jul 2022 20:26:00 +0800</lastBuildDate><atom:link href="https://jia.je/software/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>切换 ConnectX-4 为以太网模式</title>
+      <link>https://jia.je/software/2022/07/02/connectx-4-switch-to-ethernet/</link>
+      <pubDate>Sat, 02 Jul 2022 20:26:00 +0800</pubDate>
+      
+      <guid>https://jia.je/software/2022/07/02/connectx-4-switch-to-ethernet/</guid>
+      <description>背景 最近在给机房配置网络，遇到一个需求，就是想要把 ConnectX-4 当成以太网卡用，它既支持 Infiniband，又支持 Ethernet，只不过默认是 Infiniband 模式，所以需要用 mlxconfig 工具来做这个切换。
+切换方法 在 Using mlxconfig 文档中，写了如何切换网卡为 Infiniband 模式：
+$ mlxconfig -d /dev/mst/mt4103_pci_cr0 set LINK_TYPE_P1=1 LINK_TYPE_P2=1  Device #1: ---------- Device type: ConnectX3Pro PCI device: /dev/mst/mt4103_pci_cr0 Configurations: Next Boot New  LINK_TYPE_P1 ETH(2) IB(1)  LINK_TYPE_P2 ETH(2) IB(1)  Apply new Configuration? ? (y/n) [n] : y Applying... Done! -I- Please reboot machine to load new configurations. 那么，我们只需要反其道而行之，设置模式为 ETH(2) 即可。
+MST 安装 要使用 mlxconfig，就需要安装 MFT(Mellanox Firmware Tools)。我们用的是 Debian bookworm，于是要下载 DEB：</description>
+    </item>
+    
+    <item>
+      <title>rsyslog 收集远程日志</title>
+      <link>https://jia.je/software/2022/07/01/rsyslog-remote/</link>
+      <pubDate>Fri, 01 Jul 2022 20:14:00 +0800</pubDate>
+      
+      <guid>https://jia.je/software/2022/07/01/rsyslog-remote/</guid>
+      <description>背景 最近在运维的时候发现网络设备（如交换机）有一个远程发送日志的功能，即可以通过 syslog udp 协议发送日志到指定的服务器。为此，可以在服务器上运行 rsyslog 并收集日志。
+rsyslog 配置 默认的 rsyslog 配置是收集系统本地的配置，因此我们需要编写一个 rsyslog 配置，用于收集远程的日志。
+首先复制 /etc/rsyslog.conf 到 /etc/rsyslog-remote.conf，然后修改：
+ 注释掉 imuxsock 和 imklog 相关的 module 加载 去掉 imudp 和 imtcp 相关的注释，这样就会监听在相应的端口上 修改 $WorkDirectory，例如 $WorkDirectory /var/spool/rsyslog-remote，防止与已有的 rsyslog 冲突 注释 $IncludeConfig，防止引入了不必要的配置 注释所有已有的 RULES 下面的配置 添加如下配置：  $template FromIp,&amp;#34;/var/log/rsyslog-remote/%FROMHOST-IP%.log&amp;#34; *.* ?FromIp 这样，就会按照来源的 IP 地址进行分类，然后都写入到 /var/log/rsyslog-remote/x.x.x.x.log 文件里。
+systemd service 最后，写一个 systemd service 让它自动启动：
+[Unit] ConditionPathExists=/etc/rsyslog-remote.conf Description=Remote Syslog Service  [Service] Type=simple PIDFile=/var/run/rsyslogd-remote.pid ExecStart=/usr/sbin/rsyslogd -n -f /etc/rsyslog-remote.</description>
+    </item>
+    
     <item>
       <title>Nix Cookbook</title>
       <link>https://jia.je/software/2022/06/07/nix-cookbook/</link>
@@ -16,10 +42,9 @@
       <description>背景 最近在尝试 NixOS 和在 macOS 上跑 Nix，下面记录一些我在使用过程中遇到的一些小问题和解决思路。
 NixOS 全局配置 NixOS 的全局配置路径：/etc/nixos/configuration.nix 和 /etc/nixos/hardware-configuration.nix
 应用更新后的全局配置：
-nixos-rebuild switch # or nixos-rebuild switch --upgrade 更新大版本 如果要更新 NixOS 21.11 到 22.05:
-nix-channel --list nix-channel --add https://nixos.org/channels/nixos-22.05 nixos nixos-rebuild switch --upgrade 可以考虑改或者不改 /etc/nixos/configuration.nix 中的 system.stateVersion。
-常用配置 常用的 NixOS 配置：
-# Enable XFCE services.xserver.enable = true; services.xserver.desktopManager.xfce.enable = true;  # System wide packages environment.systemPackages = with pkgs; [  xxx ];  # Fish shell programs.</description>
+nixos-rebuild switch # or nixos-rebuild switch --upgrade 应用 Flakes 配置文件并显示变化：
+#!/usr/bin/env python3 import os  user = os.getenv(&amp;#34;USER&amp;#34;) home = f&amp;#34;/nix/var/nix/profiles/&amp;#34; old = home + os.readlink(f&amp;#34;{home}system&amp;#34;) os.system(&amp;#34;sudo nixos-rebuild switch --flake .&amp;#34;) new = home + os.readlink(f&amp;#34;{home}system&amp;#34;) os.system(f&amp;#34;nix store diff-closures {old}{new}&amp;#34;) 更新大版本 如果要更新 NixOS 21.11 到 22.05:
+nix-channel --list nix-channel --add https://nixos.org/channels/nixos-22.05 nixos nixos-rebuild switch --upgrade 可以考虑改或者不改 /etc/nixos/configuration.</description>
     </item>
     
     <item>

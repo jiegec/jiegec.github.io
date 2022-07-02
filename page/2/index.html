@@ -69,6 +69,144 @@
                 
                 
                 <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/system/2022/05/05/nuc11-igpu-passthrough/">NUC11 ESXi 中 iGPU 直通虚拟机</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/system/2022/05/05/nuc11-igpu-passthrough/" class="article-date">
+                        <time datetime='2022-05-05T10:24:00.000&#43;08:00' itemprop="datePublished">2022-05-05</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/system/2022/05/05/nuc11-igpu-passthrough/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 之前在 NUC11PAKi5 上装了 ESXI 加几个虚拟机系统，但是自带的 iGPU Intel Iris Xe Graphics(Tiger Lake GT-2) 没用上，感觉有些浪费。因此想要给 Windows 直通。在直通到 Windows 后发现会无限重启，最后直通到 Linux 中。
+步骤 第一步是到 esxi 的设备设置的地方，把 iGPU 的 Passthrough 打开，这时候会提示需要重启，但是如果重启，会发现还是处于 Needs reboot 状态。网上进行搜索，发现是 ESXi 自己占用了 iGPU 的输出，解决方法如下：
+$ esxcli system settings kernel set -s vga -v FALSE 这样设置以后就不会在显卡输出上显示 dcui 了，这是一个比较大的缺点，但是平时也不用自带的显示输出，就无所谓了。
+第二步，重启以后，这时候看设备状态就是 Active。回到 Windows 虚拟机，添加 PCI device，然后启动。这时候，我遇到了这样的错误：
+Module ‘DevicePowerOn’ power on failed Failed to register the device pciPassthru0 搜索了一番，解决方法是关掉 IOMMU。在虚拟机设计中关掉 IOMMU，就可以正常启动了。
+第三步，进入 Windows，这时候就可以看到有一个新的未知设备了，VID=8086，PID=9a49；等待一段时间，Windows 自动安装好了驱动，就可以正常识别了。GPU-Z 中可以看到效果如下：
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/system/2022/05/05/nuc11-igpu-passthrough/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/windows">windows
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/win11">win11
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/esxi">esxi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vmware">vmware
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/gpu">gpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/igpu">igpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/passthrough">passthrough
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/software/2022/05/02/loongarch64-toolchain/">LoongArch64 工具链构建</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/software/2022/05/02/loongarch64-toolchain/" class="article-date">
+                        <time datetime='2022-05-02T20:35:00.000&#43;08:00' itemprop="datePublished">2022-05-02</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/software/2022/05/02/loongarch64-toolchain/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    最近因为龙芯杯的原因，想自己搞个 LoongArch64 的交叉编译工具链试试，结果遇到了很多坑，最后终于算是搞出来了。
+一开始是想搞一个 newlib 的工具链，比较简单，而且之前做过一个仓库：jiegec/riscv-toolchain，就是构建的 riscv64-unknown-elf 工具链，照着 riscv-gnu-toolchain 就可以了。不过研究发现，newlib 还不支持 loongarch，目前只有 glibc 支持，只好硬着头皮上了。
+于是我就在 riscv-toolchain 的基础上搞 loongarch64-unknown-linux-gnu，也就是带 glibc 的工具链，结果发现遇到很多坑。首先编译 libgcc 的时候就找不到头文件，于是先要从 glibc 和 linux 安装头文件到 sysroot 里面，对于 sysroot 里面的头文件路径到底是 include 还是 usr/include 也折腾了半天。然后编译 libgcc 又各种出问题，最后折腾了半天，结果是 gcc stage1 和 glibc 都没问题，gcc stage2 会报链接错误，但是不管它也能用，可以编译出正常的程序，毕竟 libc 是好的。
+于是转念一想，要不要试试 crosstool-ng。克隆了一份上游的版本，照着 riscv 的部分抄了一份变成了 loongarch，然后把 config 里面的 linux/glibc/gcc/binutils-gdb 都替换为 custom location，这样我就可以用上游的最新版本了。中途还遇到了 crosstool-ng 对 gcc 12/13 不兼容的 bug，还好下面有人提出了解决方法。这些都搞定以后，终于构建出了一个完整的 loongarch64-unknown-linux-gnu 工具链。仓库地址是 jiegec/ct-ng-loongarch64，需要配合添加了 LoongArch 的 jiegec/crosstool-ng loongarch 分支 使用。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/software/2022/05/02/loongarch64-toolchain/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/loongarch">loongarch
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/toolchain">toolchain
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/gcc">gcc
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
                     <h1 itemprop="name"><a class="article-title" href="/hardware/2022/04/19/wch-ch32v307-eval/">试用沁恒 CH32V307 评估板</a></h1>
                 </header>
                 
@@ -601,149 +739,6 @@ Traefik Kubernetes Ingress and X-Forwarded-Headers
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="/tags/proxy">proxy
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/os/2022/01/30/windows-on-arm-on-m1/">在 M1 上运行 Windows ARM 虚拟机</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/os/2022/01/30/windows-on-arm-on-m1/" class="article-date">
-                        <time datetime='2022-01-30T20:50:00.000&#43;08:00' itemprop="datePublished">2022-01-30</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/os/2022/01/30/windows-on-arm-on-m1/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    目前 Windows ARM 出了预览版，可以从 Windows Insider Preview Downloads 下载，得到一个 9.5GB 的 vhdx 文件。
-接着，用 qemu-img 转换为 vmdk 格式：
-$ qemu-img convert Windows11_InsiderPreview_Client_ARM64_en-us_22533.vhdx -O vmdk -o adapter_type=lsilogic Windows11_InsiderPreview_Client_ARM64_en-us_22533.vmdk 转换后，在 VMWare Fusion for Apple Silicon Tech Preview 中，选择从已有的 vmdk 中创建虚拟机，启动前修改一些设置，特别是内存，默认 256MB 肯定不够，默认单核 CPU 也太少了一些。内存不足可能导致安装失败，记住要第一次启动前设置。
-启动以后会无法访问网络，按照下面网页里的方法设置网络：
-https://www.gerjon.com/vmware/vmware-fusion-on-apple-silicion-m1/
-需要注意的是，bcdedit 选项填的 IP 地址一般是 bridge 上的地址，比如 bridge101 的地址。
-然后就可以正常工作了！
-在 VMWare 论坛里，还谈到了下面几个问题的解决方法：
-为了让声音工作，可以修改 vmx 文件，设置 guestOS：
-guestOS = &#34;arm-windows11-64&#34; 这样声音就可以正常播放了。
-分辨率的问题，可以用 RDP 来解决：首先在虚拟机里打开 Remote Desktop，然后用 macOS 的 Microsoft Remote Desktop Beta 访问即可。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/os/2022/01/30/windows-on-arm-on-m1/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/windows">windows
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vmware">vmware
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/m1">m1
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vm">vm
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/software/2022/01/25/rvv-1.0-toolchain/">RISC-V Vector 1.0 工具链构建</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/software/2022/01/25/rvv-1.0-toolchain/" class="article-date">
-                        <time datetime='2022-01-25T21:41:00.000&#43;08:00' itemprop="datePublished">2022-01-25</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/software/2022/01/25/rvv-1.0-toolchain/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    不久前 RVV 1.0 标准终于是出来了，但是工具链的支持目前基本还处于刚 upstream 还没有 release 的状态。而目前 RVV 1.0 的支持主要在 LLVM 上比较活跃，因此也是采用 LLVM Clang + GCC Newlib Toolchain 的方式进行配合，前者做 RVV 1.0 的编译，后者提供 libc 等基础库。
-UPDATE: LLVM 14 已经发布，这个版本已经支持 RVV 1.0，直接从 https://apt.llvm.org 等地安装 LLVM 14 即可。
-LLVM Clang 直接采用 upstream 即可。编译选项：
-$ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_INSTALL_PREFIX=/prefix/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS=&#34;clang&#34; -DLLVM_TARGETS_TO_BUILD=&#34;RISCV&#34; $ ninja $ ninja install $ /prefix/llvm/bin/clang --version clang version 14.0.0 (https://github.com/llvm/llvm-project.git 8d298355ca3778a47fd6b3110aeee03ea5e8e02b) Target: x86_64-unknown-linux-gnu Thread model: posix InstalledDir: /data/llvm/bin 还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 riscv64-elf-ubuntu-20.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/software/2022/01/25/rvv-1.0-toolchain/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/riscv">riscv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vector">vector
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/rvv">rvv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/llvm">llvm
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/clang">clang
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/binutils">binutils
                             </a>
                         </li>
                         
