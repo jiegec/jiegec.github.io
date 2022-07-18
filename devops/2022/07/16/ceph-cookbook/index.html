@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ceph Cookbook // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="Ceph Cookbook" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/devops/2022/07/16/ceph-cookbook/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.99.1" />
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">Ceph Cookbook</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/devops/2022/07/16/ceph-cookbook/" class="article-date">
+                <time datetime='2022-07-16T19:32:00.000&#43;08:00' itemprop="datePublished">2022-07-16</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/devops/2022/07/16/ceph-cookbook/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="概念">概念</h2>
+<ul>
+<li>OSD：负责操作硬盘的程序，一个硬盘一个 OSD</li>
+<li>MON：管理集群状态，比较重要，可以在多个节点上各跑一个</li>
+<li>MGR：监测集群状态</li>
+<li>RGW(optional)：提供对象存储 API</li>
+<li>MDS(optional)：提供 CephFS</li>
+</ul>
+<p>使用 Ceph 做存储的方式：</p>
+<ol>
+<li>librados: 库</li>
+<li>radosgw: 对象存储 HTTP API</li>
+<li>rbd: 块存储</li>
+<li>cephfs: 文件系统</li>
+</ol>
+<h2 id="认证">认证</h2>
+<p>Ceph 客户端认证需要用户名+密钥。默认情况下，用户名是 <code>client.admin</code>，密钥路径是 <code>/etc/ceph/ceph.用户名.keyring</code>。<code>ceph --user abc</code> 表示以用户 <code>client.abc</code> 的身份访问集群。</p>
+<p>用户的权限是按照服务类型决定的。可以用 <code>ceph auth ls</code> 显示所有的用户以及权限：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ceph auth ls
+</span></span><span style="display:flex;"><span>osd.0
+</span></span><span style="display:flex;"><span>        key: REDACTED
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>mgr<span style="color:#f92672">]</span> allow profile osd
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>mon<span style="color:#f92672">]</span> allow profile osd
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>osd<span style="color:#f92672">]</span> allow *
+</span></span><span style="display:flex;"><span>client.admin
+</span></span><span style="display:flex;"><span>        key: REDACTED
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>mds<span style="color:#f92672">]</span> allow *
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>mgr<span style="color:#f92672">]</span> allow *
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>mon<span style="color:#f92672">]</span> allow *
+</span></span><span style="display:flex;"><span>        caps: <span style="color:#f92672">[</span>osd<span style="color:#f92672">]</span> allow *
+</span></span></code></pre></div><p>可以看到，<code>osd.0</code> 对 OSD 有所有权限，对 mgr 和 mon 都只有 osd 相关功能的权限；<code>client.admin</code> 有所有权限。<code>profile</code> 可以认为是预定义的一些权限集合。</p>
+<p>新建用户并赋予权限：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph auth get-or-create client.abc mon <span style="color:#e6db74">&#39;allow r&#39;</span>
+</span></span></code></pre></div><p>修改权限：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph auth caps client.abc mon <span style="color:#e6db74">&#39;allow rw&#39;</span>
+</span></span></code></pre></div><p>获取权限：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph auth get client.abc
+</span></span></code></pre></div><p>删除用户：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph auth print-key client.abc
+</span></span></code></pre></div><h2 id="osd">OSD</h2>
+<p>管理 OSD 实际上就是管理存储数据的硬盘。</p>
+<p>查看状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd stat
+</span></span></code></pre></div><p>显示有多少个在线和离线的 OSD。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd tree
+</span></span></code></pre></div><p>显示了存储的层级，其中 ID 非负数是实际的 OSD，负数是其他层级，例如存储池，机柜，主机等等。</p>
+<h2 id="pool">Pool</h2>
+<p>Pool 是存储池，后续的 RBD/CephFS 功能都需要指定存储池来工作。</p>
+<p>创建存储池：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd pool create xxx
+</span></span><span style="display:flex;"><span>ceph osd pool create PG_NUM
+</span></span></code></pre></div><p>为了性能考虑，可以设置 PG（Placement Group）数量。默认情况下，会创建 replicated 类型的存储池，也就是会存多份，类似 RAID1。也可以设置成 erasure 类型的存储池，类似 RAID5。</p>
+<p>每个 Placement Group 里的数据会保存在同一组 OSD 中。数据通过 hash ，会分布在不同的 PG 里。</p>
+<p>列举所有的存储池：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd lspools
+</span></span></code></pre></div><p>查看存储池的使用量：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rados df
+</span></span></code></pre></div><p>存储池的 IO 状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd pool stats
+</span></span></code></pre></div><p>对存储池做快照：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd mksnap xxx snap-xxx-123
+</span></span></code></pre></div><h2 id="rbd">RBD</h2>
+<p>RBD 把 Ceph 暴露为块设备。</p>
+<h3 id="创建">创建</h3>
+<p>初始化 Pool 用于 RBD：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd pool init xxx
+</span></span></code></pre></div><p>为了安全性考虑，一般会为 RBD 用户创建单独的用户：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph auth get-or-create client.abc mon <span style="color:#e6db74">&#39;profile rbd&#39;</span> osd <span style="color:#e6db74">&#39;profile rbd pool=xxx&#39;</span> mgr <span style="color:#e6db74">&#39;profile rbd pool=xxx&#39;</span>
+</span></span></code></pre></div><p>创建 RBD 镜像：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd create --size <span style="color:#ae81ff">1024</span> xxx/yyy
+</span></span></code></pre></div><p>表示在 Pool xxx 上面创建了一个名字为 yyy 大小为 1024MB 的镜像。</p>
+<h3 id="状态">状态</h3>
+<p>列举 Pool 里的镜像：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd ls
+</span></span><span style="display:flex;"><span>rbd ls xxx
+</span></span></code></pre></div><p>默认的 Pool 名字是 <code>rbd</code>。</p>
+<p>查看镜像信息：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd info yyy
+</span></span><span style="display:flex;"><span>rbd info xxx/yyy
+</span></span></code></pre></div><h3 id="扩容">扩容</h3>
+<p>修改镜像的容量：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd resize --size <span style="color:#ae81ff">2048</span> yyy
+</span></span><span style="display:flex;"><span>rbd resize --size <span style="color:#ae81ff">512</span> yyy --allow-shrink
+</span></span></code></pre></div><h3 id="挂载">挂载</h3>
+<p>在其他机器挂载 RBD 的时候，首先要修改 <code>/etc/ceph</code> 下配置，确认有用户，密钥和 MON 的地址。</p>
+<p>然后，用 rbd 挂载设备：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd device map xxx/yyy --id abc
+</span></span></code></pre></div><p>以用户 abc 的身份挂载 Pool xxx 下面的 yyy 镜像。</p>
+<p>这时候就可以在 <code>/dev/rbd*</code> 或者 <code>/dev/rbd/</code> 下面看到设备文件了。</p>
+<p>显示已经挂载的设备：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>rbd device list
+</span></span></code></pre></div><h2 id="cephfs">CephFS</h2>
+<h3 id="创建-1">创建</h3>
+<p>如果配置了编排器（Orchestrator），可以直接用命令：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph fs volume create xxx
+</span></span></code></pre></div><p>创建一个名为 <code>xxx</code> 的 CephFS。</p>
+<p>也可以手动创建：</p>
+<pre tabindex="0"><code>ceph osd pool create xxx_data0
+ceph osd pool create xxx_metadata
+ceph fs new xxx xxx_metadata xxx_data0
+</code></pre><p>这样就创建了两个 pool，分别用于存储元数据和文件数据。一个 CephFS 需要一个 pool 保存元数据，若干个 pool 保存文件数据。</p>
+<p>创建了 CephFS 以后，相应的 MDS 也会启动。</p>
+<h3 id="状态-1">状态</h3>
+<p>查看 MDS 状态：</p>
+<pre tabindex="0"><code>ceph mds stat
+</code></pre><h3 id="客户端配置">客户端配置</h3>
+<p>在挂载 CephFS 之前，首先要配置客户端。</p>
+<p>在集群里运行 <code>ceph config generate-minimal-conf</code>，它会生成一个配置文件：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ceph config generate-minimal-conf
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># minimal ceph.conf for &lt;fsid&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>global<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>        fsid <span style="color:#f92672">=</span> &lt;fsid&gt;
+</span></span><span style="display:flex;"><span>        mon_host <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>v2:x.x.x.x:3300/0,v1:x.x.x.x:6789/0<span style="color:#f92672">]</span>
+</span></span></code></pre></div><p>把内容复制到客户端的 <code>/etc/ceph/ceph.conf</code>。这样客户端就能找到集群的 MON 地址和 FSID。</p>
+<p>接着，我们在集群上给客户端创建一个用户：</p>
+<pre tabindex="0"><code>ceph fs authorize xxx client.abc / rw
+</code></pre><p>创建一个用户 abc，对 CephFS xxx 有读写的权限。把输出保存到客户端的 <code>/etc/ceph/ceph.client.abc.keyring</code> 即可。</p>
+<h3 id="挂载-1">挂载</h3>
+<p>挂载：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>mount -t ceph abc@.xxx<span style="color:#f92672">=</span>/ MOUNTPOINT
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or</span>
+</span></span><span style="display:flex;"><span>mount -t ceph abc@&lt;fsid&gt;.xxx<span style="color:#f92672">=</span>/ MOUNTPOINT
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or</span>
+</span></span><span style="display:flex;"><span>mount -t ceph abc@&lt;fsid&gt;.xxx<span style="color:#f92672">=</span>/ -o mon_addr<span style="color:#f92672">=</span>x.x.x.x:6789,secret<span style="color:#f92672">=</span>REDACTED MOUNTPOINT
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#or</span>
+</span></span><span style="display:flex;"><span>mount -t ceph abc@.xxx<span style="color:#f92672">=</span>/ -o mon_addr<span style="color:#f92672">=</span>x.x.x.x:6789/y.y.y.y:6789,secretfile<span style="color:#f92672">=</span>/etc/ceph/xxx.secret MOUNTPOINT
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or</span>
+</span></span><span style="display:flex;"><span>mount -t ceph -o name<span style="color:#f92672">=</span>client.abc,secret<span style="color:#f92672">=</span>REDACTED,mds_namespace<span style="color:#f92672">=</span>xxx MON_IP:/ MOUNTPOINT
+</span></span></code></pre></div><p>以用户 <code>client.abc</code> 的身份登录，挂载 CepFS <code>xxx</code> 下面的 <code>/</code> 目录到 <code>MOUNTPOINT</code>。它会读取 <code>/etc/ceph</code> 下面的配置，如果已经 <code>ceph.conf</code> 写了，命令行里就可以不写。</p>
+<p>fsid 指的不是 CephFS 的 ID，实际上是集群的 ID：<code>ceph fsid</code>。</p>
+<h3 id="限额">限额</h3>
+<p>CephFS 可以对目录进行限额：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>setfattr -n ceph.quota.max_bytes -v LIMIT PATH
+</span></span><span style="display:flex;"><span>setfattr -n ceph.quota.max_files -v LIMIT PATH
+</span></span><span style="display:flex;"><span>getfattr -n ceph.quota.max_bytes PATH
+</span></span><span style="display:flex;"><span>getfattr -n ceph.quota.max_files PATH
+</span></span></code></pre></div><p>限制目录大小和文件数量。LIMIT 是 0 的时候表示没有限制。</p>
+<h3 id="nfs">NFS</h3>
+<p>可以把 CephFS 或者 RGW 通过 NFS 的方式共享出去。</p>
+<p>启动 NFS 服务：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph nfs cluster create xxx
+</span></span><span style="display:flex;"><span>ceph nfs cluster create xxx <span style="color:#e6db74">&#34;host1,host2&#34;</span>
+</span></span></code></pre></div><p>在主机上运行 NFS 服务器，NFS 集群的名字叫做 xxx。</p>
+<p>查看 NFS 集群信息：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph nfs cluster info xxx
+</span></span></code></pre></div><p>列举所有 NFS 集群：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph nfs cluster ls
+</span></span></code></pre></div><p>NFS 导出 CephFS：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph nfs export create cephfs --cluster-id xxx --pseudo-path /a/b/c --fsname some-cephfs-name <span style="color:#f92672">[</span>--path<span style="color:#f92672">=</span>/d/e/f<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>--client_addr y.y.y.y<span style="color:#f92672">]</span>
+</span></span></code></pre></div><p>这样就导出了 CephFS 内的一个目录，客户端可以通过 NFS 挂载 /a/b/c 路径（pseudo path）来访问。可以设置客户端的 IP 访问权限。</p>
+<p>这样在客户端就可以 mount：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>mount -t nfs x.x.x.x:/a/b/c /mnt
+</span></span></code></pre></div><h2 id="radosgw">RadosGW</h2>
+<p>RGW 提供了 S3 或者 OpenStack Swift 兼容的对象存储 API。</p>
+<p>TODO</p>
+<h2 id="编排器">编排器</h2>
+<p>由于 Ceph 需要运行多个 daemon，并且都在不同的容器中运行，所以一般会跑一个系统级的编排器，用于新增和管理这些容器。</p>
+<p>查看当前编排器：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ceph orch status
+</span></span><span style="display:flex;"><span>Backend: cephadm
+</span></span><span style="display:flex;"><span>Available: Yes
+</span></span><span style="display:flex;"><span>Paused: No
+</span></span></code></pre></div><p>比较常见的就是 cephadm，安装的时候如果用了 cephadm，那么编排器也是它。</p>
+<p>被编排的服务：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch ls
+</span></span></code></pre></div><p>被编排的容器：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch ps
+</span></span></code></pre></div><p>被编排的主机：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch host ls
+</span></span></code></pre></div><h2 id="更新">更新</h2>
+<p>使用容器编排器来升级：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch upgrade start --ceph-version x.x.x
+</span></span><span style="display:flex;"><span>ceph orch upgrade start --image quay.io/ceph/ceph:vx.x.x
+</span></span></code></pre></div><p>如果 docker hub 上找不到 image，就从 quay.io 拉取。</p>
+<p>查看升级状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch upgrade status
+</span></span><span style="display:flex;"><span>ceph -s
+</span></span></code></pre></div><p>查看 cephadm 日志：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph -W cephadm
+</span></span></code></pre></div><h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://docs.ceph.com/en/latest/architecture/">Ceph Architecture</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rados/operations/user-management/">Ceph User Management</a></li>
+<li><a href="https://docs.ceph.com/en/latest/cephfs/createfs/">Ceph Create a Ceph File System</a></li>
+<li><a href="https://docs.ceph.com/en/latest/man/8/mount.ceph/">mount.ceph</a></li>
+<li><a href="https://docs.ceph.com/en/latest/cephfs/quota/">Ceph CephFS Quota</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/">Ceph Basic Block Device Commands</a></li>
+<li><a href="https://docs.ceph.com/en/quincy/cephadm/upgrade/">Ceph Upgrade</a></li>
+<li><a href="https://docs.ceph.com/en/latest/mgr/nfs/">Ceph CephFS &amp; RGW Exports Over NFS</a></li>
+<li><a href="https://llussy.github.io/2019/08/17/ceph-architecture/">ceph 架构和概念</a></li>
+<li><a href="https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw">RedHat Object Gateway Guide</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#概念">概念</a></li>
+    <li><a href="#认证">认证</a></li>
+    <li><a href="#osd">OSD</a></li>
+    <li><a href="#pool">Pool</a></li>
+    <li><a href="#rbd">RBD</a>
+      <ul>
+        <li><a href="#创建">创建</a></li>
+        <li><a href="#状态">状态</a></li>
+        <li><a href="#扩容">扩容</a></li>
+        <li><a href="#挂载">挂载</a></li>
+      </ul>
+    </li>
+    <li><a href="#cephfs">CephFS</a>
+      <ul>
+        <li><a href="#创建-1">创建</a></li>
+        <li><a href="#状态-1">状态</a></li>
+        <li><a href="#客户端配置">客户端配置</a></li>
+        <li><a href="#挂载-1">挂载</a></li>
+        <li><a href="#限额">限额</a></li>
+        <li><a href="#nfs">NFS</a></li>
+      </ul>
+    </li>
+    <li><a href="#radosgw">RadosGW</a></li>
+    <li><a href="#编排器">编排器</a></li>
+    <li><a href="#更新">更新</a></li>
+    <li><a href="#参考文档">参考文档</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ceph">ceph
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2022/07/11/archive-common-linking/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Archive 中 COMMON 符号的链接问题&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
