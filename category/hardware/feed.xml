@@ -16,7 +16,7 @@
       <description>背景 最近在研究如何把 Wishbone 总线协议引入计算机组成原理课程，因此趁此机会学习了一下 Wishbone 的协议。
 总线 总线是什么？总线通常用于连接 CPU 和外设，为了更好的兼容性和可复用性，会想到能否设计一个统一的协议，其中 CPU 实现的是发起请求的一方（又称为 master），外设实现的是接收请求的一方（又称为 slave），那么如果要添加外设、或者替换 CPU 实现，都会变得比较简单，减少了许多适配的工作量。
 那么，我们来思考一下，一个总线协议需要包括哪些内容？对于 CPU 来说，程序会读写内存，读写内存就需要以下几个信号传输到内存：
- 地址（addr）：例如 32 位处理器就是 32 位地址，或者按照内存的大小计算地址线的宽度 数据（w_data 和 r_data）：分别是写数据和读数据，宽度通常为 32 位 或 64 位，也就是一个时钟周期可以传输的数据量 读还是写（we）：高表示写，低表示读 字节有效（be）：例如为了实现单字节写，虽然 w_data 可能是 32 位宽，但是实际写入的是其中的一个字节  除了请求的内容以外，为了表示 CPU 想要发送请求，还需要添加 valid 信号：高表示发送请求，低表示不发送请求。很多时候，外设的速度比较慢，可能无法保证每个周期都可以处理请求，因此外设可以提供一个 ready 信号：当 valid=1 &amp;amp;&amp;amp; ready=1 的时候，发送并处理请求；当 valid=1 &amp;amp;&amp;amp; ready=0 的时候，表示外设还没有准备好，此时 CPU 需要一直保持 valid=1 不变，等到外设准备好后，valid=1 &amp;amp;&amp;amp; ready=1 请求生效。
+地址（addr）：例如 32 位处理器就是 32 位地址，或者按照内存的大小计算地址线的宽度 数据（w_data 和 r_data）：分别是写数据和读数据，宽度通常为 32 位 或 64 位，也就是一个时钟周期可以传输的数据量 读还是写（we）：高表示写，低表示读 字节有效（be）：例如为了实现单字节写，虽然 w_data 可能是 32 位宽，但是实际写入的是其中的一个字节 除了请求的内容以外，为了表示 CPU 想要发送请求，还需要添加 valid 信号：高表示发送请求，低表示不发送请求。很多时候，外设的速度比较慢，可能无法保证每个周期都可以处理请求，因此外设可以提供一个 ready 信号：当 valid=1 &amp;amp;&amp;amp; ready=1 的时候，发送并处理请求；当 valid=1 &amp;amp;&amp;amp; ready=0 的时候，表示外设还没有准备好，此时 CPU 需要一直保持 valid=1 不变，等到外设准备好后，valid=1 &amp;amp;&amp;amp; ready=1 请求生效。
 简单总结一下上面的需求，可以得到 master 和 slave 端分别的信号列表。这次，我们在命名的时候用 _o 表示输出、_i 表示输入，可以得到 master 端（CPU 端）的信号：</description>
     </item>
     
@@ -29,7 +29,12 @@
       <description>背景 在一些场合里，我们会使用异步的（即没有时钟信号的）外部 SRAM 来存储数据，而我们经常使用的很多外部接口都是同步接口（即有时钟信号的接口），比如 SPI 和 I2C 等等，UART 虽然是异步，但是它速度很低，不怎么需要考虑时序的问题。所以在 FPGA 上编写一个正确的异步 SRAM 控制器是具有一定的挑战的。
 寄存器时序 考虑到读者可能已经不记得寄存器的时序了，这里首先来复习一下 setup 和 hold 的概念。如果你已经比较熟悉了，可以直接阅读下一节。
 寄存器在时钟的上升沿（下图的 a）进行采样，为了保证采样的稳定性，输入引脚 D 需要在时钟上升沿之前 \(t_{su}\) 的时刻（下图的 b）到时钟上升沿之后 \(t_h\) 的时刻（下图的 c）保持稳定，输出引脚 Q 会在时钟上升沿之后 \(t_{cko}\) 的时刻（下图的 d）变化：
-{ signal: [ { name: &#34;C&#34;, wave: &#34;p.&#34;, period: 4, node: &#34;.a&#34;}, { name: &#34;D&#34;, wave: &#34;x..3.x&#34;, phase: 0.2, node: &#34;...b.c&#34;}, { name: &#34;Q&#34;, wave: &#34;x...3.&#34;, node: &#34;....d&#34;} ] }  接口 首先我们来看看异步 SRAM 的接口。下文中，采用 IS61WV102416BLL-10TLI 和 AS7C34098A-10TCN 作为例子：</description>
+接口 首先我们来看看异步 SRAM 的接口。下文中，采用 IS61WV102416BLL-10TLI 和 AS7C34098A-10TCN 作为例子：
+可以看到，它有 20 位的地址，16 位的数据，若干个控制信号，同时只能进行读或者写（简称 1RW）。它没有时钟信号，所以是异步 SRAM。
+时序 对于一个同步接口，我们通常只需要给一个满足时钟周期的时钟，然后通过约束文件保证 setup 和 hold 条件满足即可。但是对于异步接口，由于输出的时候没有时钟，我们需要更小心地完成这件事情。
+读时序 首先来看一下比较简单的读时序：
+可以看到地址和数据的关系：首先是地址需要稳定 \(t_{RC}\) 的时间，那么数据合法的范围是地址稳定的初始时刻加上 \(t_{AA}\)，到地址稳定的结束时刻加上 \(t_{OH}\)。我们再来看一下这几个时间的范围：
+首先可以看到读周期时间 \(t_{RC}\) 至少是 10ns，这对应了型号中最后的数字，这表示了这个 SRAM 最快的读写速度。比较有意思的是 \(t_{AA}\) 最多是 10ns，刚好和 \(t_{RC}\) 的最小值相等。</description>
     </item>
     
     <item>
@@ -41,8 +46,8 @@
       <description>背景 最近几天分析了 TileLink 的缓存一致性协议部分内容，见TileLink 总线协议分析，趁此机会研究一下之前尝试过研究，但是因为缺少一些基础知识而弃坑的 ACE 协议分析。
 下面主要参考了 IHI0022E 的版本，也就是 AXI4 对应的 ACE 版本。
 回顾 首先回顾一下一个缓存一致性协议需要支持哪些操作。对于较上一级 Cache 来说，它需要这么几件事情：
- 读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;amp;&amp;amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。 需要 evict 一个 valid &amp;amp;&amp;amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&amp;gt; Shared/Invalid。如果需要 evict 一个 valid &amp;amp;&amp;amp; !dirty 的缓存行，可以选择通知，也可以选择不通知下一级。 收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。 需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。  如果之前看过我的 TileLink 分析，那么上面的这些操作对应到 TileLink 就是：
- 读或写 miss 的时候，需要请求这个缓存行的数据（发送 AcquireBlock，等待 GrantData），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;amp;&amp;amp; !</description>
+读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;amp;&amp;amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。 需要 evict 一个 valid &amp;amp;&amp;amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&amp;gt; Shared/Invalid。如果需要 evict 一个 valid &amp;amp;&amp;amp; !dirty 的缓存行，可以选择通知，也可以选择不通知下一级。 收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。 需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。 如果之前看过我的 TileLink 分析，那么上面的这些操作对应到 TileLink 就是：
+读或写 miss 的时候，需要请求这个缓存行的数据（发送 AcquireBlock，等待 GrantData），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;amp;&amp;amp; !</description>
     </item>
     
     <item>
@@ -53,7 +58,7 @@
       <guid>https://jia.je/hardware/2022/05/13/rocket-chip-custom-debug/</guid>
       <description>背景 最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。
 分析 Trace 信号连接方式 首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 testchipip.CanHaveTraceIO:
-trait CanHaveTraceIO { this: HasTiles =&amp;gt;  val module: CanHaveTraceIOModuleImp   // Bind all the trace nodes to a BB; we&amp;#39;ll use this to generate the IO in the imp  val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]()  val tileTraceNodes = tiles.flatMap {  case ext_tile: WithExtendedTraceport =&amp;gt; None  case tile =&amp;gt; Some(tile)  }.</description>
+trait CanHaveTraceIO { this: HasTiles =&amp;gt; val module: CanHaveTraceIOModuleImp // Bind all the trace nodes to a BB; we&amp;#39;ll use this to generate the IO in the imp val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]() val tileTraceNodes = tiles.flatMap { case ext_tile: WithExtendedTraceport =&amp;gt; None case tile =&amp;gt; Some(tile) }.map { _.</description>
     </item>
     
     <item>
@@ -66,7 +71,7 @@ trait CanHaveTraceIO { this: HasTiles =&amp;gt;  val module: CanHaveTraceIOModul
 内存认证计算的背景是可信计算，比如要做一些涉及重要数据的处理，从软件上，希望即使系统被攻击非法进入了，也可以保证重要信息不会泄漏；从硬件上，希望即使系统可以被攻击者进行一些物理的操作（比如导出或者修改内存等等），也可以保证攻击者无法读取或者篡改数据。
 下面的内容主要参考了 Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines 这篇 2009 年的文章。
 威胁模型 作为一个防御机制，首先要确定攻击方的能力。一个常见的威胁模型是认为，攻击者具有物理的控制，可以任意操控内存中的数据，但是无法读取或者修改 CPU 内部的数据。也就是说，只有 CPU 芯片内的数据是可信的，离开了芯片都是攻击者掌控的范围。一个简单的想法是让内存中保存的数据是加密的，那么怎样攻击者可以如何攻击加密的数据？下面是几个典型的攻击方法：
- Spoofing attack：把内存数据改成任意攻击者控制的数据；这种攻击可以通过签名来解决 Splicing or relocation attack：把某一段内存数据挪到另一部分，这样数据的签名依然是正确的；所以计算签名时需要把地址考虑进来，这样地址变了，验证签名就会失败 Replay attack：如果同一个地址的内存发生了改变，攻击者可以把旧的内存数据再写进去，这样签名和地址都是正确的；为了防止重放攻击，还需要引入计数器或者随机 nonce  Authentication Primitives 为了防御上面几种攻击方法，上面提到的文章里提到了如下的思路：
+Spoofing attack：把内存数据改成任意攻击者控制的数据；这种攻击可以通过签名来解决 Splicing or relocation attack：把某一段内存数据挪到另一部分，这样数据的签名依然是正确的；所以计算签名时需要把地址考虑进来，这样地址变了，验证签名就会失败 Replay attack：如果同一个地址的内存发生了改变，攻击者可以把旧的内存数据再写进去，这样签名和地址都是正确的；为了防止重放攻击，还需要引入计数器或者随机 nonce Authentication Primitives 为了防御上面几种攻击方法，上面提到的文章里提到了如下的思路：
 一是 Hash Function，把内存分为很多个块，每一块计算一个密码学 Hash 保存在片内，那么读取数据的时候，把整块数据读取进来，计算一次 Hash，和片内保存的结果进行比对；写入数据的时候，重新计算一次修改后数据的 Hash，更新到片内的存储。这个方法的缺点是没有加密，攻击者可以看到内容，只不过一修改就会被 CPU 发现（除非 Hash 冲突），并且存储代价很大：比如 512-bit 的块，每一块计算一个 128-bit 的 Hash，那就浪费了 25% 的空间，而片内空间是十分宝贵的。
 二是 MAC Function，也就是密码学的消息验证码，它需要一个 Key，保存在片内；由于攻击者不知道密码，根据 MAC 的性质，攻击者无法篡改数据，也无法伪造 MAC，所以可以直接把计算出来的 MAC 也保存到内存里。为了防御重放攻击，需要引入随机的 nonce，并且把 nonce 保存在片内，比如每 512-bit 的数据，保存 64-bit 的 nonce，这样片内需要保存 12.</description>
     </item>
@@ -79,10 +84,10 @@ trait CanHaveTraceIO { this: HasTiles =&amp;gt;  val module: CanHaveTraceIOModul
       <guid>https://jia.je/hardware/2022/05/09/tilelink/</guid>
       <description>背景 最近在研究一些支持缓存一致性的缓存的实现，比如 rocket-chip 的实现和 sifive 的实现，因此需要研究一些 TileLink 协议。本文讨论的时候默认读者具有一定的 AXI 知识，因此很多内容会直接参考 AXI。
 信号 根据 TileLink Spec 1.8.0，TileLink 分为以下三种：
- TL-UL: 只支持读写，不支持 burst，类比 AXI-Lite TL-UH：支持读写，原子指令，预取，支持 burst，类比 AXI+ATOP（AXI5 引入的原子操作） TL-C：在 TL-UH 基础上支持缓存一致性协议，类比 AXI+ACE/CHI  TileLink Uncached TileLink Uncached(TL-UL 和 TL-UH)包括了两个 channel：
- A channel: M-&amp;gt;S 发送请求，类比 AXI 的 AR/AW/W D channel: S-&amp;gt;M 发送响应，类比 AXI 的 R/W  因此 TileLink 每个周期只能发送读或者写的请求，而 AXI 可以同时在 AR 和 AW channel 上发送请求。
+TL-UL: 只支持读写，不支持 burst，类比 AXI-Lite TL-UH：支持读写，原子指令，预取，支持 burst，类比 AXI+ATOP（AXI5 引入的原子操作） TL-C：在 TL-UH 基础上支持缓存一致性协议，类比 AXI+ACE/CHI TileLink Uncached TileLink Uncached(TL-UL 和 TL-UH)包括了两个 channel：
+A channel: M-&amp;gt;S 发送请求，类比 AXI 的 AR/AW/W D channel: S-&amp;gt;M 发送响应，类比 AXI 的 R/W 因此 TileLink 每个周期只能发送读或者写的请求，而 AXI 可以同时在 AR 和 AW channel 上发送请求。
 一些请求的例子：
- 读：M-&amp;gt;S 在 A channel 上发送 Get，S-&amp;gt;M 在 D channel 上发送 AccessAckData 写：M-&amp;gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&amp;gt;M 在 D channel 是发送 AccessAck 原子操作：M-&amp;gt;S 在 A channel 上发送 ArithmeticData/LogicalData，S-&amp;gt;M 在 D channel 上发送 AccessAckData 预取操作：M-&amp;gt;S 在 A channel 上发送 Intent，S-&amp;gt;M 在 D channel 上发送 AccessAck  AXI4ToTL 针对 AXI4ToTL 模块的例子，来分析一下如何把一个 AXI4 Master 转换为 TileLink。</description>
+读：M-&amp;gt;S 在 A channel 上发送 Get，S-&amp;gt;M 在 D channel 上发送 AccessAckData 写：M-&amp;gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&amp;gt;M 在 D channel 是发送 AccessAck 原子操作：M-&amp;gt;S 在 A channel 上发送 ArithmeticData/LogicalData，S-&amp;gt;M 在 D channel 上发送 AccessAckData 预取操作：M-&amp;gt;S 在 A channel 上发送 Intent，S-&amp;gt;M 在 D channel 上发送 AccessAck AXI4ToTL 针对 AXI4ToTL 模块的例子，来分析一下如何把一个 AXI4 Master 转换为 TileLink。</description>
     </item>
     
     <item>
@@ -162,7 +167,7 @@ lu_table_template (Timing_7_7) { variable_1 : input_net_transition; variable_2 :
 cd /usr/lib/x86_64-linux-gnu/cmake/lemon cp lemonConfig.cmake LEMONConfig.cmake 编译后整个目录大概有 4.8G，输出的二进制目录是 133M。
 如果要跑一下样例里的 nangate45 工艺的 gcd 例子，运行：
 cd flow make DESIGN_CONFIG=./designs/nangate45/gcd/config.mk 分析 GCD 测例 这个测例的代码提供了这样一个接口：
-module gcd (  input wire clk,  input wire [ 31:0] req_msg,  output wire req_rdy,  input wire req_val,  input wire reset,  output wire [ 15:0] resp_msg,  input wire resp_rdy,  output wire resp_val ); endmodule 从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。</description>
+module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, input wire req_val, input wire reset, output wire [ 15:0] resp_msg, input wire resp_rdy, output wire resp_val ); endmodule 从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。</description>
     </item>
     
     <item>
@@ -173,7 +178,7 @@ module gcd (  input wire clk,  input wire [ 31:0] req_msg,  output wire req_rdy,
       <guid>https://jia.je/hardware/2022/03/09/rocket-chip-jtag-debug/</guid>
       <description>前言 两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
 寻找 JTAG 接口 前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：
-The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections  其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</description>
+The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections 其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</description>
     </item>
     
     <item>
@@ -183,9 +188,9 @@ The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level
       
       <guid>https://jia.je/hardware/2022/01/05/diplomacy/</guid>
       <description>概念 Diplomacy 主要实现了两个功能：
- 把整个总线结构在代码中表现出来 自动配置总线中各个端口的参数  具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。
+把整个总线结构在代码中表现出来 自动配置总线中各个端口的参数 具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。
 Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，Node 和 Node 之间连接形成一个图。Node 的类型主要有以下几个：
- Client：对应 AXI 里面的 Master，发起请求 Manager：对应 AXI 里面的 Slave，处理请求 Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出 Nexus：对应 AXI Crossbar，多个输入和多个输出  每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。
+Client：对应 AXI 里面的 Master，发起请求 Manager：对应 AXI 里面的 Slave，处理请求 Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出 Nexus：对应 AXI Crossbar，多个输入和多个输出 每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。
 连接方式采用的是 := :=* :*= :*=* 操作符，左侧是 Client，右侧是 Manager。
 Rocket Chip 总线结构 Rocket Chip 主要有以下几个总线：</description>
     </item>
@@ -199,10 +204,11 @@ Rocket Chip 总线结构 Rocket Chip 主要有以下几个总线：</description
       <description>Chisel 版本选择 尽量选择较新版本的 Chisel。Chisel v3.5 完善了编译器插件，使得生成的代码中会包括更多变量名信息。
 去掉输出 Verilog 文件中的寄存器随机初始化 版本：FIRRTL &amp;gt;= 1.5.0-RC2
 代码：
-new ChiselStage().execute(  Array(&amp;#34;-X&amp;#34;, &amp;#34;verilog&amp;#34;, &amp;#34;-o&amp;#34;, s&amp;#34;${name}.v&amp;#34;),  Seq(  ChiselGeneratorAnnotation(genModule),  CustomDefaultRegisterEmission(  useInitAsPreset = false,  disableRandomization = true  )  ) ) 设置 disableRandomization=true 即可。useInitAsPreset 不建议开启。
+new ChiselStage().execute( Array(&amp;#34;-X&amp;#34;, &amp;#34;verilog&amp;#34;, &amp;#34;-o&amp;#34;, s&amp;#34;${name}.v&amp;#34;), Seq( ChiselGeneratorAnnotation(genModule), CustomDefaultRegisterEmission( useInitAsPreset = false, disableRandomization = true ) ) ) 设置 disableRandomization=true 即可。useInitAsPreset 不建议开启。
 关闭 FIRRTL 优化，输出尽可能与源代码一致的 Verilog 设置 Chisel 生成 MinimumVerilog：
-new ChiselStage().execute(  Array(&amp;#34;-X&amp;#34;, &amp;#34;mverilog&amp;#34;, &amp;#34;-o&amp;#34;, s&amp;#34;${name}.v&amp;#34;),  Seq(  ChiselGeneratorAnnotation(genModule)  ) ) 此时代码中会保留更多原始 Chisel 代码的元素。
-重命名 AXI4 为标准命名 Rocket Chip 中 AXI4Bundle 直接生成的名字和标准写法不同，可以利用 Chisel3 3.</description>
+new ChiselStage().execute( Array(&amp;#34;-X&amp;#34;, &amp;#34;mverilog&amp;#34;, &amp;#34;-o&amp;#34;, s&amp;#34;${name}.v&amp;#34;), Seq( ChiselGeneratorAnnotation(genModule) ) ) 此时代码中会保留更多原始 Chisel 代码的元素。
+重命名 AXI4 为标准命名 Rocket Chip 中 AXI4Bundle 直接生成的名字和标准写法不同，可以利用 Chisel3 3.5.0 的 DataView 功能进行重命名：
+// https://www.</description>
     </item>
     
     <item>
@@ -213,11 +219,12 @@ new ChiselStage().execute(  Array(&amp;#34;-X&amp;#34;, &amp;#34;mverilog&amp;#3
       <guid>https://jia.je/hardware/2021/12/17/cache-coherency-protocol/</guid>
       <description>背景 最近在《高等计算机系统结构》课程中学习缓存一致性协议算法，这里用自己的语言来组织一下相关知识的讲解。
 Write-invalidate 和 Write-update 最基础的缓存一致性思想有两种：
- Write-invalidate：写入数据的时候，将其他 Cache 中这条 Cache Line 设为 Invalid Write-update：写入数据的时候，把新的结果写入到有这条 Cache Line 的其他 Cache  Write-once 协议 Write-once 协议定义了四个状态：
- Invalid：表示这个块不合法 Valid：表示这个块合法，并可能是共享的，同时数据没有修改 Reserved：表示这个块合法，不是共享的，同时数据没有更改 Dirty：表示这个块合法，不是共享的，数据做了修改，和内存不同。  可见，当一个缓存状态在 R 或者 D，其他缓存只能是 I；而缓存状态是 V 的时候，可以有多个缓存在 V 状态。
+Write-invalidate：写入数据的时候，将其他 Cache 中这条 Cache Line 设为 Invalid Write-update：写入数据的时候，把新的结果写入到有这条 Cache Line 的其他 Cache Write-once 协议 Write-once 协议定义了四个状态：
+Invalid：表示这个块不合法 Valid：表示这个块合法，并可能是共享的，同时数据没有修改 Reserved：表示这个块合法，不是共享的，同时数据没有更改 Dirty：表示这个块合法，不是共享的，数据做了修改，和内存不同。 可见，当一个缓存状态在 R 或者 D，其他缓存只能是 I；而缓存状态是 V 的时候，可以有多个缓存在 V 状态。
 Write-once 协议的特点是，第一次写的时候，会写入到内存（类似 Write-through），连续写入则只写到缓存中，类似 Write-back。
 当 Read hit 的时候，状态不变。
-Read hit: The information is supplied by the current cache. No state change.  当 Read miss 的时候，会查看所有缓存，如果有其他缓存处于 Valid/Reserved/Dirty 状态，就从其他缓存处读取数据，然后设为 Valid，其他缓存也设为 Valid。如果其他缓存处于 Dirty 状态，还要把数据写入内存。</description>
+Read hit: The information is supplied by the current cache. No state change. 当 Read miss 的时候，会查看所有缓存，如果有其他缓存处于 Valid/Reserved/Dirty 状态，就从其他缓存处读取数据，然后设为 Valid，其他缓存也设为 Valid。如果其他缓存处于 Dirty 状态，还要把数据写入内存。
+Read miss: The data is read from main memory.</description>
     </item>
     
     <item>
@@ -229,7 +236,7 @@ Read hit: The information is supplied by the current cache. No state change.  �
       <description>背景 最近我们设计的 Kintex 7 FPGA 开发板在测试 DDR SDRAM 的时候遇到了一个问题，因为采用了 Internel VREF，MIG 在配置的时候限制了频率只能是 400 MHz，对应 800 MT/s，这样无法达到 DDR 的最好性能。
 原理 首先，VREF 在 DDR 中是用来区分低电平和高电平的。在 JESD79-4B 标准中，可以看到，对于直流信号，电压不小于 VREF+0.075V 时表示高电平，而电压不高于 VREF-0.075V 时表示低电平。VREF 本身应该介于 VDD 的 0.49 倍到 0.51 倍之间。
 在连接 FPGA 的时候，有两种选择：
- Internal VREF: 从 FPGA 输出 VREF 信号到 DRAM External VREF：接入 FPGA 以外的 VREF  对于 7 Series 的 FPGA，Xilinx 要求如下：
+Internal VREF: 从 FPGA 输出 VREF 信号到 DRAM External VREF：接入 FPGA 以外的 VREF 对于 7 Series 的 FPGA，Xilinx 要求如下：
 For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the option of selecting Internal VREF to save two I/O pins or using external VREF.</description>
     </item>
     
@@ -241,9 +248,9 @@ For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the
       <guid>https://jia.je/hardware/2021/12/12/dram/</guid>
       <description>DRAM 是如何组织的 DRAM 分成很多层次：Bank Group，Bank，Row，Column，从大到小，容量也是各级别的乘积。
 举例子：
- 4 Bank Group 4 Bank per Bank Group 32,768 Row per Bank 1024 Column per Row 4 Bits per Column  那么总大小就是 4*4*32768*1024*4=2 Gb。
+4 Bank Group 4 Bank per Bank Group 32,768 Row per Bank 1024 Column per Row 4 Bits per Column 那么总大小就是 4*4*32768*1024*4=2 Gb。
 访问模式 DRAM 的访问模式决定了访问内存的实际带宽。对于每次访问，需要这样的操作：
- 用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe） 用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。 在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。  可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。</description>
+用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe） 用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。 在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。 可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。</description>
     </item>
     
     <item>
@@ -254,7 +261,8 @@ For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the
       <guid>https://jia.je/hardware/2021/12/12/riscv-debug/</guid>
       <description>背景 之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。
 架构 为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：
- Debugger: GDB，连接到 OpenOCD 启动的 GDB Server Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准 Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为 Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer  可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。</description>
+Debugger: GDB，连接到 OpenOCD 启动的 GDB Server Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准 Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为 Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer 可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。
+JTAG 首先什么是 JTAG ？简单来说，它工作流程是这样的：</description>
     </item>
     
     <item>
@@ -263,7 +271,7 @@ For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the
       <pubDate>Mon, 06 Dec 2021 00:11:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2021/12/06/manycore/</guid>
-      <description>参考文档  Intel® Many Integrated Core Architecture (Intel® MIC Architecture) - Advanced Intel® Xeon Phi coprocessor (codename Knights Corner) https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;amp;arnumber=7453080 Knights Landing (KNL): 2nd Generation Intel® Xeon Phi™ Processor Fujitsu A64FX Fujitsu Presents Post-K CPU Specifications Fujitsu High Performance CPU for the Post-K Computer SUPERCOMPUTER FUGAKU - SUPERCOMPUTER FUGAKU, A64FX 48C 2.2GHZ, TOFU INTERCONNECT D Preliminary Performance Evaluation of the Fujitsu A64FX Using HPC Applications FUJITSU Processor A64FX NVIDIA A100 Tensor Core GPU Architecture NVIDIA TESLA V100 GPU ARCHITECTURE NVIDIA A100 TENSOR CORE GPU  Xeon Phi - Intel MIC MIC: Many Integrated Core Architecture</description>
+      <description>参考文档 Intel® Many Integrated Core Architecture (Intel® MIC Architecture) - Advanced Intel® Xeon Phi coprocessor (codename Knights Corner) https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;amp;arnumber=7453080 Knights Landing (KNL): 2nd Generation Intel® Xeon Phi™ Processor Fujitsu A64FX Fujitsu Presents Post-K CPU Specifications Fujitsu High Performance CPU for the Post-K Computer SUPERCOMPUTER FUGAKU - SUPERCOMPUTER FUGAKU, A64FX 48C 2.2GHZ, TOFU INTERCONNECT D Preliminary Performance Evaluation of the Fujitsu A64FX Using HPC Applications FUJITSU Processor A64FX NVIDIA A100 Tensor Core GPU Architecture NVIDIA TESLA V100 GPU ARCHITECTURE NVIDIA A100 TENSOR CORE GPU Xeon Phi - Intel MIC MIC: Many Integrated Core Architecture</description>
     </item>
     
     <item>
@@ -272,7 +280,7 @@ For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the
       <pubDate>Sat, 04 Dec 2021 09:13:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2021/12/04/sunway/</guid>
-      <description>参考文档  高性能众核处理器申威26010 稀疏矩阵向量乘法在申威众核架构上的性能优化 Sunway SW26010 The Sunway TaihuLight supercomputer: system and applications Report on the Sunway TaihuLight System Closing the “Quantum Supremacy” Gap: Achieving Real-Time Simulation of a Random Quantum Circuit Using a New Sunway Supercomputer SW_Qsim: A Minimize-Memory Quantum Simulator with High-Performance on a New Sunway Supercomputer 18.9-Pflops Nonlinear Earthquake Simulation on Sunway TaihuLight: Enabling Depiction of 18-Hz and 8-Meter Scenarios A FIRST PEEK AT CHINA’S SUNWAY EXASCALE SUPERCOMPUTER THE NITTY GRITTY OF THE SUNWAY EXASCALE SYSTEM NETWORK AND STORAGE Sunway supercomputer architecture towards exascale computing: analysis and practice  SW26010 Sunway TaihuLight 的层次：</description>
+      <description>参考文档 高性能众核处理器申威26010 稀疏矩阵向量乘法在申威众核架构上的性能优化 Sunway SW26010 The Sunway TaihuLight supercomputer: system and applications Report on the Sunway TaihuLight System Closing the “Quantum Supremacy” Gap: Achieving Real-Time Simulation of a Random Quantum Circuit Using a New Sunway Supercomputer SW_Qsim: A Minimize-Memory Quantum Simulator with High-Performance on a New Sunway Supercomputer 18.9-Pflops Nonlinear Earthquake Simulation on Sunway TaihuLight: Enabling Depiction of 18-Hz and 8-Meter Scenarios A FIRST PEEK AT CHINA’S SUNWAY EXASCALE SUPERCOMPUTER THE NITTY GRITTY OF THE SUNWAY EXASCALE SYSTEM NETWORK AND STORAGE Sunway supercomputer architecture towards exascale computing: analysis and practice SW26010 Sunway TaihuLight 的层次：</description>
     </item>
     
     <item>
@@ -282,9 +290,9 @@ For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the
       
       <guid>https://jia.je/hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/</guid>
       <description>背景 最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：
- rocket-chip-vcu128 opensbi u-boot linux  Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
- 添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode  主要踩过的坑：
- BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突  U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
+rocket-chip-vcu128 opensbi u-boot linux Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
+添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode 主要踩过的坑：
+BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突 U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
     </item>
     
     <item>
@@ -308,7 +316,7 @@ AXI Quad SPI AXI Quad SPI 是一个 SPI 的控制器，它支持 XIP（eXecute I
       <description>背景 最早学习乱序执行 CPU 的时候，是在 Wikipedia 上自学的，后来在计算机系统结构课上又学了一遍，但发现学的和现在实际采用的乱序执行 CPU 又有很大区别，后来又仔细研究了一下，觉得理解更多了，就想总结一下。
 经典 Tomasulo 参考 Stanford 教材
 经典 Tomasulo，也是 Wikipedia 上描述的 Tomasulo 算法，它的核心是保留站。指令在 Decode 之后，会被分配到一个保留站中。保留站有以下的这些属性：
- Op：需要执行的操作 Qj，Qk：操作数依赖的指令目前所在的保留站 ID Vj，Qk：操作数的值 Rj，Rk：操作数是否 ready（或者用特殊的 Qj，Qk 值表示是否 ready） Busy：这个保留站被占用  此外还有一个 mapping（Wikipedia 上叫做 RegisterStat），记录了寄存器是否会被某个保留站中的指令写入。
+Op：需要执行的操作 Qj，Qk：操作数依赖的指令目前所在的保留站 ID Vj，Qk：操作数的值 Rj，Rk：操作数是否 ready（或者用特殊的 Qj，Qk 值表示是否 ready） Busy：这个保留站被占用 此外还有一个 mapping（Wikipedia 上叫做 RegisterStat），记录了寄存器是否会被某个保留站中的指令写入。
 指令分配到保留站的时候，会查询 RegisterStat，得知操作数寄存器是否 ready，如果不 ready，说明有一个先前的指令要写入这个寄存器，那就记录下对应的保留站 ID。当操作数都 ready 了，就可以进入计算单元计算。当一条指令在执行单元中完成的时候，未出现 WAW 时会把结果写入寄存器堆，并且通过 Common Data Bus 进行广播，目前在保留站中的指令如果发现，它所需要的操作数刚好计算出来了，就会把取值保存下来。
 这里有一些细节：因为保留站中的指令可能要等待其他指令的完成，为了保证计算单元利用率更高，对于同一个计算类型（比如 ALU），需要有若干个同类的保留站（比如 Add1，Add2，Add3）。在 Wikipedia 的表述中，每个保留站对应了一个计算单元，这样性能比较好，但自然面积也就更大。如果节省面积，也可以减少计算单元的数量，然后每个计算单元从多个保留站中获取计算的指令。
 可以思考一下，这种方法的瓶颈在什么地方。首先，每条指令都放在一个保留站中，当保留站满的时候就不能发射新的指令。其次，如果计算单元的吞吐跟不上保留站的填充速度，也会导致阻塞。
@@ -327,9 +335,9 @@ ROB（ReOrder Buffer） 参考教材
       
       <guid>https://jia.je/hardware/2021/05/06/disk/</guid>
       <description>ATA ATA 定义了发送给硬盘的命令，标准定义了命令:
- ech IDENTIFY DEVICE: 获取设备信息 25h READ DMA EXT: 读取扇区 35h WRITE DMA EXT: 写入扇区  ATA 同时也是接口，图片如下。ATA 前身是 IDE，现在 ATA 叫做 PATA。
+ech IDENTIFY DEVICE: 获取设备信息 25h READ DMA EXT: 读取扇区 35h WRITE DMA EXT: 写入扇区 ATA 同时也是接口，图片如下。ATA 前身是 IDE，现在 ATA 叫做 PATA。
 AHCI AHCI 可以简单理解为 PCIe &amp;lt;-&amp;gt; SATA 的转换器。AHCI 暴露为一个 PCIe 设备：
-$ lspci -vv 00:1f.2 SATA controller: Intel Corporation C600/X79 series chipset 6-Port SATA AHCI Controller (rev 05)  Kernel modules: ahci 处理器通过 IO port/MMIO 访问 AHCI，然后 AHCI HBA 连接到 SATA 设备。
+$ lspci -vv 00:1f.2 SATA controller: Intel Corporation C600/X79 series chipset 6-Port SATA AHCI Controller (rev 05) Kernel modules: ahci 处理器通过 IO port/MMIO 访问 AHCI，然后 AHCI HBA 连接到 SATA 设备。
 SATA SATA 一般说的是接口。它一般分为两个部分，数据和电源。数据部分只有 7 个 pin，三个 GND 和两对差分线（A+A- B+B-），图片如下：</description>
     </item>
     
@@ -353,8 +361,8 @@ $ ssh root@192.168.1.1 The authenticity of host &amp;#39;192.168.1.1 (192.168.1.
       <guid>https://jia.je/hardware/2021/03/08/pcb-notes/</guid>
       <description>记录一下在学习画板子过程中学到的心得。
 工具 目前使用过 KiCad 和 lceda：
- KiCad: 开源软件，跨平台。 lceda：在线编辑，不需要安装，和 lcsc 有深度集成。  项目 jiegec/HT42B534USB2UART 采用的是 KiCad 5 编写的。目前正在做的另一个项目采用 lceda
-流程  选择所需要使用的芯片，查找芯片的 datasheet。 寻找采用了芯片的一些设计，特别是看 schematic。 按照 datasheet 里面推荐的电路，或者是其他人的设计，画自己需要的 schematic。 设置好各个元件的 footprint，然后转到 PCB 设计。 在 PCB 里面布线，生成 Gerber 等文件。 把 Gerber 给到生产商（比如 jlc），交付生产。 如果是自己焊接，则需要购买元件，比如从 lcsc 购买。 收到 PCB 和元件后，自己按照 BOM 和 schematic 焊接各个元件。  笔记  对于一些连接很多元件的信号，比如 GND，可以留作铺铜解决。也就是说，先不管 GND，把其他所有的信号都接好以后，再在顶层铺铜；如果还是有没有连接上的 GND，可以通过过孔（Via）走到底层，在底层再铺一层铜。 对于外部供电的 VCC 和 GND，在 KiCad 中需要用 PWR_FLAG 标记一下。 在 KiCad 中设计 PCB 前，要把生产商的工艺参数设置好，不然画了也要重画。 lceda 在选择元件的时候，可以直接从 lcsc 里选择，这样可以保证封装和商品可以对得上，不需要手动进行匹配。 如果要用 jlc 的 SMT 贴片，先在 SMT 元件列表 里搜索所需要的元件；推荐用基本库，如果用其他库，则要加钱；选好元件以后，用元件编号去 lceda 里搜索并添加到 schematic。 对于涉及模拟信号的设计，比如音频，需要特别注意模拟信号的电和地都是单独的：AVCC 和 AGND。所以要特别注意 datasheet 里面不同的地的表示方法。最后，再用磁珠把 VCC 和 AVCC、GND 和 AGND 分别连接起来就可以了。可以参考 DE2 板子中第 19 页的音频部分设计 和 Staying well grounded。 在 schematic 里经常会出现在电源附近的电容，那么，在 PCB 中，也尽量把这些电容放在对应的电源的旁边。 耳机插座里面，一般分三种组成部件：Tip，Ring，Sleeve。只有两段的是 TS，三段的是 TRS，四段的是 TRRS。TS 是单声道，T 是声音，S 是地。TRS 是双声道，T 是左声道（或者单声道），R 是右声道，S 是地。TRRS 则是双声道加录音。一般来说，LINE IN 是双声道，MIC IN 是单声道，它们的阻抗也不同；LINE OUT 和 HEADPHONE OUT 都是双声道，但 HEADPHONE OUT 经过了额外的放大器。 遇到一个 SPI 协议没有 SPI_MISO 引脚的芯片，可能说明它是 write-only 的。 手焊的基本元件，一般用 0603 加一些 Padding 的封装；SMT 的话，则建议用 0402 封装。 I2C 的信号线一般需要加一个几 K 欧姆的上拉电阻到 VCC。  未完待续。</description>
+KiCad: 开源软件，跨平台。 lceda：在线编辑，不需要安装，和 lcsc 有深度集成。 项目 jiegec/HT42B534USB2UART 采用的是 KiCad 5 编写的。目前正在做的另一个项目采用 lceda
+流程 选择所需要使用的芯片，查找芯片的 datasheet。 寻找采用了芯片的一些设计，特别是看 schematic。 按照 datasheet 里面推荐的电路，或者是其他人的设计，画自己需要的 schematic。 设置好各个元件的 footprint，然后转到 PCB 设计。 在 PCB 里面布线，生成 Gerber 等文件。 把 Gerber 给到生产商（比如 jlc），交付生产。 如果是自己焊接，则需要购买元件，比如从 lcsc 购买。 收到 PCB 和元件后，自己按照 BOM 和 schematic 焊接各个元件。 笔记 对于一些连接很多元件的信号，比如 GND，可以留作铺铜解决。也就是说，先不管 GND，把其他所有的信号都接好以后，再在顶层铺铜；如果还是有没有连接上的 GND，可以通过过孔（Via）走到底层，在底层再铺一层铜。 对于外部供电的 VCC 和 GND，在 KiCad 中需要用 PWR_FLAG 标记一下。 在 KiCad 中设计 PCB 前，要把生产商的工艺参数设置好，不然画了也要重画。 lceda 在选择元件的时候，可以直接从 lcsc 里选择，这样可以保证封装和商品可以对得上，不需要手动进行匹配。 如果要用 jlc 的 SMT 贴片，先在 SMT 元件列表 里搜索所需要的元件；推荐用基本库，如果用其他库，则要加钱；选好元件以后，用元件编号去 lceda 里搜索并添加到 schematic。 对于涉及模拟信号的设计，比如音频，需要特别注意模拟信号的电和地都是单独的：AVCC 和 AGND。所以要特别注意 datasheet 里面不同的地的表示方法。最后，再用磁珠把 VCC 和 AVCC、GND 和 AGND 分别连接起来就可以了。可以参考 DE2 板子中第 19 页的音频部分设计 和 Staying well grounded。 在 schematic 里经常会出现在电源附近的电容，那么，在 PCB 中，也尽量把这些电容放在对应的电源的旁边。 耳机插座里面，一般分三种组成部件：Tip，Ring，Sleeve。只有两段的是 TS，三段的是 TRS，四段的是 TRRS。TS 是单声道，T 是声音，S 是地。TRS 是双声道，T 是左声道（或者单声道），R 是右声道，S 是地。TRRS 则是双声道加录音。一般来说，LINE IN 是双声道，MIC IN 是单声道，它们的阻抗也不同；LINE OUT 和 HEADPHONE OUT 都是双声道，但 HEADPHONE OUT 经过了额外的放大器。 遇到一个 SPI 协议没有 SPI_MISO 引脚的芯片，可能说明它是 write-only 的。 手焊的基本元件，一般用 0603 加一些 Padding 的封装；SMT 的话，则建议用 0402 封装。 I2C 的信号线一般需要加一个几 K 欧姆的上拉电阻到 VCC。 未完待续。</description>
     </item>
     
     <item>
@@ -367,7 +375,7 @@ $ ssh root@192.168.1.1 The authenticity of host &amp;#39;192.168.1.1 (192.168.1.
 简单来说，背景就是，为了解决 valid 和 ready 信号在数据流水线上一路经过组合逻辑导致的时序问题，在中途加上一些寄存器来阻隔。当然了，代价就是延迟和面积，不过吞吐量还是需要保持的。
 由于需求的不同，Skid buffer 也有不同的实现。目前，找到了四个实现，实现上有所不同，特性也不大一样。
 统一约定 由于我在 SpinalHDL 语言中重新实现了下面的这些 Skid buffer，所以按照 SpinalHDL 的 Stream 定义接口：
-class SkidBufferCommon[T &amp;lt;: Data](  gen: =&amp;gt; T ) extends Component {  val io = new Bundle {  val s = slave(Stream(gen))  val m = master(Stream(gen))  } } 在这里，io.s 表示从上游取的数据，io.m 表示传递给下游的数据。
+class SkidBufferCommon[T &amp;lt;: Data]( gen: =&amp;gt; T ) extends Component { val io = new Bundle { val s = slave(Stream(gen)) val m = master(Stream(gen)) } } 在这里，io.s 表示从上游取的数据，io.m 表示传递给下游的数据。
 输出信号共有：io.s.ready、io.m.valid 和 io.m.payload。
 ZipCPU 版本 第一个版本来自 ZipCPU：
 博客地址：Building a Skid Buffer for AXI processing 代码地址：skidbuffer.</description>
@@ -382,7 +390,7 @@ ZipCPU 版本 第一个版本来自 ZipCPU：
       <description>背景 最近逐渐接触到了一些高速的以太网的接口，被一大堆的名字搞得有点懵，所以特意学习了一下并整理成这篇博客。
 更新：经 @z4yx 指出，还可以看华为的介绍文档
 几几 BASE 杠什么是什么意思 在下文里，经常可以看到类似 100BASE-TX 这种写法，它表示的意思是：
- BASE 前面的数字表示速率，比如 10，100，1000，10G等等 BASE 之后的第一个字母，常见的 T 表示双绞线，S 表示 850nm 光纤，L 表示 1310nm 光纤，C 表示同轴电缆 之后可能还有别的字母，比如 X 表示 8b/10b 或者 4b/5b（FE） 的编码，R 表示 64b/66b 的编码 之后可能还有别的数字，如果是 LAN PHY 表示的是所使用的 lane 数量；如果是 WAN PHY 表示的是传输的公里数  详见 Wikipedia - Ethernet Physical Layer # Naming Conventions 和 IEEE 802.3 1.2.3 节 Physical Layer and media notation：
+BASE 前面的数字表示速率，比如 10，100，1000，10G等等 BASE 之后的第一个字母，常见的 T 表示双绞线，S 表示 850nm 光纤，L 表示 1310nm 光纤，C 表示同轴电缆 之后可能还有别的字母，比如 X 表示 8b/10b 或者 4b/5b（FE） 的编码，R 表示 64b/66b 的编码 之后可能还有别的数字，如果是 LAN PHY 表示的是所使用的 lane 数量；如果是 WAN PHY 表示的是传输的公里数 详见 Wikipedia - Ethernet Physical Layer # Naming Conventions 和 IEEE 802.3 1.2.3 节 Physical Layer and media notation：
 The data rate, if only a number, is in Mb/s, and if suffixed by a “G”, is in Gb/s.</description>
     </item>
     
@@ -409,8 +417,8 @@ $ uname -a Darwin macbookair.lan 20.1.0 Darwin Kernel Version 20.1.0: Sat Oct 31
       <guid>https://jia.je/hardware/2020/05/18/fido-u2f-fido2-ctap/</guid>
       <description>背景 2012 年，Yubico 和 Google 设计了 U2F 协议，第二年 U2F 成为 FIDO 组织的标准，之后加入了 NFC 的支持。之后，FIDO2 作为替代 U2F 的新标准产生，原来的 U2F 以兼容的方式成为了 CTAP1，而采用 CBOR 封装格式的 CTAP(CTAP2) 则是 FIDO2 的主要协议。
 U2F 命令格式 U2F 定义了它的命令格式，基于 ISO7816-4 APDU（short APDU） ：
-   CLA INS P1 P2 Lc data Le     1 byte 1 byte 1 byte 1 byte 0-1 bytes variable length 0-1 bytes    比如 U2F_VERSION 就是：
-   CLA INS P1 P2 Lc data Le     00 03 00 00 0 empty 00    返回的数据就是 U2F_V2 的 ASCII 加上 9000 的状态。</description>
+CLA INS P1 P2 Lc data Le 1 byte 1 byte 1 byte 1 byte 0-1 bytes variable length 0-1 bytes 比如 U2F_VERSION 就是：
+CLA INS P1 P2 Lc data Le 00 03 00 00 0 empty 00 返回的数据就是 U2F_V2 的 ASCII 加上 9000 的状态。</description>
     </item>
     
     <item>
@@ -444,8 +452,8 @@ open_vcd log_vcd run 20us close_vcd quit 这样就可以把仿真的波形输出
       <guid>https://jia.je/hardware/2020/03/17/rocket-chip-tlram-load/</guid>
       <description>最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM ，这样每次修改内容不需要重新跑一次 Chisel -&amp;gt; Verilog 的流程。然后到处研究了一下，找到了解决的方案：
 首先是新建一个 TLRAM 然后挂接到 cbus 上：
-import freechips.rocketchip.tilelink.TLRAM import freechips.rocketchip.tilelink.TLFragmenter import freechips.rocketchip.diplomacy.LazyModule import freechips.rocketchip.diplomacy.AddressSet  trait HasTestRAM { this: BaseSubsystem =&amp;gt;  val testRAM = LazyModule(  new TLRAM(AddressSet(0x40000000, 0x1FFF), beatBytes = cbus.beatBytes)  )   testRAM.node := cbus.coupleTo(&amp;#34;bootrom&amp;#34;) { TLFragmenter(cbus) := _ } } 这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：
-class TestTop(implicit p:Parameters) 	extends RocketSystem 	// .</description>
+import freechips.rocketchip.tilelink.TLRAM import freechips.rocketchip.tilelink.TLFragmenter import freechips.rocketchip.diplomacy.LazyModule import freechips.rocketchip.diplomacy.AddressSet trait HasTestRAM { this: BaseSubsystem =&amp;gt; val testRAM = LazyModule( new TLRAM(AddressSet(0x40000000, 0x1FFF), beatBytes = cbus.beatBytes) ) testRAM.node := cbus.coupleTo(&amp;#34;bootrom&amp;#34;) { TLFragmenter(cbus) := _ } } 这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：
+class TestTop(implicit p:Parameters) extends RocketSystem // ... with HasTestRAM //... { override lazy .</description>
     </item>
     
     <item>
@@ -478,7 +486,7 @@ Remote debugging using localhost:3333 0x0001018c in getc () at bootloader.</desc
       <guid>https://jia.je/hardware/2020/02/09/rocket-chip-bscan-analysis/</guid>
       <description>前言 最近 @jsteward 在研究如何通过 JTAG 对 FPGA 里的 Rocket Chip 进行调试。之前 @sequencer 已经做了一些实践，我们在重复他的工作，同时也研究了一下这是怎么工作的。
 原理 我们从 @sequencer 得到了一份可用的 Scala 代码 和 OpenOCD 配置，并且了解到：
- 可以通过 openocd 找到并调试 Rocket Chip openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。  这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的操作代码：
+可以通过 openocd 找到并调试 Rocket Chip openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。 这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的操作代码：
 tunneled_ir[3].num_bits = 3; tunneled_ir[3].out_value = bscan_zero; tunneled_ir[3].in_value = NULL; tunneled_ir[2].num_bits = bscan_tunnel_ir_width; tunneled_ir[2].out_value = ir_dtmcontrol; tunneled_ir[1].in_value = NULL; tunneled_ir[1].</description>
     </item>
     
@@ -494,7 +502,7 @@ brew install openocd --HEAD
 然后编写如下的 openocd.cfg：
 adapter driver ftdi adapter speed 10000 ftdi_vid_pid 0x0403 0x6014 ftdi_layout_init 0x0008 0x004b source [find cpld/xilinx-xc7.cfg] init xc7_program xc7.tap pld load 0 /path/to/bitstream.bit shutdown 上面的 ftdi 开头的两行按照实际的 JTAG Adapter 修改。可以参考 openocd 自带的一些 cfg。
 然后在 openocd.cfg 的目录运行 openocd 即可：
-$ openocd Open On-Chip Debugger 0.10.0+dev-01052-g09580964 (2020-02-08-15:09) Licensed under GNU GPL v2 For bug reports, read  http://openocd.org/doc/doxygen/bugs.html Info : auto-selecting first available session transport &amp;#34;jtag&amp;#34;.</description>
+$ openocd Open On-Chip Debugger 0.10.0+dev-01052-g09580964 (2020-02-08-15:09) Licensed under GNU GPL v2 For bug reports, read http://openocd.org/doc/doxygen/bugs.html Info : auto-selecting first available session transport &amp;#34;jtag&amp;#34;.</description>
     </item>
     
     <item>
@@ -602,7 +610,7 @@ $ diskutil unmountDisk /dev/disk4 $ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev
       <guid>https://jia.je/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/</guid>
       <description>今天从张宇翔学长那拿到了 荔枝糖（Lichee Tang） 的 FPGA 板子，于是立即开始把前段时间学到的Verilog应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。
 在网上找到了 ben-marshall/uart 一个简易的实现，很快做到了一直在串口上打印 A 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO ，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：
-always @ (posedge clk_in) begin 	uart_tx_en &amp;lt;= uart_fifo_re; end 这样就解决了这个问题。完整代码在 jiegec/learn_licheetang 中。</description>
+always @ (posedge clk_in) begin uart_tx_en &amp;lt;= uart_fifo_re; end 这样就解决了这个问题。完整代码在 jiegec/learn_licheetang 中。</description>
     </item>
     
     <item>

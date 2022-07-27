@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.99.1" />
+    <meta name="generator" content="Hugo 0.101.0" />
 </head>
 
 
@@ -130,13 +130,84 @@
 </span></span></code></pre></div><p>显示有多少个在线和离线的 OSD。</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd tree
 </span></span></code></pre></div><p>显示了存储的层级，其中 ID 非负数是实际的 OSD，负数是其他层级，例如存储池，机柜，主机等等。</p>
+<h2 id="crush">CRUSH</h2>
+<p>CRUSH 是一个算法，指定了如何分配 OSD，到什么类型的设备，还有它的 failure domain 等等。例如，如果指定 failure domain 为 host，那么它就会分配到不同 host 上的 osd，这样一个 host 挂了不至于全军覆没。类似地，还可以设定更多级别的 failure domain，例如 row，rack，chassis 等等。</p>
+<p>OSD 可以设置它的 CRUSH Location，在 ceph.conf 中定义。</p>
+<p>为了配置数据置放的规则，需要设置 CRUSH Rule。</p>
+<p>列举 CRUSH Rule：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd crush rule ls
+</span></span><span style="display:flex;"><span>ceph osd crush rule dump
+</span></span></code></pre></div><p>查看 CRUSH 层级：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd crush tree --show-shadow
+</span></span></code></pre></div><p>在里面可能会看到 <code>default~ssd</code>，它指的意思就是只保留 default 下面的 ssd 设备。</p>
+<p>文本形式导出 CRUSH 配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd getcrushmap | crushtool -d - -o crushmap
+</span></span><span style="display:flex;"><span>cat crushmap
+</span></span></code></pre></div><p>可以看到 Rule 的定义，如：</p>
+<pre tabindex="0"><code>rule replicated_rule {
+        id 0
+        # a replicated rule
+        type replicated
+        # iterate all devices of &#34;default&#34;
+        step take default
+        # select n osd with failure domain &#34;osd&#34;
+        # firstn: continuous
+        step chooseleaf firstn 0 type osd
+        step emit
+}
+
+
+rule erasure-hdd {
+        id 4
+        # an erasure rule
+        type erasure
+        # try more times to find a good mapping
+        step set_chooseleaf_tries 5
+        step set_choose_tries 100
+        # iterate hdd devices of &#34;default&#34;, i.e. &#34;default~hdd&#34;
+        step take default class hdd
+        # select n osd with failure domain &#34;osd&#34;
+        # indep: replace failed osd with another
+        step choose indep 0 type osd
+        step emit
+}
+
+rule replicated-hdd-osd {
+        id 5
+        # a replicated rule
+        type replicated
+        # iterate hdd devices of &#34;default&#34;, i.e. &#34;default~hdd&#34;
+        step take default class hdd
+        # select n osd with failure domain &#34;osd&#34;
+        # firstn: continuous
+        step choose firstn 0 type osd
+        step emit
+}
+
+rule replicated-host {
+        id 6
+        # a replicated rule
+        type replicated
+        # iterate all devices of &#34;default&#34;
+        step take default
+        # select n osd with failure domain &#34;host&#34;
+        # firstn: continuous
+        step chooseleaf firstn 0 type host
+        step emit
+}
+</code></pre><p>新建一个 Replicated CRUSH Rule：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># root=default, failure domain=osd</span>
+</span></span><span style="display:flex;"><span>ceph osd crush rule create-replicated xxx default osd
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># root=default, failure domain=host, class=ssd</span>
+</span></span><span style="display:flex;"><span>ceph osd crush rule create-replicated yyy default host ssd
+</span></span></code></pre></div><p>如果指定了 device class，它只会在对应类型的设备上存储。</p>
 <h2 id="pool">Pool</h2>
 <p>Pool 是存储池，后续的 RBD/CephFS 功能都需要指定存储池来工作。</p>
 <p>创建存储池：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd pool create xxx
 </span></span><span style="display:flex;"><span>ceph osd pool create PG_NUM
 </span></span></code></pre></div><p>为了性能考虑，可以设置 PG（Placement Group）数量。默认情况下，会创建 replicated 类型的存储池，也就是会存多份，类似 RAID1。也可以设置成 erasure 类型的存储池，类似 RAID5。</p>
-<p>每个 Placement Group 里的数据会保存在同一组 OSD 中。数据通过 hash ，会分布在不同的 PG 里。</p>
+<p>每个 Placement Group 里的数据会保存在同一组 OSD 中。数据通过 hash，会分布在不同的 PG 里。</p>
 <p>列举所有的存储池：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd lspools
 </span></span></code></pre></div><p>查看存储池的使用量：</p>
@@ -145,7 +216,26 @@
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd pool stats
 </span></span></code></pre></div><p>对存储池做快照：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd mksnap xxx snap-xxx-123
-</span></span></code></pre></div><h2 id="rbd">RBD</h2>
+</span></span></code></pre></div><h3 id="pg">PG</h3>
+<p>PG 是数据存放的组，每个对象都会放到一个 PG 里面，而 PG 会决定它属于哪些 OSD。PG 数量只有一个的话，那么一个 pool 的所有数据都会存放在某几个 OSD 中，一旦这几个 OSD 都不工作了，那么整个 pool 的数据都不能访问了。PG 增多了以后，就会分布到不同的 OSD 上，并且各个 OSD 的占用也会比较均匀。</p>
+<p>查看 PG 状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph pg dump
+</span></span></code></pre></div><h4 id="auto-scale">Auto Scale</h4>
+<p>PG 数量可以让集群自动调整：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd pool set xxx pg_autoscale_mode on
+</span></span></code></pre></div><p>设置 autoscale 目标为每个 OSD 平均 100 个 PG：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph config set global mon_target_pg_per_osd <span style="color:#ae81ff">100</span>
+</span></span></code></pre></div><p>全局 autoscale 开关：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># Enable</span>
+</span></span><span style="display:flex;"><span>ceph osd pool unset noautoscale
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Disable</span>
+</span></span><span style="display:flex;"><span>ceph osd pool set unautoscale
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Read</span>
+</span></span><span style="display:flex;"><span>ceph osd pool get noautoscale
+</span></span></code></pre></div><p>查看 autoscale 状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd pool autoscale-status
+</span></span></code></pre></div><p>如果没有显示，说明 autoscale 没有工作，可能的原因是，部分 pool 采用了指定 osd class 的 crush rule，例如指定了 hdd 盘，但是也有部分 pool 没有指定盘的类型，例如默认的 replicated_rule。这时候，把这些盘也设置成一个指定 osd class 的 crush rule 即可。</p>
+<h2 id="rbd">RBD</h2>
 <p>RBD 把 Ceph 暴露为块设备。</p>
 <h3 id="创建">创建</h3>
 <p>初始化 Pool 用于 RBD：</p>
@@ -253,7 +343,30 @@ ceph fs new xxx xxx_metadata xxx_data0
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch ps
 </span></span></code></pre></div><p>被编排的主机：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch host ls
-</span></span></code></pre></div><h2 id="更新">更新</h2>
+</span></span></code></pre></div><h3 id="添加新机器">添加新机器</h3>
+<p>首先，复制 <code>/etc/ceph/ceph.pub</code> 到新机器的 <code>/root/.ssh/authorized_keys</code> 中</p>
+<p>接着，添加机器到编排器中：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch host add xxxx y.y.y.y
+</span></span></code></pre></div><p>导出编排器配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch ls --export &gt; cephadm.yaml
+</span></span></code></pre></div><p>如果想让一些 daemon 只运行在部分主机上，可以修改：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#75715e"># change</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">placement</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">host_pattern</span>: <span style="color:#e6db74">&#39;*&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># to</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">placement</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">host_pattern</span>: <span style="color:#e6db74">&#39;xxx&#39;</span>
+</span></span></code></pre></div><p>然后应用：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch apply -i cephadm.yaml
+</span></span></code></pre></div><h3 id="配置监控">配置监控</h3>
+<p>添加监控相关的服务：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch apply node-exporter
+</span></span><span style="display:flex;"><span>ceph orch apply alertmanager
+</span></span><span style="display:flex;"><span>ceph orch apply prometheus
+</span></span><span style="display:flex;"><span>ceph orch apply grafana
+</span></span><span style="display:flex;"><span>ceph orch ps
+</span></span></code></pre></div><p>然后就可以访问 Grafana 看到集群的状态。</p>
+<h2 id="更新">更新</h2>
 <p>使用容器编排器来升级：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph orch upgrade start --ceph-version x.x.x
 </span></span><span style="display:flex;"><span>ceph orch upgrade start --image quay.io/ceph/ceph:vx.x.x
@@ -273,6 +386,8 @@ ceph fs new xxx xxx_metadata xxx_data0
 <li><a href="https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/">Ceph Basic Block Device Commands</a></li>
 <li><a href="https://docs.ceph.com/en/quincy/cephadm/upgrade/">Ceph Upgrade</a></li>
 <li><a href="https://docs.ceph.com/en/latest/mgr/nfs/">Ceph CephFS &amp; RGW Exports Over NFS</a></li>
+<li><a href="https://docs.ceph.com/en/quincy/rados/operations/crush-map/">CRUSH Maps</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/">CRUSH Map Edits</a></li>
 <li><a href="https://llussy.github.io/2019/08/17/ceph-architecture/">ceph 架构和概念</a></li>
 <li><a href="https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw">RedHat Object Gateway Guide</a></li>
 </ul>
@@ -288,7 +403,12 @@ ceph fs new xxx xxx_metadata xxx_data0
     <li><a href="#概念">概念</a></li>
     <li><a href="#认证">认证</a></li>
     <li><a href="#osd">OSD</a></li>
-    <li><a href="#pool">Pool</a></li>
+    <li><a href="#crush">CRUSH</a></li>
+    <li><a href="#pool">Pool</a>
+      <ul>
+        <li><a href="#pg">PG</a></li>
+      </ul>
+    </li>
     <li><a href="#rbd">RBD</a>
       <ul>
         <li><a href="#创建">创建</a></li>
@@ -308,7 +428,12 @@ ceph fs new xxx xxx_metadata xxx_data0
       </ul>
     </li>
     <li><a href="#radosgw">RadosGW</a></li>
-    <li><a href="#编排器">编排器</a></li>
+    <li><a href="#编排器">编排器</a>
+      <ul>
+        <li><a href="#添加新机器">添加新机器</a></li>
+        <li><a href="#配置监控">配置监控</a></li>
+      </ul>
+    </li>
     <li><a href="#更新">更新</a></li>
     <li><a href="#参考文档">参考文档</a></li>
   </ul>
@@ -373,6 +498,12 @@ ceph fs new xxx xxx_metadata xxx_data0
     </div>
     
 <nav id="article-nav">
+    
+    <a href="/software/2022/07/26/invalid-date-timezone/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            invalid date 报错与时区的关系
+        </div>
+    </a>
     
     
     <a href="/software/2022/07/11/archive-common-linking/" id="article-nav-older" class="article-nav-link-wrap">

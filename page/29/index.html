@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.99.1" />
+    <meta name="generator" content="Hugo 0.101.0" />
 </head>
 
 <body>
@@ -69,6 +69,39 @@
                 
                 
                 <div class="article-meta">
+                    <a href="/programming/2017/12/02/on-nginx-memory-pool/" class="article-date">
+                        <time datetime='2017-12-02T22:16:07.000&#43;08:00' itemprop="datePublished">2017-12-02</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/programming/2017/12/02/on-nginx-memory-pool/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    今晚参加了 Tunight ，会长给我们讲了 Nginx 的一些内部运作的机制和原理。中间的时候，会长展示的代码中用到了线程池方面的一些函数，但是大多地方只有调用 ngx_pcalloc 而没有看到相应的对象释放的过程，于是在演示的最后，会长应大家要求对 Nginx 魔幻的线程池实现做了现场代码分析。
+在分析的中途遇到了很多坑，最后才终于理清了内存池的工作原理。这里直接解释结论吧。以下代码均摘自 Nginx 1.13.7 ，代码都可以在官方仓库找到。
+首先分析一下创建一个内存池的函数：
+ngx_pool_t * ngx_create_pool(size_t size, ngx_log_t *log) { ngx_pool_t *p; p = ngx_memalign(NGX_POOL_ALIGNMENT, size, log); if (p == NULL) { return NULL; } p-&gt;d.last = (u_char *) p + sizeof(ngx_pool_t); p-&gt;d.end = (u_char *) p + size; p-&gt;d.next = NULL; p-&gt;d.failed = 0; size = size - sizeof(ngx_pool_t); p-&gt;max = (size &lt; NGX_MAX_ALLOC_FROM_POOL) ? size : NGX_MAX_ALLOC_FROM_POOL; p-&gt;current = p; p-&gt;chain = NULL; p-&gt;large = NULL; p-&gt;cleanup = NULL; p-&gt;log = log; return p; } 现在开始分段分析这个函数：在这里，一个内存池用一个 ngx_pool_t (aka struct ngx_pool_s) 类型的数据进行包装，所有的关于内存池的操作都基于相应的内存池对象。 ngx_log_t 表示输出信息的对象，与内存池无关，后面也不会讨论它。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/programming/2017/12/02/on-nginx-memory-pool/">Read More</a>
+                    </p>
+                </div>
+
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <div class="article-meta">
                     <a href="/programming/2017/11/30/run-cpp-in-jupyter-notebook/" class="article-date">
                         <time datetime='2017-11-30T18:07:10.000&#43;08:00' itemprop="datePublished">2017-11-30</time>
                     </a>
@@ -89,7 +122,7 @@ pip3 install -U jupyter brew install cling 然后根据官方教程里的要求�
 cd /usr/local/share/cling/Jupyter/kernel pip3 install -e . jupyter kernelspec install cling-cpp11 jupyter kernelspec install cling-cpp14 jupyter kernelspec install cling-cpp17 jupyter kernelspec install cling-cpp1z 结果发现找不到jupyter-kernelspec，遂重装了一下jupyter-client这个包，果然就可以了。打开一个notebook测试：
 jupyter notebook 然后创建一个C++14的Notebook，结果发现一直Kernel rebooting，错误信息是说找不到../Cellar/cling/0.5/lib/libclingJupyter.dylib。这一看就是路径处理的问题，当前目录肯定不是/usr/local，肯定出现了什么问题，然后研究发现cling-kernel.py中对cling判断是否是个连接，如果是连接则按照连接去找cling的安装目录，但是！没有考虑到这个连接是个相对路径的问题（Homebrew你背锅吗）。于是我愉快地改了代码并提交了PR。修复了以后就可以用了。
 以下是一个小小的例子：
-&gt;&gt; jupyter console --kernel cling-cpp14 Jupyter console 5.2.0  cling-X   In [1]: #include &lt;stdio.h&gt; Out[1]:  In [2]: char *s = &#34;Hello, world!
+&gt;&gt; jupyter console --kernel cling-cpp14 Jupyter console 5.2.0 cling-X In [1]: #include &lt;stdio.h&gt; Out[1]: In [2]: char *s = &#34;Hello, world!&#34;; input_line_4:2:12: warning: ISO C++11 does not allow conversion from string literal to &#39;char *&#39; [-Wwritable-strings] char *s = &#34;Hello, world!
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2017/11/30/run-cpp-in-jupyter-notebook/">Read More</a>
@@ -145,7 +178,7 @@ jupyter notebook 然后创建一个C++14的Notebook，结果发现一直Kernel r
                     <p>
                         
                     受用 CPUID 检测各大 OJ 测评机所用的 CPU（以及日常黑 BZOJ）的启发，我决定去测试一下徐老师自己写的OJ（名为Tyche）所跑的机器是什么CPU。于是我改造一下代码，用以下代码测评：
-#include &lt;stdint.h&gt;#include &lt;iostream&gt;#include &lt;time.h&gt;#include &lt;cpuid.h&gt;#include &lt;sys/time.h&gt;static void cpuid(uint32_t func, uint32_t sub, uint32_t data[4]) {  __cpuid_count(func, sub, data[0], data[1], data[2], data[3]); } int main() {  uint32_t data[4];  char str[48];  for(int i = 0; i &lt; 3; ++i) {  cpuid(0x80000002 + i, 0, data);  for(int j = 0; j &lt; 4; ++j)  reinterpret_cast&lt;uint32_t*&gt;(str)[i * 4 + j] = data[j];  }   struct timeval stop, start;  gettimeofday(&amp;start, NULL);  while(1) {  gettimeofday(&amp;stop, NULL);  if(stop.
+#include &lt;stdint.h&gt; #include &lt;iostream&gt; #include &lt;time.h&gt; #include &lt;cpuid.h&gt; #include &lt;sys/time.h&gt; static void cpuid(uint32_t func, uint32_t sub, uint32_t data[4]) { __cpuid_count(func, sub, data[0], data[1], data[2], data[3]); } int main() { uint32_t data[4]; char str[48]; for(int i = 0; i &lt; 3; ++i) { cpuid(0x80000002 + i, 0, data); for(int j = 0; j &lt; 4; ++j) reinterpret_cast&lt;uint32_t*&gt;(str)[i * 4 + j] = data[j]; } struct timeval stop, start; gettimeofday(&amp;start, NULL); while(1) { gettimeofday(&amp;stop, NULL); if(stop.
                     </p>
                     <p class="article-more-link">
                         <a href="/others/2017/10/30/use-cpuid-to-get-machine-cpu/">Read More</a>
@@ -264,7 +297,7 @@ sudo openconnect --user 你的学号 sslvpn.tsinghua.edu.cn --juniper --reconnec
                         
                     今天逛到这个连接，发现其中的第四种素数判定方法很有意思：
 #include&lt;stdio.h&gt; #include&lt;math.h&gt; int p[8]={4,2,4,2,4,6,2,6}; int prime(int n) { int i=7,j,q; if(n==1)return 0; if(n==2||n==5||n==3)return 1; if(n%2==0||n%3==0||n%5==0)return 0; q=(int)sqrt(n); for(;i&lt;=q;){ for(j=0;j&lt;8;j++){ if(n%i==0)return 0; i+=p[j]; } if(n%i==0)return 0; } return 1; } void main() { int n; scanf(&#34;%d&#34;,&amp;n); if(prime(n))puts(&#34;Yes&#34;); else puts(&#34;No&#34;); } 仔细研究发现，这里利用的是这样的原理：
- 判断是不是1, 2, 3, 5及其倍数 从7开始，不断考虑其是否是素数，那么，这个p是什么回事呢？  首先把p的各个元素加起来，和为30，然后就可以发现一个规律： 7为质数，7+2=9不是质数，7+4=11为质数，11+2=13为质数，13+2=15为合数，15+2=17为质数，17+2=19为质数，19+2=21为合数，21+2=23为质数，23+2=25为合数，25+2=27为合数，27+2=29为质数，29+1=31为质数，31+2=33为合数，33+2=35为合数，35+2=37为质数。 观察以上所有的合数，都含有2或者3或者5的因子，而30又是2,3,5的公倍数，也就是说，后面的素数模30的余数不可能是上面这些合数，而剩下的素数才可能是真正的素数，于是跳过了很多素数的判断。
+判断是不是1, 2, 3, 5及其倍数 从7开始，不断考虑其是否是素数，那么，这个p是什么回事呢？ 首先把p的各个元素加起来，和为30，然后就可以发现一个规律： 7为质数，7+2=9不是质数，7+4=11为质数，11+2=13为质数，13+2=15为合数，15+2=17为质数，17+2=19为质数，19+2=21为合数，21+2=23为质数，23+2=25为合数，25+2=27为合数，27+2=29为质数，29+1=31为质数，31+2=33为合数，33+2=35为合数，35+2=37为质数。 观察以上所有的合数，都含有2或者3或者5的因子，而30又是2,3,5的公倍数，也就是说，后面的素数模30的余数不可能是上面这些合数，而剩下的素数才可能是真正的素数，于是跳过了很多素数的判断。
 至于这个函数的性能如何，还需要进一步测试来进行判断。
                     </p>
                     <p class="article-more-link">
@@ -326,7 +359,7 @@ char a; scanf(&#34;%c&#34;,&amp;a); 为什么会报错？我说，vs默认强制
 后来，又有一位同学问我，
 char a; scanf_s(&#34;%c&#34;,&amp;a); 程序为什么会崩溃？我想了想，如果scanf_s和scanf是一样的行为，这段代码是没问题的。但scanf_s既然安全，必然是在字符串方面做了处理。这里的char*勉强也算一个？网上一查，果然，应该写成scanf_s(&quot;%c&quot;,&amp;a,1);，字符串则要写成scanf_s(&quot;%s&quot;,str,sizeof(str))，来保证缓冲区不会溢出。
 但是，这样解决这个问题又面临着不同的选择：
- 学习scanf_s和scanf的不同，把所有scanf换成scanf_s并做相应的修改。 这样当然符合了语言进化的潮流，也会让vs闭嘴。但是，scanf_s只有在C11标准中有，而且，根据cpprefrence.com上关于scanf的描述，只有在__STDC_LIB_EXT1__被定义且在#include&lt;stdio.h&gt;之前#define __STDC_WANT_LIB_EXT1__才能确保使用scanf_s能使用，当然在vs较新版本中是默认可以使用的。但是，程设基础的作业是要丢到oj上的，而oj上的编译器不一定支持这些，所以这个选项不行。 坚持用scanf，自己按照题目要求保证缓冲区不溢出，同时让vs闭嘴。 网上已有教程，已经讲的很全面了，大家可以根据这个教程把vs教训一顿。为了能在oj里跑，建议用里面的方法五到八。（个人最推荐在文件头添加#define _CRT_SECURE_NO_WARNINGS）  以后再遇到这个问题，我就丢这个连接上来就好了咯。yeah！
+学习scanf_s和scanf的不同，把所有scanf换成scanf_s并做相应的修改。 这样当然符合了语言进化的潮流，也会让vs闭嘴。但是，scanf_s只有在C11标准中有，而且，根据cpprefrence.com上关于scanf的描述，只有在__STDC_LIB_EXT1__被定义且在#include&lt;stdio.h&gt;之前#define __STDC_WANT_LIB_EXT1__才能确保使用scanf_s能使用，当然在vs较新版本中是默认可以使用的。但是，程设基础的作业是要丢到oj上的，而oj上的编译器不一定支持这些，所以这个选项不行。 坚持用scanf，自己按照题目要求保证缓冲区不溢出，同时让vs闭嘴。 网上已有教程，已经讲的很全面了，大家可以根据这个教程把vs教训一顿。为了能在oj里跑，建议用里面的方法五到八。（个人最推荐在文件头添加#define _CRT_SECURE_NO_WARNINGS） 以后再遇到这个问题，我就丢这个连接上来就好了咯。yeah！
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2017/10/17/on-scanf-and-scanf_s/">Read More</a>
@@ -387,8 +420,7 @@ char a; scanf_s(&#34;%c&#34;,&amp;a); 程序为什么会崩溃？我想了想，
                     <p>
                         
                     光哲同学在群里发了这个链接，特别搞笑，特此分享： 伸展树 - 百度百科
- 伸展树（Spaly Tree，事实上在国内 IO 界常常被称作 Tajarn 发明的 Spaly Tree，与此同理的还有 Terap），也叫分裂树，是一种二叉排序树，它能在 O(n log n) 内完成插入、查找和删除操作。它由 Daniel Sleator 和 Robert Tajarn 发现，后者对其进行了改造。它的优势可以不断伸展枝干（一个月 2~3 次），从而使树冠散开，提高光合作用效率。木材坚硬，是重要的经济类乔木。与其他植物不同的是，伸展树可以进行出芽生殖，繁殖速度极快。
- 
+伸展树（Spaly Tree，事实上在国内 IO 界常常被称作 Tajarn 发明的 Spaly Tree，与此同理的还有 Terap），也叫分裂树，是一种二叉排序树，它能在 O(n log n) 内完成插入、查找和删除操作。它由 Daniel Sleator 和 Robert Tajarn 发现，后者对其进行了改造。它的优势可以不断伸展枝干（一个月 2~3 次），从而使树冠散开，提高光合作用效率。木材坚硬，是重要的经济类乔木。与其他植物不同的是，伸展树可以进行出芽生殖，繁殖速度极快。
                     </p>
                     <p class="article-more-link">
                         <a href="/others/2017/10/16/a-funny-wiki-of-splay-tree/">Read More</a>
@@ -439,7 +471,7 @@ char a; scanf_s(&#34;%c&#34;,&amp;a); 程序为什么会崩溃？我想了想，
                     <p>
                         
                     昨天晚上，我作为蒟蒻组的一员在三教2102参加了酒井知识竞赛，并因此鸽掉了TUNA和Lab mU的迎新会hhh，不过运气好拿到了二等奖的好成绩，获得Paperang便携打印机一台。中间遇到了好一些网络方面的知识，这对于没有记忆OSI模型的我无疑有巨大的难度。下面是几道比较有印象的题目：
- 以下哪个不是编程语言？ A. J B. L C. R D. K 这题不难，R肯定对，J见过，K略微有印象，选B IPv6链路层地址解析的协议是？ A. ARP B. Neighbour Solicitation C. Neighbour Advertisement D. Neighbour Discovery 对于一个没研究过IPv6的人来说这只好蒙了。。。ARP是IPv4时代的，ND(Neighbour Discovery则是IPv6时代的新产物，把ARP和ICMP等协议的功能都包含了进来，并且有新的功能。之前样题里还出现过问IPv6中去掉了Unicast,Anycast,Multicast,Broadcast中的哪种，答案是Broadcast。 第一个把程序错误称做bug的是？ 选项太多忘了，答案是Grace Hopper，因为当时一只飞蛾意外飞入了机器导致了故障，后来慢慢就流传下来了。 以下不是网络操作系统的是？ A. Windows NT B. OS/2 warp C. DOS D. Netware 当时我没见过D，于是就选了。。。然后就挂了，Netware是Novell开发的系统，OS/2 warp当然是历史悠久的系统啦，而DOS=Disk Operating System所以没有“网络”二字。。。晕倒 以下是用作局域网的协议是？ A. TCP/IP B. IPX/SPX C. NetBEUI D. RS-232-C TCP/IP当然不仅限于局域网，RS-232-C是接口，当时蒙了B结果就对了，白白拿了50分哈哈哈。IPX/SPX是Novell设计用在Netware系统上的局域网协议，NetBEUI则是NetBIOS的一个历史遗留的一个“别称”。 姚期智的夫人给谁取了中文名？ 当然是Donald Ervin Knuth啦！高德纳万岁！  
+以下哪个不是编程语言？ A. J B. L C. R D. K 这题不难，R肯定对，J见过，K略微有印象，选B IPv6链路层地址解析的协议是？ A. ARP B. Neighbour Solicitation C. Neighbour Advertisement D. Neighbour Discovery 对于一个没研究过IPv6的人来说这只好蒙了。。。ARP是IPv4时代的，ND(Neighbour Discovery则是IPv6时代的新产物，把ARP和ICMP等协议的功能都包含了进来，并且有新的功能。之前样题里还出现过问IPv6中去掉了Unicast,Anycast,Multicast,Broadcast中的哪种，答案是Broadcast。 第一个把程序错误称做bug的是？ 选项太多忘了，答案是Grace Hopper，因为当时一只飞蛾意外飞入了机器导致了故障，后来慢慢就流传下来了。 以下不是网络操作系统的是？ A. Windows NT B. OS/2 warp C. DOS D. Netware 当时我没见过D，于是就选了。。。然后就挂了，Netware是Novell开发的系统，OS/2 warp当然是历史悠久的系统啦，而DOS=Disk Operating System所以没有“网络”二字。。。晕倒 以下是用作局域网的协议是？ A. TCP/IP B. IPX/SPX C. NetBEUI D. RS-232-C TCP/IP当然不仅限于局域网，RS-232-C是接口，当时蒙了B结果就对了，白白拿了50分哈哈哈。IPX/SPX是Novell设计用在Netware系统上的局域网协议，NetBEUI则是NetBIOS的一个历史遗留的一个“别称”。 姚期智的夫人给谁取了中文名？ 当然是Donald Ervin Knuth啦！高德纳万岁！ 
                     </p>
                     <p class="article-more-link">
                         <a href="/others/2017/10/16/review-on-yesterdays-jiujing-adi-contest/">Read More</a>
@@ -562,64 +594,6 @@ char a; scanf_s(&#34;%c&#34;,&amp;a); 程序为什么会崩溃？我想了想，
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="/tags/adobe">adobe
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/system/2017/06/15/macos-sierra-karabiner-finally-support-complex-modifications/">In macOS Sierra, Karabiner-Elements finally support complex modifications</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/system/2017/06/15/macos-sierra-karabiner-finally-support-complex-modifications/" class="article-date">
-                        <time datetime='2017-06-15T17:22:20.000&#43;08:00' itemprop="datePublished">2017-06-15</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/system/2017/06/15/macos-sierra-karabiner-finally-support-complex-modifications/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    In favor of this commit, Karabiner-Elements now supports the much welcomed yet long-lost feature, namely complex modifications that enable users to trigger complex keypress.
-Now I can achieve this:
-If I press &lt;Enter&gt;, then: 1. If &lt;Enter&gt; is pressed alone, then send &lt;Enter&gt;. 2. If &lt;Enter&gt; is pressed along with other keys, then send &lt;Control&gt; + Other. By adding this code to ~/.config/karabiner/karabiner.json :
-&#34;complex_modifications&#34;: { &#34;rules&#34;: [ { &#34;manipulators&#34;: [ { &#34;description&#34;: &#34;Change return_or_enter to left_control.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/system/2017/06/15/macos-sierra-karabiner-finally-support-complex-modifications/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/macos">macos
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/karabiner-elements">karabiner-elements
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/keyboard">keyboard
                             </a>
                         </li>
                         
