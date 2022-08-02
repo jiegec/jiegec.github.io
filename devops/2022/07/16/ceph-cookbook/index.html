@@ -131,7 +131,7 @@
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd tree
 </span></span></code></pre></div><p>显示了存储的层级，其中 ID 非负数是实际的 OSD，负数是其他层级，例如存储池，机柜，主机等等。</p>
 <h2 id="crush">CRUSH</h2>
-<p>CRUSH 是一个算法，指定了如何分配 OSD，到什么类型的设备，还有它的 failure domain 等等。例如，如果指定 failure domain 为 host，那么它就会分配到不同 host 上的 osd，这样一个 host 挂了不至于全军覆没。类似地，还可以设定更多级别的 failure domain，例如 row，rack，chassis 等等。</p>
+<p>CRUSH 是一个算法，指定了如何给 PG 分配 OSD，到什么类型的设备，确定它的 failure domain 等等。例如，如果指定 failure domain 为 host，那么它就会分配到不同 host 上的 osd，这样一个 host 挂了不至于全军覆没。类似地，还可以设定更多级别的 failure domain，例如 row，rack，chassis 等等。</p>
 <p>OSD 可以设置它的 CRUSH Location，在 ceph.conf 中定义。</p>
 <p>为了配置数据置放的规则，需要设置 CRUSH Rule。</p>
 <p>列举 CRUSH Rule：</p>
@@ -144,7 +144,8 @@
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd getcrushmap | crushtool -d - -o crushmap
 </span></span><span style="display:flex;"><span>cat crushmap
 </span></span></code></pre></div><p>可以看到 Rule 的定义，如：</p>
-<pre tabindex="0"><code>rule replicated_rule {
+<pre tabindex="0"><code># simple replicated
+rule replicated_rule {
         id 0
         # a replicated rule
         type replicated
@@ -156,7 +157,7 @@
         step emit
 }
 
-
+# erasure on hdd
 rule erasure-hdd {
         id 4
         # an erasure rule
@@ -172,6 +173,7 @@ rule erasure-hdd {
         step emit
 }
 
+# replicated on hdd
 rule replicated-hdd-osd {
         id 5
         # a replicated rule
@@ -184,6 +186,7 @@ rule replicated-hdd-osd {
         step emit
 }
 
+# replicated on different hosts
 rule replicated-host {
         id 6
         # a replicated rule
@@ -195,7 +198,26 @@ rule replicated-host {
         step chooseleaf firstn 0 type host
         step emit
 }
-</code></pre><p>新建一个 Replicated CRUSH Rule：</p>
+
+# replicate one on ssd, two on hdd
+rule replicated-ssd-primary {
+        id 7
+        # a replicated rule
+        type replicated
+
+        # iterate ssd devices of &#34;default&#34;
+        step take default class ssd
+        step chooseleaf firstn 1 type host
+        step emit
+
+        # iterate hdd devices of &#34;default&#34;
+        step take default class hdd
+        step chooseleaf firstn 2 type host
+        step emit
+}
+</code></pre><p>choose 和 chooseleaf 的区别是，前者可以 choose 到中间层级，例如先选择 host，再在 host 里面选 osd；而 chooseleaf 是直接找到 osd。所以 <code>choose type osd</code> 和 <code>chooseleaf type osd</code> 是等价的。</p>
+<p>如果这个搜索条件比较复杂，例如找到了某一个 host，里面的 osd 个数不够，就需要重新搜。</p>
+<p>新建一个 Replicated CRUSH Rule：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># root=default, failure domain=osd</span>
 </span></span><span style="display:flex;"><span>ceph osd crush rule create-replicated xxx default osd
 </span></span><span style="display:flex;"><span><span style="color:#75715e"># root=default, failure domain=host, class=ssd</span>
@@ -217,7 +239,7 @@ rule replicated-host {
 </span></span></code></pre></div><p>对存储池做快照：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph osd mksnap xxx snap-xxx-123
 </span></span></code></pre></div><h3 id="pg">PG</h3>
-<p>PG 是数据存放的组，每个对象都会放到一个 PG 里面，而 PG 会决定它属于哪些 OSD。PG 数量只有一个的话，那么一个 pool 的所有数据都会存放在某几个 OSD 中，一旦这几个 OSD 都不工作了，那么整个 pool 的数据都不能访问了。PG 增多了以后，就会分布到不同的 OSD 上，并且各个 OSD 的占用也会比较均匀。</p>
+<p>PG 是数据存放的组，每个对象都会放到一个 PG 里面，而 PG 会决定它保存到哪些 OSD 上（具体哪些 OSD 是由 CRUSH 决定的）。PG 数量只有一个的话，那么一个 pool 的所有数据都会存放在某几个 OSD 中，一旦这几个 OSD 都不工作了，那么整个 pool 的数据都不能访问了。PG 增多了以后，就会分布到不同的 OSD 上，并且各个 OSD 的占用也会比较均匀。</p>
 <p>查看 PG 状态：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ceph pg dump
 </span></span></code></pre></div><h4 id="auto-scale">Auto Scale</h4>
