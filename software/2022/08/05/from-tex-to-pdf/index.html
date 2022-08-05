@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>从 TeX 到 PDF 的过程 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="从 TeX 到 PDF 的过程" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2022/08/05/from-tex-to-pdf/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.101.0" />
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">从 TeX 到 PDF 的过程</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2022/08/05/from-tex-to-pdf/" class="article-date">
+                <time datetime='2022-08-05T20:50:00.000&#43;08:00' itemprop="datePublished">2022-08-05</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2022/08/05/from-tex-to-pdf/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>今天跑 <code>xdvipdfmx</code> 的时候出现了报错，忽然想研究一下，DVI 格式是什么，TeX 是如何一步步变成 PDF 的。</p>
+<h2 id="流程">流程</h2>
+<p>实际上从 TeX 到 PDF 有不同的工具，其中可能经历了不同的转化过程。</p>
+<p>我们今天来看一种比较原始的转换方式：从 TeX 到 DVI，从 DVI 到 PS，再 PS 到 PDF，主要目的是看看这些格式内部都是什么样子的。</p>
+<h2 id="从-tex-到-dvi">从 TeX 到 DVI</h2>
+<p>举一个很小的例子，例如 <code>test.tex</code> 有如下的内容：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tex" data-lang="tex"><span style="display:flex;"><span>Hello, world!
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">\bye</span>
+</span></span></code></pre></div><p>在命令行中运行 <code>tex test.tex</code>，可以看到它生成了 <code>test.dvi</code> 文件：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ tex test.tex
+</span></span><span style="display:flex;"><span><span style="color:#f92672">(</span>test.tex <span style="color:#f92672">[</span>1<span style="color:#f92672">]</span> <span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>Output written on test.dvi <span style="color:#f92672">(</span><span style="color:#ae81ff">1</span> page, <span style="color:#ae81ff">228</span> bytes<span style="color:#f92672">)</span>.
+</span></span><span style="display:flex;"><span>Transcript written on test.log.
+</span></span></code></pre></div><p>那么 DVI 就是 TeX 引擎输出的默认格式了。我们可以用 dviinfox 和 dviasm 工具来看它的一些信息：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ dviinfox test.dvi
+</span></span><span style="display:flex;"><span>test.dvi: DVI format 2; <span style="color:#ae81ff">1</span> page
+</span></span><span style="display:flex;"><span>  Magnification: 1000/1000
+</span></span><span style="display:flex;"><span>  Size unit: 1000x25400000/<span style="color:#f92672">(</span>1000x473628672<span style="color:#f92672">)</span>dum <span style="color:#f92672">=</span> 0.054dum <span style="color:#f92672">=</span> 1.000sp
+</span></span><span style="display:flex;"><span>  Page size: 469ptx667pt <span style="color:#f92672">=</span> 16.510cmx23.449cm
+</span></span><span style="display:flex;"><span>  Stack size: <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>  Comment: <span style="color:#e6db74">&#34; TeX output 2022.08.05:2055&#34;</span>
+</span></span><span style="display:flex;"><span>  Font   0:     cmr10 at 10.000 <span style="color:#f92672">(</span>design size 10.000, checksum<span style="color:#f92672">=</span>1274110073<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>$ dviasm test.dvi
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>preamble<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>id: <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>numerator: <span style="color:#ae81ff">25400000</span>
+</span></span><span style="display:flex;"><span>denominator: <span style="color:#ae81ff">473628672</span>
+</span></span><span style="display:flex;"><span>magnification: <span style="color:#ae81ff">1000</span>
+</span></span><span style="display:flex;"><span>comment: <span style="color:#e6db74">&#39; TeX output 2022.08.05:2058&#39;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>postamble<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>maxv: 667.202545pt
+</span></span><span style="display:flex;"><span>maxh: 469.754990pt
+</span></span><span style="display:flex;"><span>maxs: <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>pages: <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>font definitions<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>fntdef: cmr10 at 10pt
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>page <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> 0<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>push:
+</span></span><span style="display:flex;"><span>  down: -14pt
+</span></span><span style="display:flex;"><span>pop:
+</span></span><span style="display:flex;"><span>down: 643.202545pt
+</span></span><span style="display:flex;"><span>push:
+</span></span><span style="display:flex;"><span>  down: -633.202545pt
+</span></span><span style="display:flex;"><span>  push:
+</span></span><span style="display:flex;"><span>    right: 20pt
+</span></span><span style="display:flex;"><span>    fnt: cmr10 at 10pt
+</span></span><span style="display:flex;"><span>    set: <span style="color:#e6db74">&#39;Hello,&#39;</span>
+</span></span><span style="display:flex;"><span>    right: 3.333328pt
+</span></span><span style="display:flex;"><span>    set: <span style="color:#e6db74">&#39;w&#39;</span>
+</span></span><span style="display:flex;"><span>    right: -0.277786pt
+</span></span><span style="display:flex;"><span>    set: <span style="color:#e6db74">&#39;orld!&#39;</span>
+</span></span><span style="display:flex;"><span>  pop:
+</span></span><span style="display:flex;"><span>pop:
+</span></span><span style="display:flex;"><span>down: 24pt
+</span></span><span style="display:flex;"><span>push:
+</span></span><span style="display:flex;"><span>  right: 232.377487pt
+</span></span><span style="display:flex;"><span>  set: <span style="color:#e6db74">&#39;1&#39;</span>
+</span></span><span style="display:flex;"><span>pop:
+</span></span></code></pre></div><p>可以看到，它定义了文档的一些尺寸和字体信息，然后主体部分就是每个页面上需要绘制的内容：</p>
+<pre tabindex="0"><code>push:
+  down: -14pt
+pop:
+down: 643.202545pt
+push:
+  down: -633.202545pt
+  push:
+    right: 20pt
+    fnt: cmr10 at 10pt
+    set: &#39;Hello,&#39;
+    right: 3.333328pt
+    set: &#39;w&#39;
+    right: -0.277786pt
+    set: &#39;orld!&#39;
+  pop:
+pop:
+down: 24pt
+push:
+  right: 232.377487pt
+  set: &#39;1&#39;
+pop:
+</code></pre><p>可以看到，它保存了一些命令，就像是在移动光标，然后输出文字：</p>
+<ol>
+<li>向下移动 643.20 pt</li>
+<li>向上移动 633.20 pt</li>
+<li>向右移动 20.00 pt</li>
+<li>设置字体为 cmr10</li>
+<li>输出 &ldquo;Hello,&rdquo;</li>
+<li>向右移动 3.33 pt</li>
+<li>输出 &ldquo;w&rdquo;</li>
+<li>向左移动 0.28 pt</li>
+<li>输出 &ldquo;orld!&rdquo;</li>
+</ol>
+<p>实际上，它的编码也比较简单，就是一个字节的命令加上若干字节的参数。DVI 二进制格式详细的文档可见 <a href="https://www.mn.uio.no/ifi/tjenester/it/hjelp/latex/dvi.pdf">https://www.mn.uio.no/ifi/tjenester/it/hjelp/latex/dvi.pdf</a>。</p>
+<h2 id="从-dvi-到-ps">从 DVI 到 PS</h2>
+<p>有了 DVI 文件以后，下一步是用 <code>dvips</code> 工具来生成 PS 文件：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ dvips test.dvi
+</span></span><span style="display:flex;"><span>This is dvips<span style="color:#f92672">(</span>k<span style="color:#f92672">)</span> 2020.1 Copyright <span style="color:#ae81ff">2020</span> Radical Eye Software <span style="color:#f92672">(</span>www.radicaleye.com<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">&#39; TeX output 2022.08.05:2058&#39;</span> -&gt; test.ps
+</span></span><span style="display:flex;"><span>&lt;/usr/share/texlive/texmf-dist/dvips/base/tex.pro&gt;
+</span></span><span style="display:flex;"><span>&lt;/usr/share/texlive/texmf-dist/dvips/base/texps.pro&gt;.
+</span></span><span style="display:flex;"><span>&lt;/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb&gt;<span style="color:#f92672">[</span>1<span style="color:#f92672">]</span>
+</span></span></code></pre></div><p>DVI 是二进制格式，而 PS 是纯文本格式，我们可以用编辑器打开，看到里面大概有几部分内容：</p>
+<ol>
+<li>开头的元数据</li>
+<li>tex.pro 文件的内容</li>
+<li>texps.pro 文件的内容</li>
+<li>定义 CMR10 字体</li>
+<li>描述文档内容</li>
+</ol>
+<p>让我们直接来看最后一部分：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span><span style="color:#a6e22e">TeXDict</span> <span style="color:#a6e22e">begin</span> <span style="color:#ae81ff">39158280</span> <span style="color:#ae81ff">55380996</span> <span style="color:#ae81ff">1000</span> <span style="color:#ae81ff">600</span> <span style="color:#ae81ff">600</span> <span style="color:#e6db74">(test.dvi)</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">@start</span> /Fa <span style="color:#ae81ff">136</span>[<span style="color:#ae81ff">60</span> <span style="color:#ae81ff">4</span>[<span style="color:#ae81ff">33</span> <span style="color:#ae81ff">2</span>[<span style="color:#ae81ff">42</span> <span style="color:#ae81ff">2</span>[<span style="color:#ae81ff">23</span> <span style="color:#ae81ff">6</span>[<span style="color:#ae81ff">37</span> <span style="color:#ae81ff">46</span> <span style="color:#ae81ff">27</span>[<span style="color:#ae81ff">62</span> <span style="color:#ae81ff">22</span>[<span style="color:#ae81ff">42</span>
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">4</span>[<span style="color:#ae81ff">23</span> <span style="color:#ae81ff">10</span>[<span style="color:#ae81ff">23</span> <span style="color:#ae81ff">33</span>[{}<span style="color:#ae81ff">10</span> <span style="color:#ae81ff">83.022</span> /CMR10 <span style="color:#a6e22e">rf</span> <span style="color:#a6e22e">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">%%EndProlog
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">%%BeginSetup
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">%%Feature: *Resolution 600dpi
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">TeXDict</span> <span style="color:#a6e22e">begin</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">%%BeginPaperSize: a4
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>/setpagedevice <span style="color:#a6e22e">where</span>
+</span></span><span style="display:flex;"><span>{ <span style="color:#a6e22e">pop</span> &lt;&lt; /PageSize [<span style="color:#ae81ff">595</span> <span style="color:#ae81ff">842</span>] &gt;&gt; <span style="color:#a6e22e">setpagedevice</span> }
+</span></span><span style="display:flex;"><span>{ /a4 <span style="color:#a6e22e">where</span> { <span style="color:#a6e22e">pop</span> <span style="color:#a6e22e">a4</span> } <span style="color:#a6e22e">if</span> }
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ifelse</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">%%EndPaperSize
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span> <span style="color:#a6e22e">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">%%EndSetup
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">%%Page: 1 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">TeXDict</span> <span style="color:#a6e22e">begin</span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">bop</span> <span style="color:#ae81ff">166</span> <span style="color:#ae81ff">83</span> <span style="color:#a6e22e">a</span> <span style="color:#a6e22e">Fa</span><span style="color:#e6db74">(Hello,)</span><span style="color:#ae81ff">28</span> <span style="color:#a6e22e">b</span><span style="color:#e6db74">(w)</span><span style="color:#a6e22e">n</span><span style="color:#e6db74">(orld!)</span><span style="color:#ae81ff">1929</span>
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">5539</span> <span style="color:#a6e22e">y</span><span style="color:#e6db74">(1)</span><span style="color:#a6e22e">p</span> <span style="color:#a6e22e">eop</span> <span style="color:#a6e22e">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">%%Trailer
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">userdict</span> /end-hook <span style="color:#a6e22e">known</span>{<span style="color:#a6e22e">end-hook</span>}<span style="color:#a6e22e">if</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">%%EOF
+</span></span></span></code></pre></div><p>看到这个，肯定觉得很疑惑，这都是啥？除了隐约可以看到的 <code>Hello,</code> <code>w</code> <code>orld!</code> 字样以外，有很多不明含义的字母和代码。</p>
+<p>为了读懂这些代码在做什么，首先来学习一下 PostScript。PostScript 是一个基于栈的语言，类似 Forth，所以很多运算都和我们平时看到的不一样。例如：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span><span style="color:#a6e22e">userdict</span> /end-hook <span style="color:#a6e22e">known</span>{<span style="color:#a6e22e">end-hook</span>}<span style="color:#a6e22e">if</span>
+</span></span></code></pre></div><p>实际上做的事情是，判断 userdict 中是否存在 <code>/end-hook</code>，如果存在，则展开它。它的计算过程是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span><span style="color:#a6e22e">userdict</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">userdict</span> /end-hook
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">userdict</span> /end-hook <span style="color:#a6e22e">known</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">true</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">true</span> {<span style="color:#a6e22e">end-hook</span>}
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">true</span> {<span style="color:#a6e22e">end-hook</span>} <span style="color:#a6e22e">if</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">end-hook</span>
+</span></span></code></pre></div><p>那么回过头来看 <code>Hello, world!</code> 相关的代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span><span style="color:#a6e22e">TeXDict</span> <span style="color:#a6e22e">begin</span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">bop</span> <span style="color:#ae81ff">166</span> <span style="color:#ae81ff">83</span> <span style="color:#a6e22e">a</span> <span style="color:#a6e22e">Fa</span><span style="color:#e6db74">(Hello,)</span><span style="color:#ae81ff">28</span> <span style="color:#a6e22e">b</span><span style="color:#e6db74">(w)</span><span style="color:#a6e22e">n</span><span style="color:#e6db74">(orld!)</span><span style="color:#ae81ff">1929</span>
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">5539</span> <span style="color:#a6e22e">y</span><span style="color:#e6db74">(1)</span><span style="color:#a6e22e">p</span> <span style="color:#a6e22e">eop</span> <span style="color:#a6e22e">end</span>
+</span></span></code></pre></div><p>这里出现的 <code>TeXDict</code> <code>bop</code> <code>a</code> 等等应该也是在前面定义的了。往回翻，发现正是 <code>tex.pro</code> 文件定义了这些对象。让我们一点点来看：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span>/TeXDict <span style="color:#ae81ff">300</span> <span style="color:#a6e22e">dict</span> <span style="color:#a6e22e">def</span>
+</span></span></code></pre></div><p>表示 <code>TexDict</code> 会展开为 <code>300 dict</code>，即创建一个最大容量为 300 的 dict。接下来的 begin 和 end 就是在这个 dict 的作用域中进行运算。</p>
+<p>接下来是 <code>1 0 bop</code>，那么我们要看 <code>bop</code> 的定义，根据 DVI 中同名的命令，我们知道它的意思是 <code>begin of page</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span>/bop {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">userdict</span> /bop-hook <span style="color:#a6e22e">known</span> {<span style="color:#a6e22e">bop-hook</span>} <span style="color:#a6e22e">if</span>
+</span></span><span style="display:flex;"><span>  /SI <span style="color:#a6e22e">save</span> <span style="color:#a6e22e">N</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">@rigin</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">moveto</span>
+</span></span><span style="display:flex;"><span>  /V <span style="color:#a6e22e">matrix</span> <span style="color:#a6e22e">currentmatrix</span> <span style="color:#a6e22e">A</span> <span style="color:#ae81ff">1</span> <span style="color:#a6e22e">get</span> <span style="color:#a6e22e">A</span> <span style="color:#a6e22e">mul</span> <span style="color:#a6e22e">exch</span> <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">get</span> <span style="color:#a6e22e">A</span> <span style="color:#a6e22e">mul</span> <span style="color:#a6e22e">add</span> <span style="color:#ae81ff">.99</span> <span style="color:#a6e22e">lt</span>{/QV}{/RV}<span style="color:#a6e22e">ifelse</span> <span style="color:#a6e22e">load</span> <span style="color:#a6e22e">def</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">pop</span> <span style="color:#a6e22e">pop</span>
+</span></span><span style="display:flex;"><span>} <span style="color:#a6e22e">N</span>
+</span></span></code></pre></div><p>这里有一些代码的含义我还不清楚，先跳过。</p>
+<p>接下来的 <code>166 83 a</code>，根据定义就可以判断出来它是在移动位置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span>/a { <span style="color:#a6e22e">moveto</span> } <span style="color:#a6e22e">B</span>
+</span></span></code></pre></div><p>紧随其后的 <code>Fa</code> 我不确定它的意义。接下来是 <code>(Hello,)</code>，即把 <code>Hello,</code> 这些文字压入栈。</p>
+<p>接下来看到 <code>28 b</code>，它输出了栈顶的文本，进行了一个相对的水平移动，并且更新了 delta：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-postscript" data-lang="postscript"><span style="display:flex;"><span>/delta <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">N</span>
+</span></span><span style="display:flex;"><span>/tail {<span style="color:#a6e22e">A</span> /delta <span style="color:#a6e22e">X</span> <span style="color:#ae81ff">0</span> <span style="color:#a6e22e">rmoveto</span>} <span style="color:#a6e22e">B</span>
+</span></span><span style="display:flex;"><span>/M {<span style="color:#a6e22e">S</span> <span style="color:#a6e22e">p</span> <span style="color:#a6e22e">delta</span> <span style="color:#a6e22e">add</span> <span style="color:#a6e22e">tail</span>} <span style="color:#a6e22e">B</span>
+</span></span><span style="display:flex;"><span>/b {<span style="color:#a6e22e">S</span> <span style="color:#a6e22e">p</span> <span style="color:#a6e22e">tail</span>} <span style="color:#a6e22e">B</span>
+</span></span></code></pre></div><p>后面的也都是类似的操作，让我们简单来总结一下 <code>TeXDict begin 1 0 bop 166 83 a Fa(Hello,)28 b(w)n(orld!)1929 5539 y(1)p eop end</code> 都做了什么：</p>
+<ol>
+<li><code>1 0 bop</code>: 创建了新页面</li>
+<li><code>166 83 a</code>: 移动坐标到 <code>(166, 83)</code></li>
+<li><code>Fa</code>: 不确定用途，猜测是表示段落的开头</li>
+<li><code>(Hello,)</code>: 压栈 &ldquo;Hello,&rdquo;</li>
+<li><code>28 b</code>: 输出栈顶，移动坐标，对应 <code>dviasm</code> 输出中的 <code>right: 3.333328pt</code></li>
+<li><code>(w)</code>: 压栈 &ldquo;w&rdquo;</li>
+<li><code>n</code>: 输出栈顶，移动坐标，对应 <code>dviasm</code> 输出中的 <code>right: -0.277786pt</code></li>
+<li><code>(orld!)</code>: 压栈 &ldquo;orld!&rdquo;</li>
+<li><code>1929 5539 y</code>: 输出栈顶，移动坐标到页码的位置，对应 <code>dviasm</code> 输出中的 <code>down: 24pt</code> 和 <code>right: 232.377487.pt</code></li>
+<li><code>(1)</code>: 压栈 &ldquo;1&rdquo;</li>
+<li><code>p</code>: 输出栈顶</li>
+<li><code>eop</code>: 结束页面</li>
+</ol>
+<p>由此我们基本明白了从 DVI 到 PS 是怎么一个流程：</p>
+<ol>
+<li>首先在 <code>tex.pro</code> 中定义了一些函数，来实现 DVI 中的命令</li>
+<li>把 DVI 中的命令翻译成 PS 代码</li>
+<li>把 <code>tex.pro</code>、字体等还有翻译出来的 PS 拼接起来作为最终的输出</li>
+</ol>
+<p>这算是一种元编程，在 PS 中定义了一个 DSL，可以很方便地执行 DVI 指令。</p>
+<h2 id="从-ps-到-pdf">从 PS 到 PDF</h2>
+<p>最后一步，我们可以用 <code>ps2pdf</code> 把 PS 转换为 PDF。转换以后，就可以用常见的 PDF 浏览器来阅读了。让我们解压缩其中被压缩的部分，这样就方便阅读它的内容了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>ps2pdf test.ps
+</span></span><span style="display:flex;"><span>pdftk test.pdf output test.unc.pdf uncompress
+</span></span></code></pre></div><p>在里面就可以找到我们的 <code>Hello, world!</code> 了：</p>
+<pre tabindex="0"><code class="language-pdf" data-lang="pdf">5 0 obj
+
+&lt;&lt;
+/Length 225
+&gt;&gt;
+stream
+q 0.1 0 0 0.1 0 0 cm
+0 g
+q
+10 0 0 10 0 0 cm BT
+/R7 9.96264 Tf
+1 0 0 1 91.9199 710.04 Tm
+[(H)3.21024(e)-1.66516(llo)-5.88993(,)-337.276(w)23.3747(o)-5.88993(r)-6.48419(ld)0.929988(!)]TJ
+211.56 -654.72 Td
+[(1)-5.8887]TJ
+ET
+Q
+Q
+
+endstream
+endobj
+</code></pre><p>阅读 <a href="https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf">PDF 标准</a>，可以发现它的输出文本部分是这样的：</p>
+<pre tabindex="0"><code class="language-pdf" data-lang="pdf">BT
+	/R7 9.96264 Tf
+	1 0 0 1 91.9199 710.04 Tm
+	[(H)3.21024(e)-1.66516(llo)-5.88993(,)-337.276(w)23.3747(o)-5.88993(r)-6.48419(ld)0.929988(!)]TJ
+	211.56 -654.72 Td
+	[(1)-5.8887]TJ
+ET
+</code></pre><p>其中：</p>
+<ol>
+<li><code>/R7 9.96264 Tf</code> 设置了字体 <code>/R7</code>，大小是 <code>9.96264</code></li>
+<li><code>1 0 0 1 91.9199 710.04 Tm</code> 设置 Text matrix</li>
+<li><code>[(H)3.21024(e)-1.66516(llo)-5.88993(,)-337.276(w)23.3747(o)-5.88993(r)-6.48419(ld)0.929988(!)]TJ</code> 输出一系列的 <code>Hello, world!</code>，中间的数字表示的是文字之间移动的坐标</li>
+<li><code>211.56 -654.72 Td</code> 移动坐标到页码的位置</li>
+<li><code>[(1)-5.8887]TJ</code> 输出页码</li>
+</ol>
+<p>可以看到，从 PS 到 PDF 这一步就不是简单的映射了，例如在 DVI 和 PS 中都是 <code>Hello,</code> <code>w</code> <code>orld!</code> 这样断开，而在 PDF 里面则是 <code>H</code> <code>e</code> <code>llo</code> <code>,</code> <code>w</code> <code>o</code> <code>r</code> <code>ld</code> <code>!</code>。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#流程">流程</a></li>
+    <li><a href="#从-tex-到-dvi">从 TeX 到 DVI</a></li>
+    <li><a href="#从-dvi-到-ps">从 DVI 到 PS</a></li>
+    <li><a href="#从-ps-到-pdf">从 PS 到 PDF</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/tex">tex
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/latex">latex
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ps">ps
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/dvi">dvi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/pdf">pdf
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2022/08/02/rust-nix/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">用 Nix 编译 Rust 项目&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
