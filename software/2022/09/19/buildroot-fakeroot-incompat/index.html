@@ -117,6 +117,18 @@
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>        PATH<span style="color:#f92672">=</span>$$<span style="color:#f92672">(</span>BR_PATH<span style="color:#f92672">)</span> FAKEROOTDONTTRYCHOWN<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> /usr/bin/fakeroot -- $$<span style="color:#f92672">(</span>FAKEROOT_SCRIPT<span style="color:#f92672">)</span>
 </span></span></code></pre></div><p>我还尝试重新编译 fakeroot 1.20.2，会出现编译错误，采用类似 <a href="https://bugs.archlinux.org/task/69572">bug 69572 fakeroot failes to build: _STAT_VER undeclared</a> 的方法可以解决编译的问题，但是还是出现 EPERM。<a href="https://github.com/buildroot/buildroot/commit/f45925a951318e9e53bead80b363e004301adc6f">Buildroot</a> 后来也引入了类似的修复。</p>
 <p>于是在<a href="https://salsa.debian.org/clint/fakeroot">源代码</a>历史中搜寻了一番，发现了一个疑似的修复 commit：<a href="https://salsa.debian.org/clint/fakeroot/-/commit/c3eebec293e35b997bb46c22fb5a4e114afb5e7f">configure.ac: fix __xmknod{,at} pointer argument</a>，不过我并不能确定是不是这个问题。</p>
+<p>进一步，我在 Docker 镜像中手动下载并编译 fakeroot 1.20.2、1.21 和 1.25.3，都可以复现这个问题，编译 1.29 版本则没有问题。用 git 克隆<a href="https://salsa.debian.org/clint/fakeroot">仓库</a>，进一步定位到 upstream/1.26 和 upstream/1.27 版本都是正常的。而 upstream/1.25.2 会出错。进一步二分，找到修复的 commit 是 <a href="https://salsa.debian.org/clint/fakeroot/-/commit/feda578ca3608b7fc9a28a3a91293611c0ef47b7">libfakeroot.c: add wrappers for new glibc 2.33+ symbols</a>，相关的代码如下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span><span style="color:#a6e22e">+  int mknod(const char *pathname, mode_t mode, dev_t dev) {
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+     return WRAP_MKNOD MKNOD_ARG(_STAT_VER, pathname, mode, &amp;dev);
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  }
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  #if defined(HAVE_FSTATAT) &amp;&amp; defined(HAVE_MKNODAT)
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    int mknodat(int dir_fd, const char *pathname, mode_t mode, dev_t dev) {
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+       return WRAP_MKNODAT MKNODAT_ARG(_STAT_VER, dir_fd, pathname, mode, &amp;dev);
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    }
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  #endif
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+#endif /* GLIBC_PREREQ */
+</span></span></span></code></pre></div><p>这说明在这个修复之前，不能正确地拦截 mknod 的调用。所以 glibc 2.33+ 要配合 fakeroot 1.26+ 版本才可以正确地运行 fakeroot。</p>
 <p>结论：找个时间用新版的 Buildroot 重新构建一份。</p>
 
         </div>
