@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Buildroot 2020.08 的 Fakeroot 版本过旧导致的兼容性问题 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="Buildroot 2020.08 的 Fakeroot 版本过旧导致的兼容性问题" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2022/09/19/buildroot-fakeroot-incompat/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.102.3" />
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">Buildroot 2020.08 的 Fakeroot 版本过旧导致的兼容性问题</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2022/09/19/buildroot-fakeroot-incompat/" class="article-date">
+                <time datetime='2022-09-19T20:14:00.000&#43;08:00' itemprop="datePublished">2022-09-19</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2022/09/19/buildroot-fakeroot-incompat/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近在给之前的 Buildroot 2020.09 增加新的软件包，结果编译的时候报错：</p>
+<pre tabindex="0"><code>mknod: ....../dev/console: Operation not permitted
+</code></pre><p>还有一个背景是前段时间把系统升级到了 Ubuntu 22.04 LTS。</p>
+<h2 id="研究">研究</h2>
+<p>跑的时候没有用 root，而是用 fakeroot 跑的，按理说在 fakeroot 里跑 mknod 是不会报错的，我直接运行系统的 fakeroot 是正常的：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>fakeroot -- mknod -m <span style="color:#ae81ff">0622</span> test c <span style="color:#ae81ff">5</span> <span style="color:#ae81ff">1</span>
+</span></span></code></pre></div><p>此时 fakeroot 会生成一个空文件，这是正常现象。那么为什么 Buildroot 里跑就不对了呢？</p>
+<p>我仔细观察了一下，buildroot 用的是自己编译的 fakeroot，版本是 1.20.2，用这个版本跑就会报错：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ./output/host/bin/fakeroot -- mknod -m <span style="color:#ae81ff">0622</span> test c <span style="color:#ae81ff">5</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>mknod: test: Operation not permitted
+</span></span></code></pre></div><p>果然就出问题了。</p>
+<p>用 strace 观察下区别：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ fakeroot -- strace mknod -m <span style="color:#ae81ff">0622</span> test c <span style="color:#ae81ff">5</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>newfstatat<span style="color:#f92672">(</span>AT_FDCWD, <span style="color:#e6db74">&#34;test&#34;</span>, <span style="color:#f92672">{</span>st_mode<span style="color:#f92672">=</span>S_IFREG|0644, st_size<span style="color:#f92672">=</span>0, ...<span style="color:#f92672">}</span>, AT_SYMLINK_NOFOLLOW<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>msgget<span style="color:#f92672">(</span>0x4b33194b, IPC_CREAT|0600<span style="color:#f92672">)</span>      <span style="color:#f92672">=</span> <span style="color:#ae81ff">32771</span>
+</span></span><span style="display:flex;"><span>msgget<span style="color:#f92672">(</span>0x4b33194c, IPC_CREAT|0600<span style="color:#f92672">)</span>      <span style="color:#f92672">=</span> <span style="color:#ae81ff">32772</span>
+</span></span><span style="display:flex;"><span>msgsnd<span style="color:#f92672">(</span>...<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>newfstatat<span style="color:#f92672">(</span>AT_FDCWD, <span style="color:#e6db74">&#34;test&#34;</span>, <span style="color:#f92672">{</span>st_mode<span style="color:#f92672">=</span>S_IFREG|0644, st_size<span style="color:#f92672">=</span>0, ...<span style="color:#f92672">}</span>, AT_SYMLINK_NOFOLLOW<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>msgsnd<span style="color:#f92672">(</span>...<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>openat<span style="color:#f92672">(</span>AT_FDCWD, <span style="color:#e6db74">&#34;test&#34;</span>, O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span>newfstatat<span style="color:#f92672">(</span>3, <span style="color:#e6db74">&#34;&#34;</span>, <span style="color:#f92672">{</span>st_mode<span style="color:#f92672">=</span>S_IFREG|0644, st_size<span style="color:#f92672">=</span>0, ...<span style="color:#f92672">}</span>, AT_EMPTY_PATH<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>fchmodat<span style="color:#f92672">(</span>AT_FDCWD, <span style="color:#e6db74">&#34;/proc/self/fd/3&#34;</span>, 0622<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>$ ./output/host/bin/fakeroot -- strace mknod -m <span style="color:#ae81ff">0622</span> test c <span style="color:#ae81ff">5</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>umask<span style="color:#f92672">(</span>000<span style="color:#f92672">)</span>                              <span style="color:#f92672">=</span> <span style="color:#ae81ff">002</span>
+</span></span><span style="display:flex;"><span>umask<span style="color:#f92672">(</span>002<span style="color:#f92672">)</span>                              <span style="color:#f92672">=</span> <span style="color:#ae81ff">000</span>
+</span></span><span style="display:flex;"><span>mknodat<span style="color:#f92672">(</span>AT_FDCWD, <span style="color:#e6db74">&#34;test&#34;</span>, S_IFCHR|0622, makedev<span style="color:#f92672">(</span>0x5, 0x1<span style="color:#f92672">))</span> <span style="color:#f92672">=</span> -1 EPERM <span style="color:#f92672">(</span>Operation not permitted<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>可以看到，正常情况下，mknodat 系统调用被拦截，由 fakeroot 来创建空文件；而错误的 fakeroot 版本下，没有拦截成功，就出现了 EPERM。</p>
+<h2 id="解决">解决</h2>
+<p>一个粗暴的解决办法是，直接修改 buildroot 源代码，让它用系统的 fakeroot：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>        PATH<span style="color:#f92672">=</span>$$<span style="color:#f92672">(</span>BR_PATH<span style="color:#f92672">)</span> FAKEROOTDONTTRYCHOWN<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> /usr/bin/fakeroot -- $$<span style="color:#f92672">(</span>FAKEROOT_SCRIPT<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>我还尝试重新编译 fakeroot 1.20.2，会出现编译错误，采用类似 <a href="https://bugs.archlinux.org/task/69572">bug 69572 fakeroot failes to build: _STAT_VER undeclared</a> 的方法可以解决编译的问题，但是还是出现 EPERM。<a href="https://github.com/buildroot/buildroot/commit/f45925a951318e9e53bead80b363e004301adc6f">Buildroot</a> 后来也引入了类似的修复。</p>
+<p>于是在<a href="https://salsa.debian.org/clint/fakeroot">源代码</a>历史中搜寻了一番，发现了一个疑似的修复 commit：<a href="https://salsa.debian.org/clint/fakeroot/-/commit/c3eebec293e35b997bb46c22fb5a4e114afb5e7f">configure.ac: fix __xmknod{,at} pointer argument</a>，不过我并不能确定是不是这个问题。</p>
+<p>结论：找个时间用新版的 Buildroot 重新构建一份。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#研究">研究</a></li>
+    <li><a href="#解决">解决</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/linux">linux
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/fakeroot">fakeroot
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/mknod">mknod
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2022/08/05/from-tex-to-pdf/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">从 TeX 到 PDF 的过程&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
