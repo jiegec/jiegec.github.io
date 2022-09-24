@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESXi 配置 LACP 链路聚合 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="ESXi 配置 LACP 链路聚合" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/devops/2022/09/24/vmware-esxi-lacp/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.103.1" />
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">ESXi 配置 LACP 链路聚合</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/devops/2022/09/24/vmware-esxi-lacp/" class="article-date">
+                <time datetime='2022-09-24T14:18:00.000&#43;08:00' itemprop="datePublished">2022-09-24</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/devops/2022/09/24/vmware-esxi-lacp/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>给 ESXi 接了两路 10Gbps 的以太网，需要用 LACP 来聚合。ESXi 自己不能配置 LACP，需要配合 vCenter Server 的 Distributed Switch 来配置。</p>
+<h2 id="步骤">步骤</h2>
+<p>参考文档：<a href="https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-0D1EF5B4-7581-480B-B99D-5714B42CD7A9.html">LACP Support on a vSphere Distributed Switch</a></p>
+<p>第一步是创建一个 Distributed Switch。找到 Cluster，点击 ACTIONS，在 Distributed Switch 里面选择 New Distributed Switch。里面的选项都可以用默认的，按需修改。</p>
+<p>第二步，找到刚刚创建的 Distributed Switch，点击 Configure，在 Settings 下点击 LACP，点击 NEW，选项可以用默认的，按需修改。</p>
+<p>第三步，找到 Distributed Switch，点击 ACTIONS，点击 Add and Manage Hosts，找到要配置的主机，在 Manage physical adapters 这一步，找到要加入到链路聚合的 vmnic，每个要聚合的 vmnic 都在右边的 Assign uplink 处选择刚刚创建的 LAG 下的 Uplink，按顺序，一一对应。其余选项可以使用默认的。这一步配置好以后，在交换机上应该就可以看到 LACP 正常运转。</p>
+<p>第四步，如果要把虚拟机连到链路聚合的网络上，找到虚拟机，点击 ACTIONS，点击 Edit Settings，新建一个网卡，Network adapter 处选择刚刚创建的 Distributed Port Group。这一步是让虚拟机多一个网卡，可以连接到 Distributed Switch 上。这一步配置好以后，虚拟机就可以收到来自其他物理机的网络流量，但是发送不出去。</p>
+<p>注：Static Binding 和 Ephemeral Binding 的区别见 <a href="https://kb.vmware.com/s/article/1022312">Static (non-ephemeral) or ephemeral port binding on a vSphere Distributed Switch (1022312)</a>。在 vCenter 上可以给虚拟机分配到 Static binding 的 Distributed Port Group 上，而在 ESXi 上只可以分配到 Ephemeral Port Group。通常来讲，只需要 Static binding，而 Ephemeral binding 是在紧急情况下使用的。</p>
+<p>第五步，如果要把 VMKernel 连到链路聚合的网络上，找到虚拟机，添加一个 VMKernel adapter，端口组为 Distributed Port Group，如默认创建的第一个 Distributed Port Group。类似地，此时 VMKernel 配置的 IP 地址还不能从外面访问，但是可以从同一个 Distributed Switch 的虚拟机中访问。</p>
+<p>第六步，修改 Failover 配置，找到 Distributed Switch，点击 ACTIONS，在 Distributed Port Group 里点击 Manager Distributed Port Groups，勾选 Teaming and failover，勾上所有的 Distributed Port Group，修改下面的 Failover Order，默认状态是 Active uplinks 只有 Uplink，没有 LAG，需要修改为 Active uplinks 只有 LAG，而 Uplink 都在 Unused Uplinks 中。这样才可以让虚拟机和 VMKernel 出去的流量走链路聚合。</p>
+<p>参考文档：<a href="https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-9454ED41-6CFC-49F1-9982-34C1276F775A.html">LACP Teaming and Failover Configuration for Distributed Port Groups</a> 和 <a href="https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-45DF45A6-DBDB-4386-85BF-400797683D05.html">Configure a Link Aggregation Group to Handle the Traffic for Distributed Port Groups</a></p>
+<p>这样就配置完成了。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#步骤">步骤</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/esxi">esxi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/vmware">vmware
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/lacp">lacp
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2022/09/19/buildroot-fakeroot-incompat/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Buildroot 2020.08 的 Fakeroot 版本过旧导致的兼容性问题&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
