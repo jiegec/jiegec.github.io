@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 <body>
@@ -88,8 +88,8 @@
                     <p>
                         
                     前言 最近在给 rCore 添加 Rocket Chip 支持。下面讲讲最近做了哪些工作，遇到了哪些坑，都是怎么解决的。
-踩坑过程 Rocket Chip 运行代码 首先分析了一下已有的代码和工作方式，这个 Rocket Chip （ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI ，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：
-/** * Address Map * 0x00 - serial out FIFO data * 0x04 - serial out FIFO data available (words) * 0x08 - serial in FIFO data * 0x0C - serial in FIFO space available (words) * 0x10 - system reset * 0x20 - req FIFO data * 0x24 - req FIFO data available (words) * 0x28 - data FIFO data * 0x2C - data FIFO data available (words) * 0x30 - resp FIFO data * 0x34 - resp FIFO space available (words) * 0x38 - nsectors * 0x3C - max request length */ 前面的是调试接口，后面的是 block device 和 network ，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000 ，所以代码中就这样访问对应的物理地址：
+踩坑过程 Rocket Chip 运行代码 首先分析了一下已有的代码和工作方式，这个 Rocket Chip（ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：
+/** * Address Map * 0x00 - serial out FIFO data * 0x04 - serial out FIFO data available (words) * 0x08 - serial in FIFO data * 0x0C - serial in FIFO space available (words) * 0x10 - system reset * 0x20 - req FIFO data * 0x24 - req FIFO data available (words) * 0x28 - data FIFO data * 0x2C - data FIFO data available (words) * 0x30 - resp FIFO data * 0x34 - resp FIFO space available (words) * 0x38 - nsectors * 0x3C - max request length */ 前面的是调试接口，后面的是 block device 和 network，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000，所以代码中就这样访问对应的物理地址：
                     </p>
                     <p class="article-more-link">
                         <a href="/os/2019/05/08/axi-uart-interrupt/">Read More</a>
@@ -214,7 +214,7 @@
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    Jekyll 生成一次实在太慢，忍受不了，于是换成了 Hugo 。为了保持链接不变，花了不少的时间在重命名上，不过目前似乎都完成了，希望没有导致 404 的问题。
+                    Jekyll 生成一次实在太慢，忍受不了，于是换成了 Hugo。为了保持链接不变，花了不少的时间在重命名上，不过目前似乎都完成了，希望没有导致 404 的问题。
 新的主题还是好看很多的。Enjoy！
                     </p>
                     <p class="article-more-link">
@@ -261,7 +261,7 @@
                     <p>
                         
                     最近在做一个作业的时候，发现里面有个步骤是获取 Linux 系统中的 DNS 服务器列表，它的方法很粗暴，直接 cat grep cut 再处理。我就在想有没有完全代码的实现，然后搜了一下，果然有：
-#include &lt;resolv.h&gt; // ... res_init(); // _res.nsaddr_list is an array of resolvers 用到了全局变量 _res ，虽然很 hacky ，但是至少是工作的，不清楚兼容性几何。
+#include &lt;resolv.h&gt; // ... res_init(); // _res.nsaddr_list is an array of resolvers 用到了全局变量 _res ，虽然很 hacky，但是至少是工作的，不清楚兼容性几何。
                     </p>
                     <p class="article-more-link">
                         <a href="/software/2019/04/30/get-resolvers-in-c/">Read More</a>
@@ -368,8 +368,8 @@ Rust stackful generator 库 https://github.com/Xudong-Huang/generator-rs wiresha
                     <p>
                         
                     最近在做 FPGA 上硬件的路由器，感觉接近一个基本可用的阶段了吧，大概谈一谈做这个的思路、过程和踩过的坑。
-首先，做实验用的板子是 Alinx AX7021 ，FPGA 是 Xilinx xc7z020clg484-2 ，扩展板上有 4PL+1PS 个网口和千兆 KSZ9031RNX PHY ，采用的接口是 RGMII 。一开始做的自然是做 RGMII ，但是遇到了困难，RGMII在千兆模式下传输的是 DDR 信号，而时序和延迟就是个比较麻烦的事情。一开始先直接拿 Xilinx 的 AXI Ethernet IP 来用，然后上 ILA 看到了 IDDR 后的信号，第一次看到了完整的以太网帧，从 Preamble 和 SFD 到最后的 FCS 。于是就特别振奋，想着手写 RGMII ，先做收，再做发。确实，收很容易，很快就做出来了，但是写总是出问题，当时也不懂跨时钟域的一些问题，总之各种没调出来。于是就退而求其次，选择了 Xilinx 的 Tri Mode Ethernet IP 了。
-Tri Mode Ethernet IP 有很多选项，为了简单，直接采用了 AXI-Stream 的接口，不要 AXI4-Lite 什么的，都不要，因为我需要直接写剩余的逻辑。其他东西能省也都省掉了。这个 IP 确实很给力，很快就可以完成收和发的操作了，这次终于知道了怎么处理跨时钟域的问题 — XPM FIFO ASYNC ，一下推进了很大的进度。
+首先，做实验用的板子是 Alinx AX7021，FPGA 是 Xilinx xc7z020clg484-2，扩展板上有 4PL+1PS 个网口和千兆 KSZ9031RNX PHY，采用的接口是 RGMII。一开始做的自然是做 RGMII，但是遇到了困难，RGMII 在千兆模式下传输的是 DDR 信号，而时序和延迟就是个比较麻烦的事情。一开始先直接拿 Xilinx 的 AXI Ethernet IP 来用，然后上 ILA 看到了 IDDR 后的信号，第一次看到了完整的以太网帧，从 Preamble 和 SFD 到最后的 FCS。于是就特别振奋，想着手写 RGMII，先做收，再做发。确实，收很容易，很快就做出来了，但是写总是出问题，当时也不懂跨时钟域的一些问题，总之各种没调出来。于是就退而求其次，选择了 Xilinx 的 Tri Mode Ethernet IP 了。
+Tri Mode Ethernet IP 有很多选项，为了简单，直接采用了 AXI-Stream 的接口，不要 AXI4-Lite 什么的，都不要，因为我需要直接写剩余的逻辑。其他东西能省也都省掉了。这个 IP 确实很给力，很快就可以完成收和发的操作了，这次终于知道了怎么处理跨时钟域的问题 — XPM FIFO ASYNC，一下推进了很大的进度。
 既然可以收，也可以发了，就扩展到多个网口。这个 IP 中可以选择 Shared Logic 在内部，也可以在外部，研究了一下发现，应该是一个放内部，其余选外部，然后接起来就可以了。不过目前为了简单，还是只用了俩端口。在这个基础上，就开始解析收进来的以太网帧了。
 第一步自然是填 ARP 表，自然问题来了，如果多个网口同时进来数据，怎么保证 ARP 表读写的正确性？自然就想到总线上需要做仲裁，于是写了一个简单的总线仲裁，顺带学习到了 unique case(z) 和 priority case(z) 的语法。然后 ARP 表怎么实现呢，大概就是一个哈希表，然后表里维护了（IP，MAC，PORT）三元组，然后实现了一些冲突和覆盖的处理逻辑，做这些的同时也对各个模块编写相应的测试。有了 ARP 表，就可以在解析以太网帧的时候，拆解出里面的信息，然后请求 ARP 表总线，然后写入。
                     </p>
@@ -426,7 +426,7 @@ Tri Mode Ethernet IP 有很多选项，为了简单，直接采用了 AXI-Stream
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    最早买域名的时候，买的是 jiegec.xyz ，后来发现了更好的域名，于是这个老域名一直就是一个简单的网页转址。很快，它就要过期了，我也不打算续费了，大家继续用我的新域名吧。
+                    最早买域名的时候，买的是 jiegec.xyz，后来发现了更好的域名，于是这个老域名一直就是一个简单的网页转址。很快，它就要过期了，我也不打算续费了，大家继续用我的新域名吧。
 P.S. 忽然发现我之前配的 acme.sh 没有配自动 nginx -s reload ，所以之前 ssl 证书时间凉了。
                     </p>
                     <p class="article-more-link">
@@ -570,11 +570,11 @@ Pock 在 Touchbar 中显示并控制 Dock https://pock.pigigaldi.com/ MacBook to
                     <p>
                         
                     最近在研究软路由在 rCore 上的实现，但限于硬件限制，目前先在虚拟机里测试。软路由大概要做这些东西：
-1. 抓包，解析包里的内容 2. 查路由表，找到下一跳在哪 3. 查ARP，知道下一跳的 MAC 地址 4. 减少TTL，更新 IP Checksum 5. 把包发出去 第一步直接拿 smoltcp 的 Raw Socket 即可，但是目前只能抓指定 IP Protocol 的包，我用的是 ICMP ，但其他的就还抓不了，需要继续改 Smoltcp 源代码。
+1. 抓包，解析包里的内容 2. 查路由表，找到下一跳在哪 3. 查 ARP，知道下一跳的 MAC 地址 4. 减少 TTL，更新 IP Checksum 5. 把包发出去 第一步直接拿 smoltcp 的 Raw Socket 即可，但是目前只能抓指定 IP Protocol 的包，我用的是 ICMP，但其他的就还抓不了，需要继续改 Smoltcp 源代码。
 第二步用的是之前刚修好的 treebitmap 库，它提供了路由表的查询功能，目前路由表还是写死的，之后会用已经部分实现好的 Netlink 接口读取出来。
 第三步则是 ioctl 发请求，然后从 smoltcp 内部的 ARP cache 里读取。
 第四步很简单，不用多说。
-第五步则需要指定出端口，用了一个 index ，放在一个特定的 sockaddr 中。
+第五步则需要指定出端口，用了一个 index，放在一个特定的 sockaddr 中。
 最后的效果就是，能双向转发 ping 通。
 网络拓扑：
 可以，这很玄学。

@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 
@@ -89,7 +89,7 @@
 <p>首先安装相应的包：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>pacman -S samba
 </span></span></code></pre></div><p>我们还没有配好 Kerberos，所以跳过。</p>
-<p>然后配置 /etc/samba/smb.conf ，以下是一个例子。可以根据文档微调。</p>
+<p>然后配置 /etc/samba/smb.conf，以下是一个例子。可以根据文档微调。</p>
 <pre tabindex="0"><code>[global]
         security = ads
         realm = YOUR-AD-HERE
@@ -105,13 +105,13 @@
         encrypt passwords = yes
         winbind use default domain = yes
         restrict anonymous = 2
-</code></pre><p>这样，域上的用户 user 会拿到 home 目录为 /home/YOUR-DOMAIN-HERE/user ，uid 在 10000-2000范围内的用户。在一会经过配置之后，可以通过 <code>getent passwd</code> 验证。</p>
+</code></pre><p>这样，域上的用户 user 会拿到 home 目录为 /home/YOUR-DOMAIN-HERE/user，uid 在 10000-2000 范围内的用户。在一会经过配置之后，可以通过 <code>getent passwd</code> 验证。</p>
 <p>接下来，需要把本机的 samba 登入到域的管理员，并且启动服务。</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>net ads join -U your-user-name
 </span></span><span style="display:flex;"><span>systemctl enable --now smb
 </span></span><span style="display:flex;"><span>systemctl enable --now nmb
 </span></span><span style="display:flex;"><span>systemctl enable --now winbind
-</span></span></code></pre></div><p>更改 /etc/nsswitch.conf ，在 passwd, shadow 和 group 都增添 winbind ：</p>
+</span></span></code></pre></div><p>更改 /etc/nsswitch.conf，在 passwd, shadow 和 group 都增添 winbind：</p>
 <pre tabindex="0"><code>passwd: files mymachines systemd winbind
 group: files mymachines systemd winbind
 shadow: files winbind
@@ -130,14 +130,14 @@ shadow: files winbind
 </ol>
 <p>实现：</p>
 <p>修改 /etc/pam.d/system-auth:</p>
-<p>第一部分： auth</p>
+<p>第一部分：auth</p>
 <pre tabindex="0"><code>auth [success=1 default=ignore]         pam_localuser.so
 auth [success=2 default=die]            pam_winbind.so krb5_auth krb5_ccache_type=FILE cached_login try_first_pass
 auth [success=1 default=die]            pam_unix.so nullok_secure
 auth requisite                          pam_deny.so
 auth optional                           pam_permit.so
 auth required                           pam_env.so
-</code></pre><p>首先利用 pam_localuser.so 匹配用户名和 <code>/etc/passwd</code> ，如果有， <code>success=1</code> 代表跳过下面一条规则，故会跳到 pam_unix.so 这一行。如果失败，<code>default=ignore</code> 表示忽略它的结果。如果是本地用户，匹配 pam_localuser.so 成功后跳到 pam_unix.so ，如果成功了则跳到第五行， pam_permit.so 代表通过，最后由 pam_env.so 配置环境变量。如果是域用户，则由 pam_winbind.so 处理，如果成功，同样跳到第 5 条。如果本地用户和域用户都失败，就 pam_deny.so 认证失败。</p>
+</code></pre><p>首先利用 pam_localuser.so 匹配用户名和 <code>/etc/passwd</code> ，如果有， <code>success=1</code> 代表跳过下面一条规则，故会跳到 pam_unix.so 这一行。如果失败，<code>default=ignore</code> 表示忽略它的结果。如果是本地用户，匹配 pam_localuser.so 成功后跳到 pam_unix.so，如果成功了则跳到第五行，pam_permit.so 代表通过，最后由 pam_env.so 配置环境变量。如果是域用户，则由 pam_winbind.so 处理，如果成功，同样跳到第 5 条。如果本地用户和域用户都失败，就 pam_deny.so 认证失败。</p>
 <p>第二部分：account</p>
 <pre tabindex="0"><code>account required                        pam_unix.so
 account [success=1 default=ignore]      pam_localuser.so

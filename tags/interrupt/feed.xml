@@ -14,8 +14,8 @@
       
       <guid>https://jia.je/os/2019/05/08/axi-uart-interrupt/</guid>
       <description>前言 最近在给 rCore 添加 Rocket Chip 支持。下面讲讲最近做了哪些工作，遇到了哪些坑，都是怎么解决的。
-踩坑过程 Rocket Chip 运行代码 首先分析了一下已有的代码和工作方式，这个 Rocket Chip （ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI ，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：
-/** * Address Map * 0x00 - serial out FIFO data * 0x04 - serial out FIFO data available (words) * 0x08 - serial in FIFO data * 0x0C - serial in FIFO space available (words) * 0x10 - system reset * 0x20 - req FIFO data * 0x24 - req FIFO data available (words) * 0x28 - data FIFO data * 0x2C - data FIFO data available (words) * 0x30 - resp FIFO data * 0x34 - resp FIFO space available (words) * 0x38 - nsectors * 0x3C - max request length */ 前面的是调试接口，后面的是 block device 和 network ，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000 ，所以代码中就这样访问对应的物理地址：</description>
+踩坑过程 Rocket Chip 运行代码 首先分析了一下已有的代码和工作方式，这个 Rocket Chip（ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：
+/** * Address Map * 0x00 - serial out FIFO data * 0x04 - serial out FIFO data available (words) * 0x08 - serial in FIFO data * 0x0C - serial in FIFO space available (words) * 0x10 - system reset * 0x20 - req FIFO data * 0x24 - req FIFO data available (words) * 0x28 - data FIFO data * 0x2C - data FIFO data available (words) * 0x30 - resp FIFO data * 0x34 - resp FIFO space available (words) * 0x38 - nsectors * 0x3C - max request length */ 前面的是调试接口，后面的是 block device 和 network，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000，所以代码中就这样访问对应的物理地址：</description>
     </item>
     
     <item>
@@ -24,8 +24,8 @@
       <pubDate>Mon, 04 Mar 2019 16:40:00 +0800</pubDate>
       
       <guid>https://jia.je/programming/2019/03/04/implement-network-syscalls/</guid>
-      <description>有了网卡驱动，接下来要做的就做网络的 syscall 了。为了测试，首先在 busybox 里找可以用来测试的 applet ，由于没有实现 poll ，所以 nc telnet 啥的都用不了。最后选择到了 ping 和 pscan 上。
-ping大家都很了解，pscan就是一个扫端口的，对一个ip连续的若干个端口发起 tcp 请求。这就要求我提供 raw socket和tcp socket状态的支持。由于网络栈本身是异步的，但 read connect 这些函数在不调 setsockopt 的前提下又是同步的，然而现在又没有 signal 可以用，要是 block 了就再也出不来了。于是就采用了 Condvar 的办法，拿一个全局的条件变量，当 poll 不到内容的时候，先把线程拿掉，等到网络栈更新了，再恢复。这样至少不会把 cpu 也 block 住。
+      <description>有了网卡驱动，接下来要做的就做网络的 syscall 了。为了测试，首先在 busybox 里找可以用来测试的 applet，由于没有实现 poll，所以 nc telnet 啥的都用不了。最后选择到了 ping 和 pscan 上。
+ping 大家都很了解，pscan 就是一个扫端口的，对一个 ip 连续的若干个端口发起 tcp 请求。这就要求我提供 raw socket 和 tcp socket 状态的支持。由于网络栈本身是异步的，但 read connect 这些函数在不调 setsockopt 的前提下又是同步的，然而现在又没有 signal 可以用，要是 block 了就再也出不来了。于是就采用了 Condvar 的办法，拿一个全局的条件变量，当 poll 不到内容的时候，先把线程拿掉，等到网络栈更新了，再恢复。这样至少不会把 cpu 也 block 住。
 然后就是把 socket 部分改了又改吧，数据结构的设计改了几次，为了解决 ownership 问题上锁啊也有点多，但是也更细了，虽然实际上可能没有必要，因为上面还有大的锁。不过性能还不是现在考虑的重点，关键还要先把 send recv accept bind listen 啥的写得差不多了，然后还有把 poll/select 实现了，这个很关键。
 中间遇到的最大的坑就是，接收 pci interrupt 的时候总是啥也没有，然后靠万能的 qemu trace 发现，原来是 mask 掉了，所以啥也收不了，然后最后的解决方案就是用 MSI Interrupt #55 搞定了这个问题。至于为啥是 55 呢，因为 23 + 32 = 55 啊（误</description>
     </item>

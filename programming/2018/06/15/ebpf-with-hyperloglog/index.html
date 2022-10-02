@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 
@@ -85,7 +85,7 @@
         </div>
         <div class="article-entry" itemprop="articleBody">
             <p>前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 <a href="https://github.com/jiegec/hll_ebpf">jiegec/hll_ebpf</a> ，大致原理如下：</p>
-<p>由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：</p>
+<p>由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> bpf_map_def <span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;maps&#34;</span>) hll_ebpf_out_daddr <span style="color:#f92672">=</span> {
 </span></span><span style="display:flex;"><span>    .type <span style="color:#f92672">=</span> BPF_MAP_TYPE_PERCPU_ARRAY,
 </span></span><span style="display:flex;"><span>    .key_size <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(u32),
@@ -101,7 +101,7 @@
 </span></span><span style="display:flex;"><span>  update_hll(<span style="color:#f92672">&amp;</span>hll_ebpf_out_daddr, hash);
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</p>
+</span></span></code></pre></div><p>首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4 的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz（clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</p>
 <p>接着，我们可以把这个 eBPF 函数进行编译，并且应用起来：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ export KERN<span style="color:#f92672">=</span>4.16.0-2 <span style="color:#75715e"># or use uname -r with awk, see Makefile</span>
 </span></span><span style="display:flex;"><span>$ clang -O2 -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/include -I /usr/src/linux-headers-<span style="color:#e6db74">${</span>KERN<span style="color:#e6db74">}</span>-common/arch/x86/include -emit-llvm -c bpf.c -o - | llc -march<span style="color:#f92672">=</span>bpf -filetype<span style="color:#f92672">=</span>obj -o bpf.o

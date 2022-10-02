@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 
@@ -84,14 +84,14 @@
             
         </div>
         <div class="article-entry" itemprop="articleBody">
-            <p>我们出现新的需求，要把以前的 FTP 服务器迁移到 NAT 之后的一台机器上。但是，FTP 不仅用到 20 21 端口， PASV 还会用到高端口，这给端口转发带来了一些麻烦。我们一开始测试，直接在 Router 上转发 20 和 21 端口到 Server 上。但是很快发现， Filezilla 通过 PASV 获取到地址为 （内网地址，端口高8位，端口低8位），然后，Filezilla 检测出这个地址是内网地址，于是转而向 router_ip:port 发包，这自然是不会得到结果的。</p>
+            <p>我们出现新的需求，要把以前的 FTP 服务器迁移到 NAT 之后的一台机器上。但是，FTP 不仅用到 20 21 端口，PASV 还会用到高端口，这给端口转发带来了一些麻烦。我们一开始测试，直接在 Router 上转发 20 和 21 端口到 Server 上。但是很快发现，Filezilla 通过 PASV 获取到地址为（内网地址，端口高 8 位，端口低 8 位），然后，Filezilla 检测出这个地址是内网地址，于是转而向 router_ip:port 发包，这自然是不会得到结果的。</p>
 <p>此时我们去网上找了找资料，找到了一个很粗暴的方法：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>iptables -A PREROUTING -i external_interface -p tcp -m tcp --dport <span style="color:#ae81ff">20</span> -j DNAT --to-destination internal_ip:20
 </span></span><span style="display:flex;"><span>iptables -A PREROUTING -i external_interface -p tcp -m tcp --dport <span style="color:#ae81ff">21</span> -j DNAT --to-destination internal_ip:21
 </span></span><span style="display:flex;"><span>iptables -A PREROUTING -i external_interface -p tcp -m tcp --dport 1024:65535 -j DNAT --to-destination internal_ip:1024-65535
-</span></span></code></pre></div><p>有趣地是， macOS 自带的 ftp 命令（High Sierra似乎已经删去）可以正常使用。研究发现，它用 EPSV（Extended Passive Mode） 代替 PASV ，这里并没有写内网地址，因而可以正常使用。</p>
-<p>这么做， Filezilla 可以成功访问了。但是，用其它客户端的时候，它会直连那个内网地址而不是 Router 的地址，于是还是连不上。而且，使用了 1024-65535 的所有端口，这个太浪费而且会影响我们其它的服务。</p>
-<p>我们开始研究我们 FTP 服务器(pyftpdlib)的配置。果然，找到了适用于 FTP behind NAT 的相关配置：</p>
+</span></span></code></pre></div><p>有趣地是，macOS 自带的 ftp 命令（High Sierra 似乎已经删去）可以正常使用。研究发现，它用 EPSV（Extended Passive Mode）代替 PASV，这里并没有写内网地址，因而可以正常使用。</p>
+<p>这么做，Filezilla 可以成功访问了。但是，用其它客户端的时候，它会直连那个内网地址而不是 Router 的地址，于是还是连不上。而且，使用了 1024-65535 的所有端口，这个太浪费而且会影响我们其它的服务。</p>
+<p>我们开始研究我们 FTP 服务器 (pyftpdlib) 的配置。果然，找到了适用于 FTP behind NAT 的相关配置：</p>
 <pre tabindex="0"><code>     - (str) masquerade_address:
         the &#34;masqueraded&#34; IP address to provide along PASV reply when
         pyftpdlib is running behind a NAT or other types of gateways.

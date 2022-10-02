@@ -16,7 +16,7 @@
       <description>背景 最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：
 rocket-chip-vcu128 opensbi u-boot linux Rocket Chip on VCU128 第一部分是基于之前 rocket2thinpad 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
 添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH 打开了更多核心选项：S-mode 和 U-mode 主要踩过的坑：
-BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突 U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
+BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset SPI Startup Flash 的时序配置，见我之前的博客 Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus 上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突 U-Boot 在 U-Boot 上花了比较多的时间，用它的目的主要是：</description>
     </item>
     
     <item>
@@ -25,9 +25,9 @@ BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu �
       <pubDate>Mon, 05 Nov 2018 22:17:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2018/11/05/salted-fish-pi/</guid>
-      <description>最近刚拿到了一个咸鱼派的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot ，我用的是现在的 master 分支的最新版 99431c1c ：
+      <description>最近刚拿到了一个咸鱼派的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot，我用的是现在的 master 分支的最新版 99431c1c：
 $ # Archlinux $ sudo pacman -Sy arm-none-eabi-gcc $ make LicheePi_Zero_defconfig $ make ARCH=arm CROSS_COMPILE=arm-none-eabi- -j24 这时候会得到一个 u-boot-sunxi-with-spl.bin 的文件。我们只要把它写到 SD 卡的 8192 偏移处，就可以把 U-Boot 跑起来了：
-$ diskutil unmountDisk /dev/disk4 $ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8 接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。
+$ diskutil unmountDisk /dev/disk4 $ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8 接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk 进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。
 我用的是八月份时候的 4.18.2 内核，虽然不是很新但也足够新了。一番调整内核参数后，得到了一个可用的内核，然后把 zImage 和 sun8i-v3s-licheepi-zero.dtb 都复制到刚才创建的 FAT-32 启动分区，然后进入 U-Boot 进行启动：</description>
     </item>
     
@@ -39,10 +39,11 @@ $ diskutil unmountDisk /dev/disk4 $ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev
       <guid>https://jia.je/networking/2018/07/26/flashing-lenovo-y1s-and-bridge-ipv6/</guid>
       <description>首先参照OpenWRT Wiki - Lenovo Y1 v1找到刷固件教程：
 下载Lenovo y1s 的固件备用 断开电源，等待一段时间，插入电源同时快速按下重置按钮，如果面板双闪，则说明进入了恢复模式 电脑连接到四个 LAN 口中任意一个，配置静态地址在 192.168.1.0/24 网段 打开 192.168.1.1 可以看到刷固件的页面 上传固件，等待路由器重启 配置 IP 地址为 DHCP 模式，打开 192.168.1.1 进行配置 然后就是常规的密码设置，opkg 源设置为 tuna 的源，配置 ssh 和 公钥。
-接下来，我们为了使用学校的 SLAAC ，采用 ebtables 直接把学校的 IPv6 bridge 进来，而 IPv4 由于准入系统，需要 NAT 。
+接下来，我们为了使用学校的 SLAAC，采用 ebtables 直接把学校的 IPv6 bridge 进来，而 IPv4 由于准入系统，需要 NAT。
 参考 Bridge IPv6 connections to WAN，下载 v6brouter_openwrt.sh 到某个地方，然后修改一下里面的一些参数：
 # For Lenovo y1s WAN_DEV=eth0.2 BRIDGE=br-lan # the rest remain unchanged 然后跑起来之后，自己的电脑可以成功拿到原生的 IPv6 地址了，不需要用难用的 NAT66 技术。
-下一步是采用z4yx/GoAuthing。</description>
+下一步是采用z4yx/GoAuthing。
+$ go get -u -v github.</description>
     </item>
     
   </channel>

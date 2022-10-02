@@ -27,8 +27,8 @@
       <pubDate>Sun, 13 Jan 2019 18:36:00 +0800</pubDate>
       
       <guid>https://jia.je/software/2019/01/13/grafana-influxdb-visualize-ping/</guid>
-      <description>刚遇到一个需求，就是用 Telegraf 收集 ping 信息，然后在 Grafana 里可视化当前的延迟，如果超时了，就显示一个指定值，如 999 ，这样就可以放到一个 Gauge 里面可视化了。但是，问题在于，Telegraf 的 ping input 在超时的时候只会在 result_code 里写一个 2 ，其他项都是空的，因而如果直接用 GROUP BY time(interval) fill(999) 会导致最新的一个数据经常得到 999 。这意味着需要根据 &amp;ldquo;result_code&amp;rdquo; 来进行区分 Timeout 的情况。最后捣腾了很久，得到了这个方案：
-select &amp;#34;average_response_ms&amp;#34; * (2 - &amp;#34;result_code&amp;#34;) / 2 + &amp;#34;result_code&amp;#34; / 2 * 999 from (select &amp;#34;average_response_ms&amp;#34;, &amp;#34;result_code&amp;#34; from ping where $timeFilter fill(0)) 最后的方法很粗糙：当 &amp;ldquo;result_code&amp;rdquo; 是 0 也就是成功的时候，得到延迟，而当 &amp;ldquo;result_code&amp;rdquo; 是 2 也就是超时的时候，直接得到 999 。这样就解决了这个问题。</description>
+      <description>刚遇到一个需求，就是用 Telegraf 收集 ping 信息，然后在 Grafana 里可视化当前的延迟，如果超时了，就显示一个指定值，如 999，这样就可以放到一个 Gauge 里面可视化了。但是，问题在于，Telegraf 的 ping input 在超时的时候只会在 result_code 里写一个 2 ，其他项都是空的，因而如果直接用 GROUP BY time(interval) fill(999) 会导致最新的一个数据经常得到 999。这意味着需要根据 &amp;ldquo;result_code&amp;rdquo; 来进行区分 Timeout 的情况。最后捣腾了很久，得到了这个方案：
+select &amp;#34;average_response_ms&amp;#34; * (2 - &amp;#34;result_code&amp;#34;) / 2 + &amp;#34;result_code&amp;#34; / 2 * 999 from (select &amp;#34;average_response_ms&amp;#34;, &amp;#34;result_code&amp;#34; from ping where $timeFilter fill(0)) 最后的方法很粗糙：当 &amp;ldquo;result_code&amp;rdquo; 是 0 也就是成功的时候，得到延迟，而当 &amp;ldquo;result_code&amp;rdquo; 是 2 也就是超时的时候，直接得到 999。这样就解决了这个问题。</description>
     </item>
     
     <item>
@@ -38,10 +38,10 @@ select &amp;#34;average_response_ms&amp;#34; * (2 - &amp;#34;result_code&amp;#34
       
       <guid>https://jia.je/software/2018/12/13/homebridge-mi-aqara-telegraf/</guid>
       <description>最近有了设备，想把设备拿到的数据都导一份存到 influxdb 里，但是目前找到的只有 homebridge-mi-aqara 可以访问并拿到数据，然后它又提供了 mqtt 的数据获取方案，于是自己写了个脚本去读取这些数据。
-首先当然是配置一下 homebridge-mi-aqara ，按照网上的教程来，这个不难。然后本地开一个 MQTT Broker （如 mosquitto ），配置为本地监听，然后我编写了脚本 telegraf-mi-aqara.py ，使用前需要 pip install paho-mqtt，并且按照实际路径修改一下内容 。验证能够跑起来后，写一个 telegraf 配置：
+首先当然是配置一下 homebridge-mi-aqara，按照网上的教程来，这个不难。然后本地开一个 MQTT Broker（如 mosquitto），配置为本地监听，然后我编写了脚本 telegraf-mi-aqara.py ，使用前需要 pip install paho-mqtt，并且按照实际路径修改一下内容。验证能够跑起来后，写一个 telegraf 配置：
 [[inputs.exec]] commands = [&amp;#34;/usr/bin/python3 /path/to/telegraf-mi-aqara.py&amp;#34;] timeout = &amp;#34;5s&amp;#34; data_format = &amp;#34;influx&amp;#34; 现在就可以读取到各项信息，如温度，湿度，是否开门，开关用电情况等等。
 2018-12-16 更新：
-研究了一下绿米网关局域网通信协议，得到了第二个版本 telegraf-mi-aqara-v2.py，它与第一版的区别是，第一版是主动向网关读取信息，而这一版则是监听组播包，等待网关发消息。这个脚本负责把读取到的组播信息发送到 MQTT ，再让 telegraf 从 MQTT 里解析 JSON 消息，写入数据库。Telegraf 配置如下：
+研究了一下绿米网关局域网通信协议，得到了第二个版本 telegraf-mi-aqara-v2.py，它与第一版的区别是，第一版是主动向网关读取信息，而这一版则是监听组播包，等待网关发消息。这个脚本负责把读取到的组播信息发送到 MQTT，再让 telegraf 从 MQTT 里解析 JSON 消息，写入数据库。Telegraf 配置如下：
 [[inputs.mqtt_consumer]] servers = [&amp;#34;tcp://127.0.0.1:1883&amp;#34;] qos = 0 connection_timeout = &amp;#34;30s&amp;#34; topics = [ &amp;#34;/telegraf-mi-aqara&amp;#34; ] persistent_session = true client_id = &amp;#34;Telegraf&amp;#34; data_format = &amp;#34;json&amp;#34; json_string_fields = [&amp;#34;model&amp;#34;, &amp;#34;sid&amp;#34;, &amp;#34;status&amp;#34;] tag_keys = [&amp;#34;model&amp;#34;, &amp;#34;sid&amp;#34;, &amp;#34;short_id&amp;#34;] 由于设备不全，有些字段可能不完整。如果大家自己要用的话，可能需要自行修改一下。</description>
     </item>
     
@@ -53,7 +53,7 @@ select &amp;#34;average_response_ms&amp;#34; * (2 - &amp;#34;result_code&amp;#34
       <guid>https://jia.je/software/2018/12/07/grafana-visualize-vote18/</guid>
       <description>最近这段时间，清华内部正在投票选出今年的年度人物，想到最近刚好在学习使用 Grafana+InfluxDB+Telegraf 全家桶，于是想着能不能写个爬虫把数据都拿下来，然后用 Grafana 画出来，就可以得到一个投票随时间变化的趋势。爬虫很简单，就是登录，获取页面信息，然后按照 InfluxDB 的输入格式进行输出即可。代码放在了 jiegec/student-tsinghua-vote18 下。
 接着就是用 Grafana 进行可视化，大概得到了这样一个曲线：
-为保护隐私，把名字隐去了。实际上的投票时间是从 12-3 号开始到 12-7号结束，但由于宿舍停电的原因所以采样的点在半夜的时候都没有，所以看起来有点奇怪，但还是能够反应总体的趋势的。比如可以看到前两名很早就一马当先，而后一直遥遥领先，下面的选手则排名变动很大，特别是截止前最后一段时间，大家都在拼命拉票，可见大家都是 DDL 选手啊。如果对上面这个图求个导，看看变化率的话：
+为保护隐私，把名字隐去了。实际上的投票时间是从 12-3 号开始到 12-7 号结束，但由于宿舍停电的原因所以采样的点在半夜的时候都没有，所以看起来有点奇怪，但还是能够反应总体的趋势的。比如可以看到前两名很早就一马当先，而后一直遥遥领先，下面的选手则排名变动很大，特别是截止前最后一段时间，大家都在拼命拉票，可见大家都是 DDL 选手啊。如果对上面这个图求个导，看看变化率的话：
 这显现出了很有意思的一个趋势，就是每天十二点左右都有一个高峰期，然后在零点前大概熄灯附近的时间也是一个高峰期，另外就是截止前最后的抢票阶段，大家都在疯狂拉票，从中午拉到最后时刻。由于停电的原因，在零点附近的数据都比较的鬼畜，不过影响不大，趋势一目了然。
 Grafana 真香！期望可以学到更多高端的查询语法和可视化的骚操作，现在有很多东西不知道该怎么可视化，比较苦恼，不知道大家有没有什么经验可以分享。</description>
     </item>

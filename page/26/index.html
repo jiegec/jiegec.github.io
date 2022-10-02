@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 <body>
@@ -88,8 +88,8 @@
                     <p>
                         
                     前段时间在写概率论与数理统计的期末论文，讨论的主题是如何对一个十分巨大的多重集合（或者是流）中相异元素个数进行估计，写的是 HyperLogLog 等算法。联想到前段时间 LWN 上多次提到的 eBPF 和 BCC 的文章，我准备自己用 eBPF 实现一个高效的估计 inbound packet 中来相异源地址的个数和 outbound packet 中相异目的地址的个数。经过了许多的尝试和努力，最终是写成了 jiegec/hll_ebpf ，大致原理如下：
-由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode ，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：
-struct bpf_map_def SEC(&#34;maps&#34;) hll_ebpf_out_daddr = { .type = BPF_MAP_TYPE_PERCPU_ARRAY, .key_size = sizeof(u32), .value_size = sizeof(u32), .max_entries = 256, .pinning = 2 // PIN_GLOBAL_NS }; SEC(&#34;out_daddr&#34;) int bpf_out_daddr(struct __sk_buff *skb) { u32 daddr = get_daddr(skb); u32 hash = Murmur3(daddr, 0); update_hll(&amp;hll_ebpf_out_daddr, hash); return 0; } 首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。 SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz （clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。
+由于 eBPF 是一个采用专用的 bytecode 并且跑在内核中的语言，虽然我们可以用 clang 写 C 语言然后交给 LLVM 生成相应地 eBPF bytecode，但仍然收到许多的限制。而且，我很少接触 Linux 内核开发，于是在找内核头文件时费了一番功夫。首先是核心代码：
+struct bpf_map_def SEC(&#34;maps&#34;) hll_ebpf_out_daddr = { .type = BPF_MAP_TYPE_PERCPU_ARRAY, .key_size = sizeof(u32), .value_size = sizeof(u32), .max_entries = 256, .pinning = 2 // PIN_GLOBAL_NS }; SEC(&#34;out_daddr&#34;) int bpf_out_daddr(struct __sk_buff *skb) { u32 daddr = get_daddr(skb); u32 hash = Murmur3(daddr, 0); update_hll(&amp;hll_ebpf_out_daddr, hash); return 0; } 首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4 的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz（clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2018/06/15/ebpf-with-hyperloglog/">Read More</a>
@@ -149,11 +149,11 @@ struct bpf_map_def SEC(&#34;maps&#34;) hll_ebpf_out_daddr = { .type = BPF_MAP_TY
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    之前迁移的 MediaWiki ，有人提出说无法上传一个 1.4M 的文件。我去看了一下网站，上面写的是限制在 2M ，但是一上传就说 Entity Too Large，无法上传。后来经过研究，是 Nginx 对 POST 的大小进行了限制，同时 PHP 也有限制。
+                    之前迁移的 MediaWiki，有人提出说无法上传一个 1.4M 的文件。我去看了一下网站，上面写的是限制在 2M，但是一上传就说 Entity Too Large，无法上传。后来经过研究，是 Nginx 对 POST 的大小进行了限制，同时 PHP 也有限制。
 Nginx 的话，可以在 nginx.conf 的 http 中添加，也可以在 server 或者 location 中加入这么一行：
 client_max_body_size 100m; 我的建议是，尽量缩小范围到需要的地方，即 location &gt; server &gt; http 。
-在 PHP 中，则修改 /etc/php/7.0/fpm/php.ini ：
-post_max_size = 100M 回到 MediaWiki 的上传页面，可以看到显示的大小限制自动变成了 100M ，这个是从 PHP 的配置中直接获得的。
+在 PHP 中，则修改 /etc/php/7.0/fpm/php.ini：
+post_max_size = 100M 回到 MediaWiki 的上传页面，可以看到显示的大小限制自动变成了 100M，这个是从 PHP 的配置中直接获得的。
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2018/06/10/nginx-php-upload-size-limit/">Read More</a>
@@ -209,8 +209,8 @@ post_max_size = 100M 回到 MediaWiki 的上传页面，可以看到显示的大
                     <p>
                         
                     最近在做前后端分离，前端在用 Vue.js 逐步重写，后端则变为 api 的形式。同时，我尝试了用 autocannon 和 clinic 工具测试自己的 api endpoint 的性能，一开始发现有几个延迟会特别高，即使是一个很简单的 api 也有不正常的高延迟。
-于是，我用 clinic 生成了 flamegraph ，发现了一些问题：
-我在 session 里保存了一些缓存的信息，这部分内容比较大， express-session 在保存到数据库前会先 JSON.stringify 再 crc 判断是否有改变，如果有改变则保存下来。但是由于我的这个对象嵌套层数多，所以时间花得很多。我调整了这个对象的结构，缩小了很多以后，果然这部分快了很多 有一个 API 需要大量的数据库查询，原本是 O（结点总数）次查询，我考虑到我们数据的结构，改成了O（深度），果然快了许多 之前遇到一个小问题，就是即使我没有登录，服务器也会记录 session 并且返回一个 cookie 。检查以后发现，是 connect-flash 即使在没有使用的时候，也会往 cookie 中写入一个空的对象，这就导致 express-session 认为需要保存，所以出现了问题。解决方案就是，换成了它的一个 fork ： connect-flash-plus ，它解决了这个问题 
+于是，我用 clinic 生成了 flamegraph，发现了一些问题：
+我在 session 里保存了一些缓存的信息，这部分内容比较大，express-session 在保存到数据库前会先 JSON.stringify 再 crc 判断是否有改变，如果有改变则保存下来。但是由于我的这个对象嵌套层数多，所以时间花得很多。我调整了这个对象的结构，缩小了很多以后，果然这部分快了很多 有一个 API 需要大量的数据库查询，原本是 O（结点总数）次查询，我考虑到我们数据的结构，改成了 O（深度），果然快了许多 之前遇到一个小问题，就是即使我没有登录，服务器也会记录 session 并且返回一个 cookie。检查以后发现，是 connect-flash 即使在没有使用的时候，也会往 cookie 中写入一个空的对象，这就导致 express-session 认为需要保存，所以出现了问题。解决方案就是，换成了它的一个 fork：connect-flash-plus，它解决了这个问题 
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2018/06/08/nodejs-experiences/">Read More</a>
@@ -321,10 +321,11 @@ upstream root { server 1.2.3.4:1234; } upstream subpath { server 4.3.2.1:4321; }
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    Nexus 6P 自带的系统没有允许 Root ，所以需要自己解锁 bootloader 并且刷上别的系统。我选择了 LineageOS 。Nexus 6P 的代号为 angler， 首先可以找到官方的安装教程。
+                    Nexus 6P 自带的系统没有允许 Root，所以需要自己解锁 bootloader 并且刷上别的系统。我选择了 LineageOS。Nexus 6P 的代号为 angler，首先可以找到官方的安装教程。
 我们需要下载的东西：
 $ wget https://mirrorbits.lineageos.org/full/angler/20180521/lineage-15.1-20180521-nightly-angler-signed.zip $ wget https://mirrorbits.lineageos.org/full/angler/20180521/lineage-15.1-20180521-nightly-angler-signed.zip?sha256 -O lineage-15.1-20180521-nightly-angler-signed.zip.sha256 $ wget https://mirrorbits.lineageos.org/su/addonsu-15.1-arm64-signed.zip $ wget https://mirrorbits.lineageos.org/su/addonsu-15.1-arm64-signed.zip?sha256 -O addonsu-15.1-arm64-signed.zip $ wget https://github.com/opengapps/arm64/releases/download/20180527/open_gapps-arm64-8.1-full-20180527.zip $ wget https://github.com/opengapps/arm64/releases/download/20180527/open_gapps-arm64-8.1-full-20180527.zip.md5 $ wget https://dl.twrp.me/angler/twrp-3.2.1-0-angler.img $ wget https://dl.twrp.me/angler/twrp-3.2.1-0-angler.img.asc $ wget https://dl.twrp.me/angler/twrp-3.2.1-0-angler.img.md5 $ gpg --verify *.asc $ md5sum -c *.md5 $ sha256sum -c *.sha256 其中 Open GApps 可以自己考虑选择 full 还是其它的选择。
-接下来，按照教程，先解锁 bootloader 。连接手机，进入 USB Debugging Mode ，重启进入 bootloader 并且解锁：
+接下来，按照教程，先解锁 bootloader。连接手机，进入 USB Debugging Mode，重启进入 bootloader 并且解锁：
+$ adb reboot bootloader $ fastboot flashing unlock # Confirm unlocking, and then the data should be wiped 接下来刷入 TWRP。还是进入 bootloader，然后刷入。
                     </p>
                     <p class="article-more-link">
                         <a href="/os/2018/05/29/flashing-lineageos-in-nexus6p/">Read More</a>
@@ -389,10 +390,10 @@ $ wget https://mirrorbits.lineageos.org/full/angler/20180521/lineage-15.1-201805
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    为了测试一个硬件的 terminal ，想在 Windows 上向串口开一个 tty ，跑各种软件来测试。这件事情在 Linux 上和 macOS 上都有实践，但一直不知道 Windows 上怎么搞。经过了一番搜索，找到了 https://blogs.msdn.microsoft.com/wsl/2017/04/14/serial-support-on-the-windows-subsystem-for-linux/ 和 https://unix.stackexchange.com/a/123559 的方案。
+                    为了测试一个硬件的 terminal，想在 Windows 上向串口开一个 tty，跑各种软件来测试。这件事情在 Linux 上和 macOS 上都有实践，但一直不知道 Windows 上怎么搞。经过了一番搜索，找到了 https://blogs.msdn.microsoft.com/wsl/2017/04/14/serial-support-on-the-windows-subsystem-for-linux/ 和 https://unix.stackexchange.com/a/123559 的方案。
 以 COM5 为例：
 $ sudo chmod 666 /dev/ttyS5 $ sudo agetty -s 115200 ttyS5 linux 这样就可以看到一个登录的界面了。
-在 macOS 上(https://superuser.com/questions/1059744/serial-console-login-on-osx)：
+在 macOS 上 (https://superuser.com/questions/1059744/serial-console-login-on-osx)：
 $ screen /dev/tty.SLAB_USBtoUART 115200 # type C-b : exec ::: /usr/libexec/getty std.115200 
                     </p>
                     <p class="article-more-link">
@@ -463,10 +464,10 @@ $ screen /dev/tty.SLAB_USBtoUART 115200 # type C-b : exec ::: /usr/libexec/getty
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    看到 RISCV 很久了，但一直没能体验。最近工具链不断更新， QEMU 在 2.12.0 也正式加入了 riscv 的模拟。但是自己编译一个内核又太麻烦，就找到了 Fedora 做的 RISCV port，下载下来试用了一下。之前试过一次，但是遇到了一些问题，刚才总算是成功地搞出来了。
-官方文档地址： https://fedorapeople.org/groups/risc-v/disk-images/readme.txt 首先下载 https://fedorapeople.org/groups/risc-v/disk-images/ 下的 bbl vmlinux 和 stage4-disk.img.xz 三个文件，然后解压 stage4-disk.img.xz ，大约有 5G 的样子。之前作者在脚本里作死开得特别大，导致我以前光是解压这一步就成功不了。现在终于解决了。
+                    看到 RISCV 很久了，但一直没能体验。最近工具链不断更新，QEMU 在 2.12.0 也正式加入了 riscv 的模拟。但是自己编译一个内核又太麻烦，就找到了 Fedora 做的 RISCV port，下载下来试用了一下。之前试过一次，但是遇到了一些问题，刚才总算是成功地搞出来了。
+官方文档地址：https://fedorapeople.org/groups/risc-v/disk-images/readme.txt 首先下载 https://fedorapeople.org/groups/risc-v/disk-images/ 下的 bbl vmlinux 和 stage4-disk.img.xz 三个文件，然后解压 stage4-disk.img.xz，大约有 5G 的样子。之前作者在脚本里作死开得特别大，导致我以前光是解压这一步就成功不了。现在终于解决了。
 然后启动 qemu 命令打开虚拟机：
-qemu-system-riscv64 \ -nographic \ -machine virt \ -m 2G \ -kernel bbl \ -object rng-random,filename=/dev/urandom,id=rng0 \ -device virtio-rng-device,rng=rng0 \ -append &#34;console=ttyS0 ro root=/dev/vda&#34; \ -device virtio-blk-device,drive=hd0 \ -drive file=stage4-disk.img,format=raw,id=hd0 \ -device virtio-net-device,netdev=usernet \ -netdev user,id=usernet,hostfwd=tcp::10000-:22 这段命令摘自 readme.txt ，区别只在于把 -smp 4 去掉了。不知道为什么不能正常工作，可能和作者提到的 FPU patch 有关。然后系统就可以正常起来了（firewalld和systemd-logind不止为啥起不来，但是不用管）。
+qemu-system-riscv64 \ -nographic \ -machine virt \ -m 2G \ -kernel bbl \ -object rng-random,filename=/dev/urandom,id=rng0 \ -device virtio-rng-device,rng=rng0 \ -append &#34;console=ttyS0 ro root=/dev/vda&#34; \ -device virtio-blk-device,drive=hd0 \ -drive file=stage4-disk.img,format=raw,id=hd0 \ -device virtio-net-device,netdev=usernet \ -netdev user,id=usernet,hostfwd=tcp::10000-:22 这段命令摘自 readme.txt，区别只在于把 -smp 4 去掉了。不知道为什么不能正常工作，可能和作者提到的 FPU patch 有关。然后系统就可以正常起来了（firewalld 和 systemd-logind 不止为啥起不来，但是不用管）。
                     </p>
                     <p class="article-more-link">
                         <a href="/os/2018/05/24/trying-fedora-on-riscv/">Read More</a>
@@ -521,7 +522,7 @@ qemu-system-riscv64 \ -nographic \ -machine virt \ -m 2G \ -kernel bbl \ -object
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    首先获取 vCSA 的 ISO 镜像，挂载到 Linux 下（如 /mnt），然后找到 /mnt/vcsa-cli-installer/templates/install 下的 embedded_vCSA_on_ESXi.json ，复制到其它目录并且修改必要的字段，第一个 password 为 ESXi 的登录密码，一会在安装的过程中再输入。下面有个 deployment_option，根据你的集群大小来选择，我则是用的 small 。下面配置这台机器的 IP 地址，用内网地址即可。下面的 system_name 如果要写 fqdn ，记得要让这个域名可以解析到正确的地址，不然会安装失败，我因此重装了一次。下面的密码都可以留空，在命令行中输入即可。SSO 为 vSphere Client 登录时用的密码和域名，默认用户名为 Administrator@domain_name (默认的话，则是 Administrator@vsphere.local) 这个用户名在安装结束的时候也会提示。下面的 CEIP 我选择关闭，设置为 false 。
+                    首先获取 vCSA 的 ISO 镜像，挂载到 Linux 下（如 /mnt），然后找到 /mnt/vcsa-cli-installer/templates/install 下的 embedded_vCSA_on_ESXi.json，复制到其它目录并且修改必要的字段，第一个 password 为 ESXi 的登录密码，一会在安装的过程中再输入。下面有个 deployment_option，根据你的集群大小来选择，我则是用的 small。下面配置这台机器的 IP 地址，用内网地址即可。下面的 system_name 如果要写 fqdn，记得要让这个域名可以解析到正确的地址，不然会安装失败，我因此重装了一次。下面的密码都可以留空，在命令行中输入即可。SSO 为 vSphere Client 登录时用的密码和域名，默认用户名为 Administrator@domain_name (默认的话，则是 Administrator@vsphere.local) 这个用户名在安装结束的时候也会提示。下面的 CEIP 我选择关闭，设置为 false。
 接下来进行安装。
 $ /mnt/vcsa-cli-installer/lin64/vcsa-deploy install /path/to/embedded_vCSA_on_ESXi.json --accept-eula 一路输入密码，等待安装完毕即可。然后通过 443 端口进入 vSphere Client, 通过 5480 端口访问 vCSA 的管理页面。两个的密码可以不一样。
 2018-05-21 Update: 想要设置 VMKernel 的 IPv6 网关的话，ESXi 中没找到配置的地方，但是在 vSphere Client 中可以进行相关配置。
@@ -579,8 +580,8 @@ $ /mnt/vcsa-cli-installer/lin64/vcsa-deploy install /path/to/embedded_vCSA_on_ES
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    之前在搞一个小工具，在里面需要访问 X11 server ，但是访问 X11 server 我们需要两个东西：DISPLAY和XAUTHORITY两个环境变量。但是，由于它们在不同的发型版和Display Manager下都有些不同，所以花了不少功夫才写了一些。
-为了验证我们是否可以连上 X11 server， 我们使用这一句：
+                    之前在搞一个小工具，在里面需要访问 X11 server，但是访问 X11 server 我们需要两个东西：DISPLAY 和 XAUTHORITY 两个环境变量。但是，由于它们在不同的发型版和 Display Manager 下都有些不同，所以花了不少功夫才写了一些。
+为了验证我们是否可以连上 X11 server，我们使用这一句：
 DIMENSIONS=$(xdpyinfo | grep &#39;dimensions:&#39; | awk &#39;{print $2;exit}&#39;) 它尝试打开当前的 DISPLAY，并且输出它的分辨率。接下来，我对不同的一些发型版，综合网上的方法，尝试去找到正确的环境变量。
 对于 Debian:
 DISPLAY=$(w -hs | awk -v tty=&#34;$(cat /sys/class/tty/tty0/active)&#34; &#39;$2 == tty &amp;&amp; $3 != &#34;-&#34; {print $3; exit}&#39;) USER=$(w -hs | awk -v tty=&#34;$(cat /sys/class/tty/tty0/active)&#34; &#39;$2 == tty &amp;&amp; $3 != &#34;-&#34; {print $1; exit}&#39;) eval XAUTHORITY=~$USER/.Xauthority export DISPLAY export XAUTHORITY DIMENSIONS=$(xdpyinfo | grep &#39;dimensions:&#39; | awk &#39;{print $2;exit}&#39;) 对于 Archlinux：
@@ -653,12 +654,13 @@ DISPLAY=$(w -hs | awk -v tty=&#34;$(cat /sys/class/tty/tty0/active)&#34; &#39;$2
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    一直听说 tinc 比较科学，所以尝试自己用 tinc 搭建一个网络。这里，macOS 这段没有固定 IP 地址，Linux 机器有固定 IP 地址 linux_ip 。假设网络名称为 example , macOS 端名为 macos 地址为 192.168.0.2, linux 端名为 linux 地址为 192.168.0.1。
-2018-11-11 注：本文用的 tinc 版本为 1.0.x ，而不是 1.1-pre ，两个分支命令不同，但协议可以兼容。
+                    一直听说 tinc 比较科学，所以尝试自己用 tinc 搭建一个网络。这里，macOS 这段没有固定 IP 地址，Linux 机器有固定 IP 地址 linux_ip。假设网络名称为 example , macOS 端名为 macos 地址为 192.168.0.2, linux 端名为 linux 地址为 192.168.0.1。
+2018-11-11 注：本文用的 tinc 版本为 1.0.x，而不是 1.1-pre，两个分支命令不同，但协议可以兼容。
 在 macOS 上配置：
 brew install tinc mkdir -p /usr/local/etc/tinc/example 新建 /usr/local/etc/tinc/example/tinc.conf:
 Name = macos Device = utun0 # use an unused number ConnectTo = linux 编辑 /usr/local/etc/tinc/example/tinc-up:
 #!/bin/sh ifconfig $INTERFACE 192.168.0.2 192.168.0.1 mtu 1500 netmask 255.255.255.255 和 /usr/local/etc/tinc/example/tinc-down:
+#!/bin/sh ifconfig $INTERFACE down 还有 /usr/local/etc/tinc/example/subnet-up:
                     </p>
                     <p class="article-more-link">
                         <a href="/networking/2018/05/09/tinc-between-macos-and-linux/">Read More</a>

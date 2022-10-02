@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 <body>
@@ -87,8 +87,8 @@
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    有了网卡驱动，接下来要做的就做网络的 syscall 了。为了测试，首先在 busybox 里找可以用来测试的 applet ，由于没有实现 poll ，所以 nc telnet 啥的都用不了。最后选择到了 ping 和 pscan 上。
-ping大家都很了解，pscan就是一个扫端口的，对一个ip连续的若干个端口发起 tcp 请求。这就要求我提供 raw socket和tcp socket状态的支持。由于网络栈本身是异步的，但 read connect 这些函数在不调 setsockopt 的前提下又是同步的，然而现在又没有 signal 可以用，要是 block 了就再也出不来了。于是就采用了 Condvar 的办法，拿一个全局的条件变量，当 poll 不到内容的时候，先把线程拿掉，等到网络栈更新了，再恢复。这样至少不会把 cpu 也 block 住。
+                    有了网卡驱动，接下来要做的就做网络的 syscall 了。为了测试，首先在 busybox 里找可以用来测试的 applet，由于没有实现 poll，所以 nc telnet 啥的都用不了。最后选择到了 ping 和 pscan 上。
+ping 大家都很了解，pscan 就是一个扫端口的，对一个 ip 连续的若干个端口发起 tcp 请求。这就要求我提供 raw socket 和 tcp socket 状态的支持。由于网络栈本身是异步的，但 read connect 这些函数在不调 setsockopt 的前提下又是同步的，然而现在又没有 signal 可以用，要是 block 了就再也出不来了。于是就采用了 Condvar 的办法，拿一个全局的条件变量，当 poll 不到内容的时候，先把线程拿掉，等到网络栈更新了，再恢复。这样至少不会把 cpu 也 block 住。
 然后就是把 socket 部分改了又改吧，数据结构的设计改了几次，为了解决 ownership 问题上锁啊也有点多，但是也更细了，虽然实际上可能没有必要，因为上面还有大的锁。不过性能还不是现在考虑的重点，关键还要先把 send recv accept bind listen 啥的写得差不多了，然后还有把 poll/select 实现了，这个很关键。
 中间遇到的最大的坑就是，接收 pci interrupt 的时候总是啥也没有，然后靠万能的 qemu trace 发现，原来是 mask 掉了，所以啥也收不了，然后最后的解决方案就是用 MSI Interrupt #55 搞定了这个问题。至于为啥是 55 呢，因为 23 + 32 = 55 啊（误
                     </p>
@@ -217,11 +217,11 @@ Rust concurrent work-stealing queue 可能可以放到调度器里用 https://gi
                     <p>
                         
                     是的。我又来了。上次做了使用 Rust 实现 VirtIO 驱动之后，继续往 rCore 加更多的驱动支持。由于现在工作重点是 x86_64 下的 syscall 实现，所以选了一个比较有代表性的驱动 e1000 来实现。其实如果只是为了在 qemu 下运行的话，其实只需要支持 virtio-pci 就可以了，原来的 virtio-net 直接拿来用就可以了。
-为什么挑 e1000 呢，一方面是支持的设备多，有真实硬件可以测试，虽然不一定要裸机上跑，但是可以通过 PCI passthrough 来测试驱动的正确性。另一方面是网上的资料比较多，有现成的简单的代码可以借鉴。这次主要借鉴了三个来源：一是 Biscuit OS， 二是 Judge Duck OS ，三是 Linux 。
+为什么挑 e1000 呢，一方面是支持的设备多，有真实硬件可以测试，虽然不一定要裸机上跑，但是可以通过 PCI passthrough 来测试驱动的正确性。另一方面是网上的资料比较多，有现成的简单的代码可以借鉴。这次主要借鉴了三个来源：一是 Biscuit OS，二是 Judge Duck OS，三是 Linux。
 首先是实现了简单的 PCI 总线的枚举，然后找到对应的设备，激活，并且找到映射的内存地址，然后把原来 C 语言的实现搬运到 Rust 中。这个过程中遇到很多坑，例如一开始我以为内核里 pa 和 va 是一个固定的偏移，不过多次尝试后才发现这个假设只对 riscv 平台里的实现成立。
-这个时候就可以收到外面给进来的以太网帧了。接着就是把它接入到 smoltcp 的 API 中。但是发包又不工作了，尝试了很多次，各种方法也不行。其中特别要提到的就是 qemu 的 tracing API ，它在帮助我调试之前的 virtio 驱动和这次的 e1000(e) 驱动中起到了很大的帮助。不过，遗憾的是，发包相关的代码里的 trace 不足以让我找到问题的所在，我只好采用了最后一招：
-下载 QEMU ，自己改，然后自己编译。
-这个方法果然很有效啊，经过简单的几个修改，很快就定位到问题所在了，原来就是一个简单的错误，把 4 写成了 8 。这个过程中我也发现 QEMU 在 incremental build 的时候似乎会 segfault ，我没管这么多，反正编译也不慢，次数也不多，每次 clean 再 build 问题也不大。
+这个时候就可以收到外面给进来的以太网帧了。接着就是把它接入到 smoltcp 的 API 中。但是发包又不工作了，尝试了很多次，各种方法也不行。其中特别要提到的就是 qemu 的 tracing API，它在帮助我调试之前的 virtio 驱动和这次的 e1000(e) 驱动中起到了很大的帮助。不过，遗憾的是，发包相关的代码里的 trace 不足以让我找到问题的所在，我只好采用了最后一招：
+下载 QEMU，自己改，然后自己编译。
+这个方法果然很有效啊，经过简单的几个修改，很快就定位到问题所在了，原来就是一个简单的错误，把 4 写成了 8。这个过程中我也发现 QEMU 在 incremental build 的时候似乎会 segfault，我没管这么多，反正编译也不慢，次数也不多，每次 clean 再 build 问题也不大。
                     </p>
                     <p class="article-more-link">
                         <a href="/programming/2019/02/26/network-driver-again/">Read More</a>
@@ -327,7 +327,7 @@ Rust Embedded Graphics 库 https://github.com/jamwaffles/embedded-graphics Wireg
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    不知道大家听没听说过 Google Chrome 有个插件，叫做 Learn Project ，是一个网络学堂的改良前端。不过，随着网络学堂的不断更（xia）新（gao），它已经不再适用于现在的版本。于是，哈利橙（@Harry-Chen）决定利用寒假时间，在今天（2.17）之前完成 Learn Project 4.0 的开发。为什么叫 4.0 呢，因为哈利橙课程的 GPA 众数是 4.0 。这个版本采用先进的 React 框架编写（Vue 塞高），使用了 Material Ui 作为界面框架（这我觉得可以），目前的一个参考图（图源哈利橙）：
+                    不知道大家听没听说过 Google Chrome 有个插件，叫做 Learn Project，是一个网络学堂的改良前端。不过，随着网络学堂的不断更（xia）新（gao），它已经不再适用于现在的版本。于是，哈利橙（@Harry-Chen）决定利用寒假时间，在今天（2.17）之前完成 Learn Project 4.0 的开发。为什么叫 4.0 呢，因为哈利橙课程的 GPA 众数是 4.0。这个版本采用先进的 React 框架编写（Vue 塞高），使用了 Material Ui 作为界面框架（这我觉得可以），目前的一个参考图（图源哈利橙）：
 看那满眼的高分数，希望 Learn Project 4.0 能在 flag 倒下之前完成。
                     </p>
                     <p class="article-more-link">
@@ -424,8 +424,8 @@ Google 的 fuzzing 家族又来了个新成员 太喜欢造轮子了 https://git
                 <div class="article-entry" itemprop="articleBody">
                     <p>
                         
-                    距离上一篇 CS140e 系列文章已经过去了很久，距离第一篇文章过了一年零几天。在后来这一段时间内，CS140e 结束了课程，又开始了新一年的 winter 2019 课程，迎来的却是 C 版本的 CS140e ，不禁让人感到失望。还好，Sergio Benitez 放出了原来的 CS140e 的镜像，如果大家仍然想回去查看原版优质的 CS140e ，可以点进去参考。
-后来因为机缘巧合参与到了清华的 Rust OS 课程，又想到回来把原来的 CS140e 进行更新，于是顺带把跑在 QEMU 下的一些需要的工作给做了，另外把 Rust nightly 版本更新了（一年前的 nightly 还能叫 nightly ？），才发现标准库变化还是蛮大的，由于 nightly 版本变了，而且原来是内嵌了一个阉割过的 std ，所以主要是从新的 std 里抄代码到内嵌的 std 中。另外，原来的 xargo 也不再维护了，转而使用 rust-xbuild 进行交叉编译。
+                    距离上一篇 CS140e 系列文章已经过去了很久，距离第一篇文章过了一年零几天。在后来这一段时间内，CS140e 结束了课程，又开始了新一年的 winter 2019 课程，迎来的却是 C 版本的 CS140e，不禁让人感到失望。还好，Sergio Benitez 放出了原来的 CS140e 的镜像，如果大家仍然想回去查看原版优质的 CS140e，可以点进去参考。
+后来因为机缘巧合参与到了清华的 Rust OS 课程，又想到回来把原来的 CS140e 进行更新，于是顺带把跑在 QEMU 下的一些需要的工作给做了，另外把 Rust nightly 版本更新了（一年前的 nightly 还能叫 nightly？），才发现标准库变化还是蛮大的，由于 nightly 版本变了，而且原来是内嵌了一个阉割过的 std，所以主要是从新的 std 里抄代码到内嵌的 std 中。另外，原来的 xargo 也不再维护了，转而使用 rust-xbuild 进行交叉编译。
 然后又顺手实现了 backtrace 和从 backtrace 中配合 dward symbols 找函数名的功能，不过实践证明，这些东西还是 addr2line 做得更好，所以也就没有做下去，在 relocation 上也是遇到了各种问题。这个经验也是应用到了 rCore 那边。
 再之后也就是寒假写驱动了，见之前的一个博文，我就没有在 CS140e 上去实现它了。有时间有兴趣的时候再考虑做一下 Raspberry Pi 的网卡驱动吧。
 写于迪拜雨天。

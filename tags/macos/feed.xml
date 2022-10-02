@@ -51,7 +51,7 @@ target/debug/xxxx: Mach-O 64-bit executable arm64 然后就可以了。等待上
       <pubDate>Thu, 19 Nov 2020 18:35:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2020/11/19/arm-m1-macbookair/</guid>
-      <description>购买 我是 11.12 的时候在 Apple Store 上下单的，选的是 MacBookAir ，带 M1 芯片，8 核 CPU + 8 核 GPU，加了一些内存和硬盘。今天（11.19）的时候顺丰到货，比 Apple Store 上显示的预计到达时间 21-28 号要更早。另外，我也听朋友说现在一些线下的店也有货，也有朋友直接在京东上买到了 Mac mini，总之第一波 M1 的用户最近应该都可以拿到设备了。
+      <description>购买 我是 11.12 的时候在 Apple Store 上下单的，选的是 MacBookAir，带 M1 芯片，8 核 CPU + 8 核 GPU，加了一些内存和硬盘。今天（11.19）的时候顺丰到货，比 Apple Store 上显示的预计到达时间 21-28 号要更早。另外，我也听朋友说现在一些线下的店也有货，也有朋友直接在京东上买到了 Mac mini，总之第一波 M1 的用户最近应该都可以拿到设备了。
 现在这篇博客，就是在 ARM MBA 上编写的，使用的是 Intel 的 VSCode，毕竟 VSCode 的 ARM64 版不久后才正式发布。
 开箱 从外观来看，一切都和 Intel MBA 一样，包装上也看不出区别，模具也是一样的。
 进了系统才能看得出区别。预装的系统是 macOS Big Sur 11.0，之后手动更新到了目前最新的 11.0.1。
@@ -66,7 +66,7 @@ $ uname -a Darwin macbookair.lan 20.1.0 Darwin Kernel Version 20.1.0: Sat Oct 31
       <pubDate>Sun, 09 Feb 2020 00:35:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2020/02/09/program-artix7-on-macos/</guid>
-      <description>首先安装好openocd：
+      <description>首先安装好 openocd：
 brew install openocd --HEAD
 测试所用版本为 0.10.0+dev-01052-g09580964 (2020-02-08-15:09)。
 然后编写如下的 openocd.cfg：
@@ -83,12 +83,12 @@ $ openocd Open On-Chip Debugger 0.10.0+dev-01052-g09580964 (2020-02-08-15:09) Li
       <guid>https://jia.je/software/2020/02/07/macos-mmap-exec/</guid>
       <description>背景 实验环境：macOS Catalina 10.15.2
 最近在 rcore-rs/zircon-rs 项目中遇到一个比较玄学的问题，首先需求是在 macOS 的用户进程里开辟一段地址空间，然后把这个地址空间多次映射（权限可能不同、同一块内存可能被映射到多个地址），通过 mmap 模拟虚拟地址的映射。采用的是如下的方案：
-在临时目录创建一个文件，把文件大小设为 16M（暂不考虑扩容） 需要映射一个虚拟地址到物理地址的时候，就对这个文件的物理地址偏移进行 FIXED 映射，虚拟地址就是期望的虚拟地址。 这样的方案在 Linux 下运行地很好，但在 macOS下总是以一定概率在第二部出现 EPERM。网上搜了很多，但也没搜到相关的信息，于是自己断断续续地研究了一下，现在有一个比较初步的结果。
+在临时目录创建一个文件，把文件大小设为 16M（暂不考虑扩容） 需要映射一个虚拟地址到物理地址的时候，就对这个文件的物理地址偏移进行 FIXED 映射，虚拟地址就是期望的虚拟地址。 这样的方案在 Linux 下运行地很好，但在 macOS 下总是以一定概率在第二部出现 EPERM。网上搜了很多，但也没搜到相关的信息，于是自己断断续续地研究了一下，现在有一个比较初步的结果。
 TL；DR 先说结论：调用一个带 PROT_EXEC 并且映射文件的 mmap 时，macOS 会进行安全检测，如果此时发现文件在文件系统上消失了，它会认为这可能是一个恶意软件行为，进行拦截，返回 EPERM。
 而代码实际上在第一步和第二步之间，把临时目录删了：由于进程持有 fd，所以文件并不会真的删掉，当软件退出的时候文件自然会删除，这是临时文件的常见做法（见 tmpfile(3)）。
 研究过程 查看 Console 在网上一番搜索未果后，就尝试在 Console 里面寻找信息。照着程序名字搜索，可以找到一些信息：
 temporarySigning type=1 matchFlags=0x0 path=/path/to/executable 这是编译这个 executable 的时候出现的，好像也没啥问题。然后解除过滤，在这个信息前后按照 syspolicyd 寻找：
-initiating malware scan (... info_path: /path/to/temp/file proc_path: /path/to/executable) Unable (errno: 2) to read file at &amp;lt;private&amp;gt; for process path: &amp;lt;private&amp;gt; library path: &amp;lt;private&amp;gt; Disallowing load of &amp;lt;private&amp;gt; in 50001, &amp;lt;private&amp;gt; Library load (/path/to/temp/file) rejected: library load denied by system policy 这几条记录比较可疑，每次运行程序，如果跑挂了，就会出现这几条，如果没跑挂，就不会出现这一条。所以很大概率是被 macOS 拦截了。错误信息的用词是 library ，所以大概率是被当成加载动态库了，但既然内容是空的，所以我想的是文件名触碰到了什么奇怪的规则，然后文件名又是随机的，随机导致 EPERM 是概率性出现的，这好像很有道理。于是我把 tmpfile 换成了固定的路径，忽然就好了。但固定的路径只能保证同时只有一个程序在跑，如果路径拼接上pid，怎么删，谁来删又是一个问题。虽然可以放到 /tmp 下面然后随便搞，但 /tmp 的回收并不是那么积极，在临时目录下丢太多文件也会出现问题。</description>
+initiating malware scan (... info_path: /path/to/temp/file proc_path: /path/to/executable) Unable (errno: 2) to read file at &amp;lt;private&amp;gt; for process path: &amp;lt;private&amp;gt; library path: &amp;lt;private&amp;gt; Disallowing load of &amp;lt;private&amp;gt; in 50001, &amp;lt;private&amp;gt; Library load (/path/to/temp/file) rejected: library load denied by system policy 这几条记录比较可疑，每次运行程序，如果跑挂了，就会出现这几条，如果没跑挂，就不会出现这一条。所以很大概率是被 macOS 拦截了。错误信息的用词是 library，所以大概率是被当成加载动态库了，但既然内容是空的，所以我想的是文件名触碰到了什么奇怪的规则，然后文件名又是随机的，随机导致 EPERM 是概率性出现的，这好像很有道理。于是我把 tmpfile 换成了固定的路径，忽然就好了。但固定的路径只能保证同时只有一个程序在跑，如果路径拼接上 pid，怎么删，谁来删又是一个问题。虽然可以放到 /tmp 下面然后随便搞，但 /tmp 的回收并不是那么积极，在临时目录下丢太多文件也会出现问题。</description>
     </item>
     
     <item>
@@ -99,7 +99,7 @@ initiating malware scan (... info_path: /path/to/temp/file proc_path: /path/to/e
       <guid>https://jia.je/software/2019/09/14/create-esp-partition-macos/</guid>
       <description>最近 rCore 添加了 UEFI 支持，在 QEMU 里跑自然是没有问题，然后尝试放到 VMWare 虚拟机里跑，这时候问题就来了：需要一个带有 ESP 盘的 vmdk 虚拟盘。搜索了一下网络，找到了解决方案：
 hdiutil create -fs fat32 -ov -size 60m -volname ESP -format UDTO -srcfolder esp uefi.cdr 其中 60m esp 和 uefi.cdr 都可以按照实际情况修改。它会把 esp 目录下的文件放到 ESP 分区中，然后得到一个镜像文件：
-uefi.cdr: DOS/MBR boot sector; partition 1 : ID=0xb, start-CHS (0x3ff,254,63), end-CHS (0x3ff,254,63), startsector 1, 122879 sectors, extended partition table (last) 接着转换为 vmdk ：
+uefi.cdr: DOS/MBR boot sector; partition 1 : ID=0xb, start-CHS (0x3ff,254,63), end-CHS (0x3ff,254,63), startsector 1, 122879 sectors, extended partition table (last) 接着转换为 vmdk：
 qemu-img convert -O vmdk uefi.cdr uefi.vmdk 这样就可以了。</description>
     </item>
     
@@ -110,7 +110,7 @@ qemu-img convert -O vmdk uefi.cdr uefi.vmdk 这样就可以了。</description>
       
       <guid>https://jia.je/software/2019/08/14/read-edid-decode-macos/</guid>
       <description>之前听说了 EDID 的存在，但是一直没有细究里面的格式和内容。今天了解了一下，发现其实非常简单，下面是方法：
-首先获取所有显示器输出的 EDID ：
+首先获取所有显示器输出的 EDID：
 ioreg -lw0 | grep IODisplayEDID 输出里会出现 &amp;ldquo;IODisplayEDID&amp;rdquo; = &amp;lt;00ffxxxxxxxxxxxxx&amp;gt; 的内容，尖括号内的就是 EDID 的内容。接着，我们采用 edid-decode 进行解析：
 git clone git://linuxtv.org/edid-decode.git cd edid-decode make ./edid-decode &amp;lt;Paste EDID here&amp;gt; 就可以看到很详细的 EDID 数据解析了。
 ref: https://gist.github.com/OneSadCookie/641549 https://www.avsforum.com/forum/115-htpc-mac-chat/1466910-ability-dump-display-s-edid-mac.html</description>
@@ -144,18 +144,19 @@ ref: https://gist.github.com/OneSadCookie/641549 https://www.avsforum.com/forum/
       <pubDate>Tue, 27 Nov 2018 00:17:00 +0800</pubDate>
       
       <guid>https://jia.je/software/2018/11/27/enable-dark-mode-google-chrome/</guid>
-      <description>Mojave 的 Dark Mode 真香，但是 Google Chrome 并不会随着系统的 Dark Mode 设置变化，所以 NightOwl 只能让部分软件按照时间变更 Dark/Light Mode 。一番搜索，发现其实 Google Chrome 其实已经支持了 Dark Mode，但只能设置，不能按照系统的状态自动切换，命令如下：
+      <description>Mojave 的 Dark Mode 真香，但是 Google Chrome 并不会随着系统的 Dark Mode 设置变化，所以 NightOwl 只能让部分软件按照时间变更 Dark/Light Mode。一番搜索，发现其实 Google Chrome 其实已经支持了 Dark Mode，但只能设置，不能按照系统的状态自动切换，命令如下：
 $ open -a Google\ Chrome --args --force-dark-mode 然后就可以看到 Google Chrome 已经是 Dark Mode 了。但可惜并不能自动切换。</description>
     </item>
     
     <item>
-      <title>Mac 上安装 Arch Linux ， ZFS 真香</title>
+      <title>Mac 上安装 Arch Linux，ZFS 真香</title>
       <link>https://jia.je/software/2018/11/26/zfs-on-macos-and-linux/</link>
       <pubDate>Mon, 26 Nov 2018 20:51:00 +0800</pubDate>
       
       <guid>https://jia.je/software/2018/11/26/zfs-on-macos-and-linux/</guid>
-      <description>最近在 Mac 上装了 Arch Linux ，按照 Mac - Arch Linux Wiki 一路一路走，创建单独的一个 EFI 分区给 Arch Linux 放 GRUB 和内核，一个 ext4 作为根分区。由于 Arch ISO 不支持 Broadcom 的无线网卡，于是先拿 Apple Ethernet Adapter 连到路由器上装机。然后把一些需要的驱动装上了，桌面用的 KDE Plasma ，Trackpad 用的 xf86-input-mtrack-git ， HiDPI 设置为 2x Scale ，各种体验都还可以，就是 Wi-Fi 的 802.1X 没配置好，然后 kwalletd5 老是崩没找到原因。常见的应用除了微信基本都有，也终于可以体验 Steam Play ，利用 Proton 在 Linux 上跑一些只支持 Windows 的游戏，不过我已经很少玩游戏了。
-然后我就想，怎么做 macOS 和 Linux 之间的文件共享。典型的操作可能是 exFAT ，但是作为数据盘的话，这还是不大适合。或者就直接用 ext4 ，配合 extFS For Mac by Paragon 使用，也可以，最后我选择了 ZFS 。</description>
+      <description>最近在 Mac 上装了 Arch Linux，按照 Mac - Arch Linux Wiki 一路一路走，创建单独的一个 EFI 分区给 Arch Linux 放 GRUB 和内核，一个 ext4 作为根分区。由于 Arch ISO 不支持 Broadcom 的无线网卡，于是先拿 Apple Ethernet Adapter 连到路由器上装机。然后把一些需要的驱动装上了，桌面用的 KDE Plasma，Trackpad 用的 xf86-input-mtrack-git，HiDPI 设置为 2x Scale，各种体验都还可以，就是 Wi-Fi 的 802.1X 没配置好，然后 kwalletd5 老是崩没找到原因。常见的应用除了微信基本都有，也终于可以体验 Steam Play，利用 Proton 在 Linux 上跑一些只支持 Windows 的游戏，不过我已经很少玩游戏了。
+然后我就想，怎么做 macOS 和 Linux 之间的文件共享。典型的操作可能是 exFAT，但是作为数据盘的话，这还是不大适合。或者就直接用 ext4，配合 extFS For Mac by Paragon 使用，也可以，最后我选择了 ZFS。
+在 macOS 上安装 OpenZFS on OSX ，在 Linux 上安装 ZFS on Linux 。具体命令就是：</description>
     </item>
     
     <item>
@@ -190,7 +191,7 @@ $ diskutil unmountDisk /dev/disk2 $ sudo chown $(whoami) /dev/disk2 $ VBoxManage
       
       <guid>https://jia.je/hardware/2018/09/07/reading-smart-info-of-external-drives-under-macos/</guid>
       <description>之前想看看自己各个盘的情况，但是发现只能看电脑内置的 SSD 的 S.M.A.R.T 信息，而移动硬盘的都显示：
-$ smartctl -a /dev/disk2 smartctl 6.6 2017-11-05 r4594 [Darwin 17.7.0 x86_64] (local build) Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org /dev/disk2: Unable to detect device type Please specify device type with the -d option. Use smartctl -h to get a usage summary 一开始我怀疑是个别盘不支持，但换了几个盘都不能工作，问题应该出现在了 USB 上。查了下资料，果然如此。根据 USB devices and smartmontools ，获取 S.M.A.R.T 信息需要直接发送 ATA 命令，但是由于经过了 USB ，于是需要进行一个转换，导致无法直接发送 ATA 命令。这个问题自然是有解决方案，大概就是直接把 ATA 命令发送过去（pass-through）。上面这个地址里写到，如果需要在 macOS 上使用，需要安装一个内核驱动。可以找到，源码在 kasbert/OS-X-SAT-SMART-Driver 并且有一个带签名的安装包在 External USB / FireWire drive diagnostics support 中可以下载。丢到 VirusTotal 上没查出问题，用 v0.</description>
+$ smartctl -a /dev/disk2 smartctl 6.6 2017-11-05 r4594 [Darwin 17.7.0 x86_64] (local build) Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org /dev/disk2: Unable to detect device type Please specify device type with the -d option. Use smartctl -h to get a usage summary 一开始我怀疑是个别盘不支持，但换了几个盘都不能工作，问题应该出现在了 USB 上。查了下资料，果然如此。根据 USB devices and smartmontools ，获取 S.M.A.R.T 信息需要直接发送 ATA 命令，但是由于经过了 USB，于是需要进行一个转换，导致无法直接发送 ATA 命令。这个问题自然是有解决方案，大概就是直接把 ATA 命令发送过去（pass-through）。上面这个地址里写到，如果需要在 macOS 上使用，需要安装一个内核驱动。可以找到，源码在 kasbert/OS-X-SAT-SMART-Driver 并且有一个带签名的安装包在 External USB / FireWire drive diagnostics support 中可以下载。丢到 VirusTotal 上没查出问题，用 v0.</description>
     </item>
     
     <item>
@@ -199,12 +200,13 @@ $ smartctl -a /dev/disk2 smartctl 6.6 2017-11-05 r4594 [Darwin 17.7.0 x86_64] (l
       <pubDate>Wed, 09 May 2018 10:02:00 +0800</pubDate>
       
       <guid>https://jia.je/networking/2018/05/09/tinc-between-macos-and-linux/</guid>
-      <description>一直听说 tinc 比较科学，所以尝试自己用 tinc 搭建一个网络。这里，macOS 这段没有固定 IP 地址，Linux 机器有固定 IP 地址 linux_ip 。假设网络名称为 example , macOS 端名为 macos 地址为 192.168.0.2, linux 端名为 linux 地址为 192.168.0.1。
-2018-11-11 注：本文用的 tinc 版本为 1.0.x ，而不是 1.1-pre ，两个分支命令不同，但协议可以兼容。
+      <description>一直听说 tinc 比较科学，所以尝试自己用 tinc 搭建一个网络。这里，macOS 这段没有固定 IP 地址，Linux 机器有固定 IP 地址 linux_ip。假设网络名称为 example , macOS 端名为 macos 地址为 192.168.0.2, linux 端名为 linux 地址为 192.168.0.1。
+2018-11-11 注：本文用的 tinc 版本为 1.0.x，而不是 1.1-pre，两个分支命令不同，但协议可以兼容。
 在 macOS 上配置：
 brew install tinc mkdir -p /usr/local/etc/tinc/example 新建 /usr/local/etc/tinc/example/tinc.conf:
 Name = macos Device = utun0 # use an unused number ConnectTo = linux 编辑 /usr/local/etc/tinc/example/tinc-up:
-#!/bin/sh ifconfig $INTERFACE 192.168.0.2 192.168.0.1 mtu 1500 netmask 255.255.255.255 和 /usr/local/etc/tinc/example/tinc-down:</description>
+#!/bin/sh ifconfig $INTERFACE 192.168.0.2 192.168.0.1 mtu 1500 netmask 255.255.255.255 和 /usr/local/etc/tinc/example/tinc-down:
+#!/bin/sh ifconfig $INTERFACE down 还有 /usr/local/etc/tinc/example/subnet-up:</description>
     </item>
     
     <item>
@@ -213,7 +215,7 @@ Name = macos Device = utun0 # use an unused number ConnectTo = linux 编辑 /usr
       <pubDate>Tue, 17 Apr 2018 13:08:00 +0800</pubDate>
       
       <guid>https://jia.je/programming/2018/04/17/downgrade-gdb/</guid>
-      <description>在 macOS 上使用 GDB 需要 codesigning 。但是在 GDB 升级到 8.1 后这种方法不知道为何失效了。所以我安装回了 GDB 8.0.1 并且重新 codesigning ，现在又可以正常升级了。
+      <description>在 macOS 上使用 GDB 需要 codesigning。但是在 GDB 升级到 8.1 后这种方法不知道为何失效了。所以我安装回了 GDB 8.0.1 并且重新 codesigning，现在又可以正常升级了。
 对 Formula 进行 patch：
 diff --git a/Formula/gdb.rb b/Formula/gdb.rb index 29a1c590..25360893 100644 --- a/Formula/gdb.rb +++ b/Formula/gdb.rb @@ -1,14 +1,15 @@ class Gdb &amp;lt; Formula desc &amp;#34;GNU debugger&amp;#34; homepage &amp;#34;https://www.gnu.org/software/gdb/&amp;#34; - url &amp;#34;https://ftp.gnu.org/gnu/gdb/gdb-8.1.tar.xz&amp;#34; - mirror &amp;#34;https://ftpmirror.gnu.org/gdb/gdb-8.1.tar.xz&amp;#34; - sha256 &amp;#34;af61a0263858e69c5dce51eab26662ff3d2ad9aa68da9583e8143b5426be4b34&amp;#34; + url &amp;#34;https://ftp.gnu.org/gnu/gdb/gdb-8.0.1.tar.xz&amp;#34; + mirror &amp;#34;https://ftpmirror.gnu.org/gdb/gdb-8.0.1.tar.xz&amp;#34; + sha256 &amp;#34;3dbd5f93e36ba2815ad0efab030dcd0c7b211d7b353a40a53f4c02d7d56295e3&amp;#34; bottle do - sha256 &amp;#34;43a6d6cca157ef70d13848f35c04e11d832dc0c96f5bcf53a43330f524b3ac40&amp;#34; =&amp;gt; :high_sierra - sha256 &amp;#34;fe7c6261f9164e7a744c9c512ba7e5afff0e74e373ece9b5aa19d5da6443bfc2&amp;#34; =&amp;gt; :sierra - sha256 &amp;#34;cd89001bcf8c93b5d6425ab91a400aeffe0cd5bbb0eccd8ab38c719ab5ca34ba&amp;#34; =&amp;gt; :el_capitan + sha256 &amp;#34;e98ad847402592bd48a9b1468fefb2fac32aff1fa19c2681c3cea7fb457baaa0&amp;#34; =&amp;gt; :high_sierra + sha256 &amp;#34;0fdd20562170c520cfb16e63d902c13a01ec468cb39a85851412e7515b6241e9&amp;#34; =&amp;gt; :sierra + sha256 &amp;#34;f51136c70cff44167dfb8c76b679292d911bd134c2de3fef40777da5f1f308a0&amp;#34; =&amp;gt; :el_capitan + sha256 &amp;#34;2b32a51703f6e254572c55575f08f1e0c7bc2f4e96778cb1fa6582eddfb1d113&amp;#34; =&amp;gt; :yosemite end deprecated_option &amp;#34;with-brewed-python&amp;#34; =&amp;gt; &amp;#34;with-python@2&amp;#34; </description>
     </item>
@@ -224,19 +226,18 @@ diff --git a/Formula/gdb.rb b/Formula/gdb.rb index 29a1c590..25360893 100644 ---
       <pubDate>Wed, 27 Dec 2017 20:25:23 +0800</pubDate>
       
       <guid>https://jia.je/devops/2017/12/27/try-gentoo-prefix-on-macos/</guid>
-      <description>前几天参加了许朋程主讲的Tunight，对Gentoo有了一定的了解，不过看到如此复杂的安装过程和长久的编译时间，又看看我的CPU，只能望而却步了。不过，有Gentoo/Prefix这个工具，使得我们可以在其它的操作系统（如macOS,Solaris等）上在一个 $EPREFIX 下跑 Portage ，也就是把 Portage 运行在别的操作系统，当作一个包管理器，并且可以和别的操作系统并存。
+      <description>前几天参加了许朋程主讲的 Tunight，对 Gentoo 有了一定的了解，不过看到如此复杂的安装过程和长久的编译时间，又看看我的 CPU，只能望而却步了。不过，有 Gentoo/Prefix 这个工具，使得我们可以在其它的操作系统（如 macOS,Solaris 等）上在一个 $EPREFIX 下跑 Portage，也就是把 Portage 运行在别的操作系统，当作一个包管理器，并且可以和别的操作系统并存。
 首先还是祭出官网：Project:Prefix。
-首先设定好环境变量 $EPREFIX ，之后所有的东西都会安装到这个目录下，把 bootstrap-prefix.sh 下载到 $EPREFIX ，然后 ./bootstrap-prefix.sh ，会进行一系列的问题，一一回答即可。建议在运行前设置好 GENTOO_MIRRORS=http://mirrors.tuna.tsinghua.edu.cn/gentoo 由于TUNA没有对gentoo_prefix做镜像，只能把distfiles切换到TUNA的镜像上。
+首先设定好环境变量 $EPREFIX ，之后所有的东西都会安装到这个目录下，把 bootstrap-prefix.sh 下载到 $EPREFIX ，然后 ./bootstrap-prefix.sh ，会进行一系列的问题，一一回答即可。建议在运行前设置好 GENTOO_MIRRORS=http://mirrors.tuna.tsinghua.edu.cn/gentoo 由于 TUNA 没有对 gentoo_prefix 做镜像，只能把 distfiles 切换到 TUNA 的镜像上。
 然后。。。
 stage1&amp;hellip;
 stage2..
 stage3.
 emerge -e @world BOOM
-经过 n 次跑挂以后，终于搞完了 stage3 ，然后 SHELL=bash ./bootstrap-prefix.sh $EPREFIX startscript 生成 startprefix ，在外面的SHELL中向切进来的时候运行这个即可。
+经过 n 次跑挂以后，终于搞完了 stage3，然后 SHELL=bash ./bootstrap-prefix.sh $EPREFIX startscript 生成 startprefix ，在外面的 SHELL 中向切进来的时候运行这个即可。
 然后就可以使用Gentoo/Prefix了。注意！此时的 $PATH 仅限于 $EPREFIX 下几个目录和 /usr/bin /bin 所以很多东西都会出问题（Emacs, Vim, Fish etc）。小心不要把自己的目录什么的搞挂了。
-然后就可以假装试用Gentoo了！
-哈哈哈哈哈哈哈
-死于编译 libgcrypt 和 llvm 。</description>
+然后就可以假装试用 Gentoo 了！
+哈哈哈哈哈哈哈</description>
     </item>
     
     <item>

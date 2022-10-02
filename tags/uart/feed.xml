@@ -14,8 +14,8 @@
       
       <guid>https://jia.je/os/2019/05/08/axi-uart-interrupt/</guid>
       <description>前言 最近在给 rCore 添加 Rocket Chip 支持。下面讲讲最近做了哪些工作，遇到了哪些坑，都是怎么解决的。
-踩坑过程 Rocket Chip 运行代码 首先分析了一下已有的代码和工作方式，这个 Rocket Chip （ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI ，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：
-/** * Address Map * 0x00 - serial out FIFO data * 0x04 - serial out FIFO data available (words) * 0x08 - serial in FIFO data * 0x0C - serial in FIFO space available (words) * 0x10 - system reset * 0x20 - req FIFO data * 0x24 - req FIFO data available (words) * 0x28 - data FIFO data * 0x2C - data FIFO data available (words) * 0x30 - resp FIFO data * 0x34 - resp FIFO space available (words) * 0x38 - nsectors * 0x3C - max request length */ 前面的是调试接口，后面的是 block device 和 network ，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000 ，所以代码中就这样访问对应的物理地址：</description>
+踩坑过程 Rocket Chip 运行代码 首先分析了一下已有的代码和工作方式，这个 Rocket Chip（ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：
+/** * Address Map * 0x00 - serial out FIFO data * 0x04 - serial out FIFO data available (words) * 0x08 - serial in FIFO data * 0x0C - serial in FIFO space available (words) * 0x10 - system reset * 0x20 - req FIFO data * 0x24 - req FIFO data available (words) * 0x28 - data FIFO data * 0x2C - data FIFO data available (words) * 0x30 - resp FIFO data * 0x34 - resp FIFO space available (words) * 0x38 - nsectors * 0x3C - max request length */ 前面的是调试接口，后面的是 block device 和 network，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000，所以代码中就这样访问对应的物理地址：</description>
     </item>
     
     <item>
@@ -24,8 +24,8 @@
       <pubDate>Sun, 07 Oct 2018 22:34:00 +0800</pubDate>
       
       <guid>https://jia.je/hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/</guid>
-      <description>今天从张宇翔学长那拿到了 荔枝糖（Lichee Tang） 的 FPGA 板子，于是立即开始把前段时间学到的Verilog应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。
-在网上找到了 ben-marshall/uart 一个简易的实现，很快做到了一直在串口上打印 A 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO ，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：
+      <description>今天从张宇翔学长那拿到了 荔枝糖（Lichee Tang） 的 FPGA 板子，于是立即开始把前段时间学到的 Verilog 应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。
+在网上找到了 ben-marshall/uart 一个简易的实现，很快做到了一直在串口上打印 A 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：
 always @ (posedge clk_in) begin uart_tx_en &amp;lt;= uart_fifo_re; end 这样就解决了这个问题。完整代码在 jiegec/learn_licheetang 中。</description>
     </item>
     

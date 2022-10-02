@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.103.1" />
+    <meta name="generator" content="Hugo 0.104.1" />
 </head>
 
 
@@ -118,12 +118,12 @@
 <h2 id="第一个驱动-virtio-net-的实现">第一个驱动 <code>virtio-net</code> 的实现</h2>
 <p>首先想到并且实现了的是网卡驱动， <code>virtio-net</code> 。最开始的时候，为了简单，只开了一块缓冲区，每次同时只收/发一个包。首先拿了 <a href="https://github.com/jiegec/device_tree-rs">device_tree-rs</a> 读取 bbl 传过来的 dtb 地址，找到各个 <code>virtio_mmio</code> 总线以后按照设备类型找到对应的设备。然后就是对着 virtio 的标准死磕，同时看 Linux 和 QEMU 的源代码辅助理解，最后终于是成功地把收/发的两个 virtqueue 配置好，并且在中断的时候处理收到的包。这个时候，可以成功地输出收到的包的内容，并且发出指定内容的包了。效果就是看到了这样的图片（图中网站是 <a href="https://hpd.gasmi.net/">Hex Packet Decoder</a>）：</p>
 <p><img src="/images/arp_packet.jpg" alt=""></p>
-<p>基于此，写了一个简单的以太网帧的解析，ARP 的回复和 ping 的回复（直接修改 <code>ECHO_REQUEST</code> 为 <code>ECHO_REPLY</code> 然后更新 CHECKSUM），实现了最基本的 ping ：</p>
+<p>基于此，写了一个简单的以太网帧的解析，ARP 的回复和 ping 的回复（直接修改 <code>ECHO_REQUEST</code> 为 <code>ECHO_REPLY</code> 然后更新 CHECKSUM），实现了最基本的 ping：</p>
 <p><img src="/images/arping.png" alt=""></p>
 <p><img src="/images/ping.jpg" alt=""></p>
 <h2 id="显卡驱动">显卡驱动</h2>
-<p>网卡可以用了，很自然地会想到做一些其他的 virtio 驱动，第一个下手的是显卡。显卡和网卡的主要区别是，网卡是两个 queue 异步作，而在显卡驱动上则是在一个 queue 上每次放一输入一输出的缓冲区来进行交互，具体步骤在 virtio 标准中也写得很清楚。在这个过程中， QEMU 的 Tracing 功能帮了很大的忙，在调试 desc 的结构上提供了很多帮助。</p>
-<p>然后就在 framebuffer 上画了一个 mandelbrot ：</p>
+<p>网卡可以用了，很自然地会想到做一些其他的 virtio 驱动，第一个下手的是显卡。显卡和网卡的主要区别是，网卡是两个 queue 异步作，而在显卡驱动上则是在一个 queue 上每次放一输入一输出的缓冲区来进行交互，具体步骤在 virtio 标准中也写得很清楚。在这个过程中，QEMU 的 Tracing 功能帮了很大的忙，在调试 desc 的结构上提供了很多帮助。</p>
+<p>然后就在 framebuffer 上画了一个 mandelbrot：</p>
 <p><img src="/images/mandelbrot.jpg" alt=""></p>
 <p>在 @shankerwangmiao 的建议下，调了一下颜色：</p>
 <p><img src="/images/mandelbrot2.jpg" alt=""></p>
@@ -131,11 +131,11 @@
 <h2 id="http-服务器">HTTP 服务器</h2>
 <p>在 @wangrunji0408 的提醒和建议下，我开始把一个 Rust 实现的网络栈 <a href="https://github.com/m-labs/smoltcp">smoltcp</a> 集成到代码中来。这个库中，对底层 Interface 的要求如下：</p>
 <ol>
-<li>当可以发包并且可以收包的时候，返回一收一发两个 Token ，并在使用的时候调用指定的函数。</li>
-<li>当可以发包的时候，返回一个发的 Token ，含义同上。</li>
+<li>当可以发包并且可以收包的时候，返回一收一发两个 Token，并在使用的时候调用指定的函数。</li>
+<li>当可以发包的时候，返回一个发的 Token，含义同上。</li>
 </ol>
 <p>这是我第一次看到这种抽象，而且也没有特别明确的文档表示，这个 Token 代表什么，我应该提供什么。我直接按照一些已有的例子，照着实现了一把。过程中遇到了 ownership 的问题，通过 Arc 和 Mutex 解决了，然后又出现了死锁的问题，调了半天才调出来。</p>
-<p>接着按照 somltcp 的样例写一个简单的 udp echo server 和（假的） tcp 服务器：</p>
+<p>接着按照 somltcp 的样例写一个简单的 udp echo server 和（假的）tcp 服务器：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="color:#75715e">// simple http server
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">let</span> <span style="color:#66d9ef">mut</span> socket <span style="color:#f92672">=</span> sockets.get::<span style="color:#f92672">&lt;</span>TcpSocket<span style="color:#f92672">&gt;</span>(tcp_handle);
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">!</span>socket.is_open() {
@@ -152,7 +152,7 @@
 <p>接着自然是往 QEMU 支持的剩下的 virtio 设备里下手。首先下手的是鼠标驱动。这次遇到了新的问题：</p>
 <ol>
 <li>由于缓冲的存在，每次只有在 EV_SYN 的时候才会一次性把若干个事件放入队列中。</li>
-<li>一个事件就要一个 desc chain ，意味着直接串足够大小的 buffer 到同一个 desc chain 中并不能工作。</li>
+<li>一个事件就要一个 desc chain，意味着直接串足够大小的 buffer 到同一个 desc chain 中并不能工作。</li>
 </ol>
 <p>于是只好痛定思痛照着 Linux 内核的实现把完整的 Virtqueue 的操作实现了，并且顺带把前面的网卡和显卡的驱动也更新了。果然，每次都是三个左右的事件（X，Y，SYN）插入，然后根据这些事件就可以计算出当前的鼠标位置了。</p>
 <p>至于块设备，遇到的则是别的坑。看标准的时候，本以为就一个结构体 virtio_blk_req 就搞完了，但仔细读了读，标准似乎没讲清楚，读的时候是怎么传，写的时候又是怎么传。于是在这里卡了很久，从 Tracing 信息可以看出，QEMU 一直认为我提供的 buffer 大小不正确，多次实验之后发现，给 device 写入的 buffer 大小为 block size 的整数倍加一，这个一存放的是状态，其他则是数据，真的太坑了。</p>
