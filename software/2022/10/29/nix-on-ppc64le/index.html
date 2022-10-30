@@ -138,6 +138,27 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> make install -k <span style="color:#f92672">||</span> true<span style="color:#960050;background-color:#1e0010">
 </span></span></span></code></pre></div><p>但是发现问题在于，离开了 nix install 脚本，我并不知道如何配置一个 multi-user install。但是官方的 nix install 脚本会报错，因为没有 ppc64le 的 prebuilt tarball。</p>
 <h2 id="解决办法">解决办法</h2>
+<h3 id="binarytarballcross-方法">binaryTarballCross 方法</h3>
+<p>该方法学自 @NickCao，在 NixOS/nix 的 flake 中，有生成 tarball 的方法，如：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix build <span style="color:#e6db74">&#34;.#hydraJobs.binaryTarballCross.x86_64-linux.armv7l-linux&#34;</span>
+</span></span></code></pre></div><p>这样就可以在 x86_64-linux 的 host 上，交叉编译生成一个用于 armv7l-linux 的安装 tarball。类似地，可以修改 flake.nix 来加入其他架构，如：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>diff --git a/flake.nix b/flake.nix
+</span></span><span style="display:flex;"><span>index cc2a48d9c..c55a267e2 100644
+</span></span><span style="display:flex;"><span><span style="color:#f92672">--- a/flake.nix
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/flake.nix
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -21,7 +21,7 @@
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>       linuxSystems = linux64BitSystems ++ [ &#34;i686-linux&#34; ];
+</span></span><span style="display:flex;"><span>       systems = linuxSystems ++ [ &#34;x86_64-darwin&#34; &#34;aarch64-darwin&#34; ];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-      crossSystems = [ &#34;armv6l-linux&#34; &#34;armv7l-linux&#34; ];
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+      crossSystems = [ &#34;armv6l-linux&#34; &#34;armv7l-linux&#34; &#34;powerpc64le-linux&#34; &#34;riscv64-linux&#34; ];
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>       stdenvs = [ &#34;gccStdenv&#34; &#34;clangStdenv&#34; &#34;clang11Stdenv&#34; &#34;stdenv&#34; &#34;libcxxStdenv&#34; &#34;ccacheStdenv&#34; ];
+</span></span></code></pre></div><p>就可以用下面的命令来生成 riscv64-linux 和 powerpc64le-linux 架构的安装 tarball 了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix build <span style="color:#e6db74">&#34;.#hydraJobs.binaryTarballCross.x86_64-linux.powerpc64le-linux&#34;</span>
+</span></span><span style="display:flex;"><span>nix build <span style="color:#e6db74">&#34;.#hydraJobs.binaryTarballCross.x86_64-linux.riscv64-linux&#34;</span>
+</span></span></code></pre></div><p>生成的 tarball 可以在 result 中找到。</p>
+<h3 id="手动替换法">手动替换法</h3>
 <p>因此，我在网上进行搜索，发现 <a href="https://discourse.nixos.org/t/getting-started-with-nix-on-ppc64le/12712/8?u=jiegec">Getting started with Nix on ppc64le</a> 中有人提到，可以先在 x86 的机器上交叉编译出 ppc64le 的 nix，然后把 nix tarball 中的 x86 nix 替换成 ppc64le 版本，再复制到 ppc64le 上安装，其余的步骤就一样了。</p>
 <p>我把脚本更新了一下，适配了最新的 nix 版本，最后得到了如下的脚本：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
@@ -202,7 +223,12 @@ systemd.user.systemctlPath = &#34;/bin/systemctl&#34;;
             <nav id="TableOfContents">
   <ul>
     <li><a href="#背景">背景</a></li>
-    <li><a href="#解决办法">解决办法</a></li>
+    <li><a href="#解决办法">解决办法</a>
+      <ul>
+        <li><a href="#binarytarballcross-方法">binaryTarballCross 方法</a></li>
+        <li><a href="#手动替换法">手动替换法</a></li>
+      </ul>
+    </li>
     <li><a href="#编译问题">编译问题</a></li>
   </ul>
 </nav>
