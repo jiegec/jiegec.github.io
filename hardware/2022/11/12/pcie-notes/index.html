@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PCIe 学习笔记 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="PCIe 学习笔记" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/11/12/pcie-notes/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.105.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">PCIe 学习笔记</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/11/12/pcie-notes/" class="article-date">
+                <time datetime='2022-11-12T14:56:00.000&#43;08:00' itemprop="datePublished">2022-11-12</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/11/12/pcie-notes/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近在知乎上看到 <a href="https://www.zhihu.com/people/ljgibbs">LogicJitterGibbs</a> 的 <a href="https://zhuanlan.zhihu.com/p/447134701">资料整理：可以学习 1W 小时的 PCIe</a>，我跟着资料学习了一下，然后在这里记录一些我学习 PCIe 的笔记。</p>
+<p>下面的图片主要来自 PCIe 3.0 标准以及 MindShare 的 PCIe 3.0 书本。</p>
+<h2 id="分层">分层</h2>
+<p>PCIe 定义了三个层：Transaction Layer，Data Link Layer，Physical Layer，和 TCP/IP 四层模型很像。PCIe 也是基于 Packet 传输的。</p>
+<p><img src="/images/pcie_layer.png" alt=""></p>
+<h3 id="transaction-layer">Transaction Layer</h3>
+<p>Transaction Layer 的核心是 Transaction Layer Packet(TLP)。TLP 格式：</p>
+<p><img src="/images/pcie_tlp.png" alt=""></p>
+<p>即可选的若干个 Prefix，一个 Header，可选的 Data Payload，可选的 Digest。</p>
+<p>Prefix 和 Header 开头的一个字节是 <code>Fmt[2:0]</code> 和 <code>Type[4:0]</code> 字段。Fmt 决定了 header 的长度，有无数据，或者这是一个 Prefix。</p>
+<p>它支持几类 Packet：</p>
+<ul>
+<li>Memory: MMIO
+<ul>
+<li>Read Request(MRd)/Completion(CplD)</li>
+<li>Write Request(MWr): 注意只有 Request，没有 Completion</li>
+<li>AtomicOp Request(FetchAdd/Swap/CAS)/Completion(CplD)</li>
+<li>Locked Memory Read(MRdLk)/Completion(CplDLk): Legacy</li>
+</ul>
+</li>
+<li>IO: Legacy
+<ul>
+<li>Read Request(IORd)/Completion(CplD)</li>
+<li>Write Request(IOWr)/Completion(Cpl)</li>
+</ul>
+</li>
+<li>Configuration: 访问配置空间
+<ul>
+<li>Read Request(CfgRd0/CfgRd1)/Completion(CplD)</li>
+<li>Write Request(CfgWr0/CfgWr1)/Completion(Cpl)</li>
+</ul>
+</li>
+<li>Message: 传输 event
+<ul>
+<li>Request(Msg/MsgD)</li>
+</ul>
+</li>
+</ul>
+<p>括号里的是 TLP Type，对应了它 Fmt 和 Type 字段的取值。如果 Completion 失败了，原来应该是 CplD/CplDLk 的 Completion 会变成不带数据的 Cpl/CplLk。</p>
+<p>在 PCIe 3.0 标准的表 2-3 中列出了 TLP Type 以及对应的 Fmt 和 Type 编码。</p>
+<p>TLP 路由有三个方法，决定了这个 TLP 目的地是哪里：</p>
+<ul>
+<li>Address-based: 32 位或 64 位地址，用于 Memory 和 IO 请求</li>
+<li>ID-based：lspci 看到的地址，也就是 Bus Device Function，用于 Configuration 请求</li>
+<li>Implicit：用于 Message 请求，路由方法：
+<ul>
+<li>Routed to Root Complex</li>
+<li>Routed by Address: PCIe 3.0 标准中没有用这个路由方法的 Message</li>
+<li>Routed by ID</li>
+<li>Broadcast from Root Complex</li>
+<li>Local - Terminate at Receiver</li>
+<li>Gathered and router to Root Complex</li>
+</ul>
+</li>
+</ul>
+<h3 id="data-link-layer">Data Link Layer</h3>
+<p>Data Link Layer 的主要功能是进行 TLP 的可靠传输。它在传输 TLP 的时候，会在开头加上一个两字节的 Sequence Number，最后加上一个四字节的 LCRC（Link CRC）。</p>
+<p><img src="/images/pcie_tlp_link.png" alt=""></p>
+<p>除了传输 TLP，Data Link Layer 还会传输 Data Link Layer Packet(DLLP)，类型包括：</p>
+<ul>
+<li>Ack DLLP: 告诉对方自己已经成功收到了 TLP</li>
+<li>Nak DLLP：告诉对方自己接收 TLP 失败，请重试</li>
+<li>InitFC1/InitFC2/UpdateFC DLLPs：流量控制</li>
+<li>PM_Enter_L1/PM_Enter_L23/PM_Active_State_Request_L1/PM_Request_Ack：用于电源管理</li>
+</ul>
+<p>Data Link Layer 收到上层要发送 TLP 时候，首先拼接 Sequence Number 和 LCRC，然后会保存在 retry buffer 中，通过 Physical Layer 发送。从 Physical Layer 收到新的 TLP/DLLP 时，会检查它的完整性（CRC），如果正确，就向发送方发送一个 Ack DLLP，并把 TLP 提交给 Transaction Layer；如果不正确，就向发送方发送一个 Nak DLLP。如果收到了 Ack DLLP，就可以把相应的 TLP 从 retry buffer 中删掉；如果收到了 Nak DLLP，则要重传。这样就实现了 TLP 的可靠传输。</p>
+<p>需要注意的是，TLP 和 DLLP 的区别：TLP 就像 IP，目的地址可能会跨越多跳；而 DLLP 是点对点地工作，所以一个 TLP 在转发的每一跳中，接受方都会发送一次 Ack DLLP。</p>
+<p>Data Link Layer 的流量是 Credit-based 的：接受方会告诉发送方自己的 Buffer 还有多少空间（Credit），然后发送方根据 Credit 来控制是否继续发送 TLP。</p>
+<h2 id="配置">配置</h2>
+<p>接触 PCIe 的时候可能会有一个疑惑，就是这些 Bus Device Function 都是怎么分配的，分配完之后，访问请求又是怎么路由的。</p>
+<p>首先回顾一下，上面提到了 TLP 的 Memory 和 IO 是根据地址路由，Configuration 是根据 Bus Device Function 路由，而 PCIe 大概是一个树形的结构，叶子结点就是 PCIe 设备，非叶子结点是桥或者交换机。回想一下，IP 的路由是按照最长前缀匹配，如果在 PCIe 中还这样做的话，又太过于复杂了，毕竟 PCIe 可以人为地设定每个设备的地址，让地址满足一定的连续性和局部性，这样路由选择就非常简单了。</p>
+<p>观察 PCIe 标准中 7.3.3 Configuration Request Routing Rules，结合 MindShare 的书，看 Root Ports，Switches 和 Bridges 的要求，就知道 Configuration 请求是如何路由的：</p>
+<ul>
+<li>Configuration 请求只能由 Host Bridge 发起</li>
+<li>如果 Configuration 请求是 Type0，那么这个请求的目的设备就是当前设备</li>
+<li>如果 Configuration 请求是 Type1，
+<ul>
+<li>如果请求的 Bus Number 等于某一个 Downstream Port 的 Secondary Bus Number，则把 Configuration 请求转换为 Type0，然后发给该 Downstream Port</li>
+<li>如果不等于，但是 Bus Number 属于某一个 Downstream Port 的 Secondary Bus Number 和 Subordinate Bus Number 之间，则不修改 Configuration 请求，发送给该 Downstream Port。</li>
+</ul>
+</li>
+</ul>
+<p>如果类比一下 IP，那么分组在中途路由器转发的时候就是 Type1，Type0 就是最后一跳。路由就是直接按照几个不重合的 Bus Number 区间进行判断，没有复杂的最长前缀匹配。但是又有一个问题，如果按照 Bus 路由，那同一个 Bus 下不同的 Device 咋办？这就像是以太网，最后一跳的时候，如果同一个链路上有多个设备，那么多个设备都能收到，每个设备根据自己的 Device 号判断是否是发给自己的。PCI（注意不是 PCIe）总线也类似。随着速度越来越高，通过交换机，以太网已经变成了点对点，所以很少见到一个链路上同时有多个设备的情况了。PCIe 也一样，所以根据 Bus 路由就足够了。至于 lspci 看到的那些 Device 不等于 0 的设备，要么是兼容 PCI 设备的，要么是虚拟的，在设备内部进行路由的，并不是真的有一个 PCIe link 连了多个物理设备。</p>
+<p>所以简单理解一下，PCI 总线确实是一条总线，一条总线上很多设备。而 PCIe 实际上是一个网络，可以看作是很多个 PCI 总线连接在一起，可以把 Root Complex 或者 Switch 内部看成一个虚拟的有很多设备的 PCI 总线，而 PCIe Link 可以看成是只有一个设备的 PCI 总线。这样 PCIe 交换机可以看成若干个 PCI-PCI Bridge：</p>
+<p><img src="/images/pcie_bridge.png" alt=""></p>
+<p>还有 MindShare 书中的图 3-5:</p>
+<p><img src="/images/pcie_system.png" alt=""></p>
+<p>可以看到，这里的每一个 Bus 就是一个 PCI 总线，既有内部的虚拟 PCI 总线（Bus 0/2/6），也有 PCIe Link 充当的 PCI 总线（Bus 1/3/4/5/7/8/9）。在虚拟的 PCI 总线里，比如 PCIe Switch，一个 Device 对应一个 Downstream Port；而 PCIe Link 对应的 PCI 总线上就只有一个 Device。然后 PCIe Switch 的每个 Upstream Port 和 Downstream Port 里会记录三个 Bus Number：Primary(Pri)，Secondary(Sec) 和 Subordinate(Sub)。Primary 指的就是它上游直接连接的 PCI 总线编号，Sec 指的是下游直接连接的 PCI 总线编号，Sub 指的是它下游的最大 PCI 总线编号。</p>
+<p>这样，收到 Type1 的时候，Switch 按照各个 Downstream Port 的 Sec 和 Sub 进行判断，如果目标 Bus Number 等于 Sec，就转换为 Type0 发出去；如果大于 Sec，但是小于或等于 Sub，就原样发出去。可以看到，从 Host Bridge 到每个设备都可以通过这样的方式一路转发。</p>
+<p>既然 BDF 是把 Bus 划分为多个区间来路由的，那么 Memory 和 IO 请求也类似地可以对地址进行划分，变成多个区间，然后用类似的方法进行路由。</p>
+<p>这些用于路由的区间上下界，可以在各个端口的 Type1 Configuration Space 中找到：</p>
+<p><img src="/images/pcie_type1.png" alt=""></p>
+<ul>
+<li>路由 Type1 Configuration Request：Primary Bus Number, Secondary Bus Number, Subordinate Bus Number
+<ul>
+<li><code>Request Bus Number == Secondary Bus Number</code>: Type1 -&gt; Type0</li>
+<li><code>Secondary Bus Number &lt; Request Bus Number &lt;= Subordinate Bus Number</code>: Type1 -&gt; Type1</li>
+</ul>
+</li>
+<li>路由 IO Request：<code>I/O Base &lt;= IO Address &lt;= I/O Limit</code></li>
+<li>路由 Prefetchable Memory Request：<code>Prefetchable Memory Base &lt;= Memory Address &lt;= Prefetchable Memory Limit</code></li>
+<li>路由 Non-Prefetchable Memory Request：<code>Memory Base &lt;= Memory Address &lt;= Memory Limit</code></li>
+</ul>
+<p>而具体到每一个设备上，设备会提供若干个 BAR（Base Address Register），在枚举设备的时候，会给 BAR 分配地址，然后把设备的地址进行合并，记录到 Switch 上的 Base 和 Limit，然后一直递归，一路更新到 Root Complex。这样，就完成了地址分配，以及请求的路由。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#分层">分层</a>
+      <ul>
+        <li><a href="#transaction-layer">Transaction Layer</a></li>
+        <li><a href="#data-link-layer">Data Link Layer</a></li>
+      </ul>
+    </li>
+    <li><a href="#配置">配置</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/pcie">pcie
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/notes">notes
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/learn">learn
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2022/10/29/nix-on-ppc64le/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 ppc64le Linux 上运行 Nix&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
