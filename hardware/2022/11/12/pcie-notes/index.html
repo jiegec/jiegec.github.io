@@ -155,6 +155,7 @@
 <p>Data Link Layer 的流量是 Credit-based 的：接受方会告诉发送方自己的 Buffer 还有多少空间（Credit），然后发送方根据 Credit 来控制是否继续发送 TLP。</p>
 <h2 id="配置">配置</h2>
 <p>接触 PCIe 的时候可能会有一个疑惑，就是这些 Bus Device Function 都是怎么分配的，分配完之后，访问请求又是怎么路由的。</p>
+<h3 id="路由">路由</h3>
 <p>首先回顾一下，上面提到了 TLP 的 Memory 和 IO 是根据地址路由，Configuration 是根据 Bus Device Function 路由，而 PCIe 大概是一个树形的结构，叶子结点就是 PCIe 设备，非叶子结点是桥或者交换机。回想一下，IP 的路由是按照最长前缀匹配，如果在 PCIe 中还这样做的话，又太过于复杂了，毕竟 PCIe 可以人为地设定每个设备的地址，让地址满足一定的连续性和局部性，这样路由选择就非常简单了。</p>
 <p>观察 PCIe 标准中 7.3.3 Configuration Request Routing Rules，结合 MindShare 的书，看 Root Ports，Switches 和 Bridges 的要求，就知道 Configuration 请求是如何路由的：</p>
 <ul>
@@ -189,6 +190,233 @@
 <li>路由 Non-Prefetchable Memory Request：<code>Memory Base &lt;= Memory Address &lt;= Memory Limit</code></li>
 </ul>
 <p>而具体到每一个设备上，设备会提供若干个 BAR（Base Address Register），在枚举设备的时候，会给 BAR 分配地址，然后把设备的地址进行合并，记录到 Switch 上的 Base 和 Limit，然后一直递归，一路更新到 Root Complex。这样，就完成了地址分配，以及请求的路由。</p>
+<h3 id="分配">分配</h3>
+<p>既然知道了 BDF 是如何路由的，那么接下来的问题是，怎么枚举设备和交换机，分配 Bus Number。这个事情在系统启动的时候会做（例如 UEFI），Linux 中也有相关的代码。下面就来对着 <a href="https://github.com/tianocore/edk2">edk2</a> 的源代码来看看它是怎么做的。</p>
+<p>在 edk2 中，分配 Bus Number 的核心代码是 <code>PciScanBus</code> 函数：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  Scan pci bus and assign bus number to the given PCI bus system.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  Bridge           Bridge device instance.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  StartBusNumber   start point.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  SubBusNumber     Point to sub bus number.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  PaddedBusRange   Customized bus number.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @retval EFI_SUCCESS      Successfully scanned and assigned bus number.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @retval other            Some error occurred when scanning pci bus.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @note   Feature flag PcdPciBusHotplugDeviceSupport determine whether need support hotplug.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">**/</span>
+</span></span><span style="display:flex;"><span>EFI_STATUS
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PciScanBus</span> (
+</span></span><span style="display:flex;"><span>  IN PCI_IO_DEVICE  <span style="color:#f92672">*</span>Bridge,
+</span></span><span style="display:flex;"><span>  IN UINT8          StartBusNumber,
+</span></span><span style="display:flex;"><span>  OUT UINT8         <span style="color:#f92672">*</span>SubBusNumber,
+</span></span><span style="display:flex;"><span>  OUT UINT8         <span style="color:#f92672">*</span>PaddedBusRange
+</span></span><span style="display:flex;"><span>  );
+</span></span></code></pre></div><p>输入一个桥设备和初始的 Bus Number，输出 Subordinate Bus Number，也就是分配的最大的 Bus Number，以及 Padded Bus Range，例如如果要考虑热插拔的话，就需要预留一些 Bus Number。它在 <code>PciRootBridgeEnumerator</code> 函数中被调用，传入的是 RootBridgeDev。你可能也猜到了，这个函数可以递归调用，从 Root Bridge 开始往下，遇到新的桥设备的时候，就继续递归，然后根据下一层分配的 Bus Number 来计算上一层的 Subordinate Bus Number。</p>
+<p><code>PciScanBus</code> 首先枚举当前桥设备下的所有 Device 和 Function，因为当前的桥设备已经被分配了 Bus Number，所以是可以访问它下面的 Device 和 Function 的。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (Device <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; Device <span style="color:#f92672">&lt;=</span> PCI_MAX_DEVICE; Device<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>  TempReservedBusNum <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (Func <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; Func <span style="color:#f92672">&lt;=</span> PCI_MAX_FUNC; Func<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Check to see whether a pci device is present
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    Status <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>        PciDevicePresent(PciRootBridgeIo, <span style="color:#f92672">&amp;</span>Pci, StartBusNumber, Device, Func);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status) <span style="color:#f92672">&amp;&amp;</span> (Func <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// go to next device if there is no Function 0
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Get the PCI device information
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    Status <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>        PciSearchDevice(Bridge, <span style="color:#f92672">&amp;</span>Pci, StartBusNumber, Device, Func, <span style="color:#f92672">&amp;</span>PciDevice);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    PciAddress <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (IS_PCI_BRIDGE(<span style="color:#f92672">&amp;</span>Pci) <span style="color:#f92672">||</span> IS_CARDBUS_BRIDGE(<span style="color:#f92672">&amp;</span>Pci)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// For PPB
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciAllocateBusNumber(Bridge, <span style="color:#f92672">*</span>SubBusNumber, <span style="color:#ae81ff">1</span>, SubBusNumber);
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Status;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      SecondBus <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>SubBusNumber;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      Register <span style="color:#f92672">=</span> (UINT16)((SecondBus <span style="color:#f92672">&lt;&lt;</span> <span style="color:#ae81ff">8</span>) <span style="color:#f92672">|</span> (UINT16)StartBusNumber);
+</span></span><span style="display:flex;"><span>      Address <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func,
+</span></span><span style="display:flex;"><span>                                PCI_BRIDGE_PRIMARY_BUS_REGISTER_OFFSET);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciRootBridgeIo<span style="color:#f92672">-&gt;</span>Pci.Write(PciRootBridgeIo, EfiPciWidthUint16,
+</span></span><span style="display:flex;"><span>                                          Address, <span style="color:#ae81ff">1</span>, <span style="color:#f92672">&amp;</span>Register);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// If it is PPB, recursively search down this bridge
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (IS_PCI_BRIDGE(<span style="color:#f92672">&amp;</span>Pci)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// Temporarily initialize SubBusNumber to maximum bus number to ensure
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// the PCI configuration transaction to go through any PPB
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        Register <span style="color:#f92672">=</span> PciGetMaxBusNumber(Bridge);
+</span></span><span style="display:flex;"><span>        Address <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func,
+</span></span><span style="display:flex;"><span>                                  PCI_BRIDGE_SUBORDINATE_BUS_REGISTER_OFFSET);
+</span></span><span style="display:flex;"><span>        Status <span style="color:#f92672">=</span> PciRootBridgeIo<span style="color:#f92672">-&gt;</span>Pci.Write(PciRootBridgeIo, EfiPciWidthUint8,
+</span></span><span style="display:flex;"><span>                                            Address, <span style="color:#ae81ff">1</span>, <span style="color:#f92672">&amp;</span>Register);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        Status <span style="color:#f92672">=</span> PciScanBus(PciDevice, SecondBus, SubBusNumber, PaddedBusRange);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">return</span> Status;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// Set the current maximum bus number under the PPB
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      Address <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func,
+</span></span><span style="display:flex;"><span>                                PCI_BRIDGE_SUBORDINATE_BUS_REGISTER_OFFSET);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciRootBridgeIo<span style="color:#f92672">-&gt;</span>Pci.Write(PciRootBridgeIo, EfiPciWidthUint8,
+</span></span><span style="display:flex;"><span>                                          Address, <span style="color:#ae81ff">1</span>, SubBusNumber);
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// It is device. Check PCI IOV for Bus reservation
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// Go through each function, just reserve the MAX ReservedBusNum for one
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// device
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">// OMITTED
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((Func <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>IS_PCI_MULTI_FUNC(<span style="color:#f92672">&amp;</span>Pci)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// Skip sub functions, this is not a multi function device
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>      Func <span style="color:#f92672">=</span> PCI_MAX_FUNC;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>从代码中去掉了一些热插拔相关的代码，简单来说，它的思路如下：</p>
+<ol>
+<li>枚举当前设备下的 Device 和 Function</li>
+<li>如果找到了一个桥设备，为它分配一个新的 Bus Number
+<ol>
+<li>设置这个新的桥设备的 Primary Bus Number 为 Start Bus Number（也就是上一级的 Secondary Bus Number），Secondary Bus 是新分配的 Bus Number，Subordinate Bus Number 是最大值</li>
+<li>这样设置完成后，相当于所有的在 <code>[Secondary Bus Number, Max Bus Number]</code> 范围中的 Bus 请求都会路由到新的桥设备上</li>
+<li>递归调用 PciScanBus，参数是新的桥设备，Start Bus Number 为新的 Secondary Bus Number</li>
+<li>递归调用返回以后，新的桥设备下面所有的设备都分配到了自己的 Bus Number，这时候就可以知道准确的 Subordinate Bus Number 了，不再是刚才临时设置的 Max Bus Number，因此这时候再把准确的 Subordinate Bus Number 写入桥设备的 Subordinate Bus Number 中</li>
+</ol>
+</li>
+<li>枚举完所有设备以后，返回目前递归分配得到的最大的 Bus Number</li>
+</ol>
+<p>这样整理出来一看，其实很清楚，这就是一个 DFS 算法，在搜索过程中，为了保证当前的结点可达，保证从 Root Bridge 到当前的结点路径上的 Bus Number 范围都是 <code>[Secondary Bus Number, Max Bus Number]</code>；当结点搜索完以后，再回溯，回溯的时候就知道了实际分配到多大的 Bus Number，这时候再填回 Subordinate Bus Number，最后保证这个树上每一层的 <code>[Secondary Bus Number, Subordinate Bus Number]</code> 区间不重合，且每个子结点的区间都包含于父结点的区间。</p>
+<p>最后的结果，类似 MindShare 书中的这个图：</p>
+<p><img src="/images/pcie_enum.png" alt=""></p>
+<p>为了支持 PCIe 热插拔，或者可能会动态产生新设备的 SR-IOV，代码中做了相应的预留：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (FeaturePcdGet(PcdPciBusHotplugDeviceSupport)) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">// If Hot Plug is supported,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">// Get the bridge information
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  BusPadding <span style="color:#f92672">=</span> FALSE;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (gPciHotPlugInit <span style="color:#f92672">!=</span> NULL) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (IsPciHotPlugBus(PciDevice)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// If it is initialized, get the padded bus range
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      Status <span style="color:#f92672">=</span> gPciHotPlugInit<span style="color:#f92672">-&gt;</span>GetResourcePadding(
+</span></span><span style="display:flex;"><span>          gPciHotPlugInit, PciDevice<span style="color:#f92672">-&gt;</span>DevicePath, PciAddress, <span style="color:#f92672">&amp;</span>State,
+</span></span><span style="display:flex;"><span>          (VOID <span style="color:#f92672">**</span>)<span style="color:#f92672">&amp;</span>Descriptors, <span style="color:#f92672">&amp;</span>Attributes);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Status;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      BusRange <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>      NextDescriptors <span style="color:#f92672">=</span> Descriptors;
+</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciGetBusRange(<span style="color:#f92672">&amp;</span>NextDescriptors, NULL, NULL, <span style="color:#f92672">&amp;</span>BusRange);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      FreePool(Descriptors);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>        BusPadding <span style="color:#f92672">=</span> TRUE;
+</span></span><span style="display:flex;"><span>      } <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">if</span> (Status <span style="color:#f92672">!=</span> EFI_NOT_FOUND) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// EFI_NOT_FOUND is not a real error. It indicates no bus number padding
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// requested.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">return</span> Status;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (FeaturePcdGet(PcdPciBusHotplugDeviceSupport) <span style="color:#f92672">&amp;&amp;</span> BusPadding) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">// Ensure the device is enabled and initialized
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">if</span> ((Attributes <span style="color:#f92672">==</span> EfiPaddingPciRootBridge) <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>      ((State <span style="color:#f92672">&amp;</span> EFI_HPC_STATE_ENABLED) <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>      ((State <span style="color:#f92672">&amp;</span> EFI_HPC_STATE_INITIALIZED) <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>PaddedBusRange <span style="color:#f92672">=</span> (UINT8)((UINT8)(BusRange) <span style="color:#f92672">+</span> <span style="color:#f92672">*</span>PaddedBusRange);
+</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Reserve the larger one between the actual occupied bus number and padded
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// bus number
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    Status <span style="color:#f92672">=</span> PciAllocateBusNumber(PciDevice, SecondBus, (UINT8)(BusRange),
+</span></span><span style="display:flex;"><span>                                  <span style="color:#f92672">&amp;</span>PaddedSubBus);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> Status;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>SubBusNumber <span style="color:#f92672">=</span> MAX(PaddedSubBus, <span style="color:#f92672">*</span>SubBusNumber);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>SR-IOV:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// It is device. Check PCI IOV for Bus reservation
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Go through each function, just reserve the MAX ReservedBusNum for one device
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">if</span> (PcdGetBool(PcdSrIovSupport) <span style="color:#f92672">&amp;&amp;</span> (PciDevice<span style="color:#f92672">-&gt;</span>SrIovCapabilityOffset <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>)) {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (TempReservedBusNum <span style="color:#f92672">&lt;</span> PciDevice<span style="color:#f92672">-&gt;</span>ReservedBusNum) {
+</span></span><span style="display:flex;"><span>    Status <span style="color:#f92672">=</span> PciAllocateBusNumber(
+</span></span><span style="display:flex;"><span>        PciDevice, <span style="color:#f92672">*</span>SubBusNumber,
+</span></span><span style="display:flex;"><span>        (UINT8)(PciDevice<span style="color:#f92672">-&gt;</span>ReservedBusNum <span style="color:#f92672">-</span> TempReservedBusNum), SubBusNumber);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> Status;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    TempReservedBusNum <span style="color:#f92672">=</span> PciDevice<span style="color:#f92672">-&gt;</span>ReservedBusNum;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (Func <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>      DEBUG((DEBUG_INFO, <span style="color:#e6db74">&#34;PCI-IOV ScanBus - SubBusNumber - 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>             <span style="color:#f92672">*</span>SubBusNumber));
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>      DEBUG((DEBUG_INFO, <span style="color:#e6db74">&#34;PCI-IOV ScanBus - SubBusNumber - 0x%x (Update)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>             <span style="color:#f92672">*</span>SubBusNumber));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>分配好 Bus 以后，就可以对所有设备进行 Configuration Request 了，后续的 Memory 和 IO 地址的分配和路由，也是类似地递归地进行分配，然后回溯的时候合并地址区间即可。</p>
 
         </div>
 
@@ -205,7 +433,12 @@
         <li><a href="#data-link-layer">Data Link Layer</a></li>
       </ul>
     </li>
-    <li><a href="#配置">配置</a></li>
+    <li><a href="#配置">配置</a>
+      <ul>
+        <li><a href="#路由">路由</a></li>
+        <li><a href="#分配">分配</a></li>
+      </ul>
+    </li>
   </ul>
 </nav>
         </div>
