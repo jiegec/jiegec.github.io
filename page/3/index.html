@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.105.0">
+    <meta name="generator" content="Hugo 0.106.0">
 </head>
 
 <body>
@@ -63,6 +63,132 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/16/ace/">「教学」ACE 缓存一致性协议</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/16/ace/" class="article-date">
+                        <time datetime='2022-05-16T00:34:00.000&#43;08:00' itemprop="datePublished">2022-05-16</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/16/ace/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近几天分析了 TileLink 的缓存一致性协议部分内容，见TileLink 总线协议分析，趁此机会研究一下之前尝试过研究，但是因为缺少一些基础知识而弃坑的 ACE 协议分析。
+下面主要参考了 IHI0022E 的版本，也就是 AXI4 对应的 ACE 版本。
+回顾 首先回顾一下一个缓存一致性协议需要支持哪些操作。对于较上一级 Cache 来说，它需要这么几件事情：
+读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。 需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知，也可以选择不通知下一级。 收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。 需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。 如果之前看过我的 TileLink 分析，那么上面的这些操作对应到 TileLink 就是：
+读或写 miss 的时候，需要请求这个缓存行的数据（发送 AcquireBlock，等待 GrantData），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;&amp; !
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/16/ace/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/axi">axi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/bus">bus
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cache">cache
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/coherence">coherence
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/teaching">teaching
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/13/rocket-chip-custom-debug/">向 Rocket Chip 添加自定义调试信号</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/13/rocket-chip-custom-debug/" class="article-date">
+                        <time datetime='2022-05-13T08:35:00.000&#43;08:00' itemprop="datePublished">2022-05-13</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/13/rocket-chip-custom-debug/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。
+分析 Trace 信号连接方式 首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 testchipip.CanHaveTraceIO:
+trait CanHaveTraceIO { this: HasTiles =&gt; val module: CanHaveTraceIOModuleImp // Bind all the trace nodes to a BB; we&#39;ll use this to generate the IO in the imp val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]() val tileTraceNodes = tiles.flatMap { case ext_tile: WithExtendedTraceport =&gt; None case tile =&gt; Some(tile) }.map { _.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/13/rocket-chip-custom-debug/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rocketchip">rocketchip
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/debug">debug
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -612,133 +738,6 @@ $ yosys -p &#39;read_verilog -defer merge.
             </div>
         </article>
         
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/14/design-compiler-synthesis/">Synopsys Design Compiler 综合实践</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/14/design-compiler-synthesis/" class="article-date">
-                        <time datetime='2022-03-14T15:22:00.000&#43;08:00' itemprop="datePublished">2022-03-14</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/14/design-compiler-synthesis/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    工艺库 综合很重要的一步是把 HDL 的逻辑变成一个个单元，这些单元加上连接方式就成为了网表。那么，基本单元有哪些，怎么决定用哪些基本单元？
-这个就需要工艺库了，工艺库定义了一个个单元，单元的引脚、功能，还有各种参数，这样 Design Compiler 就可以按照这些信息去找到一个优化的网表。
-Liberty 格式 网上可以找到一些 Liberty 格式的工艺库，比如 Nangate45，它的设定是 25 摄氏度，1.10 伏，属于 TT（Typical/Typical）的 Process Corner。
-在里面可以看到一些基本单元的定理，比如 AND2_X1，就是一个 drive strength 是 1 的二输入与门：
-cell (AND2_X1) { drive_strength : 1; pin (A1) { direction : input; } pin (A2) { direction : input; } pin (ZN) { direction : output; function : &#34;(A1 &amp; A2)&#34;; } /* ... */ } 这样就定义了两个输入 pin，一个输出 pin，还有它实现的功能。还有很重要的一点是保存了时序信息，比如：
-lu_table_template (Timing_7_7) { variable_1 : input_net_transition; variable_2 : total_output_net_capacitance; index_1 (&#34;0.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/14/design-compiler-synthesis/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synthesis">synthesis
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synopsys">synopsys
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/dc">dc
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/designcompiler">designcompiler
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/12/try-openroad-flow/">OpenROAD Flow 初尝试</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/12/try-openroad-flow/" class="article-date">
-                        <time datetime='2022-03-12T22:52:00.000&#43;08:00' itemprop="datePublished">2022-03-12</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/12/try-openroad-flow/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近在尝试接触一些芯片前后端的知识。正好有现成的开源工具链 OpenROAD 来做这个事情，借此机会来学习一下整个流程。
-尝试过程 首先 clone 仓库 OpenROAD-flow-scripts，然后运行：./build_openroad.sh，脚本会克隆一些仓库，自动进行编译。
-编译中会找不到一些库，比如可能需要安装这些依赖：liblemon-dev libeigen3-dev libreadline-dev swig，此外运行的时候还需要 klayout 依赖。
-如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 BUG，可以运行下面的命令解决：
-cd /usr/lib/x86_64-linux-gnu/cmake/lemon cp lemonConfig.cmake LEMONConfig.cmake 编译后整个目录大概有 4.8G，输出的二进制目录是 133M。
-如果要跑一下样例里的 nangate45 工艺的 gcd 例子，运行：
-cd flow make DESIGN_CONFIG=./designs/nangate45/gcd/config.mk 分析 GCD 测例 这个测例的代码提供了这样一个接口：
-module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, input wire req_val, input wire reset, output wire [ 15:0] resp_msg, input wire resp_rdy, output wire resp_val ); endmodule 从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/12/try-openroad-flow/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/openroad">openroad
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synthesis">synthesis
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/yosys">yosys
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
 
         
 
@@ -873,6 +872,10 @@ module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, in
     
     
     <a href="/page/32/">32</a>
+    
+    
+    
+    <a href="/page/33/">33</a>
     
     
 
