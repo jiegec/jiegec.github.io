@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.106.0">
+    <meta name="generator" content="Hugo 0.107.0">
 </head>
 
 
@@ -94,11 +94,11 @@
 </span></span><span style="display:flex;"><span>    .pinning <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span> <span style="color:#75715e">// PIN_GLOBAL_NS
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
 </span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>SEC(<span style="color:#e6db74">&#34;out_daddr&#34;</span>)
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> bpf_out_daddr(<span style="color:#66d9ef">struct</span> __sk_buff <span style="color:#f92672">*</span>skb) {
-</span></span><span style="display:flex;"><span>  u32 daddr <span style="color:#f92672">=</span> get_daddr(skb);
-</span></span><span style="display:flex;"><span>  u32 hash <span style="color:#f92672">=</span> Murmur3(daddr, <span style="color:#ae81ff">0</span>);
-</span></span><span style="display:flex;"><span>  update_hll(<span style="color:#f92672">&amp;</span>hll_ebpf_out_daddr, hash);
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">SEC</span>(<span style="color:#e6db74">&#34;out_daddr&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">bpf_out_daddr</span>(<span style="color:#66d9ef">struct</span> __sk_buff <span style="color:#f92672">*</span>skb) {
+</span></span><span style="display:flex;"><span>  u32 daddr <span style="color:#f92672">=</span> <span style="color:#a6e22e">get_daddr</span>(skb);
+</span></span><span style="display:flex;"><span>  u32 hash <span style="color:#f92672">=</span> <span style="color:#a6e22e">Murmur3</span>(daddr, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">update_hll</span>(<span style="color:#f92672">&amp;</span>hll_ebpf_out_daddr, hash);
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>首先是声名一个类型为 PERCPU_ARRAY 的 eBPF MAP 类型。这里的 MAP 不是字典，Array 才是真是的数据结构，只不过提供的 API 是类似于字典的。SEC 宏则是指定这个东西要放在哪一个段，这个在后面会提到。这个函数的作用就是，获取 IP 包的目的地址（其实应该判断一下是否是 IPv4 的），然后根据 HyperLogLog 的要求，进行哈希（这里采用的是 Murmur3），然后对得到的哈希值分段，前一部分用于索引，后一部分的 nlz（clz, whatever）用于估计。具体算法详情可以参考 HyperLogLog 的论文。</p>
@@ -113,7 +113,7 @@
 </span></span><span style="display:flex;"><span>$ sudo tc filter add dev <span style="color:#e6db74">${</span>IFACE<span style="color:#e6db74">}</span> ingress bpf obj bpf.o sec in_saddr
 </span></span></code></pre></div><p>我们需要在用户态读出上面这个 MAP 中的内容。由于它是全局的，我们可以在 <code>/sys/fs/bpf/tc/globals</code> 中找到他们。然后，把统计得到的数据进行综合，得到结果：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">read_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>file) {
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> bpf_obj_get(file);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">bpf_obj_get</span>(file);
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#ae81ff">6</span>;
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> m <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> b;
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> M[m] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
@@ -121,21 +121,21 @@
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">double</span> sum <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span>m; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> value[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
-</span></span><span style="display:flex;"><span>    bpf_map_lookup_elem(fd, <span style="color:#f92672">&amp;</span>i, <span style="color:#f92672">&amp;</span>value);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">bpf_map_lookup_elem</span>(fd, <span style="color:#f92672">&amp;</span>i, <span style="color:#f92672">&amp;</span>value);
 </span></span><span style="display:flex;"><span>    M[i] <span style="color:#f92672">=</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">&gt;</span> value[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">?</span> value[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">:</span> value[<span style="color:#ae81ff">1</span>]; <span style="color:#75715e">// assuming 2 CPUs, will change later
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (M[i] <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)
 </span></span><span style="display:flex;"><span>      V<span style="color:#f92672">++</span>;
-</span></span><span style="display:flex;"><span>    sum <span style="color:#f92672">+=</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#f92672">-</span>M[i]);
+</span></span><span style="display:flex;"><span>    sum <span style="color:#f92672">+=</span> <span style="color:#a6e22e">pow</span>(<span style="color:#ae81ff">2</span>, <span style="color:#f92672">-</span>M[i]);
 </span></span><span style="display:flex;"><span>  }
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">double</span> E <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.709</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> sum;
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (E <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">5</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>) {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (V <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
-</span></span><span style="display:flex;"><span>      E <span style="color:#f92672">=</span> m <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> V);
+</span></span><span style="display:flex;"><span>      E <span style="color:#f92672">=</span> m <span style="color:#f92672">*</span> <span style="color:#a6e22e">log</span>(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">*</span> m <span style="color:#f92672">/</span> V);
 </span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (E<span style="color:#f92672">&gt;</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">/</span> <span style="color:#ae81ff">30</span>) {
-</span></span><span style="display:flex;"><span>    E <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">*</span> log(<span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> E <span style="color:#f92672">/</span> pow(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>));
+</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (E<span style="color:#f92672">&gt;</span> <span style="color:#a6e22e">pow</span>(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">/</span> <span style="color:#ae81ff">30</span>) {
+</span></span><span style="display:flex;"><span>    E <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#a6e22e">pow</span>(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>) <span style="color:#f92672">*</span> <span style="color:#a6e22e">log</span>(<span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> E <span style="color:#f92672">/</span> <span style="color:#a6e22e">pow</span>(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">32</span>));
 </span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>  printf(<span style="color:#e6db74">&#34;%ld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, lround(E));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;%ld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, <span style="color:#a6e22e">lround</span>(E));
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>可以手动通过 <code>nmap</code> 测试，例如扫描一个段，可以看到数据会增长许多。如果扫描相同的段，则数字不会变化，但如果扫描新的段，数字会有变化。这是一个 利用了 eBPF 的 HyperLogLog 的实现。</p>
 

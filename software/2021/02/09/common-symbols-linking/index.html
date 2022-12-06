@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.106.0">
+    <meta name="generator" content="Hugo 0.107.0">
 </head>
 
 
@@ -119,20 +119,20 @@
 <p>为啥会有这种需求，多个 variable 同名，不会冲突而且共享内存？又在别的地方看到说法，COMMON 是给 <code>ancient</code> 代码使用的，还有的提到了 FORTRAN。于是去搜了一下，果然，FORTRAN 是问题的关键</p>
 <h2 id="fortran-里面的-common">FORTRAN 里面的 COMMON</h2>
 <p>用关键词很容易可以搜索到讲 <a href="https://www.obliquity.com/computer/fortran/common.html">COMMON BLOCK in FORTRAN 的文章</a>，FORTRAN 里面的 COMMON 是一种通过全局存储隐式传递参数的方法。拿文章里的例子：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-fortran" data-lang="fortran"><span style="display:flex;"><span>      <span style="color:#66d9ef">PROGRAM </span>MAIN
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">INTEGER </span>A
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">REAL    </span>F,R,X,Y
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">COMMON  </span>R,A,F
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-fortran" data-lang="fortran"><span style="display:flex;"><span>      <span style="color:#66d9ef">PROGRAM</span> MAIN
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">INTEGER</span> A
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">REAL</span>    F,R,X,Y
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">COMMON</span>  R,A,F
 </span></span><span style="display:flex;"><span>      A <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">14</span>
 </span></span><span style="display:flex;"><span>      R <span style="color:#f92672">=</span> <span style="color:#ae81ff">9</span><span style="color:#ae81ff">9.9</span>
 </span></span><span style="display:flex;"><span>      F <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.2</span>
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">CALL </span>SUB(X,Y)
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">END
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">      SUBROUTINE </span>SUB(P,Q)
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">INTEGER </span>I
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">REAL    </span>A,B,P,Q
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">COMMON  </span>A,I,B
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">CALL</span> SUB(X,Y)
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">END</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">SUBROUTINE</span> SUB(P,Q)
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">INTEGER</span> I
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">REAL</span>    A,B,P,Q
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">COMMON</span>  A,I,B
 </span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">END</span>
 </span></span></code></pre></div><p>在函数 MAIN 和 SUB 中，都有 COMMON 语句，而 COMMON 后面的变量，就是存储在一个 COMMON 的 symbol 之中，按照顺序映射到 symbol 的内存地址。尝试编译一下上面的代码，然后看一下 symbol：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ gfortran -g -c test.f -o test.o
@@ -191,21 +191,21 @@
 </span></span><span style="display:flex;"><span>      74: c0 <span style="color:#ae81ff">03</span> 5f d6                  	ret
 </span></span></code></pre></div><p>可以看到，在 MAIN 中引用 <code>A</code> 的时候，取的地址是 <code>___BLNK__+4</code>，<code>R</code> 是 <code>___BLNK__+0</code>，<code>F</code> 是 <code>___BLNK__+8</code>。这和代码里的顺序也是一致的。所以在 SUB 中读 A I B 的时候，对应了 MAIN 中的 A R F。通过这种方式，可以在 MAIN 函数里面隐式地给所有函数传递参数。</p>
 <p>此外，COMMON 还可以命名，这样就可以区分不同的参数用途：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-fortran" data-lang="fortran"><span style="display:flex;"><span>        <span style="color:#66d9ef">PROGRAM </span>MAIN
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">INTEGER </span>A
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">REAL    </span>F,R,X,Y
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">COMMON  </span>R,A,F
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-fortran" data-lang="fortran"><span style="display:flex;"><span>        <span style="color:#66d9ef">PROGRAM</span> MAIN
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">INTEGER</span> A
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">REAL</span>    F,R,X,Y
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">COMMON</span>  R,A,F
 </span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">COMMON</span> <span style="color:#f92672">/</span>test<span style="color:#f92672">/</span> X,Y
 </span></span><span style="display:flex;"><span>        A <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">14</span>
 </span></span><span style="display:flex;"><span>        R <span style="color:#f92672">=</span> <span style="color:#ae81ff">9</span><span style="color:#ae81ff">9.9</span>
 </span></span><span style="display:flex;"><span>        F <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.2</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">CALL </span>SUB(X,Y)
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">END
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">        SUBROUTINE </span>SUB(P,Q)
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">INTEGER </span>I
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">REAL    </span>A,B,P,Q
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">COMMON  </span>A,I,B
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">CALL</span> SUB(X,Y)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">END</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">SUBROUTINE</span> SUB(P,Q)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">INTEGER</span> I
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">REAL</span>    A,B,P,Q
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">COMMON</span>  A,I,B
 </span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">END</span>
 </span></span></code></pre></div><p>代码添加了一行 <code>COMMON /test/</code>，观察一下 symbol：</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ objdump -t test.o

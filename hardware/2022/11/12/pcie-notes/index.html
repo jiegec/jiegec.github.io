@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.106.0">
+    <meta name="generator" content="Hugo 0.107.0">
 </head>
 
 
@@ -429,7 +429,7 @@
 <li>PCIe 7.0: <code>128.0 * 16 = 2048 Gb/s</code>，如果考虑 FLIT 引入的开销，则是 <code>128.0 * 242 / 256 * 16 = 1936 Gb/s</code></li>
 </ul>
 <h2 id="pcie-60">PCIe 6.0</h2>
-<p>PCIe 6.0 引入了 PAM4 来替代原来的 NRZ，实现了波特率不变的情况下速度翻倍，并且不再使用 128b/130b，为了保证 PAM4 带来的更高的错误率，引入了 FEC，CRC 还有格雷码，以及新的 FLIT。</p>
+<p>PCIe 6.0 引入了 PAM4 来替代原来的 NRZ，实现了波特率不变的情况下速度翻倍，并且不再使用 128b/130b，为了解决 PAM4 带来的更高的错误率，引入了 FEC，CRC 还有格雷码，以及新的 FLIT。</p>
 <p>网上可以搜到关于 PCIe 的 PPT：https://pcisig.com/sites/default/files/files/PCIe%206.0%20Webinar_Final_.pdf 和 <a href="https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206_DDasSharma.pdf">https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206_DDasSharma.pdf</a>，以及关于 FLIT 的博客：https://pcisig.com/blog/pcie%C2%AE-60-specification-webinar-qa-deeper-dive-flit-mode-pam4-and-forward-error-correction-fec</p>
 <p>总结 FLIT 的要点：</p>
 <ol>
@@ -438,6 +438,17 @@
 <li>一个 TLP 可能跨越多个 FLIT，一个 FLIT 可能包括多个 TLP，根据 TLP 大小而定。TLP 不需要对齐到 FLIT 的开头或者结尾。</li>
 </ol>
 <p>可以发现，FLIT 的 CRC 用了 8 个字节，不再需要原来 TLP 和 DLLP 中的 ECRC 和 LCRC。在之前的 PCIe 版本，TLP 的可选 Digest 是 4 个字节的 ECRC，TLP+DLLP 的 LCRC 是 4 字节。具体采用多少字节的 CRC，和目标的错误率，以及传输的字节数相关。</p>
+<h2 id="ats">ATS</h2>
+<p>ATS（Address Translation Service）是在 PCIe 上给外设提供查询页表的方式，从而可以使用虚拟地址。标准可以在 <a href="https://composter.com.ua/documents/ats_r1.1_26Jan09.pdf">https://composter.com.ua/documents/ats_r1.1_26Jan09.pdf</a> 处下载，以及关于 ATS 的 PPT：https://composter.com.ua/documents/Address_Translation_Services.pdf。</p>
+<p>它的整体工作方式如图：</p>
+<p><img src="/images/pcie_ats.png" alt=""></p>
+<p>就是在 Root Complex 和 Memory 之间设置一个 Translation Agent，负责查表，也就是 Page Table Walker。它会接收来自 PCIe 设备的地址翻译请求，然后它获取到页表地址后，根据虚拟地址去查内存中的页表。TLB（在标准中叫做 Address Translation Cache，ATC）是实现在 PCIe 设备侧的，而不是统一的 TLB，也不是 CPU 核心的 TLB。</p>
+<p>为了支持 ATS，需要支持如下的操作：</p>
+<ol>
+<li>PCIe Device 向 Translation Agent 发送 Translation Request；Translation Agent 向 PCIe Device 回复 Translation Completion；</li>
+<li>当页表出现变化的时候，需要通知 PCIe 设备端的 TLB，因此需要向 PCIe 设备发送 Invalidate Request Message；PCIe 设备完成 TLB 刷新后，回复一个 Invalidate Complete Message。</li>
+</ol>
+<p>ATS 标准还定义了一个可选功能，就是 Page Request Interface（PRI），其实就是缺页的时候，设备可以去发送 Page Request，要求操作系统去分配一个物理页。这就像用户程序里 mmap 一个匿名的页，一开始是没有分配的，直到第一次访问的时候，出现缺页异常，然后 OS 分配一个物理页，再更新页表。这样的好处是用于 DMA 的物理页也可以 Swap 或者延迟分配。</p>
 
         </div>
 
@@ -462,6 +473,7 @@
     </li>
     <li><a href="#物理层">物理层</a></li>
     <li><a href="#pcie-60">PCIe 6.0</a></li>
+    <li><a href="#ats">ATS</a></li>
   </ul>
 </nav>
         </div>
