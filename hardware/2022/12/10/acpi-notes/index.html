@@ -677,6 +677,7 @@ Device (SPMI)
 <h2 id="启动图片">启动图片</h2>
 <p>启动图片以 BMP 格式保存在内存中，基地址记录在 BGRT 表中。可以直接从 <code>/sys/firmware/acpi/bgrt/image</code> 获取启动的图片内容。</p>
 <h2 id="pcie">PCIe</h2>
+<h3 id="root-bridge">Root Bridge</h3>
 <p>PCIe 总线是自带枚举功能的，所以只需要找到 Root Bridge，其他设备都可以枚举出来。而 ACPI 就提供了寻找 Root Bridge 的方法。</p>
 <p>搜索 <code>PNP0A08</code> 可以找到 PCIe 总线：</p>
 <pre tabindex="0"><code class="language-asl" data-lang="asl">Device (PC00)
@@ -791,7 +792,19 @@ pci_bus 0000:00: root bus resource [bus 00-15]
 </span></span><span style="display:flex;"><span>	bus <span style="color:#f92672">=</span> <span style="color:#a6e22e">pci_create_root_bus</span>(NULL, busnum, ops<span style="color:#f92672">-&gt;</span>pci_ops,
 </span></span><span style="display:flex;"><span>				  sysdata, <span style="color:#f92672">&amp;</span>info<span style="color:#f92672">-&gt;</span>resources);
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div>
+</span></span></code></pre></div><h3 id="mcfg">MCFG</h3>
+<p>除了上面的 Root Bridge 以外，还有一个很重要的问题是，如何访问 PCIe 的 Configuration Space。传统的办法是通过 IO Port 0xCF8 和 0xCFC，但是这个方法慢，并且有局限性。而较新的办法是 Enhanced Configuration Access Mechanism (ECAM)，把 PCIe 设备的 Configuration Space 映射到内存中，那么就需要一个基地址。这个基地址是在 MCFG 表中给出的：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">[02Ch 0044   8]                 Base Address : 0000000060000000
+[034h 0052   2]         Segment Group Number : 0000
+[036h 0054   1]             Start Bus Number : 00
+[037h 0055   1]               End Bus Number : FF
+[038h 0056   4]                     Reserved : 00000000
+</code></pre><p>内核输出：</p>
+<pre tabindex="0"><code>PCI: MMCONFIG for domain 0000 [bus 00-ff] at [mem 0x60000000-0x6fffffff] (base 0x60000000)
+PCI: MMCONFIG at [mem 0x60000000-0x6fffffff] reserved in E820
+</code></pre><p>有了这个信息以后，就可以计算出要访问 Configuration Space 时 MMIO 的地址了：</p>
+<p><img src="/images/pcie_ecam.png" alt=""></p>
+
         </div>
 
         
@@ -819,7 +832,12 @@ pci_bus 0000:00: root bus resource [bus 00-15]
     <li><a href="#dma">DMA</a></li>
     <li><a href="#cmosrtc">CMOS/RTC</a></li>
     <li><a href="#启动图片">启动图片</a></li>
-    <li><a href="#pcie">PCIe</a></li>
+    <li><a href="#pcie">PCIe</a>
+      <ul>
+        <li><a href="#root-bridge">Root Bridge</a></li>
+        <li><a href="#mcfg">MCFG</a></li>
+      </ul>
+    </li>
   </ul>
 </nav>
         </div>
