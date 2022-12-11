@@ -804,6 +804,42 @@ pci_bus 0000:00: root bus resource [bus 00-15]
 PCI: MMCONFIG at [mem 0x60000000-0x6fffffff] reserved in E820
 </code></pre><p>有了这个信息以后，就可以计算出要访问 Configuration Space 时 MMIO 的地址了：</p>
 <p><img src="/images/pcie_ecam.png" alt=""></p>
+<h3 id="相关文档">相关文档</h3>
+<p>Linux 的文档 <a href="https://docs.kernel.org/PCI/acpi-info.html">ACPI considerations for PCI host bridges</a> 对 ACPI PCIe 描述的比较详细，摘录如下：</p>
+<pre><code>The general rule is that the ACPI namespace should describe everything the
+OS might use unless there’s another way for the OS to find it [1, 2].
+
+For example, there’s no standard hardware mechanism for enumerating PCI host
+bridges, so the ACPI namespace must describe each host bridge, the method
+for accessing PCI config space below it, the address space windows the host
+bridge forwards to PCI (using _CRS), and the routing of legacy INTx
+interrupts (using _PRT).
+
+PCI devices, which are below the host bridge, generally do not need to be
+described via ACPI. The OS can discover them via the standard PCI
+enumeration mechanism, using config accesses to discover and identify
+devices and read and size their BARs. However, ACPI may describe PCI devices
+if it provides power management or hotplug functionality for them or if the
+device has INTx interrupts connected by platform interrupt controllers and a
+_PRT is needed to describe those connections.
+</code></pre>
+<p>文档和上面讲的是一致的，对于 PCIe 自己可以枚举出来的，ACPI 就不需要再重复；但是枚举需要首先知道有哪些 Root Bridge 以及 ECAM 的基地址，这个信息只能由 ACPI 来提供。</p>
+<pre><code>The PCIe spec requires the Enhanced Configuration Access Method (ECAM)
+unless there’s a standard firmware interface for config access, e.g., the
+ia64 SAL interface [7]. A host bridge consumes ECAM memory address space and
+converts memory accesses into PCI configuration accesses. The spec defines
+the ECAM address space layout and functionality; only the base of the
+address space is device-specific. An ACPI OS learns the base address from
+either the static MCFG table or a _CBA method in the PNP0A03 device.
+</code></pre>
+<p>这一段讲的其实就是 ECAM 与 MCFG 的关系。</p>
+<h2 id="修改-acpi-表内容">修改 ACPI 表内容</h2>
+<p>想要修改 ACPI 表内容，最根本的办法是修改固件，但是修改起来比较麻烦。Linux 提供了一些方法来运行时打补丁：</p>
+<ul>
+<li><a href="https://www.kernel.org/doc/html/latest/admin-guide/acpi/initrd_table_override.html">Upgrading ACPI tables via initrd</a>：覆盖 ACPI 表</li>
+<li><a href="https://www.kernel.org/doc/html/latest/admin-guide/acpi/ssdt-overlays.html">SSDT Overlays</a>：添加额外的 SSDT 表，类似 DT Overlay</li>
+</ul>
+<p>在黑苹果中，一般则是在 Bootloader(Clover/OpenCore) 一步把 ACPI 表修改了，如 [How to Patch Laptop DSDT and SSDTs](<a href="https://elitemacx86.com/threads/how-to-patch-laptop-dsdt-and-ssdts.178/">https://elitemacx86.com/threads/how-to-patch-laptop-dsdt-and-ssdts.178/</a>。</p>
 
         </div>
 
@@ -836,8 +872,10 @@ PCI: MMCONFIG at [mem 0x60000000-0x6fffffff] reserved in E820
       <ul>
         <li><a href="#root-bridge">Root Bridge</a></li>
         <li><a href="#mcfg">MCFG</a></li>
+        <li><a href="#相关文档">相关文档</a></li>
       </ul>
     </li>
+    <li><a href="#修改-acpi-表内容">修改 ACPI 表内容</a></li>
   </ul>
 </nav>
         </div>
