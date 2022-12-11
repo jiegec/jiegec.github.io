@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ACPI 学习笔记 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="ACPI 学习笔记" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2022/12/10/acpi-notes/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.107.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">ACPI 学习笔记</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2022/12/10/acpi-notes/" class="article-date">
+                <time datetime='2022-12-10T20:44:00.000&#43;08:00' itemprop="datePublished">2022-12-10</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2022/12/10/acpi-notes/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="标准">标准</h2>
+<p>ACPI 标准可以从<a href="https://uefi.org/specifications">官网</a>下载。</p>
+<p>ACPI 的表现形式为一颗树，结点可能是属性，或者是一些函数。操作系统可以操作上面的属性，调用 ACPI 中的函数，来进行一些硬件相关的操作。ACPI 一般与主板密切相关，主板厂家配置好 ACPI 后，操作系统就不需要给每个主板都写一遍代码了。</p>
+<h2 id="asl">ASL</h2>
+<p>为了开发 ACPI，需要使用 ACPI Source Language(ASL) 来进行编程，使用 iasl 编译成 ACPI 表以后，由操作系统进行解释执行。推荐阅读一个比较好的 ASL 教程：<a href="https://acpica.org/sites/acpica/files/asl_tutorial_v20190625.pdf">ACPI Source Language (ASL) Tutorial</a>。</p>
+<p>简单来说，ASL 中的变量类型：</p>
+<ul>
+<li>Integer: <code>int32_t/int64_t</code></li>
+<li>String: <code>char *</code></li>
+<li>Buffer: <code>uint8_t []</code></li>
+<li>Package: <code>object []</code></li>
+<li>Object Reference: <code>object &amp;</code></li>
+<li>Method</li>
+</ul>
+<p>ACPI 需要访问硬件，一般是通过 MMIO 或者 IO Port 来进行访问。在内核开发的时候，MMIO 一般是用一系列 volatile 指针来对应硬件的寄存器定义。ASL 中也可以做类似的事情，分为两步：<code>OperationRegion</code> 和 <code>Field</code>。</p>
+<p><code>OperationRegion</code> 就是声明了一片地址空间，以及对应的类型，常见的类型有 SystemMemory、SystemIO、PCI_Config、SMBus 等等。当 ACPI 中的代码要访问 <code>OperationRegion</code> 中的数据的时候，内核按照类型去进行实际的访问。</p>
+<p>有了地址空间以后，还需要根据寄存器的定义，给各个字段起个名字，这就是 <code>Field</code>。<code>Field</code> 给 <code>OperationRegion</code> 中的字段起名，与硬件的定义想对应，这就像在内核中定义一个结构体，保证结构体的成员的偏移和硬件是一致的。这样就可以通过成员来访问，而不是每次都去计算一次偏移。</p>
+<h2 id="获取当前系统的-acpi-表">获取当前系统的 ACPI 表</h2>
+<p>使用以下命令获取 ACPI 表并转换为可以阅读的格式：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>sudo acpidump -o acpi.raw
+</span></span><span style="display:flex;"><span>acpixtract -a acpi.raw
+</span></span><span style="display:flex;"><span>iasl -d *.dat
+</span></span></code></pre></div><h2 id="串口">串口</h2>
+<h3 id="x86_64">x86_64</h3>
+<p>下面来看一个具体的例子，主板 <code>WS X299 PRO/SE</code> 的 ACPI 表中记录的串口信息：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Device (UAR1)
+{
+    Name (_HID, EisaId (&#34;PNP0501&#34;) /* 16550A-compatible COM Serial Port */)  // _HID: Hardware ID
+    Name (_UID, 0x00)  // _UID: Unique ID
+    Name (LDN, 0x02)
+    Method (_STA, 0, NotSerialized)  // _STA: Status
+    {
+        Return (^^SIO1.DSTA (0x00))
+    }
+
+    Method (_DIS, 0, NotSerialized)  // _DIS: Disable Device
+    {
+        ^^SIO1.DCNT (0x00, 0x00)
+    }
+
+    Method (_CRS, 0, NotSerialized)  // _CRS: Current Resource Settings
+    {
+        Return (^^SIO1.DCRS (0x00, 0x00))
+    }
+
+    Method (_SRS, 1, NotSerialized)  // _SRS: Set Resource Settings
+    {
+        ^^SIO1.DSRS (Arg0, 0x00)
+    }
+
+    Name (_PRS, ResourceTemplate ()  // _PRS: Possible Resource Settings
+    {
+        StartDependentFn (0x00, 0x00)
+        {
+            IO (Decode16,
+                0x03F8,             // Range Minimum
+                0x03F8,             // Range Maximum
+                0x01,               // Alignment
+                0x08,               // Length
+                )
+            IRQNoFlags ()
+                {4}
+            DMA (Compatibility, NotBusMaster, Transfer8, )
+                {}
+        }
+        StartDependentFnNoPri ()
+        {
+            IO (Decode16,
+                0x03F8,             // Range Minimum
+                0x03F8,             // Range Maximum
+                0x01,               // Alignment
+                0x08,               // Length
+                )
+            IRQNoFlags ()
+                {4}
+            DMA (Compatibility, NotBusMaster, Transfer8, )
+                {}
+        }
+        StartDependentFnNoPri ()
+        {
+            IO (Decode16,
+                0x02F8,             // Range Minimum
+                0x02F8,             // Range Maximum
+                0x01,               // Alignment
+                0x08,               // Length
+                )
+            IRQNoFlags ()
+                {3}
+            DMA (Compatibility, NotBusMaster, Transfer8, )
+                {}
+        }
+        StartDependentFnNoPri ()
+        {
+            IO (Decode16,
+                0x03E8,             // Range Minimum
+                0x03E8,             // Range Maximum
+                0x01,               // Alignment
+                0x08,               // Length
+                )
+            IRQNoFlags ()
+                {4}
+            DMA (Compatibility, NotBusMaster, Transfer8, )
+                {}
+        }
+        StartDependentFnNoPri ()
+        {
+            IO (Decode16,
+                0x02E8,             // Range Minimum
+                0x02E8,             // Range Maximum
+                0x01,               // Alignment
+                0x08,               // Length
+                )
+            IRQNoFlags ()
+                {3}
+            DMA (Compatibility, NotBusMaster, Transfer8, )
+                {}
+        }
+        EndDependentFn ()
+    })
+    Method (_PRW, 0, NotSerialized)  // _PRW: Power Resources for Wake
+    {
+        Return (GPRW (0x6B, 0x04))
+    }
+}
+</code></pre><p>这个设备在 Linux 中的路径是 <code>/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:86/PNP0501:00</code>，进一步可以发现，它的 <code>path</code> 是 <code>\_SB_.PC00.LPC0.UAR1</code>，与 DSDT 中的路径一致。进一步探索，可以发现它匹配到了 Linux 的 <code>serial</code> 驱动，并且最终对应到了 <code>/dev/ttyS0</code> 设备。还可以看到 Linux 生成的 <code>resources</code> 描述：</p>
+<pre tabindex="0"><code>state = active
+io 0x3f8-0x3ff
+irq 4
+dma disabled
+</code></pre><p>这和上面看到的是一致的：</p>
+<pre tabindex="0"><code>IO (Decode16,
+    0x03F8,             // Range Minimum
+    0x03F8,             // Range Maximum
+    0x01,               // Alignment
+    0x08,               // Length
+    )
+</code></pre><p>这里表达的正是 <code>0x3F8-0x3FF</code> 这一段 IO Port。这个地址和 <a href="https://wiki.osdev.org/Serial_Ports#Port_Addresses">OSDev</a> 上看到的也是吻合的。</p>
+<p>进一步分析代码，<code>_STA</code> 函数返回设备当前的状态。可以在 Linux 的 ACPI 结点路径下看 <code>status</code> 文件，其内容是 <code>15</code>，表示工作正常。实现中，它调用了 <code>^^SIO1.DSTA(0x00)</code>，这里的 <code>^</code> 表示上一级命名空间。进一步找到 <code>DSTA</code> 的实现：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Method (DSTA, 1, NotSerialized)
+{
+    ENFG (CGLD (Arg0))
+    Local0 = ACTR /* \_SB_.PC00.LPC0.SIO1.ACTR */
+    EXFG ()
+    If ((Local0 == 0xFF))
+    {
+        Return (0x00)
+    }
+
+    Local0 &amp;= 0x01
+    If ((Arg0 &lt; 0x10))
+    {
+        IOST |= (Local0 &lt;&lt; Arg0)
+    }
+
+    If (Local0)
+    {
+        Return (0x0F)
+    }
+    ElseIf ((Arg0 &lt; 0x10))
+    {
+        If (((0x01 &lt;&lt; Arg0) &amp; IOST))
+        {
+            Return (0x0D)
+        }
+        Else
+        {
+            Return (0x00)
+        }
+    }
+    Else
+    {
+        Return (0x00)
+    }
+}
+</code></pre><p>可以看到，核心是要判断 <code>ACTR</code> 的取值，继续寻找，可以发现 <code>ACTR</code> 是一个 SuperIO 的寄存器：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Name (SP1O, 0x2E)
+
+OperationRegion (IOID, SystemIO, SP1O, 0x02)
+Field (IOID, ByteAcc, NoLock, Preserve)
+{
+    INDX,   8, 
+    DATA,   8
+}
+
+IndexField (INDX, DATA, ByteAcc, NoLock, Preserve)
+{
+    // omitted
+    ACTR,   8, 
+}
+</code></pre><p><code>ACTR</code> 寄存器需要通过 0x2E/0x2F 这两个 IO Port 来访问，所以这里使用了 <code>IndexField</code>，例如要读取 <code>ACTR</code> 的当前值的话，首先要往 <code>0x2E</code> 处写入 <code>ACTR</code> 的偏移，再从 <code>0x2F</code> 处读出当前值。这些寄存器应该就属于 SuperIO 了。目前没有找到 SuperIO 的寄存器定义，就不细究了。</p>
+<p>其他的几个函数含义是，<code>_CRS</code> 返回当前的资源配置，<code>_SRS</code> 可以修改资源配置，<code>_PRS</code> 列出可能的资源配置，<code>_DIS</code> 禁用设备。</p>
+<h3 id="arm64">ARM64</h3>
+<p>前面看过了 x86_64 平台的串口，是需要通过 IO Port 进行访问的。在 ARM 平台上，则一般是通过 MMIO 访问。搜索内核日志，可以发现内核从 SPCR(Serial Port Console Redirection table) 表获取得到串口的信息：</p>
+<pre tabindex="0"><code class="language-dmesg" data-lang="dmesg">ACPI: SPCR: console: uart,mmio,0x3f00002f8,115200
+</code></pre><p>SPCR 表的内容：</p>
+<pre tabindex="0"><code>[024h 0036   1]               Interface Type : 00
+[025h 0037   3]                     Reserved : 000000
+
+[028h 0040  12]         Serial Port Register : [Generic Address Structure]
+[028h 0040   1]                     Space ID : 00 [SystemMemory]
+[029h 0041   1]                    Bit Width : 08
+[02Ah 0042   1]                   Bit Offset : 00
+[02Bh 0043   1]         Encoded Access Width : 01 [Byte Access:8]
+[02Ch 0044   8]                      Address : 00000003F00002F8
+
+[034h 0052   1]               Interrupt Type : 08
+[035h 0053   1]          PCAT-compatible IRQ : 00
+[036h 0054   4]                    Interrupt : 000001E4
+[03Ah 0058   1]                    Baud Rate : 07
+[03Bh 0059   1]                       Parity : 00
+[03Ch 0060   1]                    Stop Bits : 01
+[03Dh 0061   1]                 Flow Control : 00
+[03Eh 0062   1]                Terminal Type : 03
+</code></pre><p>SPCR 表的定义可以在 <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/serports/serial-port-console-redirection-table">Serial Port Console Redirection Table (SPCR)</a> 处看到：</p>
+<ul>
+<li>Interface Type(00): Full 16550 interface</li>
+<li>Interrupt Type(08): ARMH GIC interrupt (Global System Interrupt)</li>
+<li>Baud Rate(07): 115200</li>
+<li>Terminal Type(03): ANSI</li>
+</ul>
+<p>和内核得到的信息是一致的。内核中解析 SPCR 表的函数是 <code>acpi_sparse_spcr</code>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> __init <span style="color:#a6e22e">acpi_parse_spcr</span>(<span style="color:#66d9ef">bool</span> enable_earlycon, <span style="color:#66d9ef">bool</span> enable_console)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> (table<span style="color:#f92672">-&gt;</span>serial_port.space_id <span style="color:#f92672">==</span> ACPI_ADR_SPACE_SYSTEM_MEMORY) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>		<span style="color:#66d9ef">switch</span> (<span style="color:#a6e22e">ACPI_ACCESS_BIT_WIDTH</span>((bit_width))) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">8</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>			iotype <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;mmio&#34;</span>;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">switch</span> (table<span style="color:#f92672">-&gt;</span>interface_type) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">case</span> ACPI_DBG2_16550_COMPATIBLE:
+</span></span><span style="display:flex;"><span>		uart <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;uart&#34;</span>;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">switch</span> (table<span style="color:#f92672">-&gt;</span>baud_rate) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">7</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>		baud_rate <span style="color:#f92672">=</span> <span style="color:#ae81ff">115200</span>;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>baud_rate) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">snprintf</span>(opts, <span style="color:#66d9ef">sizeof</span>(opts), <span style="color:#e6db74">&#34;%s,%s,0x%llx&#34;</span>, uart, iotype,
+</span></span><span style="display:flex;"><span>			 table<span style="color:#f92672">-&gt;</span>serial_port.address);
+</span></span><span style="display:flex;"><span>	} <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// uart,mmio,0x3f00002f8,115200
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>		<span style="color:#a6e22e">snprintf</span>(opts, <span style="color:#66d9ef">sizeof</span>(opts), <span style="color:#e6db74">&#34;%s,%s,0x%llx,%d&#34;</span>, uart, iotype,
+</span></span><span style="display:flex;"><span>			 table<span style="color:#f92672">-&gt;</span>serial_port.address, baud_rate);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>}
+</span></span></code></pre></div><h2 id="ipmi">IPMI</h2>
+<h3 id="x86_64-1">x86_64</h3>
+<p>接下来，再来看 ACPI 中是如何声明 IPMI 的。主板依然是 <code>WS X299 PRO/SE</code>，主板自带了 BMC，可以在 DSDT 中搜到相关的部分：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Name (IDTP, 0x0CA2)
+Name (ICDP, 0x0CA3)
+
+Device (SPMI)
+{
+    Name (_HID, EisaId (&#34;IPI0001&#34;))  // _HID: Hardware ID
+    Name (_STR, Unicode (&#34;IPMI_KCS&#34;))  // _STR: Description String
+    Name (_UID, 0x00)  // _UID: Unique ID
+    OperationRegion (IPST, SystemIO, ICDP, 0x01)
+    Field (IPST, ByteAcc, NoLock, Preserve)
+    {
+        STAS,   8
+    }
+
+    Method (_STA, 0, NotSerialized)  // _STA: Status
+    {
+        Local0 = STAS /* \_SB_.PC00.LPC0.SPMI.STAS */
+        If ((Local0 == 0xFF))
+        {
+            Return (0x00)
+        }
+        Else
+        {
+            Return (0x0F)
+        }
+    }
+
+    Name (ICRS, ResourceTemplate ()
+    {
+        IO (Decode16,
+            0x0000,             // Range Minimum
+            0x0000,             // Range Maximum
+            0x00,               // Alignment
+            0x00,               // Length
+            _Y1E)
+        IO (Decode16,
+            0x0000,             // Range Minimum
+            0x0000,             // Range Maximum
+            0x00,               // Alignment
+            0x00,               // Length
+            _Y1F)
+    })
+    Method (_CRS, 0, NotSerialized)  // _CRS: Current Resource Settings
+    {
+        If (IDTP)
+        {
+            CreateWordField (ICRS, \_SB.PC00.LPC0.SPMI._Y1E._MIN, IPDB)  // _MIN: Minimum Base Address
+            CreateWordField (ICRS, \_SB.PC00.LPC0.SPMI._Y1E._MAX, IPDH)  // _MAX: Maximum Base Address
+            CreateByteField (ICRS, \_SB.PC00.LPC0.SPMI._Y1E._LEN, IPDL)  // _LEN: Length
+            IPDB = IDTP /* \IDTP */
+            IPDH = IDTP /* \IDTP */
+            IPDL = 0x01
+        }
+
+        If (ICDP)
+        {
+            CreateWordField (ICRS, \_SB.PC00.LPC0.SPMI._Y1F._MIN, IPCB)  // _MIN: Minimum Base Address
+            CreateWordField (ICRS, \_SB.PC00.LPC0.SPMI._Y1F._MAX, IPCH)  // _MAX: Maximum Base Address
+            CreateByteField (ICRS, \_SB.PC00.LPC0.SPMI._Y1F._LEN, IPCL)  // _LEN: Length
+            IPCB = ICDP /* \ICDP */
+            IPCH = ICDP /* \ICDP */
+            IPCL = 0x01
+        }
+
+        Return (ICRS) /* \_SB_.PC00.LPC0.SPMI.ICRS */
+    }
+
+    Method (_IFT, 0, NotSerialized)  // _IFT: IPMI Interface Type
+    {
+        Return (0x01)
+    }
+
+    Method (_SRV, 0, NotSerialized)  // _SRV: IPMI Spec Revision
+    {
+        Return (SRVV) /* \SRVV */
+    }
+}
+</code></pre><p>在 Linux 中可以找到相应的结点：<code>/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:86/IPI0001:00</code>。可以发现匹配到了 <code>ipmi_si</code> 驱动，并且可以正常工作。</p>
+<p>函数 <code>_STA</code> 返回设备的当前状态，它读取了 IO Port 0x0CA3 的内容，进而判断 IPMI 是否正常。</p>
+<p>函数 <code>_CRS</code> 返回当前的资源配置，它动态地计算出一个资源配置，对应 IO Port 是 0x0CA2 或者 0x0CA3。</p>
+<p>函数 <code>_IFT</code> 返回 IPMI Interface Type，0x01 表示 KCS，<code>_SRV</code> 返回 IPMI Spec Revision，在这里是 0x0200，也就是 IPMI 2.0。</p>
+<p>这些内容可以在 Linux 下 ACPI 结点的 <code>physical_node/params</code> 文件中看到：<code>kcs,i/o,0xca2,rsp=1,rsi=1,rsh=0,irq=0,ipmb=32</code>。</p>
+<p>查阅 Linux 源码，可以找到 <code>acpi_ipmi_probe</code> 函数，这个函数负责从 ACPI 中寻找 IPMI 配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">acpi_ipmi_probe</span>(<span style="color:#66d9ef">struct</span> platform_device <span style="color:#f92672">*</span>pdev)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> device <span style="color:#f92672">*</span>dev <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>pdev<span style="color:#f92672">-&gt;</span>dev;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> si_sm_io io;
+</span></span><span style="display:flex;"><span>	acpi_handle handle;
+</span></span><span style="display:flex;"><span>	acpi_status status;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> <span style="color:#66d9ef">long</span> tmp;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> resource <span style="color:#f92672">*</span>res;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>si_tryacpi)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>ENODEV;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	handle <span style="color:#f92672">=</span> <span style="color:#a6e22e">ACPI_HANDLE</span>(dev);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>handle)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>ENODEV;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>io, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(io));
+</span></span><span style="display:flex;"><span>	io.addr_source <span style="color:#f92672">=</span> SI_ACPI;
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">dev_info</span>(dev, <span style="color:#e6db74">&#34;probing via ACPI</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	io.addr_info.acpi_info.acpi_handle <span style="color:#f92672">=</span> handle;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* _IFT tells us the interface type: KCS, BT, etc */</span>
+</span></span><span style="display:flex;"><span>	status <span style="color:#f92672">=</span> <span style="color:#a6e22e">acpi_evaluate_integer</span>(handle, <span style="color:#e6db74">&#34;_IFT&#34;</span>, NULL, <span style="color:#f92672">&amp;</span>tmp);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">ACPI_FAILURE</span>(status)) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">dev_err</span>(dev, <span style="color:#e6db74">&#34;Could not find ACPI IPMI interface type</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EINVAL;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">switch</span> (tmp) {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">1</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>		io.si_type <span style="color:#f92672">=</span> SI_KCS;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">2</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>		io.si_type <span style="color:#f92672">=</span> SI_SMIC;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">3</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>		io.si_type <span style="color:#f92672">=</span> SI_BT;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">4</span><span style="color:#f92672">:</span> <span style="color:#75715e">/* SSIF, just ignore */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>ENODEV;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">default</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">dev_info</span>(dev, <span style="color:#e6db74">&#34;unknown IPMI type %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, tmp);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EINVAL;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	io.dev <span style="color:#f92672">=</span> dev;
+</span></span><span style="display:flex;"><span>	io.regsize <span style="color:#f92672">=</span> DEFAULT_REGSIZE;
+</span></span><span style="display:flex;"><span>	io.regshift <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	res <span style="color:#f92672">=</span> <span style="color:#a6e22e">ipmi_get_info_from_resources</span>(pdev, <span style="color:#f92672">&amp;</span>io);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>res)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EINVAL;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* If _GPE exists, use it; otherwise use standard interrupts */</span>
+</span></span><span style="display:flex;"><span>	status <span style="color:#f92672">=</span> <span style="color:#a6e22e">acpi_evaluate_integer</span>(handle, <span style="color:#e6db74">&#34;_GPE&#34;</span>, NULL, <span style="color:#f92672">&amp;</span>tmp);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">ACPI_SUCCESS</span>(status)) {
+</span></span><span style="display:flex;"><span>		io.irq <span style="color:#f92672">=</span> tmp;
+</span></span><span style="display:flex;"><span>		io.irq_setup <span style="color:#f92672">=</span> acpi_gpe_irq_setup;
+</span></span><span style="display:flex;"><span>	} <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">int</span> irq <span style="color:#f92672">=</span> <span style="color:#a6e22e">platform_get_irq_optional</span>(pdev, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (irq <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>			io.irq <span style="color:#f92672">=</span> irq;
+</span></span><span style="display:flex;"><span>			io.irq_setup <span style="color:#f92672">=</span> ipmi_std_irq_setup;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	io.slave_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">find_slave_address</span>(<span style="color:#f92672">&amp;</span>io, io.slave_addr);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">dev_info</span>(dev, <span style="color:#e6db74">&#34;%pR regsize %d spacing %d irq %d</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>		 res, io.regsize, io.regspacing, io.irq);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">request_module</span>(<span style="color:#e6db74">&#34;acpi_ipmi&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ipmi_si_add_smi</span>(<span style="color:#f92672">&amp;</span>io);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> acpi_device_id acpi_ipmi_match[] <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	{ <span style="color:#e6db74">&#34;IPI0001&#34;</span>, <span style="color:#ae81ff">0</span> },
+</span></span><span style="display:flex;"><span>	{ },
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>和上面的分析是可以对上的。</p>
+<h3 id="arm64-1">ARM64</h3>
+<p>再看一个 ARM64 平台上的 IPMI：</p>
+<pre tabindex="0"><code>Device (IPI0)
+{
+    Name (_HID, &#34;IPI0001&#34;)  // _HID: Hardware ID
+    Method (_IFT, 0, NotSerialized)  // _IFT: IPMI Interface Type
+    {
+        Return (0x03)
+    }
+
+    Name (_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+    {
+        QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+            0x0000000000000000, // Granularity
+            0x00000003F00000E4, // Range Minimum
+            0x00000003F00000E7, // Range Maximum
+            0x0000000000000000, // Translation Offset
+            0x0000000000000004, // Length
+            ,, , AddressRangeMemory, TypeStatic)
+        Interrupt (ResourceConsumer, Level, ActiveHigh, Shared, ,, )
+        {
+            0x000001E4,
+        }
+    })
+}
+</code></pre><p>这里的 <code>_IFT</code> 返回值是 0x3，查阅文档可知这表示的是 BT 类型。<code>_CRS</code> 中使用了 QWordMemory 宏来描述地址空间，这里实际上就是表示内存地址 <code>0x3F00000E4-0x3F00000E7</code>。</p>
+<h2 id="io-apic">IO APIC</h2>
+<p>在 DSDT 中，可以找到 IO APIC 的基地址：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Device (APIC)
+{
+    Name (_HID, EisaId (&#34;PNP0003&#34;) /* IO-APIC Interrupt Controller */)  // _HID: Hardware ID
+    Name (_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+    {
+        Memory32Fixed (ReadOnly,
+            0xFEC00000,         // Address Base
+            0x00100000,         // Address Length
+            )
+    })
+}
+</code></pre><p>可以看到 IO APIC 基地址是 0xFEC00000，在网上也可以查到同样的结果。实际上，在 Multiple APIC Description Table (MADT) 中也可以找到 IO APIC 的基地址：</p>
+<pre tabindex="0"><code>[1ECh 0492   1]                Subtable Type : 01 [I/O APIC]
+[1EDh 0493   1]                       Length : 0C
+[1EEh 0494   1]                  I/O Apic ID : 08
+[1EFh 0495   1]                     Reserved : 00
+[1F0h 0496   4]                      Address : FEC00000
+[1F4h 0500   4]                    Interrupt : 00000000
+
+[1F8h 0504   1]                Subtable Type : 01 [I/O APIC]
+[1F9h 0505   1]                       Length : 0C
+[1FAh 0506   1]                  I/O Apic ID : 09
+[1FBh 0507   1]                     Reserved : 00
+[1FCh 0508   4]                      Address : FEC01000
+[200h 0512   4]                    Interrupt : 00000018
+
+[204h 0516   1]                Subtable Type : 01 [I/O APIC]
+[205h 0517   1]                       Length : 0C
+[206h 0518   1]                  I/O Apic ID : 0A
+[207h 0519   1]                     Reserved : 00
+[208h 0520   4]                      Address : FEC08000
+[20Ch 0524   4]                    Interrupt : 00000020
+
+[210h 0528   1]                Subtable Type : 01 [I/O APIC]
+[211h 0529   1]                       Length : 0C
+[212h 0530   1]                  I/O Apic ID : 0B
+[213h 0531   1]                     Reserved : 00
+[214h 0532   4]                      Address : FEC10000
+[218h 0536   4]                    Interrupt : 00000028
+
+[21Ch 0540   1]                Subtable Type : 01 [I/O APIC]
+[21Dh 0541   1]                       Length : 0C
+[21Eh 0542   1]                  I/O Apic ID : 0C
+[21Fh 0543   1]                     Reserved : 00
+[220h 0544   4]                      Address : FEC18000
+[224h 0548   4]                    Interrupt : 00000030
+</code></pre><h2 id="dma">DMA</h2>
+<p>继续搜索 <code>_HID</code>，还可以找到一些传统的设备，比如 DMA Controller：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Device (DMAC)
+{
+    Name (_HID, EisaId (&#34;PNP0200&#34;) /* PC-class DMA Controller */)  // _HID: Hardware ID
+    Name (_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+    {
+        IO (Decode16,
+            0x0000,             // Range Minimum
+            0x0000,             // Range Maximum
+            0x00,               // Alignment
+            0x10,               // Length
+            )
+        IO (Decode16,
+            0x0081,             // Range Minimum
+            0x0081,             // Range Maximum
+            0x00,               // Alignment
+            0x03,               // Length
+            )
+        IO (Decode16,
+            0x0087,             // Range Minimum
+            0x0087,             // Range Maximum
+            0x00,               // Alignment
+            0x01,               // Length
+            )
+        IO (Decode16,
+            0x0089,             // Range Minimum
+            0x0089,             // Range Maximum
+            0x00,               // Alignment
+            0x03,               // Length
+            )
+        IO (Decode16,
+            0x008F,             // Range Minimum
+            0x008F,             // Range Maximum
+            0x00,               // Alignment
+            0x01,               // Length
+            )
+        IO (Decode16,
+            0x00C0,             // Range Minimum
+            0x00C0,             // Range Maximum
+            0x00,               // Alignment
+            0x20,               // Length
+            )
+        DMA (Compatibility, NotBusMaster, Transfer8, )
+            {4}
+    })
+}
+</code></pre><p>可以看到，它定义了如下的 IO Port 范围：</p>
+<ul>
+<li><code>0x00-0x0F</code></li>
+<li>0x81, 0x87, 0x89, 0x8F</li>
+<li><code>0xC0-0xDE</code></li>
+</ul>
+<p>寄存器定义可以在 <a href="https://wiki.osdev.org/ISA_DMA">ISA DMA - OSDev</a> 处找到。</p>
+<h2 id="cmosrtc">CMOS/RTC</h2>
+<p>经典的 CMOS/RTC 的 IO 端口定义也可以找到：</p>
+<pre tabindex="0"><code>Device (RTC)
+{
+    Name (_HID, EisaId (&#34;PNP0B00&#34;) /* AT Real-Time Clock */)  // _HID: Hardware ID
+    Name (_CRS, ResourceTemplate ()  // _CRS: Current Resource Settings
+    {
+        IO (Decode16,
+            0x0070,             // Range Minimum
+            0x0070,             // Range Maximum
+            0x01,               // Alignment
+            0x02,               // Length
+            )
+        IO (Decode16,
+            0x0074,             // Range Minimum
+            0x0074,             // Range Maximum
+            0x01,               // Alignment
+            0x04,               // Length
+            )
+        IRQNoFlags ()
+            {8}
+    })
+    Method (_STA, 0, NotSerialized)  // _STA: Status
+    {
+        If ((STAS == 0x01))
+        {
+            Return (0x0F)
+        }
+        Else
+        {
+            Return (0x00)
+        }
+    }
+}
+</code></pre><p>可以看到，它的 IO Port 是 0x70-0x71 和 0x74-0x78，中断号 8，和 <a href="https://wiki.osdev.org/CMOS">CMOS - OSDev</a> 是一致的。</p>
+<h2 id="启动图片">启动图片</h2>
+<p>启动图片以 BMP 格式保存在内存中，基地址记录在 BGRT 表中。可以直接从 <code>/sys/firmware/acpi/bgrt/image</code> 获取启动的图片内容。</p>
+<h2 id="pcie">PCIe</h2>
+<p>PCIe 总线是自带枚举功能的，所以只需要找到 Root Bridge，其他设备都可以枚举出来。而 ACPI 就提供了寻找 Root Bridge 的方法。</p>
+<p>搜索 <code>PNP0A08</code> 可以找到 PCIe 总线：</p>
+<pre tabindex="0"><code class="language-asl" data-lang="asl">Device (PC00)
+{
+    Name (_HID, EisaId (&#34;PNP0A08&#34;) /* PCI Express Bus */)  // _HID: Hardware ID
+    Name (_CID, EisaId (&#34;PNP0A03&#34;) /* PCI Bus */)  // _CID: Compatible ID
+
+    Name (P0RS, ResourceTemplate ()
+    {
+        WordBusNumber (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+            0x0000,             // Granularity
+            0x0000,             // Range Minimum
+            0x0015,             // Range Maximum
+            0x0000,             // Translation Offset
+            0x0016,             // Length
+            ,, )
+        IO (Decode16,
+            0x0CF8,             // Range Minimum
+            0x0CF8,             // Range Maximum
+            0x01,               // Alignment
+            0x08,               // Length
+            )
+        WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode, EntireRange,
+            0x0000,             // Granularity
+            0x0000,             // Range Minimum
+            0x0CF7,             // Range Maximum
+            0x0000,             // Translation Offset
+            0x0CF8,             // Length
+            ,, , TypeStatic, DenseTranslation)
+        WordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode, EntireRange,
+            0x0000,             // Granularity
+            0x1000,             // Range Minimum
+            0x57FF,             // Range Maximum
+            0x0000,             // Translation Offset
+            0x4800,             // Length
+            ,, , TypeStatic, DenseTranslation)
+        DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+            0x00000000,         // Granularity
+            0x000A0000,         // Range Minimum
+            0x000BFFFF,         // Range Maximum
+            0x00000000,         // Translation Offset
+            0x00020000,         // Length
+            ,, , AddressRangeMemory, TypeStatic)
+        DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+            0x00000000,         // Granularity
+            0x00000000,         // Range Minimum
+            0x00000000,         // Range Maximum
+            0x00000000,         // Translation Offset
+            0x00000000,         // Length
+            ,, _Y00, AddressRangeMemory, TypeStatic)
+        DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite,
+            0x00000000,         // Granularity
+            0xFE010000,         // Range Minimum
+            0xFE010FFF,         // Range Maximum
+            0x00000000,         // Translation Offset
+            0x00001000,         // Length
+            ,, , AddressRangeMemory, TypeStatic)
+        DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite,
+            0x00000000,         // Granularity
+            0xFD000000,         // Range Minimum
+            0xFE7FFFFF,         // Range Maximum
+            0x00000000,         // Translation Offset
+            0x01800000,         // Length
+            ,, , AddressRangeMemory, TypeStatic)
+        DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite,
+            0x00000000,         // Granularity
+            0x70000000,         // Range Minimum
+            0x92FFFFFF,         // Range Maximum
+            0x00000000,         // Translation Offset
+            0x23000000,         // Length
+            ,, , AddressRangeMemory, TypeStatic)
+        QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite,
+            0x0000000000000000, // Granularity
+            0x0000000000000000, // Range Minimum
+            0x0000000000000000, // Range Maximum
+            0x0000000000000000, // Translation Offset
+            0x0000000000000000, // Length
+            ,, , AddressRangeMemory, TypeStatic)
+    })
+
+    Method (_CRS, 0, NotSerialized)  // _CRS: Current Resource Settings
+    {
+        EROM ()
+        Return (P0RS) /* \_SB_.PC00.P0RS */
+    }
+}
+</code></pre><p>上面省略掉了很多内容，不过可以看到 Root Bridge 的资源，这部分内容和 Linux 的 dmesg 是一致的：</p>
+<pre tabindex="0"><code>ACPI: PCI Root Bridge [PC00] (domain 0000 [bus 00-15])
+acpi PNP0A08:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI]
+acpi PNP0A08:00: _OSC: platform does not support [SHPCHotplug AER LTR]
+acpi PNP0A08:00: _OSC: OS now controls [PCIeHotplug PME PCIeCapability]
+acpi PNP0A08:00: host bridge window expanded to [mem 0xfd000000-0xfe7fffff window]; [mem 0xfd000000-0xfe7fffff window] ignored
+PCI host bridge to bus 0000:00
+pci_bus 0000:00: root bus resource [io  0x0000-0x0cf7 window]
+pci_bus 0000:00: root bus resource [io  0x1000-0x57ff window]
+pci_bus 0000:00: root bus resource [mem 0x000a0000-0x000bffff window]
+pci_bus 0000:00: root bus resource [mem 0x000c4000-0x000c7fff window]
+pci_bus 0000:00: root bus resource [mem 0xfd000000-0xfe7fffff window]
+pci_bus 0000:00: root bus resource [mem 0x70000000-0x92ffffff window]
+pci_bus 0000:00: root bus resource [bus 00-15]
+</code></pre><p>Linux 相关代码在 <code>acpi_pci_root_create</code> 函数中：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> pci_bus <span style="color:#f92672">*</span><span style="color:#a6e22e">acpi_pci_root_create</span>(<span style="color:#66d9ef">struct</span> acpi_pci_root <span style="color:#f92672">*</span>root,
+</span></span><span style="display:flex;"><span>				     <span style="color:#66d9ef">struct</span> acpi_pci_root_ops <span style="color:#f92672">*</span>ops,
+</span></span><span style="display:flex;"><span>				     <span style="color:#66d9ef">struct</span> acpi_pci_root_info <span style="color:#f92672">*</span>info,
+</span></span><span style="display:flex;"><span>				     <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>sysdata)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">acpi_pci_probe_root_resources</span>(info);
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">pci_acpi_root_add_resources</span>(info);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">pci_add_resource</span>(<span style="color:#f92672">&amp;</span>info<span style="color:#f92672">-&gt;</span>resources, <span style="color:#f92672">&amp;</span>root<span style="color:#f92672">-&gt;</span>secondary);
+</span></span><span style="display:flex;"><span>	bus <span style="color:#f92672">=</span> <span style="color:#a6e22e">pci_create_root_bus</span>(NULL, busnum, ops<span style="color:#f92672">-&gt;</span>pci_ops,
+</span></span><span style="display:flex;"><span>				  sysdata, <span style="color:#f92672">&amp;</span>info<span style="color:#f92672">-&gt;</span>resources);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#标准">标准</a></li>
+    <li><a href="#asl">ASL</a></li>
+    <li><a href="#获取当前系统的-acpi-表">获取当前系统的 ACPI 表</a></li>
+    <li><a href="#串口">串口</a>
+      <ul>
+        <li><a href="#x86_64">x86_64</a></li>
+        <li><a href="#arm64">ARM64</a></li>
+      </ul>
+    </li>
+    <li><a href="#ipmi">IPMI</a>
+      <ul>
+        <li><a href="#x86_64-1">x86_64</a></li>
+        <li><a href="#arm64-1">ARM64</a></li>
+      </ul>
+    </li>
+    <li><a href="#io-apic">IO APIC</a></li>
+    <li><a href="#dma">DMA</a></li>
+    <li><a href="#cmosrtc">CMOS/RTC</a></li>
+    <li><a href="#启动图片">启动图片</a></li>
+    <li><a href="#pcie">PCIe</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/acpi">acpi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/notes">notes
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/learn">learn
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2022/12/06/infiniband-notes/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">InfiniBand 学习笔记&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2022 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
