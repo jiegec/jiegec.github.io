@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PCIe Bifurcation // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="PCIe Bifurcation" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2023/01/05/pcie-bifurcation/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.109.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">PCIe Bifurcation</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2023/01/05/pcie-bifurcation/" class="article-date">
+                <time datetime='2023-01-05T15:41:00.000&#43;08:00' itemprop="datePublished">2023-01-05</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2023/01/05/pcie-bifurcation/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近看到两篇关于 PCIe Bifurcation 的文章：</p>
+<ul>
+<li><a href="https://www.bilibili.com/read/cv15596863">intel 部分桌面级 CPU 的 pcie 通道拆分另类低成本实现</a></li>
+<li><a href="https://www.bilibili.com/read/cv16530665">Intel Alder Lake 12 代酷睿 CPU PCIe 拆分实现方法</a></li>
+</ul>
+<p>文章讲的是如何在 CPU 上进行跳线，从而实现 PCIe Bifurcation 的配置。正好借此机会来研究一下 PCIe Bifurcation。</p>
+<h2 id="pcie-bifurcation">PCIe Bifurcation</h2>
+<p>PCIe Bifurcation 的目的是让 PCIe 有更好的灵活性。从 CPU 出来的几路 PCIe，它的宽度一般是确定的，比如有一个 x16，但是实际使用的时候，想要接多个设备，例如把 x16 当成两个 x8 来用，这就是 PCIe Bifurcation。这需要 PCIe 两端的支持，CPU 端需要可配置 PCIe Bifurcation，不然只能从一个 x16 降级到一个 x8，剩下的 8x 就没法利用了；设备端需要转接卡，把 x16 的信号分成两路，然后提供两个 PCIe 插槽，有时则是主板设计时就做了拆分，不需要额外的转接卡。</p>
+<p>那么怎么配置 CPU 端的 PCIe Bifurcation 呢？其实就是上面两篇文章提到的办法：CPU 根据 CFG 信号来决定 PCIe Bifurcation 配置，例如要选择 1x16，2x8 还是 1x8+2x4 等等。简单总结一下实现思路都是：</p>
+<ol>
+<li>根据 CPU 型号（如 i7-12700K）找到 datasheet，如 <a href="https://cdrdv2.intel.com/v1/dl/getContent/655258">12th Generation Intel Core Processors Datasheet Volume 1</a></li>
+<li>寻找 datasheet 中关于 PCIe Bifurcation 的配置，找到 CFG 信号的取值</li>
+<li>找到 CPU 的引脚定义图（如 LGA1700），找到 CFG 引脚，然后找到附近的地或者电源</li>
+<li>连接跳线</li>
+</ol>
+<p>具体细节这里就不赘述了，可以查看上面的两篇文章。</p>
+<h2 id="可配置性">可配置性</h2>
+<p>这时候就有一个疑问了，如果 PCIe Bifurcation 配置是通过引脚输入的，一般电路是固定的，那是不是就不可以动态配置了？</p>
+<h3 id="桌面平台">桌面平台</h3>
+<p>实际找一个主板来研究一下。型号是 ASRock Fatal1ty Z97X Killer，从主板的描述中，可以看到：<code>3 x PCI Express 3.0 x16 Slots (PCIE2/PCIE4/PCIE6: single at x16 (PCIE2); dual at x8 (PCIE2) / x8 (PCIE4); triple at x8 (PCIE2) / x4 (PCIE4) / x4 (PCIE6)</code>，说明它是支持 PCIe Bifurcation 的，涉及到三个 PCIe Slot，支持三种模式：</p>
+<ul>
+<li>PCIE2 Slot x16</li>
+<li>PCIE2 Slot x8, PCIE4 Slot x8</li>
+<li>PCIE2 Slot x8, PCIE4 Slot x4, PCIE6 Slot x4</li>
+</ul>
+<p>在 <a href="https://schematic-x.blogspot.com/2018/04/asus-pack-198-files.html">网上</a> 找到该主板的 <a href="https://drive.google.com/file/d/1j9tUFJ7n60OLIoboVuPIWZA9cNJtwsCt/view">原理图</a>，可以用 <a href="https://github.com/OpenBoardView/OpenBoardView">OpenBoardView</a> 软件打开。这个主板上的 CPU 插槽是 LGA1150，找到一个兼容的 CPU 版本 i7-4771，下载 <a href="https://cdrdv2.intel.com/v1/dl/getcontent/328897">Datasheet</a>，可以看到决定 PCIe Bifurcation 的引脚是 <code>CFG[6:5]</code>：</p>
+<ul>
+<li><code>CFG[6:5]=00</code>: 1x8, 2x4</li>
+<li><code>CFG[6:5]=10</code>: 2x8</li>
+<li><code>CFG[6:5]=11</code>: 1x16</li>
+</ul>
+<p>可以看到，这三种配置和主板网站上描述的是一致的。既然主板支持 Bifurcation，说明一定有办法设置 <code>CFG[6:5]</code> 为以上三种取值。</p>
+<p>接下来，要找到主板上怎么连接 <code>CFG[6:5]</code>。在原理图中，可以找到 LGA1150 的 <code>U39 CPU_CFG5</code> 和 <code>U40 V_CFG6</code>，继续往下找，可以看到它们通过电阻连到了同一个 <a href="https://www.vishay.com/docs/85508/bat54.pdf">BAT54C</a> 芯片上，所以只需要看 BAT54C 第三个引脚 N105955695 的电平。N105955695 接到了一个 <a href="https://assets.nexperia.com/documents/data-sheet/2N7002BKS.pdf">2N7002BKS</a> 芯片上，根据电路图，最后是要看 <code>X4_PRSNT1#</code> 信号。</p>
+<p><code>X4_PRSTN1#</code> 信号连接到了 PCIE6 上，如果 PCIE6 Slot 插入了设备，那么 <code>X4_PRSTN1#</code> 信号生效，根据分析出来的电路，它会使得 <code>CFG[6:0]</code> 变为 00，对应 1x8+2x4 的 Bifurcation 模式。回想一下，在主板支持的三种 PCIe Bifurcation 模式下，只有这一种涉及到了 PCIE6 Slot。所以如果用户在 PCIE6 Slot 插入了设备，那说明用户需要的是 1x8+2x4 的模式，自动配置 CPU 的 <code>CFG[6:5]</code> 信号为预期值。</p>
+<p>另一方面，设置 <code>CFG[6:5]</code> 还不够，上面提到过，主板需要负责把 PCIE2/4/6 的信号连接到原来的完整的 x16 上，并且根据实际情况连接不同的线。具体的实现方式也可以在原理图中找到：信号 <code>X4_PRSTN1#</code> 连接到了 <a href="https://www.nxp.com.cn/docs/en/data-sheet/CBTL04083A_CBTL04083B.pdf">CBTL04083BBS</a>，这是一个 PCIe Mux/Demux 芯片，也就是把同样一组差分线连到不同 PCIe Slot 上所需要的芯片。</p>
+<p>于是目前推断出了一部分的工作原理：用户在 PCIE6 Slot 插入设备，电路计算出 <code>CFG[6:5]=00</code>，同时配置好了 PCIe Mux/Demux 芯片，把 1x16 切分为 1x8+2x4。</p>
+<p>继续往下看，主板如何实现剩下两种配置：<code>CFG[6:5]=10</code> 对应 2x8，<code>CFG[6:5]=11</code> 对应 1x16。这两种编码里，CFG6 都为 1，只需要考虑如何处理 CFG5。CFG5 除了连接上面提到的 BAT54C 以外，还通过另一个 2N7002BKS 芯片连接到了 <code>NB_X8_PRSENT#</code> 信号上。如果你想明白了前面的过程，应该可以推断出来，这里的 <code>NB_X8_PRSENT#</code> 连接到了 PCIE4 Slot 上。当 PCIE4 Slot 插入了设备，同时 PCIE6 Slot 没有插入设备，那么根据相应的 PRESENT 信号，可以得到 <code>CFG[6:5]=10</code>。如果 PCIE4 Slot 和 PCIE6 Slot 都没有插入设备，那就 <code>CFG[6:5]=11</code>。</p>
+<p>总结一下，动态检测并计算出 <code>CFG[6:5]</code> 的逻辑：</p>
+<ol>
+<li>如果 PCIE6 Slot 插入了设备，说明要配置为 1x8+2x4，设置 <code>CFG[6:5]=00</code></li>
+<li>否则，如果 PCIE4 Slot 插入了设备，说明要配置为 2x8，设置 <code>CFG[6:5]=10</code></li>
+<li>否则，说明要配置为 1x16，设置 <code>CFG[6:5]=11</code></li>
+</ol>
+<p>而主板设计者就是要把这个逻辑转化为电路，用 BAT54C 和 CBTL04083BBS 芯片来实现逻辑运算。</p>
+<p>顺便一提，这里的 PCIE2/4/6 物理尺寸都是 x16，只不过实际分配到的宽度不一定与物理尺寸一致。</p>
+<h3 id="服务器平台">服务器平台</h3>
+<p>在服务器平台上，Intel CPU 的 Bifurcation 变成运行时可配置的，例如在 <a href="https://cdrdv2-public.intel.com/333810/xeon-e5-v4-datasheet-vol-2.pdf">Xeon E5 v4 Datasheet Volume 2</a> 中，可以找到寄存器 <code>pcie_iou_bif_ctrl</code> 寄存器的定义：</p>
+<p><img src="/images/pcie_bifurcation.png" alt=""></p>
+<p>这个寄存器在 PCIe 配置空间中，可以通过 <code>setpci</code> 命令来读取或写入：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ setpci -s 00:00.0 190.B
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">00</span>
+</span></span><span style="display:flex;"><span>$ setpci -s 00:01.0 190.B
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">01</span> <span style="color:#75715e"># x8</span>
+</span></span><span style="display:flex;"><span>$ setpci -s 00:02.0 190.B
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">04</span> <span style="color:#75715e"># x16</span>
+</span></span><span style="display:flex;"><span>$ setpci -s 00:03.0 190.B
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">03</span> <span style="color:#75715e"># x8x8</span>
+</span></span><span style="display:flex;"><span>$ setpci -s 80:02.0 190.B
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">04</span> <span style="color:#75715e"># x16</span>
+</span></span></code></pre></div><p>通过 <code>lspci -bPP</code> 命令以及 <code>lspci -vvv</code>，可以看到在这几个 PCIe Root Port 下的设备以及速度：</p>
+<ul>
+<li>00:01.0(x8)/02:00.0 RAID 控制器 PCIe 3.0 x8</li>
+<li>00:02.0(x16)/03:00.0 NVIDIA 显卡 PCIe 3.0 x16</li>
+<li>00:03.0(x8x8)/01:00.0 BCM 2x10G+2x1G 网卡 PCIe 2.0 x8</li>
+<li>80:02.0(x16)/82:00.0 NVIDIA 显卡 PCIe 3.0 x16</li>
+</ul>
+<p>其中前三个设备连接到 CPU1，后三个设备连接到 CPU2</p>
+<p>在 BIOS 设置中，进入 Integrated Devices -&gt; Slot Bifurcation 可以看到设置，可选项有：</p>
+<ul>
+<li>Slot 1/2/3/5: Default Bifurcation, x4+x4 Bifurcation</li>
+<li>Slot 4/6: Default Bifurcation, x4+x4+x4+x4 Bifurcation, x8+x8 Bifurcation</li>
+</ul>
+<p>阅读 R730 文档，可以发现它最多可以有 7 个 Slot，其中 Slot 1/2/3/5/7 是 PCIe 3.0x8，Slot 4 是 PCIe 3.0 x16，Slot 6 根据不同的 Riser 可以提供 PCIe 3.0 x8 或 x16，对应关系如下：</p>
+<ul>
+<li>PCIe Slot 1: x8, CPU2</li>
+<li>PCIe Slot 2: x8, CPU2</li>
+<li>PCIe Slot 3: x8, CPU2</li>
+<li>PCIe Slot 4: x16, CPU2</li>
+<li>PCIe Slot 5: x8, CPU1</li>
+<li>PCIe Slot 6: x8/x16, CPU1</li>
+<li>PCIe Slot 7: x8, CPU1</li>
+</ul>
+<p>阅读 E5 v4 CPU 文档，可以发现它有三个 PCIe Port，一共有 40 PCIe lanes（x8+x16+x16）。由此可知，其中一个 x16 连接到 Slot4/6 上，另一个 x16 拆分成 x8+x8，连接到其余的 Slot。有些奇怪的是 CPU1 少了一个 x8 不知去向，怀疑是连接到了 RAID 卡或者网卡上。缺少主板的原理图，无法继续深入研究。</p>
+<p>结合上面的配置，既然可以在 BIOS 中配置 Bifurcation，那么应该是可以设置 Bifurcation，然后插入更多的 PCIe 设备。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#pcie-bifurcation">PCIe Bifurcation</a></li>
+    <li><a href="#可配置性">可配置性</a>
+      <ul>
+        <li><a href="#桌面平台">桌面平台</a></li>
+        <li><a href="#服务器平台">服务器平台</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/pcie">pcie
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/bus">bus
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/bifurcation">bifurcation
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2022/12/10/acpi-notes/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">ACPI 学习笔记&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
