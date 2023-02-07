@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.109.0">
+    <meta name="generator" content="Hugo 0.110.0">
 </head>
 
 <body>
@@ -63,6 +63,337 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/13/rocket-chip-custom-debug/">向 Rocket Chip 添加自定义调试信号</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/13/rocket-chip-custom-debug/" class="article-date">
+                        <time datetime='2022-05-13T08:35:00.000&#43;08:00' itemprop="datePublished">2022-05-13</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/13/rocket-chip-custom-debug/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。
+分析 Trace 信号连接方式 首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 testchipip.CanHaveTraceIO:
+trait CanHaveTraceIO { this: HasTiles =&gt; val module: CanHaveTraceIOModuleImp // Bind all the trace nodes to a BB; we&#39;ll use this to generate the IO in the imp val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]() val tileTraceNodes = tiles.flatMap { case ext_tile: WithExtendedTraceport =&gt; None case tile =&gt; Some(tile) }.map { _.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/13/rocket-chip-custom-debug/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rocketchip">rocketchip
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/debug">debug
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/10/memory-authentication/">「教学」内存认证算法</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/10/memory-authentication/" class="article-date">
+                        <time datetime='2022-05-10T20:28:00.000&#43;08:00' itemprop="datePublished">2022-05-10</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/10/memory-authentication/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 之前 @松 给我讲过一些内存认证（Memory Authentication）算法的内容，受益匪浅，刚好今天某硬件群里又讨论到了这个话题，于是趁此机会再学习和整理一下相关的知识。
+内存认证计算的背景是可信计算，比如要做一些涉及重要数据的处理，从软件上，希望即使系统被攻击非法进入了，也可以保证重要信息不会泄漏；从硬件上，希望即使系统可以被攻击者进行一些物理的操作（比如导出或者修改内存等等），也可以保证攻击者无法读取或者篡改数据。
+下面的内容主要参考了 Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines 这篇 2009 年的文章。
+威胁模型 作为一个防御机制，首先要确定攻击方的能力。一个常见的威胁模型是认为，攻击者具有物理的控制，可以任意操控内存中的数据，但是无法读取或者修改 CPU 内部的数据。也就是说，只有 CPU 芯片内的数据是可信的，离开了芯片都是攻击者掌控的范围。一个简单的想法是让内存中保存的数据是加密的，那么怎样攻击者可以如何攻击加密的数据？下面是几个典型的攻击方法：
+Spoofing attack：把内存数据改成任意攻击者控制的数据；这种攻击可以通过签名来解决 Splicing or relocation attack：把某一段内存数据挪到另一部分，这样数据的签名依然是正确的；所以计算签名时需要把地址考虑进来，这样地址变了，验证签名就会失败 Replay attack：如果同一个地址的内存发生了改变，攻击者可以把旧的内存数据再写进去，这样签名和地址都是正确的；为了防止重放攻击，还需要引入计数器或者随机 nonce Authentication Primitives 为了防御上面几种攻击方法，上面提到的文章里提到了如下的思路：
+一是 Hash Function，把内存分为很多个块，每一块计算一个密码学 Hash 保存在片内，那么读取数据的时候，把整块数据读取进来，计算一次 Hash，和片内保存的结果进行比对；写入数据的时候，重新计算一次修改后数据的 Hash，更新到片内的存储。这个方法的缺点是没有加密，攻击者可以看到内容，只不过一修改就会被 CPU 发现（除非 Hash 冲突），并且存储代价很大：比如 512-bit 的块，每一块计算一个 128-bit 的 Hash，那就浪费了 25% 的空间，而片内空间是十分宝贵的。
+二是 MAC Function，也就是密码学的消息验证码，它需要一个 Key，保存在片内；由于攻击者不知道密码，根据 MAC 的性质，攻击者无法篡改数据，也无法伪造 MAC，所以可以直接把计算出来的 MAC 也保存到内存里。为了防御重放攻击，需要引入随机的 nonce，并且把 nonce 保存在片内，比如每 512-bit 的数据，保存 64-bit 的 nonce，这样片内需要保存 12.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/10/memory-authentication/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/memory">memory
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/bus">bus
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/dram">dram
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/auth">auth
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/teaching">teaching
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/09/tilelink/">TileLink 总线协议分析</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/09/tilelink/" class="article-date">
+                        <time datetime='2022-05-09T16:15:00.000&#43;08:00' itemprop="datePublished">2022-05-09</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/09/tilelink/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在研究一些支持缓存一致性的缓存的实现，比如 rocket-chip 的实现和 sifive 的实现，因此需要研究一些 TileLink 协议。本文讨论的时候默认读者具有一定的 AXI 知识，因此很多内容会直接参考 AXI。
+信号 根据 TileLink Spec 1.8.0，TileLink 分为以下三种：
+TL-UL: 只支持读写，不支持 burst，类比 AXI-Lite TL-UH：支持读写，原子指令，预取，支持 burst，类比 AXI+ATOP（AXI5 引入的原子操作） TL-C：在 TL-UH 基础上支持缓存一致性协议，类比 AXI+ACE/CHI TileLink Uncached TileLink Uncached(TL-UL 和 TL-UH) 包括了两个 channel：
+A channel: M-&gt;S 发送请求，类比 AXI 的 AR/AW/W D channel: S-&gt;M 发送响应，类比 AXI 的 R/W 因此 TileLink 每个周期只能发送读或者写的请求，而 AXI 可以同时在 AR 和 AW channel 上发送请求。
+一些请求的例子：
+读：M-&gt;S 在 A channel 上发送 Get，S-&gt;M 在 D channel 上发送 AccessAckData 写：M-&gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&gt;M 在 D channel 是发送 AccessAck 原子操作：M-&gt;S 在 A channel 上发送 ArithmeticData/LogicalData，S-&gt;M 在 D channel 上发送 AccessAckData 预取操作：M-&gt;S 在 A channel 上发送 Intent，S-&gt;M 在 D channel 上发送 AccessAck AXI4ToTL 针对 AXI4ToTL 模块的例子，来分析一下如何把一个 AXI4 Master 转换为 TileLink。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/09/tilelink/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/tilelink">tilelink
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/bus">bus
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cache">cache
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/coherence">coherence
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/system/2022/05/05/nuc11-igpu-passthrough/">NUC11 ESXi 中 iGPU 直通虚拟机</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/system/2022/05/05/nuc11-igpu-passthrough/" class="article-date">
+                        <time datetime='2022-05-05T10:24:00.000&#43;08:00' itemprop="datePublished">2022-05-05</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/system/2022/05/05/nuc11-igpu-passthrough/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 之前在 NUC11PAKi5 上装了 ESXI 加几个虚拟机系统，但是自带的 iGPU Intel Iris Xe Graphics(Tiger Lake GT-2) 没用上，感觉有些浪费。因此想要给 Windows 直通。在直通到 Windows 后发现会无限重启，最后直通到 Linux 中。
+步骤 第一步是到 esxi 的设备设置的地方，把 iGPU 的 Passthrough 打开，这时候会提示需要重启，但是如果重启，会发现还是处于 Needs reboot 状态。网上进行搜索，发现是 ESXi 自己占用了 iGPU 的输出，解决方法如下：
+$ esxcli system settings kernel set -s vga -v FALSE 这样设置以后就不会在显卡输出上显示 dcui 了，这是一个比较大的缺点，但是平时也不用自带的显示输出，就无所谓了。
+第二步，重启以后，这时候看设备状态就是 Active。回到 Windows 虚拟机，添加 PCI device，然后启动。这时候，我遇到了这样的错误：
+Module ‘DevicePowerOn’ power on failed Failed to register the device pciPassthru0 搜索了一番，解决方法是关掉 IOMMU。在虚拟机设计中关掉 IOMMU，就可以正常启动了。
+第三步，进入 Windows，这时候就可以看到有一个新的未知设备了，VID=8086，PID=9a49；等待一段时间，Windows 自动安装好了驱动，就可以正常识别了。GPU-Z 中可以看到效果如下：
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/system/2022/05/05/nuc11-igpu-passthrough/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/windows">windows
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/win11">win11
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/esxi">esxi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vmware">vmware
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/gpu">gpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/igpu">igpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/passthrough">passthrough
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/software/2022/05/02/loongarch64-toolchain/">LoongArch64 工具链构建</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/software/2022/05/02/loongarch64-toolchain/" class="article-date">
+                        <time datetime='2022-05-02T20:35:00.000&#43;08:00' itemprop="datePublished">2022-05-02</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/software/2022/05/02/loongarch64-toolchain/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    最近因为龙芯杯的原因，想自己搞个 LoongArch64 的交叉编译工具链试试，结果遇到了很多坑，最后终于算是搞出来了。
+一开始是想搞一个 newlib 的工具链，比较简单，而且之前做过一个仓库：jiegec/riscv-toolchain，就是构建的 riscv64-unknown-elf 工具链，照着 riscv-gnu-toolchain 就可以了。不过研究发现，newlib 还不支持 loongarch，目前只有 glibc 支持，只好硬着头皮上了。
+于是我就在 riscv-toolchain 的基础上搞 loongarch64-unknown-linux-gnu，也就是带 glibc 的工具链，结果发现遇到很多坑。首先编译 libgcc 的时候就找不到头文件，于是先要从 glibc 和 linux 安装头文件到 sysroot 里面，对于 sysroot 里面的头文件路径到底是 include 还是 usr/include 也折腾了半天。然后编译 libgcc 又各种出问题，最后折腾了半天，结果是 gcc stage1 和 glibc 都没问题，gcc stage2 会报链接错误，但是不管它也能用，可以编译出正常的程序，毕竟 libc 是好的。
+于是转念一想，要不要试试 crosstool-ng。克隆了一份上游的版本，照着 riscv 的部分抄了一份变成了 loongarch，然后把 config 里面的 linux/glibc/gcc/binutils-gdb 都替换为 custom location，这样我就可以用上游的最新版本了。中途还遇到了 crosstool-ng 对 gcc 12/13 不兼容的 bug，还好下面有人提出了解决方法。这些都搞定以后，终于构建出了一个完整的 loongarch64-unknown-linux-gnu 工具链。仓库地址是 jiegec/ct-ng-loongarch64，需要配合添加了 LoongArch 的 jiegec/crosstool-ng loongarch 分支 使用。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/software/2022/05/02/loongarch64-toolchain/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/loongarch">loongarch
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/toolchain">toolchain
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/gcc">gcc
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -403,356 +734,6 @@ lu_table_template (Timing_7_7) { variable_1 : input_net_transition; variable_2 :
             </div>
         </article>
         
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/12/try-openroad-flow/">OpenROAD Flow 初尝试</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/12/try-openroad-flow/" class="article-date">
-                        <time datetime='2022-03-12T22:52:00.000&#43;08:00' itemprop="datePublished">2022-03-12</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/12/try-openroad-flow/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近在尝试接触一些芯片前后端的知识。正好有现成的开源工具链 OpenROAD 来做这个事情，借此机会来学习一下整个流程。
-尝试过程 首先 clone 仓库 OpenROAD-flow-scripts，然后运行：./build_openroad.sh，脚本会克隆一些仓库，自动进行编译。
-编译中会找不到一些库，比如可能需要安装这些依赖：liblemon-dev libeigen3-dev libreadline-dev swig，此外运行的时候还需要 klayout 依赖。
-如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 BUG，可以运行下面的命令解决：
-cd /usr/lib/x86_64-linux-gnu/cmake/lemon cp lemonConfig.cmake LEMONConfig.cmake 编译后整个目录大概有 4.8G，输出的二进制目录是 133M。
-如果要跑一下样例里的 nangate45 工艺的 gcd 例子，运行：
-cd flow make DESIGN_CONFIG=./designs/nangate45/gcd/config.mk 分析 GCD 测例 这个测例的代码提供了这样一个接口：
-module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, input wire req_val, input wire reset, output wire [ 15:0] resp_msg, input wire resp_rdy, output wire resp_val ); endmodule 从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/12/try-openroad-flow/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/openroad">openroad
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synthesis">synthesis
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/yosys">yosys
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/09/rocket-chip-jtag-debug/">通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/" class="article-date">
-                        <time datetime='2022-03-09T19:04:00.000&#43;08:00' itemprop="datePublished">2022-03-09</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    前言 两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
-寻找 JTAG 接口 前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：
-The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections 其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/fpga">fpga
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/riscv">riscv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/rocketchip">rocketchip
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/jtag">jtag
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/openocd">openocd
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vcu128">vcu128
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/ft4232">ft4232
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/devops/2022/02/22/k3s-traefik-client-ip/">解决 k3s 中 traefik 不会转发 X-Forwarded-For 等头部的问题</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/devops/2022/02/22/k3s-traefik-client-ip/" class="article-date">
-                        <time datetime='2022-02-22T17:20:00.000&#43;08:00' itemprop="datePublished">2022-02-22</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/devops/2022/02/22/k3s-traefik-client-ip/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 把应用迁移到 k3s 中，然后用了 traefik 作为 Ingress Controller，发现无法获得真实的用户 IP 地址，而是 cni 内部的地址。搜索了一番，找到了靠谱的解决方案：
-Traefik Kubernetes Ingress and X-Forwarded-Headers
-具体来说，需要给 traefik 传额外的参数，方法是在 k3s 的配置目录下，添加一个 HelmChartConfig：
-# edit /var/lib/rancher/k3s/server/manifests/traefik-config.yaml # content: apiVersion: helm.cattle.io/v1 kind: HelmChartConfig metadata: name: traefik namespace: kube-system spec: valuesContent: |- additionalArguments: - &#34;--entryPoints.web.proxyProtocol.insecure&#34; - &#34;--entryPoints.web.forwardedHeaders.insecure&#34; 这样相当于让 traefik 信任前一级代理传过来的这些头部。更精细的话，还可以设置信任的 IP 地址范围，不过如果 traefik 不会直接暴露出去，就不用考虑这个问题了。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/devops/2022/02/22/k3s-traefik-client-ip/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/k8s">k8s
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/k3s">k3s
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/kubernetes">kubernetes
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/traefik">traefik
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/proxy">proxy
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/os/2022/01/30/windows-on-arm-on-m1/">在 M1 上运行 Windows ARM 虚拟机</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/os/2022/01/30/windows-on-arm-on-m1/" class="article-date">
-                        <time datetime='2022-01-30T20:50:00.000&#43;08:00' itemprop="datePublished">2022-01-30</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/os/2022/01/30/windows-on-arm-on-m1/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    目前 Windows ARM 出了预览版，可以从 Windows Insider Preview Downloads 下载，得到一个 9.5GB 的 vhdx 文件。
-接着，用 qemu-img 转换为 vmdk 格式：
-$ qemu-img convert Windows11_InsiderPreview_Client_ARM64_en-us_22533.vhdx -O vmdk -o adapter_type=lsilogic Windows11_InsiderPreview_Client_ARM64_en-us_22533.vmdk 转换后，在 VMWare Fusion for Apple Silicon Tech Preview 中，选择从已有的 vmdk 中创建虚拟机，启动前修改一些设置，特别是内存，默认 256MB 肯定不够，默认单核 CPU 也太少了一些。内存不足可能导致安装失败，记住要第一次启动前设置。
-启动以后会无法访问网络，按照下面网页里的方法设置网络：
-https://www.gerjon.com/vmware/vmware-fusion-on-apple-silicion-m1/
-需要注意的是，bcdedit 选项填的 IP 地址一般是 bridge 上的地址，比如 bridge101 的地址。
-然后就可以正常工作了！
-在 VMWare 论坛里，还谈到了下面几个问题的解决方法：
-为了让声音工作，可以修改 vmx 文件，设置 guestOS：
-guestOS = &#34;arm-windows11-64&#34; 这样声音就可以正常播放了。
-分辨率的问题，可以用 RDP 来解决：首先在虚拟机里打开 Remote Desktop，然后用 macOS 的 Microsoft Remote Desktop Beta 访问即可。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/os/2022/01/30/windows-on-arm-on-m1/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/windows">windows
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vmware">vmware
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/m1">m1
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vm">vm
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/software/2022/01/25/rvv-1.0-toolchain/">RISC-V Vector 1.0 工具链构建</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/software/2022/01/25/rvv-1.0-toolchain/" class="article-date">
-                        <time datetime='2022-01-25T21:41:00.000&#43;08:00' itemprop="datePublished">2022-01-25</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/software/2022/01/25/rvv-1.0-toolchain/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    不久前 RVV 1.0 标准终于是出来了，但是工具链的支持目前基本还处于刚 upstream 还没有 release 的状态。而目前 RVV 1.0 的支持主要在 LLVM 上比较活跃，因此也是采用 LLVM Clang + GCC Newlib Toolchain 的方式进行配合，前者做 RVV 1.0 的编译，后者提供 libc 等基础库。
-UPDATE: LLVM 14 已经发布，这个版本已经支持 RVV 1.0，直接从 https://apt.llvm.org 等地安装 LLVM 14 即可。
-LLVM Clang 直接采用 upstream 即可。编译选项：
-$ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_INSTALL_PREFIX=/prefix/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS=&#34;clang&#34; -DLLVM_TARGETS_TO_BUILD=&#34;RISCV&#34; $ ninja $ ninja install $ /prefix/llvm/bin/clang --version clang version 14.0.0 (https://github.com/llvm/llvm-project.git 8d298355ca3778a47fd6b3110aeee03ea5e8e02b) Target: x86_64-unknown-linux-gnu Thread model: posix InstalledDir: /data/llvm/bin 还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 riscv64-elf-ubuntu-20.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/software/2022/01/25/rvv-1.0-toolchain/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/riscv">riscv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vector">vector
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/rvv">rvv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/llvm">llvm
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/clang">clang
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/binutils">binutils
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
 
         
 
@@ -891,6 +872,10 @@ $ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -
     
     
     <a href="/page/33/">33</a>
+    
+    
+    
+    <a href="/page/34/">34</a>
     
     
 

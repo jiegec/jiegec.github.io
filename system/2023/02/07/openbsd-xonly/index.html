@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenBSD xonly 实现原理 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="OpenBSD xonly 实现原理" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/system/2023/02/07/openbsd-xonly/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.110.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">OpenBSD xonly 实现原理</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/system/2023/02/07/openbsd-xonly/" class="article-date">
+                <time datetime='2023-02-07T21:57:00.000&#43;08:00' itemprop="datePublished">2023-02-07</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/system/2023/02/07/openbsd-xonly/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近看到 <a href="https://marc.info/?l=openbsd-tech&amp;m=167501519712725&amp;w=2">xonly status</a>，看到 OpenBSD 最近在实现 xonly，也就是让一些页只能执行，不能读不能写。以往类似的做法是 <code>W^X</code>，也就是可以执行的时候不能写，可以写的时候不能执行。显然，xonly 是更加严格的，连读都不可以。查了一下历史，<code>W^X</code> 最早也是在 OpenBSD 中实现的，说不定以后 xonly 也会被各个操作系统实现。</p>
+<h2 id="amd64-上的实现">amd64 上的实现</h2>
+<p>在 amd64 的页表中，决定执行/读/写权限的是（见 Intel 文档 <code>Table 4-20. Format of a Page-Table Entry that Maps a 4-KByte Page</code>）：</p>
+<ul>
+<li>Bit 1(R/W): <code>Read/write; if 0, writes may not be allowed to the 4-KByte page referenced by this entry (see Section 4.6)</code></li>
+<li>Bit 63(XD): <code>If IA32_EFER.NXE = 1, execute-disable (if 1, instruction fetches are not allowed from the 4-KByte page controlled by this entry; see Section 4.6); otherwise, reserved (must be 0)</code></li>
+</ul>
+<p>可以看到，在这个定义下，可能出现的权限组合：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>R</th>
+<th>W</th>
+<th>X</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R/W=0, NXE=0</td>
+<td>Y</td>
+<td>N</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=1, NXE=0</td>
+<td>Y</td>
+<td>Y</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=0, NXE=1, XD=0</td>
+<td>Y</td>
+<td>N</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=1, NXE=1, XD=0</td>
+<td>Y</td>
+<td>Y</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=0, NXE=1, XD=1</td>
+<td>Y</td>
+<td>N</td>
+<td>N</td>
+</tr>
+<tr>
+<td>R/W=1, NXE=1, XD=1</td>
+<td>Y</td>
+<td>Y</td>
+<td>N</td>
+</tr>
+</tbody>
+</table>
+<p>需要注意的是，<code>IA32_EFER.NXE</code> 是全局的，而 <code>R/W</code> 和 <code>XD</code> 的粒度是页。可以看到，上面的所有组合中，都是可以读的。</p>
+<p>那么，怎么实现 x-only 呢？OpenBSD 的实现方法是 Protection Keys。在比较新的 CPU 中，页表的 4 个位用来表示使用的 Protection Key 下标，一共有 16 个：</p>
+<ul>
+<li>Bits 62:59: <code>Protection key; if CR4.PKE = 1 or CR4.PKS = 1, this may control the page’s access rights (see Section 4.6.2); otherwise, it is ignored and not used to control access rights.</code></li>
+</ul>
+<p>那么 CPU 在查页表的时候，如果 <code>CR4.PKE=1 or CR4.PKS=1</code>，就会根据这四个位去查找 PKRU 寄存器的取值。PKRU 是一个 32 位的寄存器，每两位对应一个 Protection Key，这两位表示是否允许读写：</p>
+<pre><code>The PKRU register (protection-key rights for user pages) is a 32-bit
+register with the following format: for each i (0 ≤ i ≤ 15), PKRU[2i] is
+the access-disable bit for protection key i (ADi); PKRU[2i+1] is the
+write-disable bit for protection key i (WDi). The IA32_PKRS MSR has the
+same format (bits 63:32 of the MSR are reserved and must be zero).
+</code></pre>
+<p>有了这个机制以后，就可以构造出 xonly 的页表项：</p>
+<ul>
+<li>R/W=0：不允许写</li>
+<li>NXE=1, XD=0：允许执行</li>
+<li>设置 62:59 位为一个 Key 编号，将对应的 PKRU 的两个位设为 1：不允许读，不允许写</li>
+</ul>
+<p>接下来看 OpenBSD 的<a href="https://github.com/openbsd/src/commit/e9e0c464329db9b56e1f2db65b0f536e53aa7e5f#diff-ab04285d8fd81f41887d9c9de2eb231be5e44c2d465f5c479943a1e21cf977ce">代码</a>：</p>
+<p>首先，检测 CPU 是否支持 PKU 机制：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * If PKU is available, initialize PROT_EXEC entry correctly,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * and enable the feature before it gets used
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * XXX Some Hypervisors forget to save/restore PKU
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (cpuid_level <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0x7</span>) {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">uint32_t</span> ecx, dummy;
+</span></span><span style="display:flex;"><span>	CPUID_LEAF(<span style="color:#ae81ff">0x7</span>, <span style="color:#ae81ff">0</span>, dummy, dummy, ecx, dummy);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> ((ecx <span style="color:#f92672">&amp;</span> SEFF0ECX_PKU) <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>	    (cpu_ecxfeature <span style="color:#f92672">&amp;</span> CPUIDECX_HV) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>		lcr4(rcr4() <span style="color:#f92672">|</span> CR4_PKE);
+</span></span><span style="display:flex;"><span>		pg_xo <span style="color:#f92672">=</span> PG_XO;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中 <code>PG_XO</code> 的值是 <code>0x0800000000000000UL</code>，也就是只有 bit 59 位 1，对应 Protection Key #1。OpenBSD 内核设置 PKRU 寄存器为 <code>0xfffffffc</code>，即只有 Protection Key #0 不修改权限，其他 Protection Key 都是禁止读写。剩下的代码就是维护 PKRU 寄存器的取值，然后把 xonly 的页的 Protection Key 都设为 1，否则设为 0。</p>
+<p>但需要注意的是，PKRU 寄存器用户态也可以读写。Linux 把 PKRU 暴露给了<a href="https://www.kernel.org/doc/html/latest/core-api/protection-keys.html">用户态</a>，允许用户态来自己设置页表的 Protection Key。OpenBSD 的实现方法则是进内核以后，检查 PKRU 寄存器，如果值修改了，就 SIGABRT。这有一定的风险，如果攻击代码修改了 PKRU 寄存器的内容，是有可能读取本来 xonly 的页的内容的。</p>
+<h2 id="powerpc64-上的实现">powerpc64 上的实现</h2>
+<p>powerpc64 的实现方法和 amd64 类似，见 <a href="https://github.com/openbsd/src/commit/6bd9427e6879f79e0e2c1e03d8411439da5bb69">commit</a>。机制和 AMD64 很像，下面引用一段 PowerISA 文档：</p>
+<pre><code>The Virtual Page Class Key Protection mechanism provides the means to
+assign virtual pages to one of 32 classes, and to modify data access
+permissions for each class by modifying the Authority Mask Register
+(AMR), shown in Figure 28, and to modify instruction access permissions
+for each class by modifying the Instruction Authority Mask Register
+(IAMR) shown in Figure 29.
+</code></pre>
+<p>对应如下代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">// sys/arch/powerpc64/powerpc64/cpu.c
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Set AMR to inhibit loads and stores for all virtual page
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * class keys, except for Key0 which is used for normal kernel
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * access.  This means we can pick any other key to implement
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * execute-only mappings.  But we pick Key1 since that allows
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * us to use the same bit in the PTE as was used to enable the
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Data Access Compare mechanism on CPUs based on older
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * versions of the architecture (such as the PowerPC 970).
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Set UAMOR (and AMOR just to be safe) to zero to prevent
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * userland from modifying any bits in AMR.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mtamr</span>(<span style="color:#ae81ff">0x3fffffffffffffff</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mtuamor</span>(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mtamor</span>(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">isync</span>();
+</span></span></code></pre></div><p>可以看到方法是一样的，Key0 正常，其他 Key 禁止读写。额外地，PowerISA 还可以设置 Protection Key 禁止执行。并且通过设置 UAMOR 寄存器，用户态不可以修改 AMR 寄存器，这让 xonly 比 AMD64 上更为完备。</p>
+<p>最后一步，就是修改 PTE 属性，指定 Key 即可：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">// sys/arch/powerpc64/include/pte.h
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#75715e">#define PTE_AC			0x0000000000000200ULL
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#75715e">// sys/arch/powerpc64/powerpc64/pmap.c
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> ((prot <span style="color:#f92672">&amp;</span> (PROT_READ <span style="color:#f92672">|</span> PROT_WRITE)) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>		pte<span style="color:#f92672">-&gt;</span>pte_lo <span style="color:#f92672">|=</span> PTE_AC;
+</span></span></code></pre></div><h2 id="其他指令集架构">其他指令集架构</h2>
+<p>一些指令集架构的页表在设计的时候，就有独立的 R W X 权限位，于是不需要特殊的处理，直接把 mmap 的参数映射过去即可。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#amd64-上的实现">amd64 上的实现</a></li>
+    <li><a href="#powerpc64-上的实现">powerpc64 上的实现</a></li>
+    <li><a href="#其他指令集架构">其他指令集架构</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/openbsd">openbsd
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/xonly">xonly
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/security">security
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/system/2023/02/03/solaris/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Solaris 11.4 安装&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

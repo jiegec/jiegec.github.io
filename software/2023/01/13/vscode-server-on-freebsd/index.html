@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在 FreeBSD 上运行 code-server // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="在 FreeBSD 上运行 code-server" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2023/01/13/vscode-server-on-freebsd/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.110.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在 FreeBSD 上运行 code-server</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2023/01/13/vscode-server-on-freebsd/" class="article-date">
+                <time datetime='2023-01-13T19:23:00.000&#43;08:00' itemprop="datePublished">2023-01-13</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2023/01/13/vscode-server-on-freebsd/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近在 FreeBSD 上移植开源软件，但是因为 vscode 官方不支持 FreeBSD，所以尝试使用 code-server</p>
+<h2 id="使用">使用</h2>
+<p>首先按照官方文档安装 code-server：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>curl -fsSL https://code-server.dev/install.sh | sh
+</span></span></code></pre></div><p>启动 code-server：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>code-server --bind-addr 0.0.0.0:8080
+</span></span></code></pre></div><p>但是很快你会发现，运行日志中会报告很多错误，缺少了一些包：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>sudo npm i -g yazl yauzl @microsoft/1ds-core-js vscode-regexpp xterm-headless vscode-proxy-agent --unsafe-perm
+</span></span></code></pre></div><p>到这里就能在网页里看到 UI 了，但是发现很多功能都不工作。例如搜索的时候，会告诉你找不到 rg，是因为 ripgrep 没有提供 FreeBSD 的 prebuilt binary，但是可以用 pkg 安装：</p>
+<pre tabindex="0"><code>sudo pkg install ripgrep
+cd /usr/local/lib/node_modules/@vscode/ripgrep/bin &amp;&amp; ln -s /usr/local/bin/rg
+cd /usr/local/lib/node_modules/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin &amp;&amp; ln -s /usr/local/bin/rg
+</code></pre><p>然后，日志中会显示 @parcel/watcher 启动失败，显示 Undefined symbol，这是因为这个库没有做 FreeBSD 支持。需要使用 <a href="https://github.com/parcel-bundler/watcher/pull/128">https://github.com/parcel-bundler/watcher/pull/128</a> 版本，编译出 watcher.node 文件，替换：</p>
+<pre tabindex="0"><code>cd watcher
+npm install
+sudo cp build/Release/watcher.node /usr/local/lib/node_modules/@parcel/watcher/build/Release/
+sudo cp build/Release/watcher.node /usr/local/lib/node_modules/code-server/lib/vscode/node_modules/@parcel/watcher/build/Release/watcher.node
+</code></pre><p>这样就解决了 watcher 的问题。</p>
+<p>最后一个问题是无法打开 Terminal，因为在 VSCode 代码中，检测到不支持的 Platform 的时候，会抛出异常：</p>
+<pre tabindex="0"><code>[IPC Library: Pty Host] The factory function of &#34;vs/platform/terminal/node/ptyHostMain&#34; has thrown an exception
+[IPC Library: Pty Host] Error: Platform not supported
+</code></pre><p>可以修改源码：<code>sudo vim /usr/local/lib/node_modules/code-server/lib/vscode/out/vs/platform/terminal/node/ptyHostMain.js</code> 把这个检查改掉，例如替换 linux 为 freebsd，当成 linux 来检测。</p>
+<p>接下来的问题和 <a href="https://github.com/coder/code-server/issues/5760">https://github.com/coder/code-server/issues/5760</a> 一致，安装依赖，重新 <code>npm install</code>：</p>
+<pre tabindex="0"><code>sudo pkg install libsecret pkgconf
+cd /usr/local/lib/node_modules/code-server
+sudo npm install --unsafe-perm
+# go back to @parcel/watcher
+cd watcher
+sudo cp build/Release/watcher.node /usr/local/lib/node_modules/code-server/lib/vscode/node_modules/@parcel/watcher/build/Release
+</code></pre><p>完成这些步骤以后，Terminal 也正常了。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#使用">使用</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/vscode">vscode
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/code-server">code-server
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/freebsd">freebsd
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/system/2023/01/21/bsd-cookbook/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            FreeBSD/NetBSD/OpenBSD/DragonFlyBSD Cookbook
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2023/01/11/intel-cpu/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Intel 处理器&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

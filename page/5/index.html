@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.109.0">
+    <meta name="generator" content="Hugo 0.110.0">
 </head>
 
 <body>
@@ -63,6 +63,356 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/12/try-openroad-flow/">OpenROAD Flow 初尝试</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/03/12/try-openroad-flow/" class="article-date">
+                        <time datetime='2022-03-12T22:52:00.000&#43;08:00' itemprop="datePublished">2022-03-12</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/03/12/try-openroad-flow/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在尝试接触一些芯片前后端的知识。正好有现成的开源工具链 OpenROAD 来做这个事情，借此机会来学习一下整个流程。
+尝试过程 首先 clone 仓库 OpenROAD-flow-scripts，然后运行：./build_openroad.sh，脚本会克隆一些仓库，自动进行编译。
+编译中会找不到一些库，比如可能需要安装这些依赖：liblemon-dev libeigen3-dev libreadline-dev swig，此外运行的时候还需要 klayout 依赖。
+如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 BUG，可以运行下面的命令解决：
+cd /usr/lib/x86_64-linux-gnu/cmake/lemon cp lemonConfig.cmake LEMONConfig.cmake 编译后整个目录大概有 4.8G，输出的二进制目录是 133M。
+如果要跑一下样例里的 nangate45 工艺的 gcd 例子，运行：
+cd flow make DESIGN_CONFIG=./designs/nangate45/gcd/config.mk 分析 GCD 测例 这个测例的代码提供了这样一个接口：
+module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, input wire req_val, input wire reset, output wire [ 15:0] resp_msg, input wire resp_rdy, output wire resp_val ); endmodule 从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/03/12/try-openroad-flow/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/openroad">openroad
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/synthesis">synthesis
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/yosys">yosys
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/09/rocket-chip-jtag-debug/">通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/" class="article-date">
+                        <time datetime='2022-03-09T19:04:00.000&#43;08:00' itemprop="datePublished">2022-03-09</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    前言 两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
+寻找 JTAG 接口 前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：
+The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted UART connections through the single micro-AB USB connector J2. • Channel A is configured in JTAG mode to support the JTAG chain • Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections • Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections • Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections 其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/03/09/rocket-chip-jtag-debug/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/fpga">fpga
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rocketchip">rocketchip
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/jtag">jtag
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/openocd">openocd
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vcu128">vcu128
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/ft4232">ft4232
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/devops/2022/02/22/k3s-traefik-client-ip/">解决 k3s 中 traefik 不会转发 X-Forwarded-For 等头部的问题</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/devops/2022/02/22/k3s-traefik-client-ip/" class="article-date">
+                        <time datetime='2022-02-22T17:20:00.000&#43;08:00' itemprop="datePublished">2022-02-22</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/devops/2022/02/22/k3s-traefik-client-ip/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 把应用迁移到 k3s 中，然后用了 traefik 作为 Ingress Controller，发现无法获得真实的用户 IP 地址，而是 cni 内部的地址。搜索了一番，找到了靠谱的解决方案：
+Traefik Kubernetes Ingress and X-Forwarded-Headers
+具体来说，需要给 traefik 传额外的参数，方法是在 k3s 的配置目录下，添加一个 HelmChartConfig：
+# edit /var/lib/rancher/k3s/server/manifests/traefik-config.yaml # content: apiVersion: helm.cattle.io/v1 kind: HelmChartConfig metadata: name: traefik namespace: kube-system spec: valuesContent: |- additionalArguments: - &#34;--entryPoints.web.proxyProtocol.insecure&#34; - &#34;--entryPoints.web.forwardedHeaders.insecure&#34; 这样相当于让 traefik 信任前一级代理传过来的这些头部。更精细的话，还可以设置信任的 IP 地址范围，不过如果 traefik 不会直接暴露出去，就不用考虑这个问题了。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/devops/2022/02/22/k3s-traefik-client-ip/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/k8s">k8s
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/k3s">k3s
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/kubernetes">kubernetes
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/traefik">traefik
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/proxy">proxy
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/os/2022/01/30/windows-on-arm-on-m1/">在 M1 上运行 Windows ARM 虚拟机</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/os/2022/01/30/windows-on-arm-on-m1/" class="article-date">
+                        <time datetime='2022-01-30T20:50:00.000&#43;08:00' itemprop="datePublished">2022-01-30</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/os/2022/01/30/windows-on-arm-on-m1/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    目前 Windows ARM 出了预览版，可以从 Windows Insider Preview Downloads 下载，得到一个 9.5GB 的 vhdx 文件。
+接着，用 qemu-img 转换为 vmdk 格式：
+$ qemu-img convert Windows11_InsiderPreview_Client_ARM64_en-us_22533.vhdx -O vmdk -o adapter_type=lsilogic Windows11_InsiderPreview_Client_ARM64_en-us_22533.vmdk 转换后，在 VMWare Fusion for Apple Silicon Tech Preview 中，选择从已有的 vmdk 中创建虚拟机，启动前修改一些设置，特别是内存，默认 256MB 肯定不够，默认单核 CPU 也太少了一些。内存不足可能导致安装失败，记住要第一次启动前设置。
+启动以后会无法访问网络，按照下面网页里的方法设置网络：
+https://www.gerjon.com/vmware/vmware-fusion-on-apple-silicion-m1/
+需要注意的是，bcdedit 选项填的 IP 地址一般是 bridge 上的地址，比如 bridge101 的地址。
+然后就可以正常工作了！
+在 VMWare 论坛里，还谈到了下面几个问题的解决方法：
+为了让声音工作，可以修改 vmx 文件，设置 guestOS：
+guestOS = &#34;arm-windows11-64&#34; 这样声音就可以正常播放了。
+分辨率的问题，可以用 RDP 来解决：首先在虚拟机里打开 Remote Desktop，然后用 macOS 的 Microsoft Remote Desktop Beta 访问即可。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/os/2022/01/30/windows-on-arm-on-m1/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/windows">windows
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vmware">vmware
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/m1">m1
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vm">vm
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/software/2022/01/25/rvv-1.0-toolchain/">RISC-V Vector 1.0 工具链构建</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/software/2022/01/25/rvv-1.0-toolchain/" class="article-date">
+                        <time datetime='2022-01-25T21:41:00.000&#43;08:00' itemprop="datePublished">2022-01-25</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/software/2022/01/25/rvv-1.0-toolchain/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    不久前 RVV 1.0 标准终于是出来了，但是工具链的支持目前基本还处于刚 upstream 还没有 release 的状态。而目前 RVV 1.0 的支持主要在 LLVM 上比较活跃，因此也是采用 LLVM Clang + GCC Newlib Toolchain 的方式进行配合，前者做 RVV 1.0 的编译，后者提供 libc 等基础库。
+UPDATE: LLVM 14 已经发布，这个版本已经支持 RVV 1.0，直接从 https://apt.llvm.org 等地安装 LLVM 14 即可。
+LLVM Clang 直接采用 upstream 即可。编译选项：
+$ cmake -G Ninja ../llvm -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_INSTALL_PREFIX=/prefix/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS=&#34;clang&#34; -DLLVM_TARGETS_TO_BUILD=&#34;RISCV&#34; $ ninja $ ninja install $ /prefix/llvm/bin/clang --version clang version 14.0.0 (https://github.com/llvm/llvm-project.git 8d298355ca3778a47fd6b3110aeee03ea5e8e02b) Target: x86_64-unknown-linux-gnu Thread model: posix InstalledDir: /data/llvm/bin 还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 riscv64-elf-ubuntu-20.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/software/2022/01/25/rvv-1.0-toolchain/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vector">vector
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rvv">rvv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/llvm">llvm
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/clang">clang
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/binutils">binutils
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -371,346 +721,6 @@ param=-configdir param=/ 实际上就是不让 Xorg 加载 nvidia xorg 驱动，
             </div>
         </article>
         
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/software/2021/12/26/nvidia-cuda/">NVIDIA 驱动和 CUDA 版本信息速查</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/software/2021/12/26/nvidia-cuda/" class="article-date">
-                        <time datetime='2021-12-26T16:03:00.000&#43;08:00' itemprop="datePublished">2021-12-26</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/software/2021/12/26/nvidia-cuda/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 之前和 NVIDIA 驱动和 CUDA 搏斗比较多，因此记录一下一些常用信息，方便查询。
-常用地址 CUDA Toolkit Downloads NVIDIA Driver Installation Quickstart Guide NVIDIA Driver Downloads NVIDIA Docker Installation Guide CUDA 版本与 NVIDIA 驱动兼容性 可以通过 apt show cuda-runtime-x-x 找到：
-cuda 11.7 &gt;= 515 cuda 11.6 &gt;= 510 cuda 11.5 &gt;= 495 cuda 11.4 &gt;= 470 cuda 11.3 &gt;= 465 cuda 11.2 &gt;= 460 cuda 11.1 &gt;= 455 cuda 11.0 &gt;= 450 cuda 10.2 &gt;= 440 cuda 10.1 &gt;= 418 cuda 10.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/software/2021/12/26/nvidia-cuda/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/nvidia">nvidia
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cuda">cuda
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2021/12/17/cache-coherency-protocol/">「教学」缓存一致性协议分析</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2021/12/17/cache-coherency-protocol/" class="article-date">
-                        <time datetime='2021-12-17T07:39:00.000&#43;08:00' itemprop="datePublished">2021-12-17</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2021/12/17/cache-coherency-protocol/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近在《高等计算机系统结构》课程中学习缓存一致性协议算法，这里用自己的语言来组织一下相关知识的讲解。
-Write-invalidate 和 Write-update 最基础的缓存一致性思想有两种：
-Write-invalidate：写入数据的时候，将其他 Cache 中这条 Cache Line 设为 Invalid Write-update：写入数据的时候，把新的结果写入到有这条 Cache Line 的其他 Cache Write-once 协议 Write-once 协议定义了四个状态：
-Invalid：表示这个块不合法 Valid：表示这个块合法，并可能是共享的，同时数据没有修改 Reserved：表示这个块合法，不是共享的，同时数据没有更改 Dirty：表示这个块合法，不是共享的，数据做了修改，和内存不同。 可见，当一个缓存状态在 R 或者 D，其他缓存只能是 I；而缓存状态是 V 的时候，可以有多个缓存在 V 状态。
-Write-once 协议的特点是，第一次写的时候，会写入到内存（类似 Write-through），连续写入则只写到缓存中，类似 Write-back。
-当 Read hit 的时候，状态不变。
-Read hit: The information is supplied by the current cache. No state change. 当 Read miss 的时候，会查看所有缓存，如果有其他缓存处于 Valid/Reserved/Dirty 状态，就从其他缓存处读取数据，然后设为 Valid，其他缓存也设为 Valid。如果其他缓存处于 Dirty 状态，还要把数据写入内存。
-Read miss: The data is read from main memory.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2021/12/17/cache-coherency-protocol/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cpu">cpu
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cache">cache
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/coherence">coherence
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/msi">msi
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/mesi">mesi
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/moesi">moesi
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/teaching">teaching
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2021/12/13/dram-fpga-vref-problem/">DRAM 在 Kintex 7 FPGA 上内部 Vref 的性能问题</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2021/12/13/dram-fpga-vref-problem/" class="article-date">
-                        <time datetime='2021-12-13T20:06:00.000&#43;08:00' itemprop="datePublished">2021-12-13</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2021/12/13/dram-fpga-vref-problem/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近我们设计的 Kintex 7 FPGA 开发板在测试 DDR SDRAM 的时候遇到了一个问题，因为采用了 Internel VREF，MIG 在配置的时候限制了频率只能是 400 MHz，对应 800 MT/s，这样无法达到 DDR 的最好性能。
-原理 首先，VREF 在 DDR 中是用来区分低电平和高电平的。在 JESD79-4B 标准中，可以看到，对于直流信号，电压不小于 VREF+0.075V 时表示高电平，而电压不高于 VREF-0.075V 时表示低电平。VREF 本身应该介于 VDD 的 0.49 倍到 0.51 倍之间。
-在连接 FPGA 的时候，有两种选择：
-Internal VREF: 从 FPGA 输出 VREF 信号到 DRAM External VREF：接入 FPGA 以外的 VREF 对于 7 Series 的 FPGA，Xilinx 要求如下：
-For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz), users have the option of selecting Internal VREF to save two I/O pins or using external VREF.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2021/12/13/dram-fpga-vref-problem/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/dram">dram
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/ddr">ddr
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/fpga">fpga
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/7series">7series
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/xilinx">xilinx
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/kintex7">kintex7
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/mig">mig
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2021/12/12/dram/">「教学」DRAM 结构和特性</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2021/12/12/dram/" class="article-date">
-                        <time datetime='2021-12-12T15:06:00.000&#43;08:00' itemprop="datePublished">2021-12-12</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2021/12/12/dram/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    DRAM 是如何组织的 DRAM 分成很多层次：Bank Group，Bank，Row，Column，从大到小，容量也是各级别的乘积。
-举例子：
-4 Bank Group 4 Bank per Bank Group 32,768 Row per Bank 1024 Column per Row 4 Bits per Column 那么总大小就是 4*4*32768*1024*4=2 Gb。
-访问模式 DRAM 的访问模式决定了访问内存的实际带宽。对于每次访问，需要这样的操作：
-用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe） 用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。 在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。 可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2021/12/12/dram/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/dram">dram
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/ddr">ddr
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/teaching">teaching
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2021/12/12/riscv-debug/">「教学」RISC-V Debug 协议</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2021/12/12/riscv-debug/" class="article-date">
-                        <time datetime='2021-12-12T14:01:00.000&#43;08:00' itemprop="datePublished">2021-12-12</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2021/12/12/riscv-debug/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。
-架构 为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：
-Debugger: GDB，连接到 OpenOCD 启动的 GDB Server Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准 Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为 Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer 可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。
-JTAG 首先什么是 JTAG？简单来说，它工作流程是这样的：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2021/12/12/riscv-debug/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/riscv">riscv
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cpu">cpu
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/debug">debug
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/jtag">jtag
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/teaching">teaching
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
 
         
 
@@ -849,6 +859,10 @@ JTAG 首先什么是 JTAG？简单来说，它工作流程是这样的：
     
     
     <a href="/page/33/">33</a>
+    
+    
+    
+    <a href="/page/34/">34</a>
     
     
 
