@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Transport Layer Interface 考古 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="Transport Layer Interface 考古" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/networking/2023/02/12/transport-layer-interface/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.110.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">Transport Layer Interface 考古</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/networking/2023/02/12/transport-layer-interface/" class="article-date">
+                <time datetime='2023-02-12T20:52:00.000&#43;08:00' itemprop="datePublished">2023-02-12</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/networking/2023/02/12/transport-layer-interface/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="transport-layer-interface">Transport Layer Interface</h2>
+<p>现在网络编程主要采用的是 BSD Sockets API，但实际上当年还有另一套 API，就是 TLI（Transport Layer Interface），后来 BSD Sockets 胜出，成为了 POSIX 标准，TLI 后面也标准化为了 XTI，现在可以在部分 Unix 系统中找到。TLI/XTI 的使用方法和 Sockets API 有些类似，但是比较特别的一点在于，Sockets API 第一步是 <code>socket</code> 调用，传的参数就决定了这是 TCP 还是 UDP 还是其他什么协议，而 TLI 是通过打开不同的设备文件来进行区分：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">t_open</span>(<span style="color:#e6db74">&#34;/dev/udp&#34;</span>, O_RDWR, NULL);
+</span></span></code></pre></div><p>比如 TCP 就是 <code>/dev/tcp</code>，UDP 就是 <code>/dev/udp</code>，同理还有 <code>/dev/icmp</code> 等等。这颇有 Unix 的哲学：everything is a file。而 BSD Sockets API 则是有对应的系统调用，libc 基本不需要做什么事情。</p>
+<p>沿着这个思路，既然 TLI 第一步是打开一个文件，难道后面的一系列的 bind、connect、send、recv 等操作也是对文件读写吗？是的！如果我们查看 illumos 的<a href="https://github.com/illumos/illumos-gate/blob/46f52c84cb830d1636c093bd5c2d83074aeaf21c/usr/src/lib/libnsl/nsl/_conn_util.c#L76-L82">源码</a>，会发现 <code>t_connect</code> 函数的核心实现是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>	creq <span style="color:#f92672">=</span> (<span style="color:#66d9ef">struct</span> T_conn_req <span style="color:#f92672">*</span>)ctlbufp<span style="color:#f92672">-&gt;</span>buf;
+</span></span><span style="display:flex;"><span>	creq<span style="color:#f92672">-&gt;</span>PRIM_type <span style="color:#f92672">=</span> T_CONN_REQ;
+</span></span><span style="display:flex;"><span>	creq<span style="color:#f92672">-&gt;</span>DEST_length <span style="color:#f92672">=</span> call<span style="color:#f92672">-&gt;</span>addr.len;
+</span></span><span style="display:flex;"><span>	creq<span style="color:#f92672">-&gt;</span>DEST_offset <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>	creq<span style="color:#f92672">-&gt;</span>OPT_length <span style="color:#f92672">=</span> call<span style="color:#f92672">-&gt;</span>opt.len;
+</span></span><span style="display:flex;"><span>	creq<span style="color:#f92672">-&gt;</span>OPT_offset <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">putmsg</span>(fd, ctlbufp,
+</span></span><span style="display:flex;"><span>	    (<span style="color:#66d9ef">struct</span> strbuf <span style="color:#f92672">*</span>)(call<span style="color:#f92672">-&gt;</span>udata.len<span style="color:#f92672">?</span> <span style="color:#f92672">&amp;</span>call<span style="color:#f92672">-&gt;</span>udata: NULL), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>		t_errno <span style="color:#f92672">=</span> TSYSERR;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> (<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><p>可以看到，这段在 libnsl 中的代码构造了一个结构体 <code>struct T_conn_req</code>，然后通过 <code>putmsg</code> 系统调用发送出去。可以预想，内核那边虚拟了一个 <code>/dev/tcp</code> 设备，这个设备注册了 putmsg 的回调函数。在回调函数中，解析结构体的字段，然后执行相应的操作。用户调用 TLI 函数，然后 libnsl 负责把函数的参数封装成一个结构体，然后向 <code>t_open</code> 打开的设备文件发送结构体的内容。内核和 libnsl 约定好了结构体，然后不同的操作根据结构体的 <code>PRIM_type</code> 字段来区分。实际上，这个约定也是一个标准，叫做 TPI(Transport Provider Interface)。</p>
+<h2 id="transport-provider-interface">Transport Provider Interface</h2>
+<p>TPI(Transport Provider Interface) 约定了内核和 libnsl 之间的接口。内核和用户态之间互相发送消息，有点像 HTTP，一个请求过去，一个响应回来。只不过请求是 “connect” 或者 “accept” 等等。相比 Sockets API，确实绕了很多，首先要封装到 struct 里面，然后通过统一的读写 syscall 进入到内核，再解析一遍 struct，再做实际的操作。如果直接 syscall 的话，内核实现会比较简单，只不过不 “Unix” 了。实际上，如过你阅读 Illumos 源码，它在解析 struct 以后，也会转而执行相应的 Sockets 处理函数，然后把返回值再封装成 TLI 的响应，发送给用户程序。</p>
+<p>比较有意思的是，TPI 本身也是有状态的：Idle，Unbound，Data Transfer，等待 ACK 等等。所以如果你在 Solaris 上跑 netstat，会发现 UDP 也有状态（Idle/Unbound），那实际上不是 UDP 的状态，而是 TPI 的状态。正因此，我在维护 lsof 的时候，经常看到 TCP/TPI state，不明所以，才会研究 TPI 的历史，然后找到 TLI，才知道除了 Sockets 以外，还有一套 Unix 上的网络 API。有趣的是，TLI 是 System V 提供的，以前经常听到 System V ABI 的说法，却不知道 System V 是一个 Unix 操作系统，现在依然还可以在很多地方看到它的身影。</p>
+<h2 id="参考资料">参考资料</h2>
+<ul>
+<li><a href="https://pubs.opengroup.org/onlinepubs/9647699/toc.pdf">Networking Services (XNS)</a></li>
+<li><a href="http://www.openss7.org/docs/tpi.pdf">Transport Provider Interface</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#transport-layer-interface">Transport Layer Interface</a></li>
+    <li><a href="#transport-provider-interface">Transport Provider Interface</a></li>
+    <li><a href="#参考资料">参考资料</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/solaris">solaris
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/tli">tli
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/xti">xti
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/sysv">sysv
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/unix">unix
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/system/2023/02/07/openbsd-xonly/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">OpenBSD xonly 实现原理&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
