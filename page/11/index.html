@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.110.0">
+    <meta name="generator" content="Hugo 0.111.3">
 </head>
 
 <body>
@@ -63,6 +63,274 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/devops/2020/10/18/deploy-esxi-vcsa-7/">在裸机上部署 ESXi 和 vCSA 7</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/devops/2020/10/18/deploy-esxi-vcsa-7/" class="article-date">
+                        <time datetime='2020-10-18T00:08:00.000&#43;08:00' itemprop="datePublished">2020-10-18</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/devops/2020/10/18/deploy-esxi-vcsa-7/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    之前在另一篇文章里提到过 vCSA 的安装，这次又在另一台机器上重新做了一遍，特此记录一下。
+首先在官网上下载 ESXi+VCSA 7.0 ，应该得到两个文件：
+7.9G VMware-VCSA-all-7.0.1-16860138.iso 358M VMware-VMvisor-Installer-7.0U1-16850804.x86_64.iso 首先安装 ESXi，用 UNetBootin 制作 ESXi 的安装光盘。注意不能用 dd，因为它是 CDFS 格式的，不能直接 boot。启动以后，按照界面要求，一路安装即可。
+接着，就可以用网页访问 ESXi 进行配置。比如安装一些 Linux 发行版，然后在 Linux 虚拟机里面 mount 上面的 VCSA 的 iso：
+sudo mount /dev/sr0 /mnt 接着，复制并修改 /mnt/vcsa-cli-installer/templates/install/embedded_vCSA_on_ESi.json，按照代码注释进行修改。需要注意几点：
+密码都可以设为空，然后运行 cli 的时候输入 ESXi 的密码和 vCSA 的密码是不一样的 可以把 ceip 关掉，设置 ceip_enabled: false 接着，进行安装：
+/mnt/vcsa-cli-installer/lin64/vcsa-deploy install --accept-eula /path/to/customized.json -v 慢慢等待它安装成功即可。
+安装完成后，进入 vCSA，新建一个 Datacenter，然后选择新建的 Datacenter，选择 Add host，输入 ESXi 的地址和用户密码信息即可。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/devops/2020/10/18/deploy-esxi-vcsa-7/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vmware">vmware
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/esxi">esxi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/vcsa">vcsa
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/baremetal">baremetal
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/visualization">visualization
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/system/2020/10/09/upgrade-power8-bmc/">IBM Power S822LC(8335-GTB) BMC 升级</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/system/2020/10/09/upgrade-power8-bmc/" class="article-date">
+                        <time datetime='2020-10-09T08:16:00.000&#43;08:00' itemprop="datePublished">2020-10-09</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/system/2020/10/09/upgrade-power8-bmc/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近拿到一台 IBM Power S822LC（8335-GTB）机器的访问权限，这也是我第一次碰 ppc64le 指令集的服务器。然后发现，它的 BMC 版本比较老，我想连接 Remote Control 失败了，原因是 JViewer 不支持 macOS，我就想着能不能升级一下。
+升级过程 首先，在网上找了一下文档，首先用 ipmitool 找一下机器型号：
+$ sudo ipmitool fru print 3 Chassis Type : Unknown Chassis Part Number : 8335-GTB Chassis Serial : REDACTED 可以看到，这台机器是 8335-GTB 型号，按照这个型号在 Fix Central 上搜索，可以找到若干个版本的 firmware，其中最老的版本是 OP8_v1.11_2.1，对比了一下，和原来的版本一致：
+$ sudo ipmitool fru print 47 Product Name : OpenPOWER Firmware Product Version : IBM-garrison-ibm-OP8_v1.11_2.1 Product Extra : op-build-da02863 Product Extra : buildroot-81b8d98 Product Extra : skiboot-5.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/system/2020/10/09/upgrade-power8-bmc/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/bmc">bmc
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/ipmi">ipmi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/power">power
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/ibm">ibm
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/programming/2020/09/13/aarch64-rust-analyzer/">在 arm64 上使用 rust-analyzer</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/programming/2020/09/13/aarch64-rust-analyzer/" class="article-date">
+                        <time datetime='2020-09-13T16:34:00.000&#43;08:00' itemprop="datePublished">2020-09-13</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/programming/2020/09/13/aarch64-rust-analyzer/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    远程到 arm64 的机器上进行开发，发现没有 rust-analyzer 的支持。研究了一下，发现在 rustup 里面可以找到，不过要配置一下：
+&gt; rustup toolchain add nightly &gt; rustup component add --toolchain nightly rust-analyzer-preview 这个时候，应该可以找到 ~/.rustup/toolchains/nightly-aarch64-unknown-linux-gnu/bin/rust-analyzer 文件，接下来，配置 VSCode 插件即可：
+{ &#34;rust-analyzer.serverPath&#34;: &#34;~/.rustup/toolchains/nightly-aarch64-unknown-linux-gnu/bin/rust-analyzer&#34; } 路径在 ~/.vscode-server/data/Machine/settings.json。
+参考：https://github.com/rust-analyzer/rust-analyzer/issues/5256
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/programming/2020/09/13/aarch64-rust-analyzer/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rust">rust
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rust-analyzer">rust-analyzer
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/arm">arm
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/arm64">arm64
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/aarch64">aarch64
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/devops/2020/09/12/buildroot-rpi-pxe/">在 Rpi4 上运行 buildroot</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/devops/2020/09/12/buildroot-rpi-pxe/" class="article-date">
+                        <time datetime='2020-09-12T08:21:00.000&#43;08:00' itemprop="datePublished">2020-09-12</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/devops/2020/09/12/buildroot-rpi-pxe/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 需要给 rpi 配置一个 pxe 的最小环境，在上一篇博文了提到可以用 alpine，但发现有一些不好用的地方，所以试了试 buildroot。
+PXE 设置和路由器设置 见“在 Rpi4 上运行 Alpine Linux”文章。
+Buildroot 配置 下载 buildroot：
+&gt; wget https://buildroot.org/downloads/buildroot-2020.08.tar.gz &gt; unar buildroot-2020.08.tar.gz &gt; cd buildroot-2020.08 &gt; make raspberrypi4_64_defconfig 然后运行 make menuconfig ，在 Filesystem images 中打开 initramfs，并设置 cpio 压缩为 gz。然后直接编译：
+&gt; make -j4 $ ls -al target/images bcm2711-rpi-4-b.dtb* boot.vfat Image rootfs.cpio rootfs.cpio.gz rootfs.ext2 rootfs.ext4@ rpi-firmware/ sdcard.img 接着，在一个单独的目录里，把这些文件整理一下
+&gt; cd ~/rpi-buildroot &gt; cp -r ~/buildroot-2020.08/output/images/rpi-firmware/* . &gt; cp ~/buildroot-2020.08/output/images/bcm2711-rpi-4-b.dtb .
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/devops/2020/09/12/buildroot-rpi-pxe/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/buildroot">buildroot
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/pxe">pxe
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rpi">rpi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rpi4">rpi4
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -443,278 +711,6 @@ OP_REQ_DEVLIST 请求获取设备列表 OP_REP_DEVLIST 返回设备列表 OP_REQ
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="/tags/usbip">usbip
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2020/05/10/mifare-classic-ndef/">MIFARE Classic 上配置 NDEF</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2020/05/10/mifare-classic-ndef/" class="article-date">
-                        <time datetime='2020-05-10T09:19:00.000&#43;08:00' itemprop="datePublished">2020-05-10</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2020/05/10/mifare-classic-ndef/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近买了一堆 NFC 的智能卡拿来测试，其中一张 MIFARE Classic 的总是在 iOS 上读不出来，无论是以 Tag 模式还是 NDEF 模式。于是通过一系列的研究，终于知道上怎么一回事，然后成功地把一个 MIFARE Classic 卡配置成了 NDEF。
-背景知识 NFC 有很多协议，其中 MIFARE Classic 基于 ISO 14443-3 Type A 标准，里面有一些 MIFARE 的命令。通过这些命令，就可以控制 MIFARE Classic 卡的内容。具体来说，以我使用的 MIFARE Classic EV1 4K S70 为例，这篇文章会涉及到如下的背景知识：
-MIFARE Classic 内存布局 在 MIFARE Classic 中，有 Sector 和 Block 的概念，每个 Sector 有若干个 Block，其中最后一个 Block 是特殊的（称为 Sector Trailer），保存了这个 Sector 的一些信息：Key A、Access Bits、GPB 和 Key B。对于 Classic 4K，首先是 32 个有 4 blocks 的 sector，然后是 8 个 有 16 blocks 的 sector，整体的内存布局大概是：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2020/05/10/mifare-classic-ndef/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/nfc">nfc
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/mifare">mifare
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/mifareclassic">mifareclassic
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/iso14443">iso14443
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/typea">typea
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/ndef">ndef
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/others/2020/05/01/bb84-explained/">解释 BB84 协议</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/others/2020/05/01/bb84-explained/" class="article-date">
-                        <time datetime='2020-05-01T11:12:30.000&#43;08:00' itemprop="datePublished">2020-05-01</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/others/2020/05/01/bb84-explained/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 这周密码学课程，来自 BUPT 的高飞老师讲了一下 qkd 里的 BB84 协议，老师讲得很好，我也想记录一下这个协议的流程和方法。我不是这方面的专业人士，如果有什么问题请指出。
-背景知识 QKD（Quantum Key Distribution）目的是让通信双方获得同一个密钥，它需要同时需要量子信道和经典信道。其中经典信道被认为是可信的，它可以被监听，但不能被中间人攻击。
-在 BB84（Charles H. Bennett and Gilles Brassard (1984)）协议中，传输的是一个光子，它具有如下的特性：
-可以用两个基去测量光子：➕️和✖️️，然后光子有四个偏振角度，分别是 ⬆️️ ⬇️️ ↘️️ ↗️️。定义一个二进制位和偏振角度的对应关系如下：
-位 0 1 0 1 基 ➕️ ➕️ ✖️️ ✖️️ 偏振角度 ⬆️️ ⬇️️ ↗️️ ↘️️ 对于一个未知光子，可以用两种基进行测量，测量的结果：
-偏振角度 ⬆️️ ⬇️️ ↗️️ ↘️️ 用➕️测量 0 1 0/1 0/1 用✖️️测量 0/1 0/1 0 1 这里的 0/1 表示有 50% 概率测得 0，有 50% 概率测得 1。
-协议流程 假如 Alice 要和 Bob 进行 BB84 协议。那么，Alice 首先随机生成一段二进制序列，并随机生成一个基的序列，以 Wikipedia 上的例子为例：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/others/2020/05/01/bb84-explained/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/algorithm">algorithm
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/qkd">qkd
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/quantom">quantom
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/bb84">bb84
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/devops/2020/04/22/k8s-code-server/">在 k8s 中部署 code-server</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/devops/2020/04/22/k8s-code-server/" class="article-date">
-                        <time datetime='2020-04-22T19:02:00.000&#43;08:00' itemprop="datePublished">2020-04-22</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/devops/2020/04/22/k8s-code-server/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    实验了一下在 k8s 中部署 code-server，并不复杂，和之前几篇博客的配置是类似的：
-apiVersion: extensions/v1beta1 kind: Deployment metadata: name: code labels: app: code spec: selector: matchLabels: app: code replicas: 1 template: metadata: labels: app: code spec: volumes: - name: code-volume persistentVolumeClaim: claimName: code-pvc initContainers: - name: home-init image: busybox command: [&#34;sh&#34;, &#34;-c&#34;, &#34;chown -R 1000:1000 /home/coder&#34;] volumeMounts: - mountPath: &#34;/home/coder&#34; name: code-volume containers: - image: codercom/code-server:latest imagePullPolicy: Always name: code volumeMounts: - mountPath: &#34;/home/coder&#34; name: code-volume resources: limits: cpu: &#34;0.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/devops/2020/04/22/k8s-code-server/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/k8s">k8s
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/kubernetes">kubernetes
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/tencentcloud">tencentcloud
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/vscode">vscode
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/code-server">code-server
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/devops/2020/04/21/k8s-drone-ci/">在 k8s 中部署 Drone 用于 CI</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/devops/2020/04/21/k8s-drone-ci/" class="article-date">
-                        <time datetime='2020-04-21T18:10:00.000&#43;08:00' itemprop="datePublished">2020-04-21</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/devops/2020/04/21/k8s-drone-ci/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    实验了一下在 k8s 中部署 CI，在 drone gitlab-ci 和 jenkins 三者中选择了 drone，因为它比较轻量，并且基于 docker，可以用 GitHub 上的仓库，比较方便。
-首先，配置 helm：
-helm repo add drone https://charts.drone.io kubectl create ns drone 参考 drone 的文档，编写 drone-values.yml:
-ingress: enabled: true annotations: kubernetes.io/ingress.class: &#34;nginx&#34; cert-manager.io/cluster-issuer: &#34;letsencrypt-prod&#34; hosts: - host: drone.example.com paths: - &#34;/&#34; tls: - hosts: - drone.example.com secretName: drone-tls env: DRONE_SERVER_HOST: drone.example.com DRONE_SERVER_PROTO: https DRONE_USER_CREATE: username:YOUR_GITHUB_USERNAME,admin:true DRONE_USER_FILTER: YOUR_GITHUB_USERNAME DRONE_RPC_SECRET: REDACTED DRONE_GITHUB_CLIENT_ID: REDACTED DRONE_GITHUB_CLIENT_SECRET: REDACTED 需要首先去 GitHub 上配置 OAuth application，具体参考 drone 的文档。然后，生成一个 secret，设置 admin 用户并只允许 admin 用户使用 drone，防止其他人使用。然后应用：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/devops/2020/04/21/k8s-drone-ci/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/k8s">k8s
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/kubernetes">kubernetes
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/tencentcloud">tencentcloud
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/drone">drone
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/ci">ci
                             </a>
                         </li>
                         

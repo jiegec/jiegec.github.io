@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>软硬件队列接口 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="软硬件队列接口" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/networking/2023/03/22/hardware-queue-interface/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.111.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">软硬件队列接口</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/networking/2023/03/22/hardware-queue-interface/" class="article-date">
+                <time datetime='2023-03-22T22:30:00.000&#43;08:00' itemprop="datePublished">2023-03-22</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/networking/2023/03/22/hardware-queue-interface/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>在网卡等场景下，经常会需要在软硬件之间传输大量的数据，通常的方法是建立循环队列，例如 H2C（Host to Chip）方向，是 Host 作为 Producer 增加数据到队尾，Chip 作为 Consumer 从队头读取数据。由于每次传输的数据不定长，为了方便，队列的项是一个定长的 Descriptor，Descriptor 指向了数据的地址。但具体的细节，不同的实现还不太一样。下面逐个案例进行分析。</p>
+<h2 id="axi-dma">AXI DMA</h2>
+<p>文档：<a href="https://docs.xilinx.com/r/en-US/pg021_axi_dma">https://docs.xilinx.com/r/en-US/pg021_axi_dma</a></p>
+<p>如果在 Xilinx FPGA 上使用过以太网，那大概率会接触到 AXI DMA 这个 IP，它负责把以太网 MAC 的 AXI Stream 数据用 DMA 的形式通过内存来与操作系统交互。</p>
+<h3 id="发送队列">发送队列</h3>
+<p>它的收和发各是一个队列，首先来看发送队列：</p>
+<p>发送队列由一个头指针（MM2S_CURDESC）和一个尾指针定义（MM2S_TAILDESC），指针指向的是一个 Scatter Gather Descriptor，Descriptor 的内容包括：</p>
+<ul>
+<li>NXTDESC：队列下一项的地址</li>
+<li>BUFFER_ADDRESS：要传输的数据的地址</li>
+<li>CONTROL：控制信息</li>
+<li>STATUS：状态信息</li>
+<li>APP0 to APP4：附带的信息</li>
+</ul>
+<p>可见这个发送队列实际上是一个链表：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> axi_dma_desc {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">struct</span> axi_dma_desc <span style="color:#f92672">*</span>nxtdesc;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>buffer_address;
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// omitted
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
+</span></span></code></pre></div><p>当 MM2S_TAILDESC 被更新的时候，硬件会从 CURDESC 开始逐个 Descriptor 处理，直到遇到 TAILDESC 为止：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">// when taildesc is changed
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">taildesc_changed</span>() {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">do</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_send</span>(curdesc);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (curdesc <span style="color:#f92672">!=</span> taildesc) {
+</span></span><span style="display:flex;"><span>      curdesc <span style="color:#f92672">=</span> curdesc<span style="color:#f92672">-&gt;</span>nxtdesc;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">while</span> (curdesc <span style="color:#f92672">!=</span> taildesc);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>所以，实际上是驱动不断地提供一个链表给 AXI DMA 去发送，至于这个链表是只有一个元素的数组，还是用一个循环队列去实现，都是可能的。</p>
+<h4 id="u-boot">U-Boot</h4>
+<p>下面来看 U-Boot 的例子，驱动是 <a href="https://github.com/u-boot/u-boot/blob/v2023.01/drivers/net/xilinx_axi_emac.c">xilinx_axi_emac.c</a>。这个驱动的实现很简单：每次需要发送的时候，只准备一个 Descriptor，发完就轮询直到发送成功。显然这个写法没有很好地利用 DMA 的异步特性，但胜在简单。下面是 <code>axiemac_send</code> 的部分源码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axiemac_send</span>(<span style="color:#66d9ef">struct</span> udevice <span style="color:#f92672">*</span>dev, <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>ptr, <span style="color:#66d9ef">int</span> len) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Setup Tx BD */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>tx_bd, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(tx_bd));
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* At the end of the ring, link the last BD back to the top */</span>
+</span></span><span style="display:flex;"><span>  tx_bd.next_desc <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>tx_bd);
+</span></span><span style="display:flex;"><span>  tx_bd.next_desc_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>tx_bd);
+</span></span><span style="display:flex;"><span>  tx_bd.buf_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)ptr);
+</span></span><span style="display:flex;"><span>  tx_bd.buf_addr_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)ptr);
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Save len */</span>
+</span></span><span style="display:flex;"><span>  tx_bd.cntrl <span style="color:#f92672">=</span> len <span style="color:#f92672">|</span> XAXIDMA_BD_CTRL_TXSOF_MASK <span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>            XAXIDMA_BD_CTRL_TXEOF_MASK;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_write</span>(<span style="color:#f92672">&amp;</span>tx_bd, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmatx<span style="color:#f92672">-&gt;</span>current);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  u32 temp;
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Start the hardware */</span>
+</span></span><span style="display:flex;"><span>  temp <span style="color:#f92672">=</span> <span style="color:#a6e22e">readl</span>(<span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmatx<span style="color:#f92672">-&gt;</span>control);
+</span></span><span style="display:flex;"><span>  temp <span style="color:#f92672">|=</span> XAXIDMA_CR_RUNSTOP_MASK;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">writel</span>(temp, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmatx<span style="color:#f92672">-&gt;</span>control);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Start transfer */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_write</span>(<span style="color:#f92672">&amp;</span>tx_bd, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmatx<span style="color:#f92672">-&gt;</span>tail);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Wait for transmission to complete */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">debug</span>(<span style="color:#e6db74">&#34;axiemac: Waiting for tx to be done</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>  timeout <span style="color:#f92672">=</span> <span style="color:#ae81ff">200</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">while</span> (timeout <span style="color:#f92672">&amp;&amp;</span> (<span style="color:#f92672">!</span>(<span style="color:#a6e22e">readl</span>(<span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmatx<span style="color:#f92672">-&gt;</span>status) <span style="color:#f92672">&amp;</span>
+</span></span><span style="display:flex;"><span>      (XAXIDMA_IRQ_DELAY_MASK <span style="color:#f92672">|</span> XAXIDMA_IRQ_IOC_MASK)))) {
+</span></span><span style="display:flex;"><span>    timeout<span style="color:#f92672">--</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">udelay</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h4 id="linux">Linux</h4>
+<p>再来看 Linux 的 驱动：<a href="https://github.com/torvalds/linux/blob/v6.2/drivers/net/ethernet/xilinx/xilinx_axienet_main.c">xilinx_axienet_main.c</a>。它采取的方法是分配一个 Descriptor 数组，然后把数组的每一项都指向下一项（最后一项指向第一项），形成一个链表形式的循环队列，维护一个尾指针。下面是初始化代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axienet_dma_bd_init</span>(<span style="color:#66d9ef">struct</span> net_device <span style="color:#f92672">*</span>ndev) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Allocate the Tx and Rx buffer descriptors. */</span>
+</span></span><span style="display:flex;"><span>  lp<span style="color:#f92672">-&gt;</span>tx_bd_v <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_alloc_coherent</span>(lp<span style="color:#f92672">-&gt;</span>dev,
+</span></span><span style="display:flex;"><span>           <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>tx_bd_v) <span style="color:#f92672">*</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_num,
+</span></span><span style="display:flex;"><span>           <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>tx_bd_p, GFP_KERNEL);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_num; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">dma_addr_t</span> addr <span style="color:#f92672">=</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_p <span style="color:#f92672">+</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>tx_bd_v) <span style="color:#f92672">*</span>
+</span></span><span style="display:flex;"><span>          ((i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">%</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_num);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    lp<span style="color:#f92672">-&gt;</span>tx_bd_v[i].next <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>(addr);
+</span></span><span style="display:flex;"><span>    lp<span style="color:#f92672">-&gt;</span>tx_bd_v[i].next_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>(addr);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Write to the RS (Run-stop) bit in the Tx channel control register.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * Tx channel is now ready to run. But only after we write to the
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * tail pointer register that the Tx channel will start transmitting.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_out_addr</span>(lp, XAXIDMA_TX_CDESC_OFFSET, lp<span style="color:#f92672">-&gt;</span>tx_bd_p);
+</span></span><span style="display:flex;"><span>  lp<span style="color:#f92672">-&gt;</span>tx_dma_cr <span style="color:#f92672">|=</span> XAXIDMA_CR_RUNSTOP_MASK;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_out32</span>(lp, XAXIDMA_TX_CR_OFFSET, lp<span style="color:#f92672">-&gt;</span>tx_dma_cr);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>初始化好了以后，每当要发送数据的时候，就写入 tail 指针指向的 Descriptor，然后增加 tail 指针，同时告诉硬件开始 DMA：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">netdev_tx_t</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">axienet_start_xmit</span>(<span style="color:#66d9ef">struct</span> sk_buff <span style="color:#f92672">*</span>skb, <span style="color:#66d9ef">struct</span> net_device <span style="color:#f92672">*</span>ndev) {
+</span></span><span style="display:flex;"><span>  u32 num_frag <span style="color:#f92672">=</span> <span style="color:#a6e22e">skb_shinfo</span>(skb)<span style="color:#f92672">-&gt;</span>nr_frags;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">axienet_check_tx_bd_space</span>(lp, num_frag <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> NETDEV_TX_BUSY;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  phys <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_map_single</span>(lp<span style="color:#f92672">-&gt;</span>dev, skb<span style="color:#f92672">-&gt;</span>data,
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">skb_headlen</span>(skb), DMA_TO_DEVICE);
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">desc_set_phys_addr</span>(lp, phys, cur_p);
+</span></span><span style="display:flex;"><span>  cur_p<span style="color:#f92672">-&gt;</span>cntrl <span style="color:#f92672">=</span> <span style="color:#a6e22e">skb_headlen</span>(skb) <span style="color:#f92672">|</span> XAXIDMA_BD_CTRL_TXSOF_MASK;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (ii <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; ii <span style="color:#f92672">&lt;</span> num_frag; ii<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">++</span>new_tail_ptr <span style="color:#f92672">&gt;=</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_num)
+</span></span><span style="display:flex;"><span>      new_tail_ptr <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>tx_bd_v[new_tail_ptr];
+</span></span><span style="display:flex;"><span>    frag <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">skb_shinfo</span>(skb)<span style="color:#f92672">-&gt;</span>frags[ii];
+</span></span><span style="display:flex;"><span>    phys <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_map_single</span>(lp<span style="color:#f92672">-&gt;</span>dev,
+</span></span><span style="display:flex;"><span>              <span style="color:#a6e22e">skb_frag_address</span>(frag),
+</span></span><span style="display:flex;"><span>              <span style="color:#a6e22e">skb_frag_size</span>(frag),
+</span></span><span style="display:flex;"><span>              DMA_TO_DEVICE);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">desc_set_phys_addr</span>(lp, phys, cur_p);
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>cntrl <span style="color:#f92672">=</span> <span style="color:#a6e22e">skb_frag_size</span>(frag);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  cur_p<span style="color:#f92672">-&gt;</span>cntrl <span style="color:#f92672">|=</span> XAXIDMA_BD_CTRL_TXEOF_MASK;
+</span></span><span style="display:flex;"><span>  cur_p<span style="color:#f92672">-&gt;</span>skb <span style="color:#f92672">=</span> skb;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  tail_p <span style="color:#f92672">=</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_p <span style="color:#f92672">+</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>tx_bd_v) <span style="color:#f92672">*</span> new_tail_ptr;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (<span style="color:#f92672">++</span>new_tail_ptr <span style="color:#f92672">&gt;=</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_num)
+</span></span><span style="display:flex;"><span>    new_tail_ptr <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">WRITE_ONCE</span>(lp<span style="color:#f92672">-&gt;</span>tx_bd_tail, new_tail_ptr);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Start the transfer */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_out_addr</span>(lp, XAXIDMA_TX_TDESC_OFFSET, tail_p);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>实现思路：</p>
+<ol>
+<li>检查是否有足够的空闲 Descriptor</li>
+<li>对于要发送的数据的每一段，都填入一个 Descriptor</li>
+<li>写入新的 tail 指针，启动 DMA</li>
+</ol>
+<p>那么，又有一个问题：如何知道硬件完成了 DMA 传输，释放了 Descriptor 呢？答案是，AXI DMA 传输完成时，会通过中断通知 CPU，Linux 最终会调用 <code>axienet_free_tx_chain</code> 函数：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axienet_free_tx_chain</span>(<span style="color:#66d9ef">struct</span> axienet_local <span style="color:#f92672">*</span>lp, u32 first_bd,
+</span></span><span style="display:flex;"><span>         <span style="color:#66d9ef">int</span> nr_bds, <span style="color:#66d9ef">bool</span> force, u32 <span style="color:#f92672">*</span>sizep, <span style="color:#66d9ef">int</span> budget) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">struct</span> axidma_bd <span style="color:#f92672">*</span>cur_p;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> status;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">dma_addr_t</span> phys;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> i;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> nr_bds; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    cur_p <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>tx_bd_v[(first_bd <span style="color:#f92672">+</span> i) <span style="color:#f92672">%</span> lp<span style="color:#f92672">-&gt;</span>tx_bd_num];
+</span></span><span style="display:flex;"><span>    status <span style="color:#f92672">=</span> cur_p<span style="color:#f92672">-&gt;</span>status;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* If force is not specified, clean up only descriptors
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * that have been completed by the MAC.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>force <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>(status <span style="color:#f92672">&amp;</span> XAXIDMA_BD_STS_COMPLETE_MASK))
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* Ensure we see complete descriptor update */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_rmb</span>();
+</span></span><span style="display:flex;"><span>    phys <span style="color:#f92672">=</span> <span style="color:#a6e22e">desc_get_phys_addr</span>(lp, cur_p);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_unmap_single</span>(lp<span style="color:#f92672">-&gt;</span>dev, phys,
+</span></span><span style="display:flex;"><span>         (cur_p<span style="color:#f92672">-&gt;</span>cntrl <span style="color:#f92672">&amp;</span> XAXIDMA_BD_CTRL_LENGTH_MASK),
+</span></span><span style="display:flex;"><span>         DMA_TO_DEVICE);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (cur_p<span style="color:#f92672">-&gt;</span>skb <span style="color:#f92672">&amp;&amp;</span> (status <span style="color:#f92672">&amp;</span> XAXIDMA_BD_STS_COMPLETE_MASK))
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">napi_consume_skb</span>(cur_p<span style="color:#f92672">-&gt;</span>skb, budget);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>app0 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>app1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>app2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>app4 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>skb <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* ensure our transmit path and device don&#39;t prematurely see status cleared */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">wmb</span>();
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>cntrl <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>status <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> i;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>从代码来看，其实也很简单：AXI DMA 传输完成后，会设置 status 的内容，标记已经传输完成。这时候只要从最后一次完成传输的 Descriptor 开始扫描，把所有完成传输的 Descriptor 回收即可。</p>
+<h3 id="接收队列">接收队列</h3>
+<p>接收队列结构与发送队列相似，但不同的是，生产者和消费者的角色对调，驱动为了保证随时可以接收数据，需要预先准备好 Descriptor，当 AXI DMA 从以太网 MAC 收到数据的时候，随时有 Descriptor 可以使用，写入数据后，再通知 CPU。和发送队列一样，接收队列由一个头指针（S2MM_CURDESC）和一个尾指针定义（S2MM_TAILDESC），指针指向的 Descriptor 结构与发送队列一致。硬件的接收逻辑和发送逻辑类似，只不过方向相反。</p>
+<h4 id="u-boot-1">U-Boot</h4>
+<p>首先还是来看 U-Boot 的实现。前面提到，为了简化，U-Boot 的网卡驱动每次同时只会发送一个帧，接收的时候其实也一样：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>(some net <span style="color:#a6e22e">operation</span> (ping <span style="color:#f92672">/</span> tftp <span style="color:#f92672">/</span> whatever...))
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">eth_init</span>()
+</span></span><span style="display:flex;"><span>  ops<span style="color:#f92672">-&gt;</span><span style="color:#a6e22e">start</span>()
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">eth_send</span>()
+</span></span><span style="display:flex;"><span>  ops<span style="color:#f92672">-&gt;</span><span style="color:#a6e22e">send</span>()
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">eth_rx</span>()
+</span></span><span style="display:flex;"><span>  ops<span style="color:#f92672">-&gt;</span><span style="color:#a6e22e">recv</span>()
+</span></span><span style="display:flex;"><span>  (process packet)
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (ops<span style="color:#f92672">-&gt;</span>free_pkt)
+</span></span><span style="display:flex;"><span>    ops<span style="color:#f92672">-&gt;</span><span style="color:#a6e22e">free_pkt</span>()
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">eth_halt</span>()
+</span></span><span style="display:flex;"><span>  ops<span style="color:#f92672">-&gt;</span><span style="color:#a6e22e">stop</span>()
+</span></span></code></pre></div><p>首先看 AXI EMAC 驱动如何初始化接收队列：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> u8 rxframe[PKTSIZE_ALIGN] <span style="color:#a6e22e">__attribute</span>((<span style="color:#a6e22e">aligned</span>(DMAALIGN)));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axiemac_start</span>(<span style="color:#66d9ef">struct</span> udevice <span style="color:#f92672">*</span>dev) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Start DMA RX channel. Now it&#39;s ready to receive data.*/</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_write</span>(<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>current);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Setup the BD. */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(rx_bd));
+</span></span><span style="display:flex;"><span>  rx_bd.next_desc <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rx_bd);
+</span></span><span style="display:flex;"><span>  rx_bd.next_desc_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rx_bd);
+</span></span><span style="display:flex;"><span>  rx_bd.buf_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rxframe);
+</span></span><span style="display:flex;"><span>  rx_bd.buf_addr_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rxframe);
+</span></span><span style="display:flex;"><span>  rx_bd.cntrl <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(rxframe);
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Flush the last BD so DMA core could see the updates */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">flush_cache</span>((<span style="color:#66d9ef">phys_addr_t</span>)<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#66d9ef">sizeof</span>(rx_bd));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* It is necessary to flush rxframe because if you don&#39;t do it
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * then cache can contain uninitialized data */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">flush_cache</span>((<span style="color:#66d9ef">phys_addr_t</span>)<span style="color:#f92672">&amp;</span>rxframe, <span style="color:#66d9ef">sizeof</span>(rxframe));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Start the hardware */</span>
+</span></span><span style="display:flex;"><span>  temp <span style="color:#f92672">=</span> <span style="color:#a6e22e">readl</span>(<span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>control);
+</span></span><span style="display:flex;"><span>  temp <span style="color:#f92672">|=</span> XAXIDMA_CR_RUNSTOP_MASK;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">writel</span>(temp, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>control);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Rx BD is ready - start */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_write</span>(<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>tail);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到它只初始化了一个 Descriptor，并且把 CURDESC 和 TAILDESC 都指向它，并且提供了一个缓冲区 <code>rxframe</code>。当 AXI DMA 接收到数据的时候，就会把数据写入 <code>rxframe</code>，更新 <code>rx_bd</code> 并发送中断。U-Boot 处理中断的方法也很简单：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axiemac_recv</span>(<span style="color:#66d9ef">struct</span> udevice <span style="color:#f92672">*</span>dev, <span style="color:#66d9ef">int</span> flags, uchar <span style="color:#f92672">**</span>packetp) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Disable IRQ for a moment till packet is handled */</span>
+</span></span><span style="display:flex;"><span>  temp <span style="color:#f92672">=</span> <span style="color:#a6e22e">readl</span>(<span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>control);
+</span></span><span style="display:flex;"><span>  temp <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>XAXIDMA_IRQ_ALL_MASK;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">writel</span>(temp, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>control);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  length <span style="color:#f92672">=</span> rx_bd.status <span style="color:#f92672">&amp;</span> XAXIDMA_BD_STS_ACTUAL_LEN_MASK;
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">*</span>packetp <span style="color:#f92672">=</span> rxframe;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> length;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>它关闭了 AXI DMA 的中断，然后直接读取长度，把 <code>rxframe</code> 作为数据指针传给网络栈处理的函数。网络栈处理完以后，就会调用 <code>free_pkt</code> 进行收尾：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axiemac_free_pkt</span>(<span style="color:#66d9ef">struct</span> udevice <span style="color:#f92672">*</span>dev, uchar <span style="color:#f92672">*</span>packet, <span style="color:#66d9ef">int</span> length) {
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#ifdef DEBUG
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">/* It is useful to clear buffer to be sure that it is consistent */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">memset</span>(rxframe, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(rxframe));
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#endif
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">/* Setup RxBD */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Clear the whole buffer and setup it again - all flags are cleared */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(rx_bd));
+</span></span><span style="display:flex;"><span>  rx_bd.next_desc <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rx_bd);
+</span></span><span style="display:flex;"><span>  rx_bd.next_desc_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rx_bd);
+</span></span><span style="display:flex;"><span>  rx_bd.buf_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rxframe);
+</span></span><span style="display:flex;"><span>  rx_bd.buf_addr_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>)<span style="color:#f92672">&amp;</span>rxframe);
+</span></span><span style="display:flex;"><span>  rx_bd.cntrl <span style="color:#f92672">=</span> <span style="color:#66d9ef">sizeof</span>(rxframe);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Write bd to HW */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">flush_cache</span>((<span style="color:#66d9ef">phys_addr_t</span>)<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#66d9ef">sizeof</span>(rx_bd));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* It is necessary to flush rxframe because if you don&#39;t do it
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * then cache will contain previous packet */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">flush_cache</span>((<span style="color:#66d9ef">phys_addr_t</span>)<span style="color:#f92672">&amp;</span>rxframe, <span style="color:#66d9ef">sizeof</span>(rxframe));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Rx BD is ready - start again */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_write</span>(<span style="color:#f92672">&amp;</span>rx_bd, <span style="color:#f92672">&amp;</span>priv<span style="color:#f92672">-&gt;</span>dmarx<span style="color:#f92672">-&gt;</span>tail);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>收尾工作也很简单，把接收队列恢复到可以接收数据的状态即可，因为 <code>rxframe</code> 是全局变量，也不需要进行 <code>free</code>。</p>
+<h4 id="linux-1">Linux</h4>
+<p>Linux 的驱动实现里，接收队列和发送队列类似，也是用一个数组来实现循环链表，只不过接收队列还需要提前准备好缓冲区，供 AXI DMA 写入：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axienet_dma_bd_init</span>(<span style="color:#66d9ef">struct</span> net_device <span style="color:#f92672">*</span>ndev) {
+</span></span><span style="display:flex;"><span>  lp<span style="color:#f92672">-&gt;</span>rx_bd_v <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_alloc_coherent</span>(lp<span style="color:#f92672">-&gt;</span>dev,
+</span></span><span style="display:flex;"><span>           <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v) <span style="color:#f92672">*</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_num,
+</span></span><span style="display:flex;"><span>           <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_p, GFP_KERNEL);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_num; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">dma_addr_t</span> addr;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    addr <span style="color:#f92672">=</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_p <span style="color:#f92672">+</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v) <span style="color:#f92672">*</span>
+</span></span><span style="display:flex;"><span>      ((i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">%</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_num);
+</span></span><span style="display:flex;"><span>    lp<span style="color:#f92672">-&gt;</span>rx_bd_v[i].next <span style="color:#f92672">=</span> <span style="color:#a6e22e">lower_32_bits</span>(addr);
+</span></span><span style="display:flex;"><span>    lp<span style="color:#f92672">-&gt;</span>rx_bd_v[i].next_msb <span style="color:#f92672">=</span> <span style="color:#a6e22e">upper_32_bits</span>(addr);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    skb <span style="color:#f92672">=</span> <span style="color:#a6e22e">netdev_alloc_skb_ip_align</span>(ndev, lp<span style="color:#f92672">-&gt;</span>max_frm_size);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    lp<span style="color:#f92672">-&gt;</span>rx_bd_v[i].skb <span style="color:#f92672">=</span> skb;
+</span></span><span style="display:flex;"><span>    addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_map_single</span>(lp<span style="color:#f92672">-&gt;</span>dev, skb<span style="color:#f92672">-&gt;</span>data,
+</span></span><span style="display:flex;"><span>              lp<span style="color:#f92672">-&gt;</span>max_frm_size, DMA_FROM_DEVICE);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">desc_set_phys_addr</span>(lp, addr, <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v[i]);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    lp<span style="color:#f92672">-&gt;</span>rx_bd_v[i].cntrl <span style="color:#f92672">=</span> lp<span style="color:#f92672">-&gt;</span>max_frm_size;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* Populate the tail pointer and bring the Rx Axi DMA engine out of
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * halted state. This will make the Rx side ready for reception.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_out_addr</span>(lp, XAXIDMA_RX_CDESC_OFFSET, lp<span style="color:#f92672">-&gt;</span>rx_bd_p);
+</span></span><span style="display:flex;"><span>  lp<span style="color:#f92672">-&gt;</span>rx_dma_cr <span style="color:#f92672">|=</span> XAXIDMA_CR_RUNSTOP_MASK;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_out32</span>(lp, XAXIDMA_RX_CR_OFFSET, lp<span style="color:#f92672">-&gt;</span>rx_dma_cr);
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">axienet_dma_out_addr</span>(lp, XAXIDMA_RX_TDESC_OFFSET, lp<span style="color:#f92672">-&gt;</span>rx_bd_p <span style="color:#f92672">+</span>
+</span></span><span style="display:flex;"><span>           (<span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v) <span style="color:#f92672">*</span> (lp<span style="color:#f92672">-&gt;</span>rx_bd_num <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>)));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到，数组的每一项的指针指向下一项，然后把头地址写入 CURDESC，尾地址写入 TAILDESC，这样硬件就可以开始接收数据。AXI DMA 收到数据以后，会把数据写入 Descriptor 指向的缓冲区地址，然后发送中断，Linux 执行下列代码处理中断：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">axienet_rx_poll</span>(<span style="color:#66d9ef">struct</span> napi_struct <span style="color:#f92672">*</span>napi, <span style="color:#66d9ef">int</span> budget) {
+</span></span><span style="display:flex;"><span>  cur_p <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v[lp<span style="color:#f92672">-&gt;</span>rx_bd_ci];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">while</span> (packets <span style="color:#f92672">&lt;</span> budget <span style="color:#f92672">&amp;&amp;</span> (cur_p<span style="color:#f92672">-&gt;</span>status <span style="color:#f92672">&amp;</span> XAXIDMA_BD_STS_COMPLETE_MASK)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">dma_addr_t</span> phys;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* Ensure we see complete descriptor update */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_rmb</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    skb <span style="color:#f92672">=</span> cur_p<span style="color:#f92672">-&gt;</span>skb;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>skb <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* skb could be NULL if a previous pass already received the
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * packet for this slot in the ring, but failed to refill it
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * with a newly allocated buffer. In this case, don&#39;t try to
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * receive it again.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">likely</span>(skb)) {
+</span></span><span style="display:flex;"><span>      length <span style="color:#f92672">=</span> cur_p<span style="color:#f92672">-&gt;</span>app4 <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x0000FFFF</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      phys <span style="color:#f92672">=</span> <span style="color:#a6e22e">desc_get_phys_addr</span>(lp, cur_p);
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">dma_unmap_single</span>(lp<span style="color:#f92672">-&gt;</span>dev, phys, lp<span style="color:#f92672">-&gt;</span>max_frm_size,
+</span></span><span style="display:flex;"><span>           DMA_FROM_DEVICE);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">skb_put</span>(skb, length);
+</span></span><span style="display:flex;"><span>      skb<span style="color:#f92672">-&gt;</span>protocol <span style="color:#f92672">=</span> <span style="color:#a6e22e">eth_type_trans</span>(skb, lp<span style="color:#f92672">-&gt;</span>ndev);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">napi_gro_receive</span>(napi, skb);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      size <span style="color:#f92672">+=</span> length;
+</span></span><span style="display:flex;"><span>      packets<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    new_skb <span style="color:#f92672">=</span> <span style="color:#a6e22e">napi_alloc_skb</span>(napi, lp<span style="color:#f92672">-&gt;</span>max_frm_size);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    phys <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_map_single</span>(lp<span style="color:#f92672">-&gt;</span>dev, new_skb<span style="color:#f92672">-&gt;</span>data,
+</span></span><span style="display:flex;"><span>              lp<span style="color:#f92672">-&gt;</span>max_frm_size,
+</span></span><span style="display:flex;"><span>              DMA_FROM_DEVICE);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">desc_set_phys_addr</span>(lp, phys, cur_p);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>cntrl <span style="color:#f92672">=</span> lp<span style="color:#f92672">-&gt;</span>max_frm_size;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>status <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p<span style="color:#f92672">-&gt;</span>skb <span style="color:#f92672">=</span> new_skb;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* Only update tail_p to mark this slot as usable after it has
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * been successfully refilled.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     */</span>
+</span></span><span style="display:flex;"><span>    tail_p <span style="color:#f92672">=</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_p <span style="color:#f92672">+</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v) <span style="color:#f92672">*</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_ci;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">++</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_ci <span style="color:#f92672">&gt;=</span> lp<span style="color:#f92672">-&gt;</span>rx_bd_num)
+</span></span><span style="display:flex;"><span>      lp<span style="color:#f92672">-&gt;</span>rx_bd_ci <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    cur_p <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>lp<span style="color:#f92672">-&gt;</span>rx_bd_v[lp<span style="color:#f92672">-&gt;</span>rx_bd_ci];
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (tail_p)
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">axienet_dma_out_addr</span>(lp, XAXIDMA_RX_TDESC_OFFSET, tail_p);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到，接收逻辑顺序扫描了 Descriptor，找到那些传输完成的，把其中的数据交给网络栈处理，然后分配一个新的 skb，绑定到 Descriptor 上，把它恢复到可以接收数据的状态，最后更新 TAILDESC。</p>
+<h3 id="小结">小结</h3>
+<p>AXI DMA 提供了一个 Descriptor 链来异步地传输数据，U-Boot 为了简化，把链表退化成只有一个节点，串行地收和发；Linux 使用数组实现了一个循环的链表，通过 TAILDESC 提供新的 Descriptor，然后从 CURDESC 回收 Descriptor。Descriptor 不断在硬件和软件之间交替，CURDESC 到 TAILDESC 的部分归硬件，其余的归软件。这种设计模式在其他很多地方也可以看到。</p>
+<h2 id="intel-82599">Intel 82599</h2>
+<p>Intel 82599 是一个有线网卡，Linux 的驱动是 ixgbe。Intel 82599 为收和发都提供了多个队列，每个队列都对应了一个 Descriptor 数组，在内存中连续存放。Linux 驱动使用了 64 个接收队列和发送队列。</p>
+<p>文档链接：<a href="https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf">https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf</a></p>
+<h3 id="接收队列-1">接收队列</h3>
+<p>和 AXI DMA 的链表形式不同。每个接收队列都由如下的寄存器定义：</p>
+<ul>
+<li>RDBAL/RDBAH[n]: Receive Descriptor Base Address Low/High</li>
+<li>RDLEN[n]: Receive Descriptor Length</li>
+<li>RDH[n]: Receive Descriptor Head</li>
+<li>RDT[n]: Receive Descriptor Tail</li>
+</ul>
+<p>由基地址 + 长度定义了一个循环队列，然后从 Head 到 Tail 的部分是当前有效的队列，软件从 Tail 插入新的 Descriptor，硬件从 Head 取 Descriptor。当 Head 等于 Tail 的时候，队列是空的，也就是说 Tail 表示的是合法的下一个，这样队列满的时候 Tail + 1 == Head。</p>
+<p>ixgbe 的实现代码在 <code>ixgbe_main.c</code> 中，首先看如何初始化接收队列：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">ixgbe_configure_rx</span>(<span style="color:#66d9ef">struct</span> ixgbe_adapter <span style="color:#f92672">*</span>adapter) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * Setup the HW Rx Head and Tail Descriptor Pointers and
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   * the Base and Length of the Rx Descriptor Ring
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">   */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> adapter<span style="color:#f92672">-&gt;</span>num_rx_queues; i<span style="color:#f92672">++</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">ixgbe_configure_rx_ring</span>(adapter, adapter<span style="color:#f92672">-&gt;</span>rx_ring[i]);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">ixgbe_configure_rx_ring</span>(<span style="color:#66d9ef">struct</span> ixgbe_adapter <span style="color:#f92672">*</span>adapter,
+</span></span><span style="display:flex;"><span>           <span style="color:#66d9ef">struct</span> ixgbe_ring <span style="color:#f92672">*</span>ring) {
+</span></span><span style="display:flex;"><span>  u64 rdba <span style="color:#f92672">=</span> ring<span style="color:#f92672">-&gt;</span>dma;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">IXGBE_WRITE_REG</span>(hw, <span style="color:#a6e22e">IXGBE_RDBAL</span>(reg_idx), (rdba <span style="color:#f92672">&amp;</span> <span style="color:#a6e22e">DMA_BIT_MASK</span>(<span style="color:#ae81ff">32</span>)));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">IXGBE_WRITE_REG</span>(hw, <span style="color:#a6e22e">IXGBE_RDBAH</span>(reg_idx), (rdba <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">32</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">IXGBE_WRITE_REG</span>(hw, <span style="color:#a6e22e">IXGBE_RDLEN</span>(reg_idx),
+</span></span><span style="display:flex;"><span>      ring<span style="color:#f92672">-&gt;</span>count <span style="color:#f92672">*</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">union</span> ixgbe_adv_rx_desc));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">IXGBE_WRITE_REG</span>(hw, <span style="color:#a6e22e">IXGBE_RDH</span>(reg_idx), <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">IXGBE_WRITE_REG</span>(hw, <span style="color:#a6e22e">IXGBE_RDT</span>(reg_idx), <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  ring<span style="color:#f92672">-&gt;</span>tail <span style="color:#f92672">=</span> adapter<span style="color:#f92672">-&gt;</span>io_addr <span style="color:#f92672">+</span> <span style="color:#a6e22e">IXGBE_RDT</span>(reg_idx);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* enable receive descriptor ring */</span>
+</span></span><span style="display:flex;"><span>  rxdctl <span style="color:#f92672">|=</span> IXGBE_RXDCTL_ENABLE;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">IXGBE_WRITE_REG</span>(hw, <span style="color:#a6e22e">IXGBE_RXDCTL</span>(reg_idx), rxdctl);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* in ixgbe_alloc_rx_buffers */</span>
+</span></span><span style="display:flex;"><span>  bufsz <span style="color:#f92672">=</span> <span style="color:#a6e22e">ixgbe_rx_bufsz</span>(rx_ring);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">do</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">ixgbe_alloc_mapped_page</span>(rx_ring, bi))
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* sync the buffer for use by the device */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_sync_single_range_for_device</span>(rx_ring<span style="color:#f92672">-&gt;</span>dev, bi<span style="color:#f92672">-&gt;</span>dma,
+</span></span><span style="display:flex;"><span>             bi<span style="color:#f92672">-&gt;</span>page_offset, bufsz,
+</span></span><span style="display:flex;"><span>             DMA_FROM_DEVICE);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * Refresh the desc even if buffer_addrs didn&#39;t change
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * because each write-back erases this info.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     */</span>
+</span></span><span style="display:flex;"><span>    rx_desc<span style="color:#f92672">-&gt;</span>read.pkt_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">cpu_to_le64</span>(bi<span style="color:#f92672">-&gt;</span>dma <span style="color:#f92672">+</span> bi<span style="color:#f92672">-&gt;</span>page_offset);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rx_desc<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* clear the length for the next_to_use descriptor */</span>
+</span></span><span style="display:flex;"><span>    rx_desc<span style="color:#f92672">-&gt;</span>wb.upper.length <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    cleaned_count<span style="color:#f92672">--</span>;
+</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">while</span> (cleaned_count);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">writel</span>(i, rx_ring<span style="color:#f92672">-&gt;</span>tail);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>具体到实现上，可以看到和 AXI DMA 驱动基本是一样的：分配 Descriptor 数组空间，然后给每个 Descriptor 分配一个 Buffer，然后更新 tail 指针，让硬件可以开始进行接收。</p>
+<h3 id="发送队列-1">发送队列</h3>
+<p>发送队列和接收队列类似，也是先分配好 Descriptor 数组，只不过先不填内容，等到要发送数据的时候，再从 tail 取出一个 Descriptor，写入 buffer 地址，然后更新 tail 指针让硬件发送。代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">netdev_tx_t</span> <span style="color:#a6e22e">ixgbe_xmit_frame_ring</span>(<span style="color:#66d9ef">struct</span> sk_buff <span style="color:#f92672">*</span>skb,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">struct</span> ixgbe_adapter <span style="color:#f92672">*</span>adapter,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">struct</span> ixgbe_ring <span style="color:#f92672">*</span>tx_ring) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* record the location of the first descriptor for this packet */</span>
+</span></span><span style="display:flex;"><span>  first <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>tx_ring<span style="color:#f92672">-&gt;</span>tx_buffer_info[tx_ring<span style="color:#f92672">-&gt;</span>next_to_use];
+</span></span><span style="display:flex;"><span>  first<span style="color:#f92672">-&gt;</span>skb <span style="color:#f92672">=</span> skb;
+</span></span><span style="display:flex;"><span>  first<span style="color:#f92672">-&gt;</span>bytecount <span style="color:#f92672">=</span> skb<span style="color:#f92672">-&gt;</span>len;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">/* in ixgbe_tx_map */</span>
+</span></span><span style="display:flex;"><span>  dma <span style="color:#f92672">=</span> <span style="color:#a6e22e">dma_map_single</span>(tx_ring<span style="color:#f92672">-&gt;</span>dev, skb<span style="color:#f92672">-&gt;</span>data, size, DMA_TO_DEVICE);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (frag <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">skb_shinfo</span>(skb)<span style="color:#f92672">-&gt;</span>frags[<span style="color:#ae81ff">0</span>];; frag<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">dma_mapping_error</span>(tx_ring<span style="color:#f92672">-&gt;</span>dev, dma))
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">goto</span> dma_error;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* record length, and DMA address */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_unmap_len_set</span>(tx_buffer, len, size);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dma_unmap_addr_set</span>(tx_buffer, dma, dma);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    tx_desc<span style="color:#f92672">-&gt;</span>read.buffer_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">cpu_to_le64</span>(dma);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (<span style="color:#a6e22e">unlikely</span>(size <span style="color:#f92672">&gt;</span> IXGBE_MAX_DATA_PER_TXD)) {
+</span></span><span style="display:flex;"><span>      tx_desc<span style="color:#f92672">-&gt;</span>read.cmd_type_len <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">cpu_to_le32</span>(cmd_type <span style="color:#f92672">^</span> IXGBE_MAX_DATA_PER_TXD);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      i<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>      tx_desc<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> tx_ring<span style="color:#f92672">-&gt;</span>count) {
+</span></span><span style="display:flex;"><span>        tx_desc <span style="color:#f92672">=</span> <span style="color:#a6e22e">IXGBE_TX_DESC</span>(tx_ring, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>        i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>      tx_desc<span style="color:#f92672">-&gt;</span>read.olinfo_status <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      dma <span style="color:#f92672">+=</span> IXGBE_MAX_DATA_PER_TXD;
+</span></span><span style="display:flex;"><span>      size <span style="color:#f92672">-=</span> IXGBE_MAX_DATA_PER_TXD;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      tx_desc<span style="color:#f92672">-&gt;</span>read.buffer_addr <span style="color:#f92672">=</span> <span style="color:#a6e22e">cpu_to_le64</span>(dma);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    tx_desc<span style="color:#f92672">-&gt;</span>read.cmd_type_len <span style="color:#f92672">=</span> <span style="color:#a6e22e">cpu_to_le32</span>(cmd_type <span style="color:#f92672">^</span> size);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    i<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    tx_desc<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> tx_ring<span style="color:#f92672">-&gt;</span>count) {
+</span></span><span style="display:flex;"><span>      tx_desc <span style="color:#f92672">=</span> <span style="color:#a6e22e">IXGBE_TX_DESC</span>(tx_ring, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>      i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    tx_desc<span style="color:#f92672">-&gt;</span>read.olinfo_status <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    size <span style="color:#f92672">=</span> <span style="color:#a6e22e">skb_frag_size</span>(frag);
+</span></span><span style="display:flex;"><span>    data_len <span style="color:#f92672">-=</span> size;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    dma <span style="color:#f92672">=</span> <span style="color:#a6e22e">skb_frag_dma_map</span>(tx_ring<span style="color:#f92672">-&gt;</span>dev, frag, <span style="color:#ae81ff">0</span>, size,
+</span></span><span style="display:flex;"><span>               DMA_TO_DEVICE);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    tx_buffer <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>tx_ring<span style="color:#f92672">-&gt;</span>tx_buffer_info[i];
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  i<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> tx_ring<span style="color:#f92672">-&gt;</span>count)
+</span></span><span style="display:flex;"><span>    i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  tx_ring<span style="color:#f92672">-&gt;</span>next_to_use <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ixgbe_maybe_stop_tx</span>(tx_ring, DESC_NEEDED);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">netif_xmit_stopped</span>(<span style="color:#a6e22e">txring_txq</span>(tx_ring)) <span style="color:#f92672">||</span> <span style="color:#f92672">!</span><span style="color:#a6e22e">netdev_xmit_more</span>()) {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">writel</span>(i, tx_ring<span style="color:#f92672">-&gt;</span>tail);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这一段代码的思路是，对于 skb 的每个 frag，尝试填入 Descriptor，如果发现填不下，就填多个，直到填完位置，最后更新 tail 指针，让硬件开始发送。</p>
+<h3 id="小结-1">小结</h3>
+<p>在了解 AXI DMA 的工作原理的基础上，Intel 82599 的队列其实也不复杂，只不过直接采取了以 Descriptor 数组作为循环队列的方式，并且这里归属于硬件的 Descriptor 空间其实是 [Head, Tail) 左闭右开区间的形式（AXI DMA 是链表的头和尾，都属于硬件），这样就可以用 Head == Tail 来表示空队列，当然了，队列也永远会差一项才能满（除非额外记录队列中合法元素个数）。最后贴一张 Intel 82599 Datasheet 中的图片来帮助理解：</p>
+<p><img src="/images/82599_queue.png" alt=""></p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#axi-dma">AXI DMA</a>
+      <ul>
+        <li><a href="#发送队列">发送队列</a></li>
+        <li><a href="#接收队列">接收队列</a></li>
+        <li><a href="#小结">小结</a></li>
+      </ul>
+    </li>
+    <li><a href="#intel-82599">Intel 82599</a>
+      <ul>
+        <li><a href="#接收队列-1">接收队列</a></li>
+        <li><a href="#发送队列-1">发送队列</a></li>
+        <li><a href="#小结-1">小结</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/network">network
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/nic">nic
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/descriptor">descriptor
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/hardware/2023/03/23/core-cosim/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            单核处理器的协同仿真
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2023/03/20/wireless-network/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">802.11 学习&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

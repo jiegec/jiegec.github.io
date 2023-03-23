@@ -27,7 +27,7 @@
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.110.0">
+    <meta name="generator" content="Hugo 0.111.3">
 </head>
 
 <body>
@@ -63,6 +63,268 @@
 </header>
 
     <section id="main" class="outer">
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/03/23/core-cosim/">单核处理器的协同仿真</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2023/03/23/core-cosim/" class="article-date">
+                        <time datetime='2023-03-23T11:18:00.000&#43;08:00' itemprop="datePublished">2023-03-23</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2023/03/23/core-cosim/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 今年的龙芯杯又开始报名了，我来写一篇关于协同仿真（cosim）的博客蹭蹭热度。下面的内容参考了一些已有的协同仿真的框架，例如 ibex co-sim 和 OpenXiangShan/difftest。
+协同仿真 RTL 层次的协同仿真可以做不同层次的，这里讨论的是指令提交层次，具体来讲，就是把 CPU 和一个模拟器放在一起协同仿真，检查每条指令执行完以后的状态是否一致。基于代码样例的测试虽然可以覆盖很多情况，但是如果出了错误，报错的地方不一定是出现问题的地方，有些时候就需要往回找很久，才能找到刚出现问题的地方。软件上，大家经常苦于内存错误，经常找不到刚出现溢出的地方，所以要用 valgrind 或者 asan 等工具来直接定位第一次出错的地方。硬件上也是类似，为了精确定位到出错的波形，可以用 cosim。
+cosim 是怎么工作的呢？模拟器是软件实现的，它原子地执行一条条指令，同时记录下当前的状态，例如寄存器的取值、内存的状态等等。如果可以让 CPU 和模拟器锁步运行，也就是 CPU 执行一条指令，模拟器执行一条指令，然后比对状态，一旦出现不一致，就直接报错。但实际上 CPU 可能会更加复杂，因为它指令的执行拆分成了很多部分，需要针对流水线进行一些修改，使得它可以生成一个匹配模拟器的原子的执行流。
+整体的工作流程如下：
+选择一个模拟器，自己写或者使用一个现成的。考虑到模拟器实现的功能和 CPU 不一定一致，有时候需要修改模拟器的源码，所以可以考虑使用一些现成的开源软件，如果是为了 cosim 设计的就更好了。 找到模拟器的单步执行接口，并且让模拟器可以把内部状态暴露出来。这一步可能需要修改源代码。 修改 RTL，把指令的提交信息、寄存器堆的内容通过一些方法传递出来。 修改仿真顶层，每当指令提交的时候，单步执行模拟器，然后比对双方的状态。 模拟器 选择模拟器，要根据你所实现的指令集来选择。下面以 Spike 为例，用来和 RISC-V CPU 进行协同仿真。spike 实现了比较完整的 RISC-V 指令集，并且以库的形式提供了它的 API，但还需要一些修改，让它更加适合协同仿真。这一部分参考了 ibex co-sim的文档。
+首先，spike 提供了 step 函数，就是我们想要的单步执行。但是，spike 的 step 在遇到异常或者中断的时候也会返回，但实际上在处理器一侧，通常异常是单独处理的，所以这时候就要修改 spike 的 step 函数，如果遇到异常了，继续执行，直到执行了一条指令为止。与此同时，spike 没有记录最后一次执行的指令的 pc，只记录了下一个 PC，那么在发生异常的时候，就不会记录异常处理的第一条指令的 PC，这里也要进行针对性的修改。
+state.last_inst_pc = pc; pc = execute_insn_logged(this, pc, fetch); advance_pc(); 做了这些修改以后，就足够在 cosim 中运行一些简单的程序了。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2023/03/23/core-cosim/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cpu">cpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/spike">spike
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cosim">cosim
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/simulation">simulation
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/verilator">verilator
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/networking/2023/03/22/hardware-queue-interface/">软硬件队列接口</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/networking/2023/03/22/hardware-queue-interface/" class="article-date">
+                        <time datetime='2023-03-22T22:30:00.000&#43;08:00' itemprop="datePublished">2023-03-22</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/networking/2023/03/22/hardware-queue-interface/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 在网卡等场景下，经常会需要在软硬件之间传输大量的数据，通常的方法是建立循环队列，例如 H2C（Host to Chip）方向，是 Host 作为 Producer 增加数据到队尾，Chip 作为 Consumer 从队头读取数据。由于每次传输的数据不定长，为了方便，队列的项是一个定长的 Descriptor，Descriptor 指向了数据的地址。但具体的细节，不同的实现还不太一样。下面逐个案例进行分析。
+AXI DMA 文档：https://docs.xilinx.com/r/en-US/pg021_axi_dma
+如果在 Xilinx FPGA 上使用过以太网，那大概率会接触到 AXI DMA 这个 IP，它负责把以太网 MAC 的 AXI Stream 数据用 DMA 的形式通过内存来与操作系统交互。
+发送队列 它的收和发各是一个队列，首先来看发送队列：
+发送队列由一个头指针（MM2S_CURDESC）和一个尾指针定义（MM2S_TAILDESC），指针指向的是一个 Scatter Gather Descriptor，Descriptor 的内容包括：
+NXTDESC：队列下一项的地址 BUFFER_ADDRESS：要传输的数据的地址 CONTROL：控制信息 STATUS：状态信息 APP0 to APP4：附带的信息 可见这个发送队列实际上是一个链表：
+struct axi_dma_desc { struct axi_dma_desc *nxtdesc; void *buffer_address; // omitted }; 当 MM2S_TAILDESC 被更新的时候，硬件会从 CURDESC 开始逐个 Descriptor 处理，直到遇到 TAILDESC 为止：
+// when taildesc is changed void taildesc_changed() { do { dma_send(curdesc); if (curdesc !
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/networking/2023/03/22/hardware-queue-interface/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/network">network
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/nic">nic
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/descriptor">descriptor
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/03/20/wireless-network/">802.11 学习</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2023/03/20/wireless-network/" class="article-date">
+                        <time datetime='2023-03-20T16:56:00.000&#43;08:00' itemprop="datePublished">2023-03-20</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2023/03/20/wireless-network/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在学习 802.11，在博客上记录一下我的学习过程。
+本文参考了 802.11-1997 并使用了标准中的图片。
+MAC 层帧格式 802.11 MAC 层的帧格式，如 802.11-1997 Figure 12：
+前两个字节 Frame Control 的定义如 802.11-1997 Figure 13：
+根据 Type 和 Subtype 字段决定了帧的类型，如管理（Management）帧，控制（Control）帧和数据（Data）帧。
+无线路由器定期发送 Beacon frame，告诉客户端自己广播了哪些 SSID。客户端也可以主动发送 Probe Request frame 来询问有没有路由器有对应的 SSID，如果有，路由器回复一个 Probe Response frame。
+PHY 802.11 支持很多种 PHY，常见的有 802.11 b/g/n/ac/ax。起名也很有意思：
+802.11b: High Rate，最高 11 Mbps 802.11g: Extended Rate，最高 54 Mbps 802.11n: High Throughput，最高 600 Mbps 802.11ac: Very High Throughput，最高 6933 Mbps 802.11ax: High Efficiency，最高 9608 Mbps 802.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2023/03/20/wireless-network/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/wireless">wireless
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/wifi">wifi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/wlan">wlan
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/802.11">802.11
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/03/19/digital-modulation/">数字调制</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2023/03/19/digital-modulation/" class="article-date">
+                        <time datetime='2023-03-19T12:26:00.000&#43;08:00' itemprop="datePublished">2023-03-19</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2023/03/19/digital-modulation/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在学习 802.11，需要学习很多数字调制相关的知识，因此自学了一下通信原理。
+ASK Amplitude-Shift Keying 调整载波信号的幅度
+FSK Frequency-Shift Keying 调整载波信号的频率
+PSK Phase-Shift Keying 调整载波信号的相位
+DPSK(Differential Phase-Shift Keying) 是在 PSK 的基础上，把相位的绝对值变成相位的差。例如 BPSK 传输 0 对应 0 度相位，传输 1 对应 180 度相位，那么 DBPSK 传输 0 时保持相位和上一个 symbol 一样，传输 1 时相位相对上一个 symbol 增加 180 度。
+QAM Quadrature Amplitude Modulation 两个正交载波信号之和，调整两个信号的相位和幅度
+4-QAM 4-QAM 也等价于 4-PSK（Phase-Shift Keying），相当于调整一个载波信号的相位。
+16-QAM 
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2023/03/19/digital-modulation/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/modulation">modulation
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/digital">digital
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
         
         <article class="article article-type-post" itemscope itemprop="blogPost">
             <div class="article-inner">
@@ -420,227 +682,6 @@ sudo pkg install ripgrep cd /usr/local/lib/node_modules/@vscode/ripgrep/bin &amp
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="/tags/freebsd">freebsd
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/01/11/intel-cpu/">Intel 处理器</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2023/01/11/intel-cpu/" class="article-date">
-                        <time datetime='2023-01-11T08:59:00.000&#43;08:00' itemprop="datePublished">2023-01-11</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2023/01/11/intel-cpu/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    Xeon 系列 命名方式：
-第一位数字：8-9 对应 Platinum，5-6 对应 Gold，4 对应 Silver，3 对应 Bronze 第二位数字：对应代次，1 对应 1st Generation，2 对应 2nd Generation，依此类推 第三位第四位数字：一般越大性能越好 后缀：H/L/M/N/P/Q/S/T/U/V/Y/Y+/+ L：大内存 M：媒体/大内存 N：网络 P：虚拟化，IaaS Q: 水冷 S：存储/搜索 T：长寿命 U：单插槽 V：虚拟化，SaaS Y: Speed Select 4th Generation Intel® Xeon® Scalable Processors/Xeon CPU Max Series CPU 型号列表 Xeon CPU Max 型号列表 发布时间：Q1'23 代号：Sapphire Rapids/Sapphire Rapids HBM 用途：Server 旗舰：Xeon CPU Max 9480(56C112T，112.5 MB L3，HBM)/Xeon Platinum 8490H(60C120T，Golden Cove，112.5 MB L3)/Xeon Platinum 8480+(56C112T，105 MB L3) 3rd Generation Intel® Xeon® Scalable Processors CPU 型号列表 发布时间：Q2'21(Ice Lake), Q2'20(Cooper Lake) 代号：Cooper Lake/Ice Lake 用途：Server 旗舰：Xeon Platinum 8380(40C80T，Sunny Cove，60 MB L3) 相关阅读：Ice Lake 2nd Generation Intel® Xeon® Scalable Processors CPU 型号列表 发布时间：Q1'20, Q2'19 代号：Cascade Lake 用途：Server 旗舰：Xeon Platinum 9282(56C112T)，Xeon Platinum 8280(28C56T，38.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2023/01/11/intel-cpu/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/intel">intel
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cpu">cpu
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/01/09/amd-cpu/">AMD 处理器</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2023/01/09/amd-cpu/" class="article-date">
-                        <time datetime='2023-01-09T19:37:00.000&#43;08:00' itemprop="datePublished">2023-01-09</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2023/01/09/amd-cpu/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    Ryzen 系列 Ryzen 5000 代号 用途 核显 插槽 微架构 型号 Vermeer 桌面 无 AM4 Zen 3 5950X/5900(X)/5800(X(3D))/5700X/5600(X) Chagall 工作站 无 sWRX8 Zen 3 5995WX/5975WX/5965WX/5955WX/5945WX Cezanne 桌面 GCN5 AM4 Zen 3 5750G/5700G(E)/5650G/5600G(E)/5500/5300G(E) Cezanne 笔记本 GCN5 FP6 Zen 3 5980HX/5980HS/5900HX/5900HS/5800H(S)/5800U/5600H(S)/5600U/5560U/5400U Barceló 笔记本 GCN5 FP6 Zen 3 5825U/5825C/5625U/5625C/5425U/5425C/5125C Lucienne 笔记本 GCN5 FP6 Zen 2 5700U/5500U/5300U 注：Ryzen 5 5500 虽然代号是 Cezanne，但是去掉了核显。
-Ryzen 6000 代号 用途 核显 插槽 微架构 型号 Rembrandt 笔记本 RDNA2 FP7 Zen 3+ 6980HX/6980HS/6900HX/6900HS/6800H(S)/6800U/6600H(S)/6600U Ryzen 7000 代号 用途 核显 插槽 微架构 型号 Raphael 桌面 RDNA2 AM5 Zen 4 7950X(3D)/7900(X(3D))/7800X3D/7700(X)/7600(X) Dragon Range 笔记本 RDNA2 FL1 Zen 4 7945HX/7845HX/7745HX/7645HX Phoenix 笔记本 RDNA3 FP7/FP7r2/FP8 Zen 4 7940HS/7840HS/7640HS Rembrandt R 笔记本 RDNA2 FP7 Zen 3+ 7735HS/7535HS/7736U/7735U/7535U/7335U Barcelo R 笔记本 GCN5?
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2023/01/09/amd-cpu/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/amd">amd
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cpu">cpu
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/01/05/pcie-bifurcation/">PCIe Bifurcation</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2023/01/05/pcie-bifurcation/" class="article-date">
-                        <time datetime='2023-01-05T15:41:00.000&#43;08:00' itemprop="datePublished">2023-01-05</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2023/01/05/pcie-bifurcation/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近看到两篇关于 PCIe Bifurcation 的文章：
-intel 部分桌面级 CPU 的 pcie 通道拆分另类低成本实现 Intel Alder Lake 12 代酷睿 CPU PCIe 拆分实现方法 文章讲的是如何在 CPU 上进行跳线，从而实现 PCIe Bifurcation 的配置。正好借此机会来研究一下 PCIe Bifurcation。
-PCIe Bifurcation PCIe Bifurcation 的目的是让 PCIe 有更好的灵活性。从 CPU 出来的几路 PCIe，它的宽度一般是确定的，比如有一个 x16，但是实际使用的时候，想要接多个设备，例如把 x16 当成两个 x8 来用，这就是 PCIe Bifurcation。这需要 PCIe 两端的支持，CPU 端需要可配置 PCIe Bifurcation，不然只能从一个 x16 降级到一个 x8，剩下的 8x 就没法利用了；设备端需要拆分卡，把 x16 的信号分成两路，然后提供两个 PCIe 插槽以及使用 Clock Buffer 来提供下游设备的时钟，有时则是主板设计时就做了拆分，不需要额外的拆分卡。
-那么怎么配置 CPU 端的 PCIe Bifurcation 呢？其实就是上面两篇文章提到的办法：CPU 根据 CFG 信号来决定 PCIe Bifurcation 配置，例如要选择 1x16，2x8 还是 1x8+2x4 等等。简单总结一下实现思路都是：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2023/01/05/pcie-bifurcation/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/pcie">pcie
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/bus">bus
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/bifurcation">bifurcation
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/12/10/acpi-notes/">ACPI 学习笔记</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/12/10/acpi-notes/" class="article-date">
-                        <time datetime='2022-12-10T20:44:00.000&#43;08:00' itemprop="datePublished">2022-12-10</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/12/10/acpi-notes/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    标准 ACPI 标准可以从官网下载。
-ACPI 的表现形式为一颗树加若干个表，表的结构比较规整，里面每个字段都有固定的含义。树的结点可能是属性，或者是一些函数。操作系统可以操作上面的属性，调用 ACPI 中的函数，来进行一些硬件相关的操作。ACPI 一般与主板密切相关，主板厂家配置好 ACPI 后，操作系统就不需要给每个主板都写一遍代码了。
-ASL 为了开发 ACPI，需要使用 ACPI Source Language(ASL) 来进行编程，使用 iasl 编译成 ACPI 表以后，由操作系统进行解释执行。推荐阅读一个比较好的 ASL 教程：ACPI Source Language (ASL) Tutorial。
-简单来说，ASL 中的变量类型：
-Integer: int32_t/int64_t String: char * Buffer: uint8_t [] Package: object [] Object Reference: object &amp; Method ACPI 需要访问硬件，一般是通过 MMIO 或者 IO Port 来进行访问。在内核开发的时候，MMIO 一般是用一系列 volatile 指针来对应硬件的寄存器定义。ASL 中也可以做类似的事情，分为两步：OperationRegion 和 Field。
-OperationRegion 就是声明了一片地址空间，以及对应的类型，常见的类型有 SystemMemory、SystemIO、PCI_Config、SMBus 等等。当 ACPI 中的代码要访问 OperationRegion 中的数据的时候，内核按照类型去进行实际的访问。
-有了地址空间以后，还需要根据寄存器的定义，给各个字段起个名字，这就是 Field。Field 给 OperationRegion 中的字段起名，与硬件的定义想对应，这就像在内核中定义一个结构体，保证结构体的成员的偏移和硬件是一致的。这样就可以通过成员来访问，而不是每次都去计算一次偏移。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/12/10/acpi-notes/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/acpi">acpi
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/notes">notes
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/learn">learn
                             </a>
                         </li>
                         

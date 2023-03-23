@@ -6,7 +6,54 @@
     <description>Recent content in Hardwares on 杰哥的{运维,编程,调板子}小笔记</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sun, 26 Feb 2023 14:48:00 +0800</lastBuildDate><atom:link href="https://jia.je/hardware/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Thu, 23 Mar 2023 11:18:00 +0800</lastBuildDate><atom:link href="https://jia.je/hardware/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>单核处理器的协同仿真</title>
+      <link>https://jia.je/hardware/2023/03/23/core-cosim/</link>
+      <pubDate>Thu, 23 Mar 2023 11:18:00 +0800</pubDate>
+      
+      <guid>https://jia.je/hardware/2023/03/23/core-cosim/</guid>
+      <description>背景 今年的龙芯杯又开始报名了，我来写一篇关于协同仿真（cosim）的博客蹭蹭热度。下面的内容参考了一些已有的协同仿真的框架，例如 ibex co-sim 和 OpenXiangShan/difftest。
+协同仿真 RTL 层次的协同仿真可以做不同层次的，这里讨论的是指令提交层次，具体来讲，就是把 CPU 和一个模拟器放在一起协同仿真，检查每条指令执行完以后的状态是否一致。基于代码样例的测试虽然可以覆盖很多情况，但是如果出了错误，报错的地方不一定是出现问题的地方，有些时候就需要往回找很久，才能找到刚出现问题的地方。软件上，大家经常苦于内存错误，经常找不到刚出现溢出的地方，所以要用 valgrind 或者 asan 等工具来直接定位第一次出错的地方。硬件上也是类似，为了精确定位到出错的波形，可以用 cosim。
+cosim 是怎么工作的呢？模拟器是软件实现的，它原子地执行一条条指令，同时记录下当前的状态，例如寄存器的取值、内存的状态等等。如果可以让 CPU 和模拟器锁步运行，也就是 CPU 执行一条指令，模拟器执行一条指令，然后比对状态，一旦出现不一致，就直接报错。但实际上 CPU 可能会更加复杂，因为它指令的执行拆分成了很多部分，需要针对流水线进行一些修改，使得它可以生成一个匹配模拟器的原子的执行流。
+整体的工作流程如下：
+选择一个模拟器，自己写或者使用一个现成的。考虑到模拟器实现的功能和 CPU 不一定一致，有时候需要修改模拟器的源码，所以可以考虑使用一些现成的开源软件，如果是为了 cosim 设计的就更好了。 找到模拟器的单步执行接口，并且让模拟器可以把内部状态暴露出来。这一步可能需要修改源代码。 修改 RTL，把指令的提交信息、寄存器堆的内容通过一些方法传递出来。 修改仿真顶层，每当指令提交的时候，单步执行模拟器，然后比对双方的状态。 模拟器 选择模拟器，要根据你所实现的指令集来选择。下面以 Spike 为例，用来和 RISC-V CPU 进行协同仿真。spike 实现了比较完整的 RISC-V 指令集，并且以库的形式提供了它的 API，但还需要一些修改，让它更加适合协同仿真。这一部分参考了 ibex co-sim的文档。
+首先，spike 提供了 step 函数，就是我们想要的单步执行。但是，spike 的 step 在遇到异常或者中断的时候也会返回，但实际上在处理器一侧，通常异常是单独处理的，所以这时候就要修改 spike 的 step 函数，如果遇到异常了，继续执行，直到执行了一条指令为止。与此同时，spike 没有记录最后一次执行的指令的 pc，只记录了下一个 PC，那么在发生异常的时候，就不会记录异常处理的第一条指令的 PC，这里也要进行针对性的修改。
+state.last_inst_pc = pc; pc = execute_insn_logged(this, pc, fetch); advance_pc(); 做了这些修改以后，就足够在 cosim 中运行一些简单的程序了。</description>
+    </item>
+    
+    <item>
+      <title>802.11 学习</title>
+      <link>https://jia.je/hardware/2023/03/20/wireless-network/</link>
+      <pubDate>Mon, 20 Mar 2023 16:56:00 +0800</pubDate>
+      
+      <guid>https://jia.je/hardware/2023/03/20/wireless-network/</guid>
+      <description>背景 最近在学习 802.11，在博客上记录一下我的学习过程。
+本文参考了 802.11-1997 并使用了标准中的图片。
+MAC 层帧格式 802.11 MAC 层的帧格式，如 802.11-1997 Figure 12：
+前两个字节 Frame Control 的定义如 802.11-1997 Figure 13：
+根据 Type 和 Subtype 字段决定了帧的类型，如管理（Management）帧，控制（Control）帧和数据（Data）帧。
+无线路由器定期发送 Beacon frame，告诉客户端自己广播了哪些 SSID。客户端也可以主动发送 Probe Request frame 来询问有没有路由器有对应的 SSID，如果有，路由器回复一个 Probe Response frame。
+PHY 802.11 支持很多种 PHY，常见的有 802.11 b/g/n/ac/ax。起名也很有意思：
+802.11b: High Rate，最高 11 Mbps 802.11g: Extended Rate，最高 54 Mbps 802.11n: High Throughput，最高 600 Mbps 802.11ac: Very High Throughput，最高 6933 Mbps 802.11ax: High Efficiency，最高 9608 Mbps 802.</description>
+    </item>
+    
+    <item>
+      <title>数字调制</title>
+      <link>https://jia.je/hardware/2023/03/19/digital-modulation/</link>
+      <pubDate>Sun, 19 Mar 2023 12:26:00 +0800</pubDate>
+      
+      <guid>https://jia.je/hardware/2023/03/19/digital-modulation/</guid>
+      <description>背景 最近在学习 802.11，需要学习很多数字调制相关的知识，因此自学了一下通信原理。
+ASK Amplitude-Shift Keying 调整载波信号的幅度
+FSK Frequency-Shift Keying 调整载波信号的频率
+PSK Phase-Shift Keying 调整载波信号的相位
+DPSK(Differential Phase-Shift Keying) 是在 PSK 的基础上，把相位的绝对值变成相位的差。例如 BPSK 传输 0 对应 0 度相位，传输 1 对应 180 度相位，那么 DBPSK 传输 0 时保持相位和上一个 symbol 一样，传输 1 时相位相对上一个 symbol 增加 180 度。
+QAM Quadrature Amplitude Modulation 两个正交载波信号之和，调整两个信号的相位和幅度
+4-QAM 4-QAM 也等价于 4-PSK（Phase-Shift Keying），相当于调整一个载波信号的相位。
+16-QAM </description>
+    </item>
+    
     <item>
       <title>在 Linux 上使用 Netgear A6210 USB 无线网卡</title>
       <link>https://jia.je/hardware/2023/02/26/netgear-a6210-linux-wifi-dongle/</link>
