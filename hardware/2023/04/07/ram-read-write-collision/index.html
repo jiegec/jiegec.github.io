@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RAM 读写冲突 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="RAM 读写冲突" />
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2023/04/07/ram-read-write-collision/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.111.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">RAM 读写冲突</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2023/04/07/ram-read-write-collision/" class="article-date">
+                <time datetime='2023-04-07T00:48:00.000&#43;08:00' itemprop="datePublished">2023-04-07</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2023/04/07/ram-read-write-collision/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>在 FPGA 或者 ASIC 中，通常都需要使用 RAM，通过读口、写口或者读写口来进行访问。常见的配置有单读写口（1RW），一读一写（1R1W）等等，读口通常有 1 个周期的延时。那么，如果在同一个周期内，读口和写口访问了同一个地址，会发生什么呢？可能会想到几种情况：</p>
+<ol>
+<li>读和写都失败，读出的数据未定义，数据没写进去</li>
+<li>数据写进去了，读出的数据未定义</li>
+<li>数据写进去了，读出了写之前的旧数据</li>
+<li>数据写进去了，读出了同一个周期写入的新数据</li>
+</ol>
+<p>下面以具体的例子来看看，实际情况是什么样子。</p>
+<h2 id="xilinx-fpga">Xilinx FPGA</h2>
+<p>首先测试的是 Xilinx FPGA 上的 RAM，测试的对象是 XPM，统一设置读延迟为一个周期，使用 Vivado 仿真。</p>
+<h3 id="一读一写">一读一写</h3>
+<p>首先测试一读一写，也就是 xpm_memory_sdpram 模块。模块支持三种模式：NO_CHANGE（默认值）、READ_FIRST 和 WRITE_FIRST，因此我例化了三份，输入一样的信号，设置为三种不同的模式，然后比较输出结果。为了简化，读写使用一个时钟。下面是测试的波形：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "clk", wave: "p...."},
+      { name: "w_addr", wave: "2....", data: ["0000"]},
+      { name: "w_data", wave: "2x2xx", data: ["1111", "2222"]},
+      { name: "w_en", wave: "1010."},
+      { name: "r_addr", wave: "2....", data: ["0000"]},
+      { name: "r_en", wave: "0.1.0"},
+      { name: "r_data_no_change", wave: "xxx22", data: ["xxxx", "2222"]},
+      { name: "r_data_read_first", wave: "xxx22", data: ["1111", "2222"]},
+      { name: "r_data_write_first", wave: "xxx22", data: ["xxxx", "2222"]},
+    ]
+}
+</script>
+<p>图中第一个周期向地址 0 写入了 1111，然后第三个周期同时读写地址 0 的数据，此时 NO_CHANGE 和 WRITE_FIRST 两种模式中，写入成功，读取失败；READ_FIRST 模式读取成功，并且读取的是写入之前的数据。第四个周期时，读写没有出现冲突，三种模式都可以读出写入的新数据。</p>
+<p>这有些出乎我的意料：之前在很多地方用过 XPM，但是都没考虑过读写地址相同的情况，而且默认设置（NO_CHANGE）下，输出结果是不确定的。实际上这个行为在 PG058 Block Memory Generator 里面提到了：</p>
+<ul>
+<li>Synchronous Write-Read Collisions: A synchronous Write-Read collision might occur if a port attempts to Write a memory location and the other port reads the same location. While memory contents are not corrupted in Write-Read collisions, the validity of the output data depends on the Write port operating mode.
+<ul>
+<li>If the Write port is in READ_FIRST mode, the other port can reliably read the old memory contents.</li>
+<li>If the Write port is in WRITE_FIRST or NO_CHANGE mode, data on the output of the Read port is invalid.</li>
+<li>In the case of byte-writes, only updated bytes are invalid on the Read port output.</li>
+</ul>
+</li>
+</ul>
+<p>与上面观察到的结果基本吻合，另外这里提到了带 Mask 的情况：即使是 WRITE_FIRST 或者 NO_CHANGE，也可以读出没写入的那部分（即 WEA[i] = 0）旧的数据。</p>
+<p>对此，Xilinx 的建议是：</p>
+<pre><code>For Synchronous Clocking and during a collision, the Write mode of port A
+can be configured so that a Read operation on port B either produces data
+(acting like READ_FIRST), or produces undefined data (Xs). For this reason,
+it is always advised to use READ_FIRST when configured as a Simple Dual-port
+RAM. For asynchronous clocking, Xilinx recommends setting the Write mode of
+Port A to WRITE_FIRST for collision safety.
+</code></pre>
+<p>也就是说同步时钟用 READ_FIRST，异步时钟用 WRITE_FIRST。甚至 Vivado 还可以贴心地帮你设置：</p>
+<pre><code>For 7 series devices, the selected operating mode is passed to the block RAM
+when the RAM_MODE is set to TDP. For the primitives with RAM_MODE set to
+SDP, the write mode is READ_FIRST for synchronous clocking and WRITE_FIRST
+for asynchronous clocking.
+</code></pre>
+<p>但是 XPM 似乎就没有这个设定了，而是由用户来传入。</p>
+<p>而对于异步时钟，文档直接说不要让冲突发生：</p>
+<pre><code>Using asynchronous clocks, when one port writes data to a memory location,
+the other port must not Read or Write that location for a specified amount
+of time.
+</code></pre>
+<p>这点似乎经常被我们忽略。</p>
+<h3 id="一读写">一读写</h3>
+<p>接下来测试单读写口的场景。单读写口和上面不同，它的冲突点在于，写入的时候，读取的数据如何变化。下面用同样的方法，测试三种模式下 xpm_memory_spram 的行为，得到如下波形：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "clk", wave: "p......"},
+      { name: "rw_addr", wave: "2...2..", data: ["0000", "0001"]},
+      { name: "rw_wdata", wave: "2..22..", data: ["1111", "2222", "3333"]},
+      { name: "rw_en", wave: "101...."},
+      { name: "rw_we", wave: "10.1..."},
+      { name: "ram[0]", wave: "x2..2..", data: ["1111", "2222"]},
+      { name: "ram[1]", wave: "2....2.", data: ["0000", "3333"]},
+      { name: "rw_rdata_no_change", wave: "xxx2...", data: ["1111"]},
+      { name: "rw_rdata_read_first", wave: "xxx2.22", data: ["1111", "0000", "3333"]},
+      { name: "rw_rdata_write_first", wave: "x2..22.", data: ["1111", "2222", "3333"]},
+    ]
+}
+</script>
+<p>这个结果就比较有意思了，三种模式得到了三种不同的结果。第一个周期依然是写入 1111 到地址 0，然后 WRITE_FIRST 模式的输出结果第二个周期跟着变，就好像在写的时候同时也在读，只不过读取的结果就是最后一次写入的结果。第三个周期读取地址 0 的数据，然后第四个周期写入 2222 到地址 0，此时三种情况的读取都得到了写入前的值（也就是 1111）。第五个周期 WRITE_FIRST 模式的输出跟着变成了 2222，和预期一致。同时第五个周期写入 3333 到地址 1，接着第六个周期的时候，READ_FIRST 出现了 0000，实际上是读取了地址 1 的旧数据，也就是写入前的数据，而 WRITE_FIRST 更新为了 3333，也就是新写入的数据；NO_CHANGE 则是保持了最后一次读取的结果。</p>
+<p>简单总结一下上面的现象，就是：</p>
+<ul>
+<li>NO_CHANGE：顾名思义，写的时候 rdata 不变，只有在读的下一个周期才会变</li>
+<li>WRITE_FIRST：写的同时也在读，只不过读取的是写入的新数据</li>
+<li>READ_FIRST：写的同时也在读，只不过读取的是写入前的旧数据</li>
+</ul>
+<p>关于这个行为，在 <a href="https://xilinx.eetrend.com/blog/2020/100055273.html">RAM IP Core 中 Write First Read First 和 No Change 的区别</a> 处可以看到比较清晰的解释。</p>
+<h2 id="sram-ip">SRAM IP</h2>
+<p>接下来在仿真中看看 SRAM IP 的行为是什么样子。SRAM IP 有一个引脚 COLLDISN，其语义为：</p>
+<ul>
+<li>如果 COLLDISN 为 1，那么如果出现读写冲突，那么写入是被保证的，但是读取会失败</li>
+<li>如果 COLLDISN 为 0，那么如果出现读写冲突，读写都会失败</li>
+</ul>
+<p>仿真得到如下波形：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "clk", wave: "p......."},
+      { name: "w_addr", wave: "2.......", data: ["0000"]},
+      { name: "w_data", wave: "2x...2x.", data: ["1111", "2222"]},
+      { name: "w_en", wave: "10...10."},
+      { name: "r_addr", wave: "2.......", data: ["0000"]},
+      { name: "r_en", wave: "0.10.1.0"},
+      { name: "mem_colldisn_0[0]", wave: "x2....2.", data: ["1111", "xxxx"]},
+      { name: "r_data_colldisn_0", wave: "xxx2..2.", data: ["1111", "xxxx"]},
+      { name: "mem_colldisn_1[0]", wave: "x2....2.", data: ["1111", "2222"]},
+      { name: "r_data_colldisn_1", wave: "xxx2..22", data: ["1111", "xxxx", "2222"]},
+    ]
+}
+</script>
+<p>第一个周期没有读写冲突，所以成功写入，第三个周期也可以正确地都出来。第六个周期读写冲突，此时如果 COLLDISN 等于 0，那么读写都失败，下一个周期读取结果是 xxxx，并且之后继续读取依然是 xxxx，因为内存中的数据被破坏了；而如果 COLLDISN 等于 1，那么写入成功，内存中的值变为 2222，但读取失败，下一个周期读取结果是 xxxx，但是再下一个周期就可以正常读取，得到 2222。</p>
+<p>这就与 Xilinx FPGA 不一样：这里如果 COLLDISN 等于 0，读写冲突的时候，可能写入会失效，内存中的值变为不确定的内容。所以为了保证正确性，要么在 SRAM IP 外部进行读写冲突检查，如果要冲突了，就关掉读口，然后从写口 bypass 数据到读口；要么在 SRAM IP 内部进行读写冲突检查（设置 COLLDISN 等于 1），然后不要使用冲突时读取的数据。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#xilinx-fpga">Xilinx FPGA</a>
+      <ul>
+        <li><a href="#一读一写">一读一写</a></li>
+        <li><a href="#一读写">一读写</a></li>
+      </ul>
+    </li>
+    <li><a href="#sram-ip">SRAM IP</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/sram">sram
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/collision">collision
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/readunderwrite">readunderwrite
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/xpm">xpm
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/xilinx">xilinx
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/bram">bram
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2023/04/04/firtool/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">firtool 尝试&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
