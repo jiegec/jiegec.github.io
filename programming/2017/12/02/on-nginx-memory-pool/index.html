@@ -11,11 +11,15 @@
     
 
         <meta property="og:title" content="" />
-    <meta property="og:description" content="" />
+    <meta property="og:description" content="今晚参加了 Tunight，会长给我们讲了 Nginx 的一些内部运作的机制和原理。中间的时候，会长展示的代码中用到了线程池方面的一些函数，但是大多地方只有调用 ngx_pcalloc 而没有看到相应的对象释放的过程，于是在演示的最后，会长应大家要求对 Nginx 魔幻的线程池实现做了现场代码分析。
+在分析的中途遇到了很多坑，最后才终于理清了内存池的工作原理。这里直接解释结论吧。以下代码均摘自 Nginx 1.13.7，代码都可以在官方仓库找到。
+首先分析一下创建一个内存池的函数：
+ngx_pool_t * ngx_create_pool(size_t size, ngx_log_t *log) { ngx_pool_t *p; p = ngx_memalign(NGX_POOL_ALIGNMENT, size, log); if (p == NULL) { return NULL; } p-&gt;d.last = (u_char *) p &#43; sizeof(ngx_pool_t); p-&gt;d.end = (u_char *) p &#43; size; p-&gt;d.next = NULL; p-&gt;d.failed = 0; size = size - sizeof(ngx_pool_t); p-&gt;max = (size &lt; NGX_MAX_ALLOC_FROM_POOL) ? size : NGX_MAX_ALLOC_FROM_POOL; p-&gt;current = p; p-&gt;chain = NULL; p-&gt;large = NULL; p-&gt;cleanup = NULL; p-&gt;log = log; return p; } 现在开始分段分析这个函数：在这里，一个内存池用一个 ngx_pool_t (aka struct ngx_pool_s) 类型的数据进行包装，所有的关于内存池的操作都基于相应的内存池对象。 ngx_log_t 表示输出信息的对象，与内存池无关，后面也不会讨论它。" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en" />
     <meta property="og:url" content="https://jia.je/programming/2017/12/02/on-nginx-memory-pool/" />
     
+
 
     <link rel="shortcut icon" href="/favicon.ico">
 

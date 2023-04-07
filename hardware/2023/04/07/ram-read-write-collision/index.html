@@ -11,11 +11,18 @@
     
 
         <meta property="og:title" content="RAM 读写冲突" />
-    <meta property="og:description" content="" />
+    <meta property="og:description" content="背景 在 FPGA 或者 ASIC 中，通常都需要使用 RAM，通过读口、写口或者读写口来进行访问。常见的配置有单读写口（1RW），一读一写（1R1W）等等，读口通常有 1 个周期的延时。那么，如果在同一个周期内，读口和写口访问了同一个地址，会发生什么呢？可能会想到几种情况：
+读和写都失败，读出的数据未定义，数据没写进去 数据写进去了，读出的数据未定义 数据写进去了，读出了写之前的旧数据 数据写进去了，读出了同一个周期写入的新数据 下面以具体的例子来看看，实际情况是什么样子。
+Xilinx FPGA 首先测试的是 Xilinx FPGA 上的 RAM，测试的对象是 XPM，统一设置读延迟为一个周期，使用 Vivado 仿真。
+一读一写 首先测试一读一写，也就是 xpm_memory_sdpram 模块。模块支持三种模式：NO_CHANGE（默认值）、READ_FIRST 和 WRITE_FIRST，因此我例化了三份，输入一样的信号，设置为三种不同的模式，然后比较输出结果。为了简化，读写使用一个时钟。下面是测试的波形：
+图中第一个周期向地址 0 写入了 1111，然后第三个周期同时读写地址 0 的数据，此时 NO_CHANGE 和 WRITE_FIRST 两种模式中，写入成功，读取失败；READ_FIRST 模式读取成功，并且读取的是写入之前的数据。第四个周期时，读写没有出现冲突，三种模式都可以读出写入的新数据。
+这有些出乎我的意料：之前在很多地方用过 XPM，但是都没考虑过读写地址相同的情况，而且默认设置（NO_CHANGE）下，输出结果是不确定的。实际上这个行为在 PG058 Block Memory Generator 里面提到了：
+Synchronous Write-Read Collisions: A synchronous Write-Read collision might occur if a port attempts to Write a memory location and the other port reads the same location." />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en" />
     <meta property="og:url" content="https://jia.je/hardware/2023/04/07/ram-read-write-collision/" />
     
+
 
     <link rel="shortcut icon" href="/favicon.ico">
 
