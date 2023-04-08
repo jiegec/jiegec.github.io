@@ -152,6 +152,68 @@ the other port must not Read or Write that location for a specified amount
 of time.
 </code></pre>
 <p>这点似乎经常被我们忽略。</p>
+<p>那么，如果在 Verilog 中实现一个语义上 WRITE_FIRST 的 RAM，会发生什么呢：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-verilog" data-lang="verilog"><span style="display:flex;"><span><span style="color:#66d9ef">`timescale</span> <span style="color:#ae81ff">1</span>ns<span style="color:#f92672">/</span><span style="color:#ae81ff">1</span>ps
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">module</span> mem_1r1w (
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> clk,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_addr,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> R0_en,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">output</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_data,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_addr,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> W0_en,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_data
+</span></span><span style="display:flex;"><span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] reg_R0_addr;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (W0_en) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>      mem[W0_addr] <span style="color:#f92672">&lt;=</span> W0_data;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (R0_en) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>      reg_R0_addr <span style="color:#f92672">&lt;=</span> R0_addr;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">assign</span> R0_data <span style="color:#f92672">=</span> mem[reg_R0_addr];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">endmodule</span>
+</span></span></code></pre></div><p>奇怪的是，综合出来会使用 BRAM 实现，并且采用 READ_FIRST 作为 RAMB36E1 的 WRITE_MODE_A 和 WRITE_MODE_B。如果写成语义 READ_FIRST：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-verilog" data-lang="verilog"><span style="display:flex;"><span><span style="color:#66d9ef">`timescale</span> <span style="color:#ae81ff">1</span>ns<span style="color:#f92672">/</span><span style="color:#ae81ff">1</span>ps
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">module</span> mem_1r1w (
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> clk,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_addr,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> R0_en,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">output</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_data,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_addr,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> W0_en,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_data
+</span></span><span style="display:flex;"><span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] reg_R0_data;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (W0_en) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>      mem[W0_addr] <span style="color:#f92672">&lt;=</span> W0_data;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (R0_en) <span style="color:#66d9ef">begin</span>
+</span></span><span style="display:flex;"><span>      reg_R0_data <span style="color:#f92672">&lt;=</span> mem[R0_addr];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">assign</span> R0_data <span style="color:#f92672">=</span> reg_R0_data;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">endmodule</span>
+</span></span></code></pre></div><p>会发现生成的 RAMB36E1 原语的 WRITE_MODE 依然是 READ_FIRST。经过测试发现，如果综合的时候用两个时钟信号，就会用 WRITE_FIRST；如果用了一个，就会用 READ_FIRST，与语义无关。所以如果依赖 Vivado 的 infer RAM，得到的结果和预期可能不一致。</p>
+<p>又额外测试了一下 yosys：<code>yosys mem_1r1w.v -p &quot;synth_xilinx&quot;</code>，结果发现 yosys 会忠实地按照语义为 WRITE_FIRST 生成 bypass 逻辑。虽然 yosys 可以做的更好：把识别出来的 READ_FIRST 或 WRITE_FIRST 传给 RAMB36E1，但 yosys 至少尊重了代码。</p>
 <h3 id="一读写">一读写</h3>
 <p>接下来测试单读写口的场景。单读写口和上面不同，它的冲突点在于，写入的时候，读取的数据如何变化。下面用同样的方法，测试三种模式下 xpm_memory_spram 的行为，得到如下波形：</p>
 <script type="WaveDrom">
