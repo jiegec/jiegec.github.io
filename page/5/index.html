@@ -69,6 +69,268 @@
                 
                 
                 <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/software/2022/05/31/qemu-rv64-in-libvirt/">在 libvirt 中运行 RISC-V 虚拟机</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/software/2022/05/31/qemu-rv64-in-libvirt/" class="article-date">
+                        <time datetime='2022-05-31T09:22:00.000&#43;08:00' itemprop="datePublished">2022-05-31</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/software/2022/05/31/qemu-rv64-in-libvirt/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 我在 libvirt 中跑了几个 KVM 加速的虚拟机，然后突发奇想，既然 libvirt 背后是 qemu，然后 qemu 是支持跨指令集的，那是否可以让 libvirt 来运行 RISC-V 架构的虚拟机？经过一番搜索，发现可以跑 ARM：How To: Running Fedora-ARM under QEMU，既然如此，我们也可以试试用 libvirt 来运行 RV64 虚拟机。
+准备 rootfs 第一步是根据 Debian 的文档 Creating a riscv64 chroot 来创建 rootfs，然后再用 virt-make-fs 来打包。
+首先是用 mmdebstrap 来生成一个 chroot：
+$ sudo mkdir -p /tmp/riscv64-chroot $ sudo apt install mmdebstrap qemu-user-static binfmt-support debian-ports-archive-keyring $ sudo mmdebstrap --architectures=riscv64 --include=&#34;debian-ports-archive-keyring&#34; sid /tmp/riscv64-chroot &#34;deb http://deb.debian.org/debian-ports sid main&#34; &#34;deb http://deb.debian.org/debian-ports unreleased main&#34; 进入 chroot 以后，进行一些配置：
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/software/2022/05/31/qemu-rv64-in-libvirt/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/qemu">qemu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/libvirt">libvirt
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/virtmanager">virtmanager
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/debian">debian
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rv64">rv64
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/19/async-sram-timing/">「教学」异步 SRAM 时序</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/19/async-sram-timing/" class="article-date">
+                        <time datetime='2022-05-19T08:40:00.000&#43;08:00' itemprop="datePublished">2022-05-19</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/19/async-sram-timing/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 在一些场合里，我们会使用异步的（即没有时钟信号的）外部 SRAM 来存储数据，而我们经常使用的很多外部接口都是同步接口（即有时钟信号的接口），比如 SPI 和 I2C 等等，UART 虽然是异步，但是它速度很低，不怎么需要考虑时序的问题。所以在 FPGA 上编写一个正确的异步 SRAM 控制器是具有一定的挑战的。
+寄存器时序 考虑到读者可能已经不记得寄存器的时序了，这里首先来复习一下 setup 和 hold 的概念。如果你已经比较熟悉了，可以直接阅读下一节。
+寄存器在时钟的上升沿（下图的 a）进行采样，为了保证采样的稳定性，输入引脚 D 需要在时钟上升沿之前 \(t_{su}\) 的时刻（下图的 b）到时钟上升沿之后 \(t_h\) 的时刻（下图的 c）保持稳定，输出引脚 Q 会在时钟上升沿之后 \(t_{cko}\) 的时刻（下图的 d）变化：
+接口 首先我们来看看异步 SRAM 的接口。下文中，采用 IS61WV102416BLL-10TLI 和 AS7C34098A-10TCN 作为例子：
+可以看到，它有 20 位的地址，16 位的数据，若干个控制信号，同时只能进行读或者写（简称 1RW）。它没有时钟信号，所以是异步 SRAM。
+时序 对于一个同步接口，我们通常只需要给一个满足时钟周期的时钟，然后通过约束文件保证 setup 和 hold 条件满足即可。但是对于异步接口，由于输出的时候没有时钟，我们需要更小心地完成这件事情。
+读时序 首先来看一下比较简单的读时序：
+可以看到地址和数据的关系：首先是地址需要稳定 \(t_{RC}\) 的时间，那么数据合法的范围是地址稳定的初始时刻加上 \(t_{AA}\)，到地址稳定的结束时刻加上 \(t_{OH}\)。我们再来看一下这几个时间的范围：
+首先可以看到读周期时间 \(t_{RC}\) 至少是 10ns，这对应了型号中最后的数字，这表示了这个 SRAM 最快的读写速度。比较有意思的是 \(t_{AA}\) 最多是 10ns，刚好和 \(t_{RC}\) 的最小值相等。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/19/async-sram-timing/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/sram">sram
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/timing">timing
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/teaching">teaching
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/16/ace/">「教学」ACE 缓存一致性协议</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/16/ace/" class="article-date">
+                        <time datetime='2022-05-16T00:34:00.000&#43;08:00' itemprop="datePublished">2022-05-16</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/16/ace/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近几天分析了 TileLink 的缓存一致性协议部分内容，见TileLink 总线协议分析，趁此机会研究一下之前尝试过研究，但是因为缺少一些基础知识而弃坑的 ACE 协议分析。
+下面主要参考了 IHI0022E 的版本，也就是 AXI4 对应的 ACE 版本。
+回顾 首先回顾一下一个缓存一致性协议需要支持哪些操作。对于较上一级 Cache 来说，它需要这么几件事情：
+读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。 需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知，也可以选择不通知下一级。 收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。 需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。 如果之前看过我的 TileLink 分析，那么上面的这些操作对应到 TileLink 就是：
+读或写 miss 的时候，需要请求这个缓存行的数据（发送 AcquireBlock，等待 GrantData），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。 写入一个 valid &amp;&amp; !
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/16/ace/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/axi">axi
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/bus">bus
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cache">cache
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/coherence">coherence
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/teaching">teaching
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/13/rocket-chip-custom-debug/">向 Rocket Chip 添加自定义调试信号</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2022/05/13/rocket-chip-custom-debug/" class="article-date">
+                        <time datetime='2022-05-13T08:35:00.000&#43;08:00' itemprop="datePublished">2022-05-13</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2022/05/13/rocket-chip-custom-debug/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。
+分析 Trace 信号连接方式 首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 testchipip.CanHaveTraceIO:
+trait CanHaveTraceIO { this: HasTiles =&gt; val module: CanHaveTraceIOModuleImp // Bind all the trace nodes to a BB; we&#39;ll use this to generate the IO in the imp val traceNexus = BundleBridgeNexusNode[Vec[TracedInstruction]]() val tileTraceNodes = tiles.flatMap { case ext_tile: WithExtendedTraceport =&gt; None case tile =&gt; Some(tile) }.map { _.
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2022/05/13/rocket-chip-custom-debug/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/rocketchip">rocketchip
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/debug">debug
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
                     <h1 itemprop="name"><a class="article-title" href="/hardware/2022/05/10/memory-authentication/">「教学」内存认证算法</a></h1>
                 </header>
                 
@@ -468,277 +730,6 @@ SVF SVF 格式其实是一系列的 JTAG 上的操作。想到这个，也是因
             </div>
         </article>
         
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/31/brief-into-ooo-2/">浅谈乱序执行 CPU（二）</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/31/brief-into-ooo-2/" class="article-date">
-                        <time datetime='2022-03-31T01:18:00.000&#43;08:00' itemprop="datePublished">2022-03-31</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/31/brief-into-ooo-2/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 之前写过一个浅谈乱序执行 CPU，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。之后也许会有（三）（四）等等。
-内存访问 内存访问是一个比较复杂的操作，它涉及到缓存、页表、内存序等问题。在乱序执行中，要尽量优化内存访问对其他指令的延迟的影响，同时也要保证正确性。这里参考的是 BOOM 的 LSU 设计。
-首先是正确性。一般来说可以认为，Load 是没有副作用的（实际上，Load 会导致 Cache 加载数据，这也引发了以 Meltdown 为首的一系列漏洞），因此可以很激进地预测执行 Load。但是，Store 是有副作用的，写出去的数据就没法还原了。因此，Store 指令只有在 ROB Head 被 Commit 的时候，才会写入到 Cache 中。
-其次是性能，我们希望 Load 指令可以尽快地完成，这样可以使得后续的计算指令可以尽快地开始进行。当 Load 指令的地址已经计算好的时候，就可以去取数据，这时候，首先要去 Store Queue 里面找，如果有 Store 指令要写入的地址等于 Load 的地址，说明后面的 Load 依赖于前面的 Store，如果 Store 的数据已经准备好了，就可以直接把数据转发过来，就不需要从 Cache 中获取，如果数据还没准备好，就需要等待这一条 Store 完成；如果没有找到匹配的 Store 指令，再从内存中取。不过，有一种情况就是，当 Store 指令的地址迟迟没有计算出来，而后面的 Load 已经提前从 Cache 中获取数据了，这时候就会出现错误，所以当 Store 计算出地址的时候，需要检查后面的 Load 指令是否出现地址重合，如果出现了，就要把这条 Load 以及依赖这条 Load 指令的其余指令重新执行。POWER8 处理器微架构论文中对此也有类似的表述：
-The POWER8 IFU also implements mechanisms to mitigate performance degradation associated with pipeline hazards.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/31/brief-into-ooo-2/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/ooo">ooo
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cpu">cpu
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/tomasulo">tomasulo
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/outoforder">outoforder
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/renaming">renaming
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/brief-into-ooo">brief-into-ooo
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/30/sv2v-fpnew/">用 sv2v&#43;yosys 把 fpnew 转为 verilog 网表</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/30/sv2v-fpnew/" class="article-date">
-                        <time datetime='2022-03-30T00:33:00.000&#43;08:00' itemprop="datePublished">2022-03-30</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/30/sv2v-fpnew/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 FPnew 是一个比较好用的浮点计算单元，但它是 SystemVerilog 编写的，并且用了很多高级特性，虽然闭源软件是支持的，但是开源拖拉机经常会遇到这样那样的问题。所以一直想用 sv2v 把它翻译成 Verilog，但此时的 Verilog 还有很多复杂的结构，再用 yosys 转换为一个通用可综合的网表。
-步骤 经过一系列踩坑，一个很重要的点是要用最新的 sv2v(v0.0.9-24-gf868f06) 和 yosys(0.15+70)。Debian 打包的 yosys 版本比较老，不能满足需求。
-首先，用 verilator 进行预处理，把一堆 sv 文件合成一个：
-$ cat a.sv b.sv c.sv &gt; test.sv $ verilator -E test.sv &gt; merged.sv $ sed -i &#39;/^`line/d&#39; merged.sv 注意这里用 sed 去掉了无用的行号信息。然后，用 sv2v 进行转换：
-$ sv2v merged.sv &gt; merge.v $ sed -i &#39;/\$$fatal/d&#39; merge.v 这里又用 sed 把不支持的 $fatal 去掉。最后，用 yosys 进行处理：
-$ yosys -p &#39;read_verilog -defer merge.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/30/sv2v-fpnew/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/hdl">hdl
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/yosys">yosys
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/sv2v">sv2v
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/fpnew">fpnew
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/fpu">fpu
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/14/design-compiler-synthesis/">Synopsys Design Compiler 综合实践</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/14/design-compiler-synthesis/" class="article-date">
-                        <time datetime='2022-03-14T15:22:00.000&#43;08:00' itemprop="datePublished">2022-03-14</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/14/design-compiler-synthesis/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    工艺库 综合很重要的一步是把 HDL 的逻辑变成一个个单元，这些单元加上连接方式就成为了网表。那么，基本单元有哪些，怎么决定用哪些基本单元？
-这个就需要工艺库了，工艺库定义了一个个单元，单元的引脚、功能，还有各种参数，这样 Design Compiler 就可以按照这些信息去找到一个优化的网表。
-Liberty 格式 网上可以找到一些 Liberty 格式的工艺库，比如 Nangate45，它的设定是 25 摄氏度，1.10 伏，属于 TT（Typical/Typical）的 Process Corner。
-在里面可以看到一些基本单元的定理，比如 AND2_X1，就是一个 drive strength 是 1 的二输入与门：
-cell (AND2_X1) { drive_strength : 1; pin (A1) { direction : input; } pin (A2) { direction : input; } pin (ZN) { direction : output; function : &#34;(A1 &amp; A2)&#34;; } /* ... */ } 这样就定义了两个输入 pin，一个输出 pin，还有它实现的功能。还有很重要的一点是保存了时序信息，比如：
-lu_table_template (Timing_7_7) { variable_1 : input_net_transition; variable_2 : total_output_net_capacitance; index_1 (&#34;0.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/14/design-compiler-synthesis/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synthesis">synthesis
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synopsys">synopsys
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/dc">dc
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/designcompiler">designcompiler
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/03/12/try-openroad-flow/">OpenROAD Flow 初尝试</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/03/12/try-openroad-flow/" class="article-date">
-                        <time datetime='2022-03-12T22:52:00.000&#43;08:00' itemprop="datePublished">2022-03-12</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/03/12/try-openroad-flow/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近在尝试接触一些芯片前后端的知识。正好有现成的开源工具链 OpenROAD 来做这个事情，借此机会来学习一下整个流程。
-尝试过程 首先 clone 仓库 OpenROAD-flow-scripts，然后运行：./build_openroad.sh，脚本会克隆一些仓库，自动进行编译。
-编译中会找不到一些库，比如可能需要安装这些依赖：liblemon-dev libeigen3-dev libreadline-dev swig，此外运行的时候还需要 klayout 依赖。
-如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 BUG，可以运行下面的命令解决：
-cd /usr/lib/x86_64-linux-gnu/cmake/lemon cp lemonConfig.cmake LEMONConfig.cmake 编译后整个目录大概有 4.8G，输出的二进制目录是 133M。
-如果要跑一下样例里的 nangate45 工艺的 gcd 例子，运行：
-cd flow make DESIGN_CONFIG=./designs/nangate45/gcd/config.mk 分析 GCD 测例 这个测例的代码提供了这样一个接口：
-module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, input wire req_val, input wire reset, output wire [ 15:0] resp_msg, input wire resp_rdy, output wire resp_val ); endmodule 从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/03/12/try-openroad-flow/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/openroad">openroad
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/synthesis">synthesis
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/yosys">yosys
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
 
         
 
@@ -881,6 +872,10 @@ module gcd ( input wire clk, input wire [ 31:0] req_msg, output wire req_rdy, in
     
     
     <a href="/page/34/">34</a>
+    
+    
+    
+    <a href="/page/35/">35</a>
     
     
 
