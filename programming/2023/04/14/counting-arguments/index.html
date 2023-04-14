@@ -221,6 +221,45 @@ checking of open arguments for optimized code:
 </span></span><span style="display:flex;"><span>      <span style="color:#f92672">|</span>     <span style="color:#f92672">^~~~~~~~~~~~~~~~~~~~~~~</span>
 </span></span><span style="display:flex;"><span>Execution build compiler returned: <span style="color:#ae81ff">1</span>
 </span></span></code></pre></div><p>Compiler Explorer：<a href="https://godbolt.org/z/hebshz3P5">https://godbolt.org/z/hebshz3P5</a>。</p>
+<h2 id="使用-c-宏">使用 C 宏</h2>
+<p>和 Claude 聊了一下，是否能够用 C 宏来实现，它的回答是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#define PRINTF(...) printf(__VA_ARGS__)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define NARG(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">printf</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>format, ...) {
+</span></span><span style="display:flex;"><span>    va_list args;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">va_start</span>(args, format);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Access the variable arguments using va_arg based on 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// the number of arguments passed, obtained using NARG
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">va_end</span>(args);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// Usage:
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">PRINTF</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>);     <span style="color:#75715e">// Prints 1 2 3 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">PRINTF</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">4</span>); <span style="color:#75715e">// Prints 1 2 3 4
+</span></span></span></code></pre></div><p>核心思路就是把参数列表放到数组里，然后让编译器去推断数组大小。沿着这个思路，实现出代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdarg.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">my_printf_inner</span>(<span style="color:#66d9ef">int</span> count, ...) {
+</span></span><span style="display:flex;"><span>    va_list args;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">va_start</span>(args, count);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;i <span style="color:#f92672">&lt;</span> count;i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;%d</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, <span style="color:#a6e22e">va_arg</span>(args, <span style="color:#66d9ef">int</span>));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">va_end</span>(args);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#define MY_PRINTF(...) do {int len=(sizeof((int[]){__VA_ARGS__})/sizeof(int)); my_printf_inner(len, __VA_ARGS__); } while(0);
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">MY_PRINTF</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">4</span>, <span style="color:#ae81ff">5</span>, <span style="color:#ae81ff">6</span>, <span style="color:#ae81ff">7</span>, <span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">10</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>也是可以工作的。Compiler Explore 链接：<a href="https://godbolt.org/z/TxKb3YEcf">https://godbolt.org/z/TxKb3YEcf</a>。</p>
 <h2 id="chatgpt">ChatGPT</h2>
 <p>尝试询问了一下 ChatGPT：<a href="https://shareg.pt/IXUKjYK">https://shareg.pt/IXUKjYK</a>，它可以写出额外传入 int 个数的版本，可以写出哨兵（传入 <code>-1</code> 表示结束）的版本，提示了 builtin 以后，再提示 inline 和 always_inline，最后让它拆分成两个函数，得到的代码距离正确结果已经比较接近，但还是有一些问题。</p>
 
@@ -235,6 +274,7 @@ checking of open arguments for optimized code:
     <li><a href="#背景">背景</a></li>
     <li><a href="#va_args">va_args</a></li>
     <li><a href="#__builtin_va_arg_pack_len">__builtin_va_arg_pack_len</a></li>
+    <li><a href="#使用-c-宏">使用 C 宏</a></li>
     <li><a href="#chatgpt">ChatGPT</a></li>
   </ul>
 </nav>
