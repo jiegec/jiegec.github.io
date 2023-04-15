@@ -226,7 +226,101 @@ new ChiselStage().execute( Array(&#34;-X&#34;, &#34;mverilog&#34;, &#34;-o&#34;,
 </span></span><span style="display:flex;"><span><span style="color:#75715e">// usage
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">val</span> <span style="color:#a6e22e">MEM</span> <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">IO</span><span style="color:#f92672">(</span><span style="color:#66d9ef">new</span> <span style="color:#a6e22e">StandardAXI4BundleBundle</span><span style="color:#f92672">(</span><span style="color:#ae81ff">32</span><span style="color:#f92672">,</span> <span style="color:#ae81ff">64</span><span style="color:#f92672">,</span> <span style="color:#ae81ff">4</span><span style="color:#f92672">))</span>
 </span></span><span style="display:flex;"><span><span style="color:#a6e22e">MEM</span> <span style="color:#f92672">&lt;&gt;</span> target<span style="color:#f92672">.</span>mem_axi4<span style="color:#f92672">.</span>head<span style="color:#f92672">.</span>viewAs<span style="color:#f92672">[</span><span style="color:#66d9ef">StandardAXI4BundleBundle</span><span style="color:#f92672">]</span>
-</span></span></code></pre></div>
+</span></span></code></pre></div><h2 id="给所有模块添加名称前缀">给所有模块添加名称前缀</h2>
+<p>有些时候，我们希望给所有模块添加一个名称前缀，防止可能出现的冲突。</p>
+<p>在 Chisel 3 中，可以使用自定义 FIRRTL Transform 来实现这个功能。这一部分的实现参考了 <a href="https://github.com/chipsalliance/chisel3/issues/1059#issuecomment-814353578">chisel issue #1059</a>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">import</span> firrtl._
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> firrtl.annotations.NoTargetAnnotation
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> firrtl.options.Dependency
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> firrtl.passes.PassException
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> firrtl.transforms.DedupModules
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// adapted from https://github.com/chipsalliance/chisel3/issues/1059#issuecomment-814353578
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/** Specifies a global prefix for all module names. */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">case</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ModulePrefix</span><span style="color:#f92672">(</span>prefix<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">String</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">NoTargetAnnotation</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/** FIRRTL pass to add prefix to module names
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">object</span> <span style="color:#a6e22e">PrefixModulesPass</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">Transform</span> <span style="color:#66d9ef">with</span> <span style="color:#a6e22e">DependencyAPIMigration</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// we run after deduplication to save some work
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">def</span> prerequisites <span style="color:#66d9ef">=</span> <span style="color:#a6e22e">Seq</span><span style="color:#f92672">(</span><span style="color:#a6e22e">Dependency</span><span style="color:#f92672">[</span><span style="color:#66d9ef">DedupModules</span><span style="color:#f92672">])</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// we do not invalidate the results of any prior passes
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">def</span> invalidates<span style="color:#f92672">(</span>a<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Transform</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">=</span> <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">def</span> execute<span style="color:#f92672">(</span>state<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">CircuitState</span><span style="color:#f92672">)</span><span style="color:#66d9ef">:</span> <span style="color:#66d9ef">CircuitState</span> <span style="color:#f92672">=</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">val</span> prefixes <span style="color:#66d9ef">=</span> state<span style="color:#f92672">.</span>annotations<span style="color:#f92672">.</span>collect <span style="color:#f92672">{</span> <span style="color:#66d9ef">case</span> a<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ModulePrefix</span> <span style="color:#f92672">=&gt;</span>
+</span></span><span style="display:flex;"><span>      a<span style="color:#f92672">.</span>prefix
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}.</span>distinct
+</span></span><span style="display:flex;"><span>    prefixes <span style="color:#66d9ef">match</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> <span style="color:#a6e22e">Seq</span><span style="color:#f92672">()</span> <span style="color:#66d9ef">=&gt;</span>
+</span></span><span style="display:flex;"><span>        logger<span style="color:#f92672">.</span>info<span style="color:#f92672">(</span><span style="color:#e6db74">&#34;[PrefixModulesPass] No ModulePrefix annotation found.&#34;</span><span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        state
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> <span style="color:#a6e22e">Seq</span><span style="color:#f92672">(</span><span style="color:#e6db74">&#34;&#34;</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">=&gt;</span> state
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> <span style="color:#a6e22e">Seq</span><span style="color:#f92672">(</span>prefix<span style="color:#f92672">)</span> <span style="color:#66d9ef">=&gt;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> c <span style="color:#66d9ef">=</span> state<span style="color:#f92672">.</span>circuit<span style="color:#f92672">.</span>mapModule<span style="color:#f92672">(</span>onModule<span style="color:#f92672">(</span><span style="color:#66d9ef">_</span><span style="color:#f92672">,</span> prefix<span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span>        state<span style="color:#f92672">.</span>copy<span style="color:#f92672">(</span>circuit <span style="color:#66d9ef">=</span> c<span style="color:#f92672">.</span>copy<span style="color:#f92672">(</span>main <span style="color:#66d9ef">=</span> prefix <span style="color:#f92672">+</span> c<span style="color:#f92672">.</span>main<span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> other <span style="color:#66d9ef">=&gt;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">PassException</span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">s&#34;[PrefixModulesPass] found more than one prefix annotation: </span><span style="color:#e6db74">$other</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">def</span> onModule<span style="color:#f92672">(</span>m<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.DefModule</span><span style="color:#f92672">,</span> prefix<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">String</span><span style="color:#f92672">)</span><span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.DefModule</span> <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>    m <span style="color:#66d9ef">match</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> e<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.ExtModule</span> <span style="color:#f92672">=&gt;</span> e<span style="color:#f92672">.</span>copy<span style="color:#f92672">(</span>name <span style="color:#66d9ef">=</span> prefix <span style="color:#f92672">+</span> e<span style="color:#f92672">.</span>name<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> mod<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.Module</span> <span style="color:#f92672">=&gt;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> name <span style="color:#66d9ef">=</span> prefix <span style="color:#f92672">+</span> mod<span style="color:#f92672">.</span>name
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> body <span style="color:#66d9ef">=</span> onStmt<span style="color:#f92672">(</span>mod<span style="color:#f92672">.</span>body<span style="color:#f92672">,</span> prefix<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        mod<span style="color:#f92672">.</span>copy<span style="color:#f92672">(</span>name <span style="color:#66d9ef">=</span> name<span style="color:#f92672">,</span> body <span style="color:#66d9ef">=</span> body<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">def</span> onStmt<span style="color:#f92672">(</span>s<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.Statement</span><span style="color:#f92672">,</span> prefix<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">String</span><span style="color:#f92672">)</span><span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.Statement</span> <span style="color:#f92672">=</span> s <span style="color:#66d9ef">match</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> i<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">ir.DefInstance</span> <span style="color:#f92672">=&gt;</span> i<span style="color:#f92672">.</span>copy<span style="color:#f92672">(</span>module <span style="color:#66d9ef">=</span> prefix <span style="color:#f92672">+</span> i<span style="color:#f92672">.</span>module<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> other             <span style="color:#66d9ef">=&gt;</span> other<span style="color:#f92672">.</span>mapStmt<span style="color:#f92672">(</span>onStmt<span style="color:#f92672">(</span><span style="color:#66d9ef">_</span><span style="color:#f92672">,</span> prefix<span style="color:#f92672">))</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>实现思路就是遍历 IR，找到所有的 Module 并改名，再把所有模块例化也做一次替换。最后在生成 Verilog 的时候添加 Annotation 即可：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">new</span> <span style="color:#a6e22e">ChiselStage</span><span style="color:#f92672">().</span>execute<span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">Array</span><span style="color:#f92672">(</span><span style="color:#e6db74">&#34;-o&#34;</span><span style="color:#f92672">,</span> <span style="color:#e6db74">s&#34;</span><span style="color:#e6db74">${</span>name<span style="color:#e6db74">}</span><span style="color:#e6db74">.v&#34;</span><span style="color:#f92672">),</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">Seq</span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">ChiselGeneratorAnnotation</span><span style="color:#f92672">(</span>genModule<span style="color:#f92672">),</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">RunFirrtlTransformAnnotation</span><span style="color:#f92672">(</span><span style="color:#a6e22e">Dependency</span><span style="color:#f92672">(</span><span style="color:#a6e22e">PrefixModulesPass</span><span style="color:#f92672">)),</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">ModulePrefix</span><span style="color:#f92672">(</span>prefix<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>如果使用新的 MLIR FIRRTL Compiler，则可以利用 <code>sifive.enterprise.firrtl.NestedPrefixModulesAnnotation</code> annotation，让 firtool 来进行 <a href="https://github.com/llvm/circt/blob/fc6b00fd20d8a50f17a908cc681c8cf3a4d1c000/lib/Dialect/FIRRTL/Transforms/PrefixModules.cpp">prefix 操作</a>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-scala" data-lang="scala"><span style="display:flex;"><span><span style="color:#66d9ef">package</span> sifive <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">package</span> enterprise <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">package</span> firrtl <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">import</span> _root_.firrtl.annotations._
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">case</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">NestedPrefixModulesAnnotation</span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">val</span> target<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Target</span><span style="color:#f92672">,</span>
+</span></span><span style="display:flex;"><span>          prefix<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">String</span><span style="color:#f92672">,</span>
+</span></span><span style="display:flex;"><span>          inclusive<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">)</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">SingleTargetAnnotation</span><span style="color:#f92672">[</span><span style="color:#66d9ef">Target</span><span style="color:#f92672">]</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">def</span> duplicate<span style="color:#f92672">(</span>n<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Target</span><span style="color:#f92672">)</span><span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Annotation</span> <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#a6e22e">NestedPrefixModulesAnnotation</span><span style="color:#f92672">(</span>target<span style="color:#f92672">,</span> prefix<span style="color:#f92672">,</span> inclusive<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">object</span> <span style="color:#a6e22e">AddPrefix</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">def</span> apply<span style="color:#f92672">(</span>module<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Module</span><span style="color:#f92672">,</span> prefix<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">String</span><span style="color:#f92672">,</span> inclusive<span style="color:#66d9ef">:</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span><span style="color:#f92672">)</span> <span style="color:#66d9ef">=</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      annotate<span style="color:#f92672">(</span><span style="color:#66d9ef">new</span> <span style="color:#a6e22e">ChiselAnnotation</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">def</span> toFirrtl <span style="color:#66d9ef">=</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">NestedPrefixModulesAnnotation</span><span style="color:#f92672">(</span>module<span style="color:#f92672">.</span>toTarget<span style="color:#f92672">,</span> prefix<span style="color:#f92672">,</span> <span style="color:#66d9ef">true</span><span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">})</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>这个方法的灵感来自 @sequencer。唯一的缺点就是比较 Hack，建议 SiFive 把相关的类也开源出来用。</p>
+
         </div>
 
         
@@ -239,6 +333,7 @@ new ChiselStage().execute( Array(&#34;-X&#34;, &#34;mverilog&#34;, &#34;-o&#34;,
     <li><a href="#去掉输出-verilog-文件中的寄存器随机初始化">去掉输出 Verilog 文件中的寄存器随机初始化</a></li>
     <li><a href="#关闭-firrtl-优化输出尽可能与源代码一致的-verilog">关闭 FIRRTL 优化，输出尽可能与源代码一致的 Verilog</a></li>
     <li><a href="#重命名-axi4-为标准命名">重命名 AXI4 为标准命名</a></li>
+    <li><a href="#给所有模块添加名称前缀">给所有模块添加名称前缀</a></li>
   </ul>
 </nav>
         </div>
