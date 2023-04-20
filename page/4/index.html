@@ -69,6 +69,68 @@
                 
                 
                 <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/software/2022/09/19/buildroot-fakeroot-incompat/">Buildroot 2020.08 的 Fakeroot 版本过旧导致的兼容性问题</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/software/2022/09/19/buildroot-fakeroot-incompat/" class="article-date">
+                        <time datetime='2022-09-19T20:14:00.000&#43;08:00' itemprop="datePublished">2022-09-19</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/software/2022/09/19/buildroot-fakeroot-incompat/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 最近在给之前的 Buildroot 2020.09 增加新的软件包，结果编译的时候报错：
+mknod: ....../dev/console: Operation not permitted 还有一个背景是前段时间把系统升级到了 Ubuntu 22.04 LTS。
+研究 跑的时候没有用 root，而是用 fakeroot 跑的，按理说在 fakeroot 里跑 mknod 是不会报错的，我直接运行系统的 fakeroot 是正常的：
+fakeroot -- mknod -m 0622 test c 5 1 此时 fakeroot 会生成一个空文件，这是正常现象。那么为什么 Buildroot 里跑就不对了呢？
+我仔细观察了一下，buildroot 用的是自己编译的 fakeroot，版本是 1.20.2，用这个版本跑就会报错：
+$ ./output/host/bin/fakeroot -- mknod -m 0622 test c 5 1 mknod: test: Operation not permitted 果然就出问题了。
+用 strace 观察下区别：
+$ fakeroot -- strace mknod -m 0622 test c 5 1 newfstatat(AT_FDCWD, &#34;test&#34;, {st_mode=S_IFREG|0644, st_size=0, .
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/software/2022/09/19/buildroot-fakeroot-incompat/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/linux">linux
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/fakeroot">fakeroot
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/mknod">mknod
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
                     <h1 itemprop="name"><a class="article-title" href="/software/2022/08/05/from-tex-to-pdf/">从 TeX 到 PDF 的过程</a></h1>
                 </header>
                 
@@ -610,65 +672,6 @@ systemd service 最后，写一个 systemd service 让它自动启动：
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="/tags/logging">logging
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2022/06/19/wishbone/">「教学」Wishbone 总线协议</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2022/06/19/wishbone/" class="article-date">
-                        <time datetime='2022-06-19T17:05:00.000&#43;08:00' itemprop="datePublished">2022-06-19</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2022/06/19/wishbone/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    背景 最近在研究如何把 Wishbone 总线协议引入计算机组成原理课程，因此趁此机会学习了一下 Wishbone 的协议。
-总线 总线是什么？总线通常用于连接 CPU 和外设，为了更好的兼容性和可复用性，会想到能否设计一个统一的协议，其中 CPU 实现的是发起请求的一方（又称为 master），外设实现的是接收请求的一方（又称为 slave），那么如果要添加外设、或者替换 CPU 实现，都会变得比较简单，减少了许多适配的工作量。
-那么，我们来思考一下，一个总线协议需要包括哪些内容？对于 CPU 来说，程序会读写内存，读写内存就需要以下几个信号传输到内存：
-地址（addr）：例如 32 位处理器就是 32 位地址，或者按照内存的大小计算地址线的宽度 数据（w_data 和 r_data）：分别是写数据和读数据，宽度通常为 32 位 或 64 位，也就是一个时钟周期可以传输的数据量 读还是写（we）：高表示写，低表示读 字节有效（be）：例如为了实现单字节写，虽然 w_data 可能是 32 位宽，但是实际写入的是其中的一个字节 除了请求的内容以外，为了表示 CPU 想要发送请求，还需要添加 valid 信号：高表示发送请求，低表示不发送请求。很多时候，外设的速度比较慢，可能无法保证每个周期都可以处理请求，因此外设可以提供一个 ready 信号：当 valid=1 &amp;&amp; ready=1 的时候，发送并处理请求；当 valid=1 &amp;&amp; ready=0 的时候，表示外设还没有准备好，此时 CPU 需要一直保持 valid=1 不变，等到外设准备好后，valid=1 &amp;&amp; ready=1 请求生效。
-简单总结一下上面的需求，可以得到 master 和 slave 端分别的信号列表。这次，我们在命名的时候用 _o 表示输出、_i 表示输入，可以得到 master 端（CPU 端）的信号：
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2022/06/19/wishbone/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/wishbone">wishbone
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/bus">bus
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/teaching">teaching
                             </a>
                         </li>
                         

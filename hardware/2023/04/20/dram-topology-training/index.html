@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DRAM 的拓扑和训练 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="DRAM 的拓扑和训练" />
+    <meta property="og:description" content="DRAM Training DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其中很重要的一步就是计算出各个数据线相对于时钟的偏移（skew）。这个偏移是怎么来的呢？
+我们知道，对于 SRAM，如果想要更多的位宽，只需要把地址线和控制信号连接到多个 SRAM 上，然后把 SRAM 的数据信号并行连接到 FPGA 上就可以了，但是前提是要尽量保证等长，否则一样有偏移的问题。DRAM 也是采用类似的方法进行扩展的，但是 DRAM 通常需要并行连接很多个芯片，例如 8 个 x8 的芯片的合并成一个 64 位的 DDR SDRAM。此时数据线依然是并行连接，但是地址线和控制信号就出现了走线困难：很难在那么小的空间里，等长地把地址和控制信号分布到各个芯片上，而且还有信号完整性的问题。
+Fly-by topology 因此，实际上地址和控制信号是采用了串联的方式连接，也就是下图的右边的连接方式：
+图源 Versal ACAP PCB Design User Guide (UG863)。
+但是数据信号（DQ 和 DQS）依然是并行点对点连接到 DRAM 上的（上图左侧）。这就出现了问题：不同的 DRAM 芯片，数据和时钟的偏差不同，数据可能差不多时间到，但是时钟的延迟越来越大：
+注：这里简化了，当成 SDR 来画。
+不做任何处理的话，DRAM 采样得到的数据就不正确了。为了解决这个问题，就需要人为地在数据信号上也加上可变的延迟，保证时钟和数据同步，这样 DRAM 才可以实现正确的写入：
+Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需要采用 Write Leveling 方法来解决。具体思路是这样的：如果 DRAM 以时钟信号去采样数据信号可以得到正确的结果，那反过来，如果认为数据信号是时钟信号，在数据信号的上升沿去采样时钟，应该也可以观测到稳定的结果。
+所以 Write Leveling 的工作方式就是：
+设置 DRAM 进入 Write Leveling 模式，此时 DRAM 会使用 DQS 信号来采样 CK 信号，把结果输出到 DQ 上 DDR 控制器不断地修改 DQS 的输出延迟，然后统计 DQ 上的输出 示意图如下：" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2023/04/20/dram-topology-training/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.111.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">DRAM 的拓扑和训练</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2023/04/20/dram-topology-training/" class="article-date">
+                <time datetime='2023-04-20T09:11:00.000&#43;08:00' itemprop="datePublished">2023-04-20</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2023/04/20/dram-topology-training/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="dram-training">DRAM Training</h2>
+<p>DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其中很重要的一步就是计算出各个数据线相对于时钟的偏移（skew）。这个偏移是怎么来的呢？</p>
+<p>我们知道，对于 SRAM，如果想要更多的位宽，只需要把地址线和控制信号连接到多个 SRAM 上，然后把 SRAM 的数据信号并行连接到 FPGA 上就可以了，但是前提是要尽量保证等长，否则一样有偏移的问题。DRAM 也是采用类似的方法进行扩展的，但是 DRAM 通常需要并行连接很多个芯片，例如 8 个 x8 的芯片的合并成一个 64 位的 DDR SDRAM。此时数据线依然是并行连接，但是地址线和控制信号就出现了走线困难：很难在那么小的空间里，等长地把地址和控制信号分布到各个芯片上，而且还有信号完整性的问题。</p>
+<h2 id="fly-by-topology">Fly-by topology</h2>
+<p>因此，实际上地址和控制信号是采用了串联的方式连接，也就是下图的右边的连接方式：</p>
+<p><img src="/images/ddr_fly_by.png" alt=""></p>
+<p>图源 <a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces">Versal ACAP PCB Design User Guide (UG863)</a>。</p>
+<p>但是数据信号（DQ 和 DQS）依然是并行点对点连接到 DRAM 上的（上图左侧）。这就出现了问题：不同的 DRAM 芯片，数据和时钟的偏差不同，数据可能差不多时间到，但是时钟的延迟越来越大：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "clock", wave: "p...."},
+      { name: "data", wave: "01010"},
+      { name: "clock_dram0", wave: "p....", phase: -0.1},
+      { name: "clock_dram1", wave: "p....", phase: -0.2},
+      { name: "clock_dram2", wave: "p....", phase: -0.3},
+      { name: "clock_dram3", wave: "p....", phase: -0.4},
+      { name: "clock_dram4", wave: "p....", phase: -0.5},
+      { name: "clock_dram5", wave: "p....", phase: -0.6},
+      { name: "clock_dram6", wave: "p....", phase: -0.7},
+      { name: "clock_dram7", wave: "p....", phase: -0.8},
+    ]
+}
+</script>
+<p>注：这里简化了，当成 SDR 来画。</p>
+<p>不做任何处理的话，DRAM 采样得到的数据就不正确了。为了解决这个问题，就需要人为地在数据信号上也加上可变的延迟，保证时钟和数据同步，这样 DRAM 才可以实现正确的写入：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "clock", wave: "p.p.."},
+      { name: "data", wave: "01010"},
+      { name: "clock_dram0", wave: "p.p..", phase: -0.1},
+      { name: "data_dram0", wave: "01010", phase: -0.1},
+      { name: "clock_dram1", wave: "p.p..", phase: -0.2},
+      { name: "data_dram1", wave: "01010", phase: -0.2},
+      { name: "clock_dram2", wave: "p.p..", phase: -0.3},
+      { name: "data_dram2", wave: "01010", phase: -0.3},
+      { name: "clock_dram3", wave: "p.p..", phase: -0.4},
+      { name: "data_dram3", wave: "01010", phase: -0.4},
+    ]
+}
+</script>
+<h2 id="write-leveling">Write Leveling</h2>
+<p>为了解决写入时，时钟和数据有偏移的问题，需要采用 Write Leveling 方法来解决。具体思路是这样的：如果 DRAM 以时钟信号去采样数据信号可以得到正确的结果，那反过来，如果认为数据信号是时钟信号，在数据信号的上升沿去采样时钟，应该也可以观测到稳定的结果。</p>
+<p>所以 Write Leveling 的工作方式就是：</p>
+<ol>
+<li>设置 DRAM 进入 Write Leveling 模式，此时 DRAM 会使用 DQS 信号来采样 CK 信号，把结果输出到 DQ 上</li>
+<li>DDR 控制器不断地修改 DQS 的输出延迟，然后统计 DQ 上的输出</li>
+</ol>
+<p>示意图如下：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "ck", wave: "p.p.."},
+      { name: "dqs_0", wave: "010..", phase: -0.5},
+      { name: "dq_0", wave: "0....", phase: -0.55},
+      { name: "dqs_1", wave: "010..", phase: -0.7},
+      { name: "dq_1", wave: "0....", phase: -0.75},
+      { name: "dqs_2", wave: "010..", phase: -0.9},
+      { name: "dq_2", wave: "01...", phase: -0.95},
+      { name: "dqs_3", wave: "010..", phase: -1.1},
+      { name: "dq_3", wave: "01...", phase: -1.15},
+    ]
+}
+</script>
+<p>上图中，用不断增大的四种延迟的 <code>dqs</code> 对 <code>ck</code> 进行采样：用 <code>dqs_0</code> 和 <code>dqs_1</code> 采样得到了 0，用 <code>dqs_2</code> 和 <code>dqs_3</code> 采样得到了 1。把这些结果列出来，可能会得到类似下面的结果：</p>
+<pre tabindex="0"><code>001111111111111111110000
+</code></pre><p>也就是说，随着延迟增大，采样的数据从 0 变成 1，再从 1 变成 0。我们的目标是，让 <code>dqs</code> 和 <code>ck</code> 同步。在上图中，<code>dqs_2</code> 的上升沿和 <code>ck</code> 上升沿是最接近的，而刚好 <code>dqs_2</code> 也正好出现在采样 0 变成采样 1的位置。这意味着，只要找到采样数据从 0 变成 1 的位置，就知道如何让 DQS 与 CK 同步了。</p>
+<p>这样就完成了 Write Leveling 的步骤，实现了 DQS 与 CK 同步的目标，那么在写入数据的时候，DRAM 就可以得到正确的 DQS 信号了。</p>
+<h2 id="read-leveling">Read Leveling</h2>
+<p>在上一步的 Write Leveling 当中，通过修改内存控制器的输出延迟，保证了 DRAM 可以得到同步的 DQS 和 CK 信号，解决了 Fly by topology 引入的延迟不一致的问题。但是，对于读操作，数据从 DRAM 输出，输入到内存控制器，又会引入一定的延迟。所以对读操作，也需要进行校准。</p>
+<p>回顾 SRAM，当想要测试读取功能的时候，会首先写入一些数据，再读出来，判断读取的数据和之前写入的数据是否一致。DRAM 也是类似的：先向 MPR 写入一些伪随机数据，然后要求 DRAM 从 MPR 中读取数据，而不是从 memory cell 中读取数据；然后内存控制器一侧不断进行读取操作，在不同的延迟下，比较读取的数据与预期的随机数据是否一致。最后也会得到一个延迟的区间，在这个区间内可以读取出正确的结果。最后，把延迟设定在区间的中央位置。</p>
+<h2 id="clam-shell-topology">Clam Shell Topology</h2>
+<p>再回到拓扑的问题上来，实际上除了 Fly by topology，还有一种拓扑是 Clam shell topology：把 DRAM 分布在 PCB 的上面和下面，这样可以节省 PCB 的面积，但是走线就会比较困难：</p>
+<p><img src="/images/ddr_clam_shell.png" alt=""></p>
+<p>图源 <a href="https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology">Versal ACAP Programmable Network on Chip and Integrated Memory Controller LogiCORE IP Product Guide (PG313) </a>.</p>
+<p>直观地讲，两个芯片都放在 PCB 的正面，如果要连线的话，如果保证引脚顺序接近一致，就可以比较容易地连接，不会有很多交叉的地方。但如果一个在正面，另一个在背面，引脚的顺序就倒转过来了，连线的时候就比较困难。解决的办法是，修改引脚的顺序，把一些引脚的功能进行对调，使得走线更加简单：</p>
+<p><img src="/images/ddr_mirror.png" alt=""></p>
+<p>图源 <a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing">Versal ACAP PCB Design User Guide (UG863)</a></p>
+<p>这里特意挑选了一些不影响特殊功能的引脚来交换，使得大部分功能，即使交换了引脚，也可以正常工作。但是，对于 Mode Register Set 操作，必须要内存控制器自己先内部交换位的顺序，才能保证在 DRAM 一侧得到正确的结果。</p>
+<p>此外，Clam Shell Topology 的正面和背面各有一个 cs_n 片选信号，但是这和 Dual Rank 不同：Dual Rank 是正面和背面都有同样数量的 DRAM 芯片，共享地址信号、数据信号和控制信号，总线上同一时间只有一侧的 DRAM 芯片在使用；而 Clam Shell Topology 的两个 cs_n 是为了给 Mode Register Set 操作指定正面或背面，而其余的大部分操作，可以正面和背面同时使用，因为它们的数据信号并没有共享。</p>
+<p><img src="/images/ddr_rank.png" alt=""></p>
+<p>图源 <a href="https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/">DIFFERENCE BETWEEN DUAL RANK AND SINGLE RANK RAM</a></p>
+<h2 id="背景">背景</h2>
+<p>实际上，前面的整个研究过程，来自于我对 VCU128 LiteX 移植的观察：<a href="https://github.com/litex-hub/litex-boards/issues/496">VCU128 DDR4 memory calibration failure</a>。我在配置 litedram 的时候，发现总是有一半的 DRAM 芯片无法使用，和 Datasheet 对照了以后，发现正好是 PCB 背面的那一半。接着，发现它是 Clam Shell Topology 方式来分布的，然后 Top 和 Bottom 各有一个 cs_n 信号，这一点在 UG1302 里是没有写的，在 xdc 里才可以找到：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span>set_property PACKAGE_PIN BK48       <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_BOT_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property IOSTANDARD  SSTL12_DCI <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_BOT_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property PACKAGE_PIN BP49     <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property IOSTANDARD  SSTL12   <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66
+</span></span></span></code></pre></div><p>所以 Xilinx 文档也是可能出错的，需要结合多个信息源来判断。这里有 xdc 和 schematic 可以参考，都可以发现这个结论。</p>
+<h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://www.systemverilog.io/design/ddr4-initialization-and-calibration/">https://www.systemverilog.io/design/ddr4-initialization-and-calibration/</a></li>
+<li><a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces">https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces</a></li>
+<li><a href="https://docs.xilinx.com/r/en-US/pg353-versal-acap-soft-ddr4-mem-ip/Calibration-Overview">https://docs.xilinx.com/r/en-US/pg353-versal-acap-soft-ddr4-mem-ip/Calibration-Overview</a></li>
+<li><a href="https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology">https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology</a></li>
+<li><a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing">https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing</a></li>
+<li><a href="https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/">https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/</a></li>
+<li><a href="https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/">https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/</a></li>
+</ul>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#dram-training">DRAM Training</a></li>
+    <li><a href="#fly-by-topology">Fly-by topology</a></li>
+    <li><a href="#write-leveling">Write Leveling</a></li>
+    <li><a href="#read-leveling">Read Leveling</a></li>
+    <li><a href="#clam-shell-topology">Clam Shell Topology</a></li>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#参考文档">参考文档</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ddr">ddr
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/sdram">sdram
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/dram">dram
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2023/04/19/litex-digilent-arty-a7/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 Arty A7 上用 LiteX 和 VexRiscv 跑 Linux&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
