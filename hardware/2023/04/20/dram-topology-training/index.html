@@ -163,7 +163,7 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
 </script>
 <p>上图中，用不断增大的四种延迟的 <code>dqs</code> 对 <code>ck</code> 进行采样：用 <code>dqs_0</code> 和 <code>dqs_1</code> 采样得到了 0，用 <code>dqs_2</code> 和 <code>dqs_3</code> 采样得到了 1。把这些结果列出来，可能会得到类似下面的结果：</p>
 <pre tabindex="0"><code>001111111111111111110000
-</code></pre><p>也就是说，随着延迟增大，采样的数据从 0 变成 1，再从 1 变成 0。我们的目标是，让 <code>dqs</code> 和 <code>ck</code> 同步。在上图中，<code>dqs_2</code> 的上升沿和 <code>ck</code> 上升沿是最接近的，而刚好 <code>dqs_2</code> 也正好出现在采样 0 变成采样 1的位置。这意味着，只要找到采样数据从 0 变成 1 的位置，就知道如何让 DQS 与 CK 同步了。</p>
+</code></pre><p>也就是说，随着延迟增大，采样的数据从 0 变成 1，再从 1 变成 0。我们的目标是，让 <code>dqs</code> 和 <code>ck</code> 同步。在上图中，<code>dqs_2</code> 的上升沿和 <code>ck</code> 上升沿是最接近的，而刚好 <code>dqs_2</code> 也正好出现在采样 0 变成采样 1 的位置。这意味着，只要找到采样数据从 0 变成 1 的位置，就知道如何让 DQS 与 CK 同步了。</p>
 <p>这样就完成了 Write Leveling 的步骤，实现了 DQS 与 CK 同步的目标，那么在写入数据的时候，DRAM 就可以得到正确的 DQS 信号了。</p>
 <h2 id="read-leveling">Read Leveling</h2>
 <p>在上一步的 Write Leveling 当中，通过修改内存控制器的输出延迟，保证了 DRAM 可以得到同步的 DQS 和 CK 信号，解决了 Fly by topology 引入的延迟不一致的问题。但是，对于读操作，数据从 DRAM 输出，输入到内存控制器，又会引入一定的延迟。所以对读操作，也需要进行校准。</p>
@@ -186,6 +186,11 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property PACKAGE_PIN BP49     <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property IOSTANDARD  SSTL12   <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66
 </span></span></span></code></pre></div><p>所以 Xilinx 文档也是可能出错的，需要结合多个信息源来判断。这里有 xdc 和 schematic 可以参考，都可以发现这个结论。</p>
+<p>沿着这个思路，我给 litedram 添加了 clam shell topology 的支持：<a href="https://github.com/enjoy-digital/litedram/pull/332">https://github.com/enjoy-digital/litedram/pull/332</a> 和 <a href="https://github.com/enjoy-digital/litex/pull/1673">https://github.com/enjoy-digital/litex/pull/1673</a>，实现方法：</p>
+<ol>
+<li>在校准阶段，把 Top 和 Bottom 两个 cs_n 暴露给软件，软件在 MRS 的时候，分两次写入，第一次原样写到 Top，第二次交换地址顺序，再写入 Bottom。</li>
+<li>正常工作阶段，把 Top 和 Bottom 的两个 cs_n 当成一个用，也就是当成 single rank dram。</li>
+</ol>
 <h2 id="参考文档">参考文档</h2>
 <ul>
 <li><a href="https://www.systemverilog.io/design/ddr4-initialization-and-calibration/">https://www.systemverilog.io/design/ddr4-initialization-and-calibration/</a></li>
