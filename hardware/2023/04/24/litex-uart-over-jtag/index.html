@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在 LiteX 中使用 UART over JTAG // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="在 LiteX 中使用 UART over JTAG" />
+    <meta property="og:description" content="背景 在给 Alinx AX7021 适配 LiteX 的时候，遇到一个问题：PL 上没有连接串口，只有 PS 连接了串口，如果用 RISC-V 软核的话，就会面临无串口可用的情况，除非在扩展 IO 上自己定义一个串口。
+因此研究了一下 LiteX 自带的 UART over JTAG 功能，在 Alinx AX7021 中调试出来了。
+LiteX 配置 启用很简单，直接在命令里添加 --uart-name jtag_uart 即可：
+$ python3 -m litex_boards.targets.alinx_ax7021 --build --uart-name jtag_uart 如果要设置成默认的话，也可以在代码中添加：
+if kwargs.get(&#34;uart_name&#34;, &#34;serial&#34;) == &#34;serial&#34;: # Defaults to JTAG-UART since UART is connected to PS instead of PL kwargs[&#34;uart_name&#34;] = &#34;jtag_uart&#34; 那么 FPGA 部分的准备就完成了，把 bitstream 下载到 FPGA 即可进入下一步。
+OpenOCD 配置 下一步是使用 litex_term 来连接 UART over JTAG。它的启动方式是：" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2023/04/24/litex-uart-over-jtag/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.111.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">在 LiteX 中使用 UART over JTAG</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2023/04/24/litex-uart-over-jtag/" class="article-date">
+                <time datetime='2023-04-24T17:19:00.000&#43;08:00' itemprop="datePublished">2023-04-24</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2023/04/24/litex-uart-over-jtag/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>在给 Alinx AX7021 适配 LiteX 的时候，遇到一个问题：PL 上没有连接串口，只有 PS 连接了串口，如果用 RISC-V 软核的话，就会面临无串口可用的情况，除非在扩展 IO 上自己定义一个串口。</p>
+<p>因此研究了一下 LiteX 自带的 UART over JTAG 功能，在 Alinx AX7021 中调试出来了。</p>
+<h2 id="litex-配置">LiteX 配置</h2>
+<p>启用很简单，直接在命令里添加 <code>--uart-name jtag_uart</code> 即可：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ python3 -m litex_boards.targets.alinx_ax7021 --build --uart-name jtag_uart
+</span></span></code></pre></div><p>如果要设置成默认的话，也可以在代码中添加：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> kwargs<span style="color:#f92672">.</span>get(<span style="color:#e6db74">&#34;uart_name&#34;</span>, <span style="color:#e6db74">&#34;serial&#34;</span>) <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;serial&#34;</span>:
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># Defaults to JTAG-UART since UART is connected to PS instead of PL</span>
+</span></span><span style="display:flex;"><span>            kwargs[<span style="color:#e6db74">&#34;uart_name&#34;</span>] <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;jtag_uart&#34;</span>
+</span></span></code></pre></div><p>那么 FPGA 部分的准备就完成了，把 bitstream 下载到 FPGA 即可进入下一步。</p>
+<h2 id="openocd-配置">OpenOCD 配置</h2>
+<p>下一步是使用 litex_term 来连接 UART over JTAG。它的启动方式是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ litex_term --jtag-config alinx_ax7021.cfg jtag
+</span></span></code></pre></div><p>实现的原理是，litex_term 会启动一个 OpenOCD，让 OpenOCD 监听 20000 端口，然后虚拟串口的收发都会在 TCP 上进行。那么，首先第一步是要让 OpenOCD 找到 Zynq 中的 PL。首先可以找到 Zynq 的 OpenOCD 配置模板：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span>source <span style="color:#66d9ef">[</span>find interface<span style="color:#f92672">/</span>ftdi<span style="color:#f92672">/</span>digilent_jtag_smt2.cfg<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>reset_config srst_only srst_push_pull
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>source <span style="color:#66d9ef">[</span>find target<span style="color:#f92672">/</span>zynq_7000.cfg<span style="color:#66d9ef">]</span>
+</span></span></code></pre></div><p>这个模板可以找到 ARM 核和 FPGA PL 部分，但是因为名字和 litex_term 期望的不同，所以无法工作。去掉那些不需要的，只保留想要的 PL 部分的 JTAG 配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span>source <span style="color:#66d9ef">[</span>find interface<span style="color:#f92672">/</span>ftdi<span style="color:#f92672">/</span>digilent_jtag_smt2.cfg<span style="color:#66d9ef">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>reset_config srst_only srst_push_pull
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>adapter speed <span style="color:#ae81ff">15000</span>
+</span></span><span style="display:flex;"><span>jtag newtap zynq_pl bs <span style="color:#f92672">-</span>irlen <span style="color:#ae81ff">6</span> <span style="color:#f92672">-</span>ignore-version <span style="color:#f92672">-</span>ircapture <span style="color:#ae81ff">0x1</span> <span style="color:#f92672">-</span>irmask <span style="color:#ae81ff">0x03</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03723093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03722093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x0373c093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03728093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x0373B093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03732093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03727093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x0372C093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03731093</span> <span style="color:#960050;background-color:#1e0010">\</span>
+</span></span><span style="display:flex;"><span>    -expected-id <span style="color:#ae81ff">0x03736093</span>
+</span></span></code></pre></div><p>接下来，就可以启动 OpenOCD：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>openocd -f alinx_ax7021.cfg -f stream.cfg -c <span style="color:#e6db74">&#34;init; irscan zynq_pl.bs 2; jtagstream_serve zynq_pl.bs 20000&#34;</span>
+</span></span></code></pre></div><p>这里的 stream.cfg 是 litex_term 生成的，没有用 litex_term 启动是因为它写死了 tap 的名字，需要适配，不如直接绕过它去启动 OpenOCD，然后用 nc 连接：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ nc localhost <span style="color:#ae81ff">20000</span>
+</span></span><span style="display:flex;"><span>litex&gt;
+</span></span></code></pre></div><p>就可以看到熟悉的串口了。但是跑命令的时候，经常出现重复字幕的输出：</p>
+<pre tabindex="0"><code>LiteX BIOS, available commands:
+
+flush_cpu_dcache         -FFlush CPU data cache
+crc                      - Compute CRC32 ff a part of the address space
+ident                    - Identffier of the system
+help                     - Print this help
+
+
+serialboot               - Boot from Serial (SFL)
+reboot                   - Reboot
+boot                     - Boot from Meoory
+
+mem_cmp                  - Compare memory content
+mem_seeed                - Test memory speed
+mem_test                 - Test memory access
+mem_copy                 - Copy address ppace
+mem_write                - Write address space
+mem_read                 - Read address space
+mem_list                 -LList available memory regions
+</code></pre><p>怀疑是哪里速率不匹配，导致同一份数据被读出来两次。之后用一个更低的 CPU 主频再试一次。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#litex-配置">LiteX 配置</a></li>
+    <li><a href="#openocd-配置">OpenOCD 配置</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/xilinx">xilinx
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/fpga">fpga
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/litex">litex
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/alinx">alinx
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ax7021">ax7021
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2023/04/20/dram-topology-training/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">DRAM 的拓扑和训练&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

@@ -71,6 +71,82 @@
                 
                 
                 <header class="article-header">
+                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/03/23/core-cosim/">单核处理器的协同仿真</a></h1>
+                </header>
+                
+                <div class="article-meta">
+                    <a href="/hardware/2023/03/23/core-cosim/" class="article-date">
+                        <time datetime='2023-03-23T11:18:00.000&#43;08:00' itemprop="datePublished">2023-03-23</time>
+                    </a>
+                    
+                    
+                    
+                    <div class="article-comment-link-wrap">
+                        <a href="/hardware/2023/03/23/core-cosim/#disqus_thread" class="article-comment-link">Comments</a>
+                    </div>
+                    
+                </div>
+                <div class="article-entry" itemprop="articleBody">
+                    <p>
+                        
+                    背景 今年的龙芯杯又开始报名了，我来写一篇关于协同仿真（cosim）的博客蹭蹭热度。下面的内容参考了一些已有的协同仿真的框架，例如 ibex co-sim 和 OpenXiangShan/difftest。
+协同仿真 RTL 层次的协同仿真可以做不同层次的，这里讨论的是指令提交层次，具体来讲，就是把 CPU 和一个模拟器放在一起协同仿真，检查每条指令执行完以后的状态是否一致。基于代码样例的测试虽然可以覆盖很多情况，但是如果出了错误，报错的地方不一定是出现问题的地方，有些时候就需要往回找很久，才能找到刚出现问题的地方。软件上，大家经常苦于内存错误，经常找不到刚出现溢出的地方，所以要用 valgrind 或者 asan 等工具来直接定位第一次出错的地方。硬件上也是类似，为了精确定位到出错的波形，可以用 cosim。
+cosim 是怎么工作的呢？模拟器是软件实现的，它原子地执行一条条指令，同时记录下当前的状态，例如寄存器的取值、内存的状态等等。如果可以让 CPU 和模拟器锁步运行，也就是 CPU 执行一条指令，模拟器执行一条指令，然后比对状态，一旦出现不一致，就直接报错。但实际上 CPU 可能会更加复杂，因为它指令的执行拆分成了很多部分，需要针对流水线进行一些修改，使得它可以生成一个匹配模拟器的原子的执行流。
+整体的工作流程如下：
+选择一个模拟器，自己写或者使用一个现成的。考虑到模拟器实现的功能和 CPU 不一定一致，有时候需要修改模拟器的源码，所以可以考虑使用一些现成的开源软件，如果是为了 cosim 设计的就更好了。 找到模拟器的单步执行接口，并且让模拟器可以把内部状态暴露出来。这一步可能需要修改源代码。 修改 RTL，把指令的提交信息、寄存器堆的内容通过一些方法传递出来。 修改仿真顶层，每当指令提交的时候，单步执行模拟器，然后比对双方的状态。 模拟器 选择模拟器，要根据你所实现的指令集来选择。下面以 Spike 为例，用来和 RISC-V CPU 进行协同仿真。spike 实现了比较完整的 RISC-V 指令集，并且以库的形式提供了它的 API，但还需要一些修改，让它更加适合协同仿真。这一部分参考了 ibex co-sim的文档。
+首先，spike 提供了 step 函数，就是我们想要的单步执行。但是，spike 的 step 在遇到异常或者中断的时候也会返回，但实际上在处理器一侧，通常异常是单独处理的，所以这时候就要修改 spike 的 step 函数，如果遇到异常了，继续执行，直到执行了一条指令为止。与此同时，spike 没有记录最后一次执行的指令的 pc，只记录了下一个 PC，那么在发生异常的时候，就不会记录异常处理的第一条指令的 PC，这里也要进行针对性的修改。
+state.last_inst_pc = pc; pc = execute_insn_logged(this, pc, fetch); advance_pc(); 做了这些修改以后，就足够在 cosim 中运行一些简单的程序了。
+                    </p>
+                    <p class="article-more-link">
+                        <a href="/hardware/2023/03/23/core-cosim/">Read More</a>
+                    </p>
+                </div>
+
+                
+                <footer class="article-footer">
+                    <ul class="article-tag-list">
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/riscv">riscv
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cpu">cpu
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/spike">spike
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/cosim">cosim
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/simulation">simulation
+                            </a>
+                        </li>
+                        
+                        <li class="article-tag-list-item">
+                            <a class="article-tag-list-link" href="/tags/verilator">verilator
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </footer>
+                
+            </div>
+        </article>
+        
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+            <div class="article-inner">
+                
+                
+                <header class="article-header">
                     <h1 itemprop="name"><a class="article-title" href="/networking/2023/03/22/hardware-queue-interface/">软硬件队列接口</a></h1>
                 </header>
                 
@@ -608,57 +684,6 @@ sudo pkg install ripgrep cd /usr/local/lib/node_modules/@vscode/ripgrep/bin &amp
                         
                         <li class="article-tag-list-item">
                             <a class="article-tag-list-link" href="/tags/freebsd">freebsd
-                            </a>
-                        </li>
-                        
-                    </ul>
-                </footer>
-                
-            </div>
-        </article>
-        
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-            <div class="article-inner">
-                
-                
-                <header class="article-header">
-                    <h1 itemprop="name"><a class="article-title" href="/hardware/2023/01/11/intel-cpu/">Intel 处理器</a></h1>
-                </header>
-                
-                <div class="article-meta">
-                    <a href="/hardware/2023/01/11/intel-cpu/" class="article-date">
-                        <time datetime='2023-01-11T08:59:00.000&#43;08:00' itemprop="datePublished">2023-01-11</time>
-                    </a>
-                    
-                    
-                    
-                    <div class="article-comment-link-wrap">
-                        <a href="/hardware/2023/01/11/intel-cpu/#disqus_thread" class="article-comment-link">Comments</a>
-                    </div>
-                    
-                </div>
-                <div class="article-entry" itemprop="articleBody">
-                    <p>
-                        
-                    Xeon 系列 命名方式：
-第一位数字：8-9 对应 Platinum，5-6 对应 Gold，4 对应 Silver，3 对应 Bronze 第二位数字：对应代次，1 对应 1st Generation，2 对应 2nd Generation，依此类推 第三位第四位数字：一般越大性能越好 后缀：H/L/M/N/P/Q/S/T/U/V/Y/Y+/+ L：大内存 M：媒体/大内存 N：网络 P：虚拟化，IaaS Q: 水冷 S：存储/搜索 T：长寿命 U：单插槽 V：虚拟化，SaaS Y: Speed Select 4th Generation Intel® Xeon® Scalable Processors/Xeon CPU Max Series CPU 型号列表 Xeon CPU Max 型号列表 发布时间：Q1'23 代号：Sapphire Rapids/Sapphire Rapids HBM 用途：Server 旗舰：Xeon CPU Max 9480(56C112T，112.5 MB L3，HBM)/Xeon Platinum 8490H(60C120T，Golden Cove，112.5 MB L3)/Xeon Platinum 8480+(56C112T，105 MB L3) 3rd Generation Intel® Xeon® Scalable Processors CPU 型号列表 发布时间：Q2'21(Ice Lake), Q2'20(Cooper Lake) 代号：Cooper Lake/Ice Lake 用途：Server 旗舰：Xeon Platinum 8380(40C80T，Sunny Cove，60 MB L3) 相关阅读：Ice Lake 2nd Generation Intel® Xeon® Scalable Processors CPU 型号列表 发布时间：Q1'20, Q2'19 代号：Cascade Lake 用途：Server 旗舰：Xeon Platinum 9282(56C112T)，Xeon Platinum 8280(28C56T，38.
-                    </p>
-                    <p class="article-more-link">
-                        <a href="/hardware/2023/01/11/intel-cpu/">Read More</a>
-                    </p>
-                </div>
-
-                
-                <footer class="article-footer">
-                    <ul class="article-tag-list">
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/intel">intel
-                            </a>
-                        </li>
-                        
-                        <li class="article-tag-list-item">
-                            <a class="article-tag-list-link" href="/tags/cpu">cpu
                             </a>
                         </li>
                         
