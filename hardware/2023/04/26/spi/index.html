@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SPI 协议 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="SPI 协议" />
+    <meta property="og:description" content="背景 最近数设课上，同学们开始购买外设，其中就涉及到 SPI 协议，因此顺带写一下 SPI 协议的教程，帮助同学们进行理解。
+接口 SPI 协议涉及到四个信号：
+SCLK: 时钟信号，Master -&gt; Slave MOSI：数据信号，Master -&gt; Slave MISO：数据信号，Slave -&gt; Master CS：芯片使能，一般是低有效 要通过 SPI 协议发送命令的时候，通常需要先拉低 CS，然后启动 SCLK 时钟，同时收发数据。注意 SPI 是全双工的，也就是发送的同时也在接收，只不过通常来说，外设等到主机发送了命令本身，才知道要回复什么，所以很多时候命令设计成了事实上的半双工：前半部分主机在发命令，外设发送无用的数据；后半部分外设在发送响应，主机发送无用的数据。
+波形 SPI 有不同的类型，下面讲一种比较常见的配置（即 CPOL=0，CPHA=0），在这种模式下，Master 和 Slave 都是在时钟的下降沿修改输出的数据，然后在时钟（sclk）的上升沿对接收到的数据进行采样：
+波形图中，时钟（sclk）上升沿时，数据处于稳定的状态，所以此时 Master 对 MISO 采样，Slave 对 MOSI 采样，可以得到稳定的数据；时钟下降沿时，Master 和 Slave 修改输出的数据。
+实际在 RTL 中实现的时候，Master 可以不写 negedge 逻辑，而是写一个分频器，在分频出来的负半周期里，实现数据的修改，如上图中的 clk 分频到 sclk。一般使用一个状态机来实现 SPI Master，记录当前传输到哪一个 bit，以及记录当前是 sclk 的正半周期还是负半周期。
+SPI 本身很简单，所以核心不在 SPI，而是在 SPI 之上定义的各种协议。
+SPI Flash SPI Flash 是一种很常见的 SPI 外设，可以用来访问 NAND/NOR Flash。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2023/04/26/spi/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.111.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">SPI 协议</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2023/04/26/spi/" class="article-date">
+                <time datetime='2023-04-26T00:28:00.000&#43;08:00' itemprop="datePublished">2023-04-26</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2023/04/26/spi/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>最近数设课上，同学们开始购买外设，其中就涉及到 SPI 协议，因此顺带写一下 SPI 协议的教程，帮助同学们进行理解。</p>
+<h2 id="接口">接口</h2>
+<p>SPI 协议涉及到四个信号：</p>
+<ul>
+<li>SCLK: 时钟信号，Master -&gt; Slave</li>
+<li>MOSI：数据信号，Master -&gt; Slave</li>
+<li>MISO：数据信号，Slave -&gt; Master</li>
+<li>CS：芯片使能，一般是低有效</li>
+</ul>
+<p>要通过 SPI 协议发送命令的时候，通常需要先拉低 CS，然后启动 SCLK 时钟，同时收发数据。注意 SPI 是全双工的，也就是发送的同时也在接收，只不过通常来说，外设等到主机发送了命令本身，才知道要回复什么，所以很多时候命令设计成了事实上的半双工：前半部分主机在发命令，外设发送无用的数据；后半部分外设在发送响应，主机发送无用的数据。</p>
+<h2 id="波形">波形</h2>
+<p>SPI 有不同的类型，下面讲一种比较常见的配置（即 CPOL=0，CPHA=0），在这种模式下，Master 和 Slave 都是在时钟的下降沿修改输出的数据，然后在时钟（<code>sclk</code>）的上升沿对接收到的数据进行采样：</p>
+<script type="WaveDrom">
+{
+  signal:
+    [
+      { name: "clk", wave: "p........"},
+      { name: "sclk", wave: "0.101010."},
+      { name: "mosi", wave: "03.4.5.x."},
+      { name: "miso", wave: "06.7.8.x."},
+      { name: "cs_n", wave: "10......1"},
+    ]
+}
+</script>
+<p>波形图中，时钟（<code>sclk</code>）上升沿时，数据处于稳定的状态，所以此时 Master 对 MISO 采样，Slave 对 MOSI 采样，可以得到稳定的数据；时钟下降沿时，Master 和 Slave 修改输出的数据。</p>
+<p>实际在 RTL 中实现的时候，Master 可以不写 negedge 逻辑，而是写一个分频器，在分频出来的负半周期里，实现数据的修改，如上图中的 <code>clk</code> 分频到 <code>sclk</code>。一般使用一个状态机来实现 SPI Master，记录当前传输到哪一个 bit，以及记录当前是 <code>sclk</code> 的正半周期还是负半周期。</p>
+<p>SPI 本身很简单，所以核心不在 SPI，而是在 SPI 之上定义的各种协议。</p>
+<h2 id="spi-flash">SPI Flash</h2>
+<p>SPI Flash 是一种很常见的 SPI 外设，可以用来访问 NAND/NOR Flash。</p>
+<p>为了提升性能，很多 SPI Flash 还会提供 Dual SPI 和 Quad SPI 模式。标准的 SPI 中，Master 到 Slave 和 Slave 到 Master 分别是一根信号线，如果要继续提高性能，那就要引入更多的信号线来进行数据传输，所以 Dual SPI 就是让原来的 MISO 和 MOSI 都可以同时发送数据；Quad SPI 则是又额外添加了两个信号线来进行数据传输。</p>
+<h3 id="spi-nand-flash">SPI NAND Flash</h3>
+<p>下面以 <a href="https://www.alliancememory.com/wp-content/uploads/pdf/flash/AllianceMemory_SPI_NAND_Flash_July2020_Rev1.0.pdf">Alliance Memory SPI NAND Flash Datasheet</a> 为例子，看看通常 SPI Flash 都支持哪些命令，都是如何传输数据的。</p>
+<p>这款 SPI NAND Flash 的内部存储分为三层：</p>
+<ol>
+<li>Block：数量不定</li>
+<li>Page：每个 Block 包括 64 个 Page</li>
+<li>Byte：每个 Page 包括一定数量的 Byte，常见的有 2112(2048+64)、2176(2048+128)、4352(4096+256)</li>
+</ol>
+<p>NAND Flash 的读取粒度是 Page，这就是为什么 NAND Flash 更像块设备。一次读取过程分为三个步骤：</p>
+<ol>
+<li>发送 13H(Page Read to Cache) 命令，把一个 Page 的数据读取到 NAND Flash 内部的 Cache 中</li>
+<li>不断发送 0FH(Get Feature) 命令，直到 NAND Flash 表示 Page Read to Cache 命令完成</li>
+<li>发送 Read from Cache 命令，考虑到传输的方式不同，有以下几种：
+<ol>
+<li>Read from Cache x1 IO(03H/0BH): Master 给出 1 字节命令，2 字节地址和 1 字节 dummy 数据，共 8(COMMAND)+16(ADDR)+8(DUMMY) 个周期，之后 Slave 从 MISO 给出数据</li>
+<li>Read from Cache x2 IO(3BH): Slave 同时通过 MISO 和 MOSI 给出数据</li>
+<li>Read from Cache x4 IO(6BH): Slave 同时通过 MISO、MOSI、WP# 和 HOLD# 给出数据</li>
+<li>Read from Cache Dual IO(BBH): 在 3BH 的基础上，Master 也同时通过 MISO 和 MOSI 给出地址和 dummy 字节，所以 Master 只占用 8(COMMAND)+8(ADDR)+4(DUMMY) 个周期的时间发送</li>
+<li>Read from Cache Quad IO(EBH): 在 6BH 的基础上，Master 也同时通过四个数据信号给出地址和 dummy 字节，所以 Master 只占用 8(COMMAND)+4(ADDR)+2(DUMMY) 个周期的时间发送</li>
+</ol>
+</li>
+</ol>
+<p>写入的时候，由于 NAND Flash 的特性，首先需要擦除，把一个 Block 的内容全部擦除，需要注意每个 Block 包括多个 Page，所以擦除的粒度是很粗的。擦除过的 Page 才可以进行写入，具体步骤是：</p>
+<ol>
+<li>发送 06H(Write Enable) 允许写入</li>
+<li>发送 02H(Program Load) 或 32H(Program Load x4) 把要写入的数据传输给 NAND Flash 中的 Cache；02H 和 32H 的区别就是后者同时在四个信号线上传输数据</li>
+<li>发送 10H(Program Execute) 进行实际的写入操作，从 Cache 到 Flash 存储</li>
+<li>不断发送 0FH(Get Feature) 命令，直到 Program Execute 操作完成</li>
+</ol>
+<h3 id="spi-nor-flash">SPI NOR Flash</h3>
+<p>NOR Flash 和 NAND Flash 的区别在于，NOR Flash 可以随机访问，可以提供 XIP 支持。下面以 <a href="https://www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_128mb_3v_65nm.pdf">128Mb, 3V, Multiple I/O Serial Flash Memory</a> 为例子看看它是如何读写的。</p>
+<p>SPI NOR Flash 读取的时候，只需要一条命令就可以了：READ/FAST READ。其中 READ 命令比较简单：发送 Command，发送地址，然后 Slave 紧接着就会发送数据；FAST READ 可以达到更高的频率，但是为了让 NOR Flash 有时间读取数据，在 Master 发送 Command 和地址后，还需要发送 Dummy cycles，然后 Slave 才会发送数据。和前面一样，FAST READ 也支持不同的 IO 类型，例如 Dual Output，Dual Input/Output，Quad Output，Quad Input/Output。一些比较高端的 SPI NOR Flash 还支持 DTR（Double Transfer Rate），实际上就是 DDR，在时钟上升沿和下降沿都采样数据。</p>
+<p>写入的时候，和 NAND Flash 一样，也需要先擦除，再写入。SPI Flash 的存储层级是：</p>
+<ol>
+<li>Sector</li>
+<li>Subsector</li>
+<li>Page</li>
+<li>Byte</li>
+</ol>
+<p>擦除的粒度是 Sector 或者 Subsector，写入的粒度是 Page。写入的时候，也需要首先发送 WRITE ENABLE 命令，再发送 PAGE PROGRAM 命令。NOR Flash 在 Program 上也比较简化，直接 Program 即可，不需要先写入到 Cache，再进行 Program。</p>
+<p>NOR Flash 还提供了 XIP Mode 来加快随机访问：启用 XIP 模式后，给出一个地址，等待 Dummy cycles 后，就可以读出数据，不需要像前面那样发送 COMMAND，减少了延迟。当然了，即使不打开 NOR Flash 的 XIP Mode，也可以在 SPI 控制器里实现 XIP，只不过每次读取都要发一次 READ 命令。</p>
+<h2 id="spi-eeprom">SPI EEPROM</h2>
+<p>SPI EEPROM 和 SPI NOR Flash 比较类似，但是 EEPROM 更小，也更加简单，例如写入的时候，不需要擦除。感兴趣的可以在 <a href="http://ww1.microchip.com/downloads/en/DeviceDoc/22040c_cn.pdf">SPI 串行 EEPROM 系列数据手册</a> 中查看命令列表，这里就不赘述了。</p>
+<h2 id="sd-卡">SD 卡</h2>
+<p>SD 卡除了 SD Bus 以外，还支持 SPI 模式（最新的 SDUC 不支持 SPI 模式），所以也可以用 SPI 来读写 SD 卡。</p>
+<p>SD 卡比较特别的一点是，它需要比较复杂的初始化流程：</p>
+<ol>
+<li>首先要发送 CMD0 命令，同时 CS 拉低，使得 SD 卡进入 SPI 模式</li>
+<li>对于 SDHC SD 卡，需要发送 CMD8 来协商工作电压范围</li>
+<li>重复发送 ACMD41 命令（CMD55 + CMD41 = ACMD41）进行初始化，直到 SD 卡回复初始化完成</li>
+<li>发送 CMD58 命令以读取 OCR 寄存器的值</li>
+</ol>
+<p>比较有意思的是命令的传输方式。每个命令有一个 6 位的命令编号，例如 CMD0 的编号就是 0，CMD55 的编号就是 55；还带有四字节的参数。每个命令会组装成一个 48 位的分组：</p>
+<ol>
+<li>bit[47]=0: Start Bit</li>
+<li>bit[46]=1: Transmission Bit</li>
+<li>bit[45:40]: Command Index</li>
+<li>bit[39:8]: Argument</li>
+<li>bit[7:1]: CRC7</li>
+<li>bit[0]=1: End Bit</li>
+</ol>
+<p>可见额外多了一个 CRC7 的校验和。</p>
+<p>SD 卡规定，SPI 模式下，所有的数据传输都是对齐到 8 位，也就是从 CS 拉低开始算，每 8 个时钟上升沿是一个字节，无论命令还是响应，都在 8 位的边界上传输。</p>
+<p>想要读取数据的话，就要发送 READ_SINGLE_BLOCK 命令，参数就是要读取的 Block 地址。SD 卡回先回复一个字节的响应，然后开始发数据，数据从 Start Block Token 开始，然后是一个 Block 的数据（通常是 512 字节），最后再两个字节的 CRC16。</p>
+<p>写数据则是发送 WRITE_BLOCK 命令，SD 卡回复一个字节的响应，然后控制器开始传输数据，数据从 Start Block Token 开始，接着是要写入的数据，最后是两个字节的 CRC16，然后 SD 卡回复一个字节的响应，标志着写入成功。</p>
+<h2 id="spi-以太网控制器">SPI 以太网控制器</h2>
+<p>有一些以太网产品提供了 SPI 接口，例如 <a href="https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ8851SNL-Single-Port-Ethernet-Controller-with-SPI-DS00002381C.pdf">KSZ8851SNL/SNLI</a>，集成了 MAC 和 PHY，直接连接 MDI/MDI-X 接口，虽然最高只支持百兆网，但是接口上确实非常简单。</p>
+<p>SPI 上发送的命令就两类：一类是读写寄存器，一类是读写 RX/TX FIFO。</p>
+<h2 id="键盘和触摸板">键盘和触摸板</h2>
+<p>一些型号的苹果电脑的键盘和触摸板是通过 SPI 接口访问的，在 Linux 中有相应的 applespi 驱动。</p>
+<h2 id="spi-vs-i2c">SPI vs I2C</h2>
+<p>SPI 和 I2C 的区别在于，前者信号更多，全双工传输；后者信号更少，半双工传输。SPI 通过 CS 信号选择 Slave 芯片，I2C 通过地址进行区分。此外 I2C 还需要 Pull up resistor，这样如果没有设备响应，就会 NACK。</p>
+<p>一些芯片提供了 SPI 或 I2C 的选项：共用两个信号，允许用户选择用 I2C 还是 SPI。例如 <a href="http://cdn.sparkfun.com/datasheets/Dev/Arduino/Shields/WolfsonWM8731.pdf">WM8731</a>，既支持 I2C（记为 2-wire mode），又支持 SPI（记为 3-wire mode）。一般这种时候，SPI 和 I2C 就是用来配置一些寄存器的，另外可能还有一些接口，例如 WM8731 负责声音数据传输的实际上是 I2S。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#接口">接口</a></li>
+    <li><a href="#波形">波形</a></li>
+    <li><a href="#spi-flash">SPI Flash</a>
+      <ul>
+        <li><a href="#spi-nand-flash">SPI NAND Flash</a></li>
+        <li><a href="#spi-nor-flash">SPI NOR Flash</a></li>
+      </ul>
+    </li>
+    <li><a href="#spi-eeprom">SPI EEPROM</a></li>
+    <li><a href="#sd-卡">SD 卡</a></li>
+    <li><a href="#spi-以太网控制器">SPI 以太网控制器</a></li>
+    <li><a href="#键盘和触摸板">键盘和触摸板</a></li>
+    <li><a href="#spi-vs-i2c">SPI vs I2C</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/spi">spi
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/hardware/2023/05/03/i2c/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            I2C 协议
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2023/04/24/litex-uart-over-jtag/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 LiteX 中使用 UART over JTAG&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
