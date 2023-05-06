@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Linux 6.2.13&#43; 引入的 BUG 导致 Vivado 无法识别 FPGA // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="Linux 6.2.13&#43; 引入的 BUG 导致 Vivado 无法识别 FPGA" />
+    <meta property="og:description" content="TLDR 简单来说，Linux 6.2.13 引入的 commit：
+commit 0d30989fe9a176565d360376d4bc2ea1c61cbbac Author: Liam R. Howlett &lt;Liam.Howlett@oracle.com&gt; Date: Fri Apr 14 14:59:19 2023 -0400 mm/mmap: regression fix for unmapped_area{_topdown} commit 58c5d0d6d522112577c7eeb71d382ea642ed7be4 upstream. The maple tree limits the gap returned to a window that specifically fits what was asked. This may not be optimal in the case of switching search directions or a gap that does not satisfy the requested space for other reasons. Fix the search by retrying the operation and limiting the search window in the rare occasion that a conflict occurs." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2023/05/06/linux-regression-vivado/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.111.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">Linux 6.2.13&#43; 引入的 BUG 导致 Vivado 无法识别 FPGA</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2023/05/06/linux-regression-vivado/" class="article-date">
+                <time datetime='2023-05-06T22:16:00.000&#43;08:00' itemprop="datePublished">2023-05-06</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2023/05/06/linux-regression-vivado/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="tldr">TLDR</h2>
+<p>简单来说，Linux 6.2.13 引入的 commit：</p>
+<pre tabindex="0"><code>commit 0d30989fe9a176565d360376d4bc2ea1c61cbbac
+Author: Liam R. Howlett &lt;Liam.Howlett@oracle.com&gt;
+Date:   Fri Apr 14 14:59:19 2023 -0400
+
+    mm/mmap: regression fix for unmapped_area{_topdown}
+    
+    commit 58c5d0d6d522112577c7eeb71d382ea642ed7be4 upstream.
+    
+    The maple tree limits the gap returned to a window that specifically fits
+    what was asked.  This may not be optimal in the case of switching search
+    directions or a gap that does not satisfy the requested space for other
+    reasons.  Fix the search by retrying the operation and limiting the search
+    window in the rare occasion that a conflict occurs.
+    
+    Link: https://lkml.kernel.org/r/20230414185919.4175572-1-Liam.Howlett@oracle.com
+    Fixes: 3499a13168da (&#34;mm/mmap: use maple tree for unmapped_area{_topdown}&#34;)
+    Signed-off-by: Liam R. Howlett &lt;Liam.Howlett@oracle.com&gt;
+    Reported-by: Rick Edgecombe &lt;rick.p.edgecombe@intel.com&gt;
+    Cc: &lt;stable@vger.kernel.org&gt;
+    Signed-off-by: Andrew Morton &lt;akpm@linux-foundation.org&gt;
+    Signed-off-by: Greg Kroah-Hartman &lt;gregkh@linuxfoundation.org&gt;
+</code></pre><p>修复了 BUG 的同时，引入了新的 BUG，导致 MAP_32BIT 有时无法工作，而 Xilinx 的 Digilent 下载器代码使用了这个参数，导致 mmap 失败，无法识别 FPGA。</p>
+<h2 id="背景">背景</h2>
+<p>事情的背景是，@vowstar 升级内核到 6.2.14 以后，发现 Vivado 找不到 FPGA 了，重启回到 6.2.12 就好了。</p>
+<h2 id="排查">排查</h2>
+<p>因为升级了内核，第一反应是不是 ftdi_sio 驱动的问题。比对了一下二者的 dmesg 日志，发现 Linux 6.2.12 会显示 <code>ftdi_sio: device disconnected</code> 消息：这是因为 FPGA 下载器内置的是 FTDI 芯片，它支持多种模式，默认情况下，内核检测到设备以后，会由 ftdi_sio 驱动初始化为串口模式，创建 <code>/dev/ttyUSB*</code> 设备；而 Vivado 需要用的是 MPSSE 模式，从而使用 JTAG 协议与 FPGA 通讯。这与串口模式冲突，因此 Vivado 要做的事情，首先是把内核模块 detach，也就是不再占用 USB 设备，然后再让 FTDI 芯片进入 MPSSE 模式。</p>
+<p>沿着这个思路，首先想到的是权限问题：默认情况下，USB 设备权限比较严格，所以 Vivado 在安装的时候，会安装 udev rule，把 Digilent 下载器的 usb 设备文件的权限改为 666，这样就允许所有用户访问 USB 设备。但是检查了一下，/dev/bus/usb 下的设备文件权限是正确的：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>kernel 6.2.12: crw-rw-rw- <span style="color:#ae81ff">1</span> root usb 189, <span style="color:#ae81ff">271</span> May  <span style="color:#ae81ff">6</span> 15:31 /dev/bus/usb/003/016
+</span></span><span style="display:flex;"><span>kernel 6.2.14: crw-rw-rw- <span style="color:#ae81ff">1</span> root usb 189, <span style="color:#ae81ff">262</span> May  <span style="color:#ae81ff">6</span> 15:32 /dev/bus/usb/003/016
+</span></span></code></pre></div><p>这时候就觉得很蹊跷，只更新了内核，其他都没有变，为什么行为就会不同。于是翻了翻 Linux 内核的 ChangeLog，因为 6.2.12 是好的，6.2.14 是不工作的，所以只需要看两者之间的 changelog：</p>
+<ul>
+<li><a href="https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.2.13">6.2.13</a></li>
+<li><a href="https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.2.14">6.2.14</a></li>
+</ul>
+<p>以 ftdi 或 usb 为关键词搜索，只有一个看起来有一些相关的 commit：<code>USB: serial: option: add UNISOC vendor and TOZED LT70C product</code>，但是仔细一看，只是添加了新的 VID/PID，也没有和 Digilent 下载器冲突。</p>
+<p>这时候，就觉得不是 Linux 的问题了。按照这个思路，继续控制变量法，看看是不是 FTDI 芯片出了问题。这时候就祭出了 OpenOCD，看看 OpenOCD 能否配置 FTDI 芯片进入 MPSSE 模式，并且找到 FPGA。试了一下，还真可以，ftdi_sio 正常 detach，然后 OpenOCD 也找到 FPGA 了。</p>
+<p>但此时再打开 Vivado，还是找不到设备，说明不是 MPSSE 模式的问题。考虑到 Vivado 访问硬件的进程是 hw_server，想到能不能看看 hw_server 的日志。</p>
+<p>运行 hw_server，打印所有日志类型：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ hw_server -L- -l alloc,eventcore,waitpid,events,protocol,context,children,discovery,asyncreq,proxy,tcflog,elf,stack,plugin,shutdown,disasm,jtag2,jtag,pcie,slave,dpc
+</span></span></code></pre></div><p>这里 <code>-L-</code> 表示输出日志到 stderr，后面的 <code>-l</code> 一串参数就是各种日志开关。在两个内核里都运行一次，比对日志，发现了不同：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>Success <span style="color:#f92672">(</span>6.2.12<span style="color:#f92672">)</span>:
+</span></span><span style="display:flex;"><span>TCF 08:39:37.247: jtagpoll: add node 0xxxxxxxx<span style="color:#f92672">(</span>jsn-JTAG-SMT2NC-XXXXXXXXXXXX<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>TCF 08:39:37.247: Node 000000FF, added jsn-JTAG-SMT2NC-XXXXXXXXXXXX
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Failed <span style="color:#f92672">(</span>6.2.14<span style="color:#f92672">)</span>:
+</span></span><span style="display:flex;"><span>TCF 08:45:12.385: jtagpoll: cannot get port description list: ftdidb_lock failed: FTDMGR wasn<span style="color:#960050;background-color:#1e0010">&#39;</span>t properly initialized
+</span></span><span style="display:flex;"><span>TCF 08:45:12.391: jtagpoll: cannot get port description list: JTAG device enumeration failed: Initialization of the DPCOMM library failed.
+</span></span></code></pre></div><p>终于看到了错误信息：<code>jtagpoll: cannot get port description list: ftdidb_lock failed: FTDMGR wasn't properly initialized</code>。把这个作为关键词一搜索，果然有别人也遇到了同样的问题：</p>
+<ul>
+<li><a href="https://support.xilinx.com/s/article/000033531?language=en_US">XSDB fails with &ldquo;ftdidb_lock failed: FTDMGR wasn&rsquo;t properly initialized&rdquo;</a></li>
+<li><a href="https://blog.t123yh.xyz:2/index.php/archives/1013">Linux 多用户环境下 Vivado 无法连接 Digilent JTAG 适配器的解决方法</a></li>
+</ul>
+<p>尝试了第一篇文章的解决方案，没有效果。第二篇文章指出的问题是，多用户环境下，多个用户抢同一个文件，然后出现权限问题，所以要删掉文件再启动。按照第二篇文档的方法尝试了一下，也没有解决问题。</p>
+<p>但是第二篇文章给出了一个调试方法：运行 Digilent 提供的 dadutil 程序，看看它是否可以识别下载器，果然复现出问题了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ dadutil enum
+</span></span><span style="display:flex;"><span>ERROR: DmgrSetNetworkEnumTimeout failed, erc <span style="color:#f92672">=</span> <span style="color:#ae81ff">3090</span>
+</span></span><span style="display:flex;"><span>$ dadutil enum
+</span></span><span style="display:flex;"><span>Found <span style="color:#ae81ff">1</span> device<span style="color:#f92672">(</span>s<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>$ dadutil enum
+</span></span><span style="display:flex;"><span>Found <span style="color:#ae81ff">1</span> device<span style="color:#f92672">(</span>s<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>$ dadutil enum
+</span></span><span style="display:flex;"><span>ERROR: DmgrSetNetworkEnumTimeout failed, erc <span style="color:#f92672">=</span> <span style="color:#ae81ff">3090</span>
+</span></span></code></pre></div><p>到这里多次尝试，发现有三分之一的概率会失败，但已经足够解释为什么 hw_server 不工作了：大概率它也调用了 Digilent 提供的代码，得到了同样的结果，所以失败了。</p>
+<p>上面第二篇文章用 strace 的方法找到了问题，照葫芦画瓢，用 strace 找到出错的日志：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ strace dadutil enum
+</span></span><span style="display:flex;"><span>openat<span style="color:#f92672">(</span>AT_FDCWD, <span style="color:#e6db74">&#34;/dev/shm/digilent-adept2-mtx-ftdmgr&#34;</span>, O_RDWR|O_NOFOLLOW|O_CLOEXEC<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">7</span>
+</span></span><span style="display:flex;"><span>ftruncate<span style="color:#f92672">(</span>7, 4<span style="color:#f92672">)</span>                         <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>mmap<span style="color:#f92672">(</span>NULL, 4, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_32BIT, 7, 0<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> -1 ENOMEM <span style="color:#f92672">(</span>Cannot allocate memory<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>close<span style="color:#f92672">(</span>7<span style="color:#f92672">)</span>                                <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span></code></pre></div><p>可以发现问题是返回了 ENOMEM，这就很奇怪了，<code>/dev/shm</code> 是个 tmpfs，还有很多空间，怎么会返回 ENOMEM 呢？</p>
+<h2 id="柳暗花明又一村">柳暗花明又一村</h2>
+<p>按照新线索继续研究：mmap 返回了不应该返回的错误，那是不是 6.2.13 或 6.2.14 引入了相关改动呢？一查，还真有：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span># https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.2.13
+</span></span><span style="display:flex;"><span>commit 0d30989fe9a176565d360376d4bc2ea1c61cbbac
+</span></span><span style="display:flex;"><span>Author: Liam R. Howlett &lt;Liam.Howlett@oracle.com&gt;
+</span></span><span style="display:flex;"><span>Date:   Fri Apr 14 14:59:19 2023 -0400
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    mm/mmap: regression fix for unmapped_area{_topdown}
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    commit 58c5d0d6d522112577c7eeb71d382ea642ed7be4 upstream.
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    The maple tree limits the gap returned to a window that specifically fits
+</span></span><span style="display:flex;"><span>    what was asked.  This may not be optimal in the case of switching search
+</span></span><span style="display:flex;"><span>    directions or a gap that does not satisfy the requested space for other
+</span></span><span style="display:flex;"><span>    reasons.  Fix the search by retrying the operation and limiting the search
+</span></span><span style="display:flex;"><span>    window in the rare occasion that a conflict occurs.
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    Link: https://lkml.kernel.org/r/20230414185919.4175572-1-Liam.Howlett@oracle.com
+</span></span><span style="display:flex;"><span>    Fixes: 3499a13168da (&#34;mm/mmap: use maple tree for unmapped_area{_topdown}&#34;)
+</span></span><span style="display:flex;"><span>    Signed-off-by: Liam R. Howlett &lt;Liam.Howlett@oracle.com&gt;
+</span></span><span style="display:flex;"><span>    Reported-by: Rick Edgecombe &lt;rick.p.edgecombe@intel.com&gt;
+</span></span><span style="display:flex;"><span>    Cc: &lt;stable@vger.kernel.org&gt;
+</span></span><span style="display:flex;"><span>    Signed-off-by: Andrew Morton &lt;akpm@linux-foundation.org&gt;
+</span></span><span style="display:flex;"><span>    Signed-off-by: Greg Kroah-Hartman &lt;gregkh@linuxfoundation.org&gt;
+</span></span></code></pre></div><p>和 mmap 相关，点进<a href="https://lkml.kernel.org/r/20230414185919.4175572-1-Liam.Howlett@oracle.com">邮件链接</a>看看，发现有人提出这个 commit 虽然修复了一个 BUG，但是引入了新的 BUG：</p>
+<pre tabindex="0"><code>* Re: [PATCH v2] mm/mmap: Regression fix for unmapped_area{_topdown}
+  2023-04-14 18:59   ` [PATCH v2] &#34; Liam R. Howlett
+  2023-04-14 19:09     ` Andrew Morton
+@ 2023-04-29 14:32     ` Tad
+  2023-04-30 22:41       ` Michael Keyes
+  1 sibling, 1 reply; 18+ messages in thread
+From: Tad @ 2023-04-29 14:32 UTC (permalink / raw)
+  To: liam.howlett; +Cc: akpm, linux-kernel, linux-mm, rick.p.edgecombe
+
+This reintroduces the issue described in
+https://lore.kernel.org/linux-mm/cb8dc31a-fef2-1d09-f133-e9f7b9f9e77a@sony.com/
+
+Linux 6.2.13 can no longer successfully run the mmap-test reproducer linked
+there.
+
+Linux 6.2.12 passes.
+
+Regards,
+Tad.
+</code></pre><p>再继续跟踪上面的<a href="https://lore.kernel.org/linux-mm/cb8dc31a-fef2-1d09-f133-e9f7b9f9e77a@sony.com/">链接</a>，赫然看到里面的错误日志里，也出现了类似的 mmap 调用：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>&gt; mmap<span style="color:#f92672">(</span>NULL, 131072, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT, -1, 0<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> 0x40720000
+</span></span><span style="display:flex;"><span>&gt; mmap<span style="color:#f92672">(</span>NULL, 131072, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT, -1, 0<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> 0x4124e000
+</span></span><span style="display:flex;"><span>&gt; mmap<span style="color:#f92672">(</span>NULL, 131072, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT, -1, 0<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> -1 ENOMEM <span style="color:#f92672">(</span>Cannot allocate memory<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>&gt; dex2oatd F 03-01 10:32:33 <span style="color:#ae81ff">74063</span> <span style="color:#ae81ff">74063</span> mem_map_arena_pool.cc:65<span style="color:#f92672">]</span> Check failed: map.IsValid<span style="color:#f92672">()</span> Failed anonymous mmap<span style="color:#f92672">((</span>nil<span style="color:#f92672">)</span>, 131072, 0x3, 0x22, -1, 0<span style="color:#f92672">)</span>: Cannot allocate memory. See process maps in the log.
+</span></span></code></pre></div><p>再看看上面 <code>dadutil enum</code> 报错的 mmap 日志：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>mmap<span style="color:#f92672">(</span>NULL, 4, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_32BIT, 7, 0<span style="color:#f92672">)</span> <span style="color:#f92672">=</span> -1 ENOMEM <span style="color:#f92672">(</span>Cannot allocate memory<span style="color:#f92672">)</span>
+</span></span></code></pre></div><p>赫然也是 MAP_32BIT，结果也是 ENOMEM，那说明就是这个问题了。结合邮件列表的其他讨论，基本可以确认是作者忽略了 MAP_32BIT 的情况，所以出现了问题。</p>
+<h2 id="总结">总结</h2>
+<p>这就是整个 Debug 流程，从 Vivado 找不到 FPGA 的表象，到内在的 Linux 内核 BUG，看起来毫不相关，但却能发现背后的逻辑。</p>
+<p>我和 @vowstar 一起完成了整个调试的流程，学到了许多，因此写了这篇博客。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#tldr">TLDR</a></li>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#排查">排查</a></li>
+    <li><a href="#柳暗花明又一村">柳暗花明又一村</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/linux">linux
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/vivado">vivado
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/software/2023/05/06/linux-regression-vivado-en/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            How a Linux 6.2.13 BUG stops Vivado from recognizing FPGA
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2023/05/03/i2c/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">I2C 协议&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
