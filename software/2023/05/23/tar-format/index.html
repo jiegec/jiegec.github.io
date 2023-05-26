@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tar 文件格式 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="Tar 文件格式" />
+    <meta property="og:description" content="本文的内容已经整合到知识库中。
+背景 最近在解压 tar.gz 文件的时候，发现如果用 unar 解压，就会出现文件名截断到 100 个字节的问题，而如果用 gnu tar 解压，文件名就是正常的，因此深入研究了一下 Tar 的文件格式。实际上，这是因为早期 tar 格式设计的时候，就设定了路径最长 100 字节的限制，后来的扩展解决了这个问题，但是 unar 没能正确地识别扩展，导致解压路径出错。
+Tar 文件格式 Tar 的文件格式比较简单，就是一系列的 File Entry，最后是两个 512 字节的全 0，表示结束。每个 File Entry 由头部和数据组成，头部的格式是：
+/* tar Header Block, from POSIX 1003.1-1990. */ /* POSIX header. */ struct posix_header { /* byte offset */ char name[100]; /* 0 */ char mode[8]; /* 100 */ char uid[8]; /* 108 */ char gid[8]; /* 116 */ char size[12]; /* 124 */ char mtime[12]; /* 136 */ char chksum[8]; /* 148 */ char typeflag; /* 156 */ char linkname[100]; /* 157 */ char magic[6]; /* 257 */ char version[2]; /* 263 */ char uname[32]; /* 265 */ char gname[32]; /* 297 */ char devmajor[8]; /* 329 */ char devminor[8]; /* 337 */ char prefix[155]; /* 345 */ /* 500 */ }; 来源：Basic Tar Format" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2023/05/23/tar-format/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.112.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">Tar 文件格式</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2023/05/23/tar-format/" class="article-date">
+                <time datetime='2023-05-23T21:24:00.000&#43;08:00' itemprop="datePublished">2023-05-23</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2023/05/23/tar-format/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>本文的内容已经整合到<a href="/kb/software/tar.html">知识库</a>中。</p>
+<h1 id="背景">背景</h1>
+<p>最近在解压 tar.gz 文件的时候，发现如果用 unar 解压，就会出现文件名截断到 100 个字节的问题，而如果用 gnu tar 解压，文件名就是正常的，因此深入研究了一下 Tar 的文件格式。实际上，这是因为早期 tar 格式设计的时候，就设定了路径最长 100 字节的限制，后来的扩展解决了这个问题，但是 unar 没能正确地识别扩展，导致解压路径出错。</p>
+<h1 id="tar-文件格式">Tar 文件格式</h1>
+<p>Tar 的文件格式比较简单，就是一系列的 File Entry，最后是两个 512 字节的全 0，表示结束。每个 File Entry 由头部和数据组成，头部的格式是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">/* tar Header Block, from POSIX 1003.1-1990.  */</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/* POSIX header.  */</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> posix_header
+</span></span><span style="display:flex;"><span>{                              <span style="color:#75715e">/* byte offset */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> name[<span style="color:#ae81ff">100</span>];               <span style="color:#75715e">/*   0 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> mode[<span style="color:#ae81ff">8</span>];                 <span style="color:#75715e">/* 100 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> uid[<span style="color:#ae81ff">8</span>];                  <span style="color:#75715e">/* 108 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> gid[<span style="color:#ae81ff">8</span>];                  <span style="color:#75715e">/* 116 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> size[<span style="color:#ae81ff">12</span>];                <span style="color:#75715e">/* 124 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> mtime[<span style="color:#ae81ff">12</span>];               <span style="color:#75715e">/* 136 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> chksum[<span style="color:#ae81ff">8</span>];               <span style="color:#75715e">/* 148 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> typeflag;                <span style="color:#75715e">/* 156 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> linkname[<span style="color:#ae81ff">100</span>];           <span style="color:#75715e">/* 157 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> magic[<span style="color:#ae81ff">6</span>];                <span style="color:#75715e">/* 257 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> version[<span style="color:#ae81ff">2</span>];              <span style="color:#75715e">/* 263 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> uname[<span style="color:#ae81ff">32</span>];               <span style="color:#75715e">/* 265 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> gname[<span style="color:#ae81ff">32</span>];               <span style="color:#75715e">/* 297 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> devmajor[<span style="color:#ae81ff">8</span>];             <span style="color:#75715e">/* 329 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> devminor[<span style="color:#ae81ff">8</span>];             <span style="color:#75715e">/* 337 */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> prefix[<span style="color:#ae81ff">155</span>];             <span style="color:#75715e">/* 345 */</span>
+</span></span><span style="display:flex;"><span>                                <span style="color:#75715e">/* 500 */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>来源：<a href="https://www.gnu.org/software/tar/manual/html_node/Standard.html">Basic Tar Format</a></p>
+<p>可以看到，就是一系列的 char 数组，里面的很多数字字段，例如 mode，uid 和 gid 等，都是用 ASCII 码写的。由于头部需要对齐到 512 字节，所以实际上后面还有 12 字节的 padding。</p>
+<p>头部的 512 字节结束后，紧接着就是文件的内容，内容的大小在头部的 size 字段已经保存，把字符串当成 8 进制数转换，就可以得到文件长度。文件也要对齐到 512 字节，所以文件后面还有若干个 0 作为 padding。</p>
+<p>总结一下，Tar 文件的格式就是：<code>(头部，数据)*结尾</code>。每一个部分都对齐到 512 字节。</p>
+<h1 id="pax-扩展">PAX 扩展</h1>
+<p>如果仔细观察，会发现上面的 <code>posix_header</code> 里面，<code>name</code> 字段只有 100 个字节，意味着如果文件路径特别长，那就放不下，只能截断了。为了解决这个问题，Tar 引入了 PAX 扩展。</p>
+<p>具体来说，PAX 扩展以特殊的文件形式存在。例如要记录一个名字很长的文件 <code>'X'*101</code>，实际上 Tar 中记录了两个文件：</p>
+<ol>
+<li>PaxHeader：特殊的 PAX 文件，不对应实际的文件</li>
+<li><code>'X'*100</code>：文件名被截断，其他不变</li>
+</ol>
+<p>这个 PaxHeader 在解压的时候，不会生成实际的文件。它的内容是一些键值对，例如：</p>
+<pre tabindex="0"><code>123 path=XXXXXXXXXXXXXXXXX...
+</code></pre><p>格式是：<code>length key=value\n</code>，然后可以有多个这样的键值对。这样就可以解决 <code>posix_header</code> 里名字长度限制的问题：只要在 PaxHeader 文件里，保存一个 key 为 path，value 为实际名字的信息。那么 tar 在看到 PaxHeader 的时候，记录下来，再遇到下一个文件的时候，就知道要用 PaxHeader 中的 path，而不是保存在 <code>posix_header</code> 中的 <code>name[100]</code>。</p>
+<p>类似地，PaxHeader 还可以存很多其他 <code>posix_header</code> 中没有的信息，例如 <code>atime</code>、<code>ctime</code> 和 <code>uid</code> 等等。完整列表可以参考 <a href="https://www.ibm.com/docs/en/zos/2.4.0?topic=descriptions-pax-interchange-portable-archives#r4paxsh__pxchk">Extended header keywords</a>。</p>
+<h1 id="bard">Bard</h1>
+<p>Bard 讲解 Tar 格式：</p>
+<p>A tar file is an archive file format that is used to store a collection of files in a single file. The tar format is a standard format on Unix-like operating systems and is also supported by many other operating systems.</p>
+<p>A tar file consists of a series of blocks, each of which contains 512 bytes of data. Each block contains a header and a body. The header contains information about the file, such as the file name, the file size, and the file permissions. The body contains the actual contents of the file.</p>
+<p>The tar format is a simple and efficient format for storing files. It is also a portable format, which means that tar files can be moved from one computer to another without any problems.</p>
+<p>Here is a more detailed description of the tar file format:</p>
+<ul>
+<li>The header of a tar file is 512 bytes long. It contains the following information:
+<ul>
+<li>The name of the file</li>
+<li>The size of the file</li>
+<li>The permissions of the file</li>
+<li>The modification time of the file</li>
+<li>The owner of the file</li>
+<li>The group of the file</li>
+</ul>
+</li>
+<li>The body of a tar file contains the actual contents of the file. The body is padded to a multiple of 512 bytes.</li>
+<li>Tar files can be compressed using a variety of compression algorithms, such as gzip, bzip2, and xz.</li>
+</ul>
+<p>Tar files are a versatile format that can be used for a variety of purposes. They are commonly used for backing up files, distributing software, and archiving files.</p>
+<p>Here are some of the benefits of using tar files:</p>
+<ul>
+<li>Tar files are a standard format that is supported by many operating systems.</li>
+<li>Tar files are a portable format, which means that they can be moved from one computer to another without any problems.</li>
+<li>Tar files can be compressed using a variety of compression algorithms, which can significantly reduce the size of the archive.</li>
+<li>Tar files can be easily created and managed using the tar command-line tool.</li>
+</ul>
+<p>If you need to store a collection of files in a single file, then a tar file is a good option to consider.</p>
+<p>Bard 讲解 PAX 扩展：</p>
+<p>The POSIX 1003.1-2001 (pax) format for tar archives supports file names longer than 256 characters by using a different format for storing file names and metadata than the traditional ustar format. In the pax format, file names are stored as null-terminated strings, which means that they can be any length up to the maximum file size supported by the underlying file system. The metadata for each file is also stored in a separate record, which allows for more flexibility in the types of metadata that can be stored.</p>
+<p>To create a tar archive in the pax format, you can use the following command:</p>
+<pre tabindex="0"><code>tar cf - --format=pax /path/to/files
+</code></pre><p>To extract a tar archive in the pax format, you can use the following command:</p>
+<pre tabindex="0"><code>tar xvf - --format=pax archive.tar
+</code></pre><p>The pax format is a more flexible and powerful format than the ustar format, and it is recommended for use when creating or extracting tar archives that may contain file names longer than 256 characters.</p>
+<p>Here are some additional details about the pax format:</p>
+<ul>
+<li>File names are stored as null-terminated strings, which means that they can be any length up to the maximum file size supported by the underlying file system.</li>
+<li>The metadata for each file is stored in a separate record, which allows for more flexibility in the types of metadata that can be stored.</li>
+<li>The pax format is supported by most modern tar implementations.</li>
+</ul>
+<p>Here are some examples of file names that can be stored in the pax format:</p>
+<ul>
+<li>&ldquo;This is a file name with more than 256 characters.&rdquo;</li>
+<li>&ldquo;/path/to/a/file/with/a/long/name.&rdquo;</li>
+<li>&ldquo;file.with.spaces.in.its.name&rdquo;</li>
+</ul>
+<p>The pax format is a good choice for storing file names that may be long, contain special characters, or be stored in a directory hierarchy with a long path.</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents"></nav>
+        </div>
+        
+        
+
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/tar">tar
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2023/05/13/openldap-in-docker/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">使用 Docker 部署 OpenLDAP&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

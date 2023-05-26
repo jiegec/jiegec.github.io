@@ -31,7 +31,7 @@ idle 阶段，scl 和 sda 都是 1 start 阶段，首先是 sda 变成 0，之�
     <script src="/js/wavedrom/default.js" type="text/javascript"></script>
     <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
 
-    <meta name="generator" content="Hugo 0.111.3">
+    <meta name="generator" content="Hugo 0.112.3">
 </head>
 
 
@@ -104,7 +104,6 @@ idle 阶段，scl 和 sda 都是 1 start 阶段，首先是 sda 变成 0，之�
 {
   signal:
     [
-      { name: "clk", wave: "p........|......."},
       { name: "scl", wave: "1.0101010|.101..."},
       { name: "sda", wave: "10....1..|0....1."},
       { name: "i2c", wave: "34.5.....|6.7....", data: ["idle", "start", "data", "ack", "stop"]},
@@ -120,6 +119,19 @@ idle 阶段，scl 和 sda 都是 1 start 阶段，首先是 sda 变成 0，之�
 <p>传输数据的时候，需要保证 sda 在 scl 正半周期的时候保持不变。如果变了，那就是 start 或者 stop。因此，在 data/ack 阶段，建议 sda 的变化相比 scl 下降沿有一个延迟（Hold Time，一般的要求是 Min 0us）。实现方法可能是在分频的时候，延迟一个周期。</p>
 <p>这里的 data/ack 指的则是传输的具体内容：例如 master 要传输 7 位的地址和 1 位的读使能，响应地址的 slave 要返回 ack；之后，无论是 master 还是 slave 发送数据，接收的一方都要返回 ack。ack 是低有效，意味着 0 表示成功，1 表示失败。</p>
 <p>由于 sda 带有上拉电阻，所以如果没有 slave 响应，ack 阶段的 sda 就会变成 1，意味着失败。</p>
+<h2 id="i2c-控制器实现">I2C 控制器实现</h2>
+<p>结合上面的 I2C 波形，可以设计一个状态机：</p>
+<ol>
+<li>INIT 状态：初始情况下，SCL 和 SDA 都为 1，要发送数据的时候，转移到 START1 状态</li>
+<li>START1 状态：设置 SDA=0，当达到分频条件时，转移到 START2 状态</li>
+<li>START2 状态：设置 SCL=0，当达到分频条件时，START 发送完成，转移到 SEND 状态</li>
+<li>SEND 状态：当达到分频条件时，SCL 取反，如果 SCL 要从 1 变成 0，延迟一个周期，再输出 1 位的数据到 SDA 上，保证 SDA 的变化在 SCL 的负半周期；同时统计传输位数，每传输 8 位，就要等待一个周期让 Slave 响应 ACK，此时要设置 inout 输出为高阻态；如果要转换传输方向，即 Master 要读取数据，那么转移到 RECV 状态；如果传输结束，转移到 STOP1 状态</li>
+<li>RECV 状态：当达到分频条件时，SCL 取反，如果 SCL 从 0 变成 1，对 SDA 进行采样并且保存下来；同时统计传输位数，每传输 8 位，就要在 SDA 输出一次 ACK；如果传输结束，转移到 STOP1 状态</li>
+<li>STOP1 状态：设置 SCL=1，当达到分频条件时，转移到 STOP2 状态</li>
+<li>STOP2 状态：设置 SDA=1，当达到分频条件时，转移到 INIT 状态</li>
+</ol>
+<p>分频是因为一般 I2C 的频率比较低，是 kHz 的量级。需要按照控制逻辑的主频，结合外设能接受的 I2C 频率范围，计算出分频的倍数。</p>
+<h2 id="上层协议">上层协议</h2>
 <p>在此基础上，可以设计上层协议，例如 <a href="http://cdn.sparkfun.com/datasheets/Dev/Arduino/Shields/WolfsonWM8731.pdf">WM8731</a>，支持通过 I2C 写入内部寄存器，一次写操作分为以下步骤：</p>
 <ol>
 <li>start</li>
@@ -155,6 +167,8 @@ idle 阶段，scl 和 sda 都是 1 start 阶段，首先是 sda 变成 0，之�
   <ul>
     <li><a href="#背景">背景</a></li>
     <li><a href="#接口">接口</a></li>
+    <li><a href="#i2c-控制器实现">I2C 控制器实现</a></li>
+    <li><a href="#上层协议">上层协议</a></li>
     <li><a href="#i2c-eeprom">I2C EEPROM</a></li>
     <li><a href="#i2c-audio-codec">I2C Audio Codec</a></li>
     <li><a href="#i2c-sensor">I2C Sensor</a></li>
@@ -162,6 +176,8 @@ idle 阶段，scl 和 sda 都是 1 start 阶段，首先是 sda 变成 0，之�
 </nav>
         </div>
         
+        
+
         
 
         

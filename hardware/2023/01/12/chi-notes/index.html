@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CHI 学习笔记 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="CHI 学习笔记" />
+    <meta property="og:description" content="本文的内容已经整合到知识库中。
+CHI 介绍 CHI 协议是 AMBA 5 标准中的缓存一致性协议，前身是 ACE 协议。最新的 CHI 标准可以从 AMBA 5 CHI Architecture Specification 处下载。
+相比 AXI，CHI 更加复杂，进行了分层：协议层，物理层和链路层。因此，CHI 适用于片上网络，支持根据 Node ID 进行路由，而不像 AXI 那样只按照物理地址进行路由。CHI 的地位就相当于 Intel 的环形总线。CHI 也可以桥接到 CCIX 上，用 CCIX 连接 SMP 的的多个 Socket，或者连接支持 CCIX 的显卡等等。
+缓存行状态 首先回顾 ACE 的缓存行状态，共有五种，与 MOESI 相对应：
+UniqueDirty: Modified SharedDirty: Owned UniqueClean: Exclusive SharedClean: Shared Invalid: Invalid 在此基础上，CHI 考虑缓存行只有部分字节有效的情况，即 Full，Partial 或者 Empty。因此 CHI 的缓存行状态共有七种：
+UniqueDirty: Modified UniqueDirtyPartial: 新增，可能有部分字节合法，在写回的时候，需要和下一级缓存或者内存中的合法缓存行内容进行合并 SharedDirty: Owned UniqueClean: Exclusive UniqueCleanEmpty: 新增，所有字节都不合法，但是本缓存占有该缓存行，如果要修改的话，不需要通知其他缓存 SharedClean: Shared Invalid: Invalid 可以看到，比较特别的就是 UniqueDirtyPartial 和 UniqueCleanEmpty。CHI 标准在 4." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/hardware/2023/01/12/chi-notes/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.112.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">CHI 学习笔记</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/hardware/2023/01/12/chi-notes/" class="article-date">
+                <time datetime='2023-01-12T00:10:00.000&#43;08:00' itemprop="datePublished">2023-01-12</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/hardware/2023/01/12/chi-notes/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>本文的内容已经整合到<a href="/kb/hardware/cache_coherence_protocol.html">知识库</a>中。</p>
+<h2 id="chi-介绍">CHI 介绍</h2>
+<p>CHI 协议是 AMBA 5 标准中的缓存一致性协议，前身是 ACE 协议。最新的 CHI 标准可以从 <a href="https://developer.arm.com/documentation/ihi0050/latest">AMBA 5 CHI Architecture Specification</a> 处下载。</p>
+<p>相比 AXI，CHI 更加复杂，进行了分层：协议层，物理层和链路层。因此，CHI 适用于片上网络，支持根据 Node ID 进行路由，而不像 AXI 那样只按照物理地址进行路由。CHI 的地位就相当于 Intel 的环形总线。CHI 也可以桥接到 CCIX 上，用 CCIX 连接 SMP 的的多个 Socket，或者连接支持 CCIX 的显卡等等。</p>
+<h2 id="缓存行状态">缓存行状态</h2>
+<p>首先回顾 ACE 的缓存行状态，共有五种，与 MOESI 相对应：</p>
+<ol>
+<li>UniqueDirty: Modified</li>
+<li>SharedDirty: Owned</li>
+<li>UniqueClean: Exclusive</li>
+<li>SharedClean: Shared</li>
+<li>Invalid: Invalid</li>
+</ol>
+<p>在此基础上，CHI 考虑缓存行只有部分字节有效的情况，即 Full，Partial 或者 Empty。因此 CHI 的缓存行状态共有七种：</p>
+<ol>
+<li>UniqueDirty: Modified</li>
+<li>UniqueDirtyPartial: 新增，可能有部分字节合法，在写回的时候，需要和下一级缓存或者内存中的合法缓存行内容进行合并</li>
+<li>SharedDirty: Owned</li>
+<li>UniqueClean: Exclusive</li>
+<li>UniqueCleanEmpty: 新增，所有字节都不合法，但是本缓存占有该缓存行，如果要修改的话，不需要通知其他缓存</li>
+<li>SharedClean: Shared</li>
+<li>Invalid: Invalid</li>
+</ol>
+<p>可以看到，比较特别的就是 UniqueDirtyPartial 和 UniqueCleanEmpty。CHI 标准在 4.1.1 章节给出了使用场景：如果一个 CPU 即将要写入一片内存，那么可以先转换到 UniqueCleanEmpty 状态中，把其他缓存中的数据都清空，这样后续写入的时候，不需要询问其他缓存，性能比较好。但此时因为数据还没写进去，所以就是 Empty，只更新状态，不占用缓存的空间。另一方面，如果 CPU 只写了缓存行的一部分字节，其他部分没有碰，那么引入 UniqueDirtyPartial 以后，可以把合并新旧缓存行数据这一步，下放到比较靠近内存的层级上，减少了数据搬运的次数。</p>
+<h2 id="chi-网络节点">CHI 网络节点</h2>
+<p>CHI 的节点组织成一个网络，可能是片上网络，也可能是片间的连接。CHI 的节点分成三种类型：</p>
+<ol>
+<li>Request Node：发起 CHI 请求的节点，对应 CPU 的缓存，或者是网卡等外设</li>
+<li>Home Node：管理 Request Node 来的请求，对应最后一级缓存</li>
+<li>Subordinate Node：处理 Home Node 来的请求，对应内存或者显存等有内存的外设</li>
+</ol>
+<p>在这种设计下，Node 之间可以互相通信，因此方便做一些新的优化。例如传统的缓存层次里，请求是一级一级下去，响应再一级一级上来。但是 CHI 可能是 Request Node 发给 Home Node 的请求，响应直接由 Subordinate Node 发送回 Request Node 了。</p>
+<h2 id="读请求">读请求</h2>
+<p>CHI 提供了复杂性的同时，也带来了很多的灵活性，也意味着潜在的性能优化的可能。例如在 CHI 中实现一个读操作，可能有很多种过程（CHI 标准第 2.3.1 章节）：</p>
+<p>第一种是 Home Node 直接提供了数据（Combined response from home）：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    Requester->>Home: Read*
+    Home->>Requester: CompData
+    Requester->>Home: CompAck
+</div>
+<p>第二种是 Home Node 把响应拆成两份，一份表示读取结果，一份携带读取的数据（Separate data and response from Home）：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    Requester->>Home: Read*
+    Home->>Requester: RespSepData
+    Home->>Requester: DataSepResp
+    Requester->>Home: CompAck
+</div>
+<p>第三种是 Home Node 没有数据，转而询问 Subordinate，Subordinate 把结果直接发回给了 Requester（Combined response from Subordinate）：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    participant Subordinate
+    Requester->>Home: Read*
+    Home->>Subordinate: ReadNoSnp
+    Subordinate->>Requester: CompData
+    Requester->>Home: CompAck
+</div>
+<p>第四种是 Home Node 没有数据，转而询问 Subordinate，但这次提前告诉 Requester 读取的结果，最后 Subordinate 把结果发回给了 Requester（Response from Home, Data from Subordinate）：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    participant Subordinate
+    Requester->>Home: Read*
+    Home->>Requester: RespSepData
+    Home->>Subordinate: ReadNoSnpSep
+    Subordinate->>Home: ReadReceipt
+    Subordinate->>Requester: DataSepResp
+    Requester->>Home: CompAck
+</div>
+<p>第五种是数据在其他的 Requester Node 中，此时 Home 负责 Snoop（Forwarding snoop）：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    participant Snoopee
+    Requester->>Home: Read*
+    Home->>Snoopee: Snp*Fwd
+    Snoopee->>Requester: CompData
+    Snoopee->>Home: SnpRespFwded
+    Requester->>Home: CompAck
+</div>
+<p>第六种是 MakeReadUnique，此时只更新权限，不涉及数据的传输（MakeReadUnique only）：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    Requester->>Home: MakeReadUnique
+    Home->>Requester: Comp
+    Requester->>Home: CompAck
+</div>
+<h2 id="写请求">写请求</h2>
+<p>CHI 标准第 2.3.2 描述了写请求的流程。和读请求一样，写请求也有很多类型，下面进行介绍。与读请求不同的点在于，写入的时候，并不是直接把写入的地址和数据等一次性发送过去，而是先发一个写消息，对方回复可以发送数据了（DBIDResp），再把实际的数据传输过去（NCBWrData）。当然了，也可以中途反悔（WriteDataCancel）。</p>
+<p>第一种是 Direct Write-data Transfer，意思是数据要从 Requester 直接传到 Subordinate 上：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    participant Subordinate
+    Requester->>Home: Write*
+    Home->>Subordinate: Write*
+    Subordinate->>Requester: DBIDResp
+    Requester->>Subordinate: NCBWrData/WriteDataCancel
+    Subordinate->>Home: Comp
+    Home->>Requester: Comp
+</div>
+<p>第二种比较常规，就是把数据写给 Home Node，其中 Comp 表示读取结果，DBIDResp 表示可以发写入的内容了：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    Requester->>Home: Write*
+    Home->>Requester: DBIDResp/DBIDRespOrd
+    Home->>Requester: Comp
+    Requester->>Home: NCBWrData/WriteDataCancel
+</div>
+<p>第三种是把第二种的 DBIDResp 和 Comp 合并成一个响应：</p>
+<div class="mermaid">sequenceDiagram
+    participant Requester
+    participant Home
+    Requester->>Home: Write*
+    Home->>Requester: CompDBIDResp
+    Requester->>Home: NCBWrData/WriteDataCancel
+</div>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#chi-介绍">CHI 介绍</a></li>
+    <li><a href="#缓存行状态">缓存行状态</a></li>
+    <li><a href="#chi-网络节点">CHI 网络节点</a></li>
+    <li><a href="#读请求">读请求</a></li>
+    <li><a href="#写请求">写请求</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+        <script type="module">
+            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.esm.min.mjs';
+            mermaid.initialize({ startOnLoad: true });
+        </script>
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/chi">chi
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/bus">bus
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/coherence">coherence
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/notes">notes
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/learn">learn
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/software/2023/01/13/vscode-server-on-freebsd/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            在 FreeBSD 上运行 code-server
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2023/01/11/intel-cpu/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">Intel 处理器&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>

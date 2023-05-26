@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>使用 Docker 部署 OpenLDAP // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="使用 Docker 部署 OpenLDAP" />
+    <meta property="og:description" content="Docker-Compose OpenLDAP 可以用现成的 Docker 镜像：bitnami/openldap，配合 Docker-Compose 进行部署：
+version: &#39;2&#39; services: openldap: image: bitnami/openldap:2.6 ports: - &#39;1389:1389&#39; # LDAP environment: - LDAP_ROOT=dc=example,dc=com # example.com env_file: .env # admin password volumes: - &#39;./data:/bitnami/openldap&#39; # data storage admin 密码建议单独保存，例如写在 .env 中：
+LDAP_ADMIN_PASSWORD=12345678REDACTED 启动服务：
+# prepare data folder sudo rm -rf data sudo mkdir data sudo chown 1001:root data # launch docker compose sudo docker-compose up -d 然后就可以通过 ldapsearch 列出所有对象，默认情况下不需要登录（Bind DN），可以只读访问：
+# search elements under dc=example,dc=com # -x: Simple authentication without user and password # -b dc=example,dc=com: base dn for search # -H: ldap server $ ldapsearch -x -b dc=example,dc=com -H ldap://localhost:1389/ # user01, users, example." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2023/05/13/openldap-in-docker/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.112.3">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">使用 Docker 部署 OpenLDAP</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2023/05/13/openldap-in-docker/" class="article-date">
+                <time datetime='2023-05-13T15:57:00.000&#43;08:00' itemprop="datePublished">2023-05-13</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2023/05/13/openldap-in-docker/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="docker-compose">Docker-Compose</h2>
+<p>OpenLDAP 可以用现成的 Docker 镜像：<a href="https://hub.docker.com/r/bitnami/openldap/">bitnami/openldap</a>，配合 Docker-Compose 进行部署：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yml" data-lang="yml"><span style="display:flex;"><span><span style="color:#f92672">version</span>: <span style="color:#e6db74">&#39;2&#39;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">services</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">openldap</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">image</span>: <span style="color:#ae81ff">bitnami/openldap:2.6</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">ports</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;1389:1389&#39;</span> <span style="color:#75715e"># LDAP</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">environment</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_ROOT=dc=example,dc=com</span> <span style="color:#75715e"># example.com</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">env_file</span>: <span style="color:#ae81ff">.env</span> <span style="color:#75715e"># admin password</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">volumes</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;./data:/bitnami/openldap&#39;</span> <span style="color:#75715e"># data storage</span>
+</span></span></code></pre></div><p>admin 密码建议单独保存，例如写在 <code>.env</code> 中：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>LDAP_ADMIN_PASSWORD<span style="color:#f92672">=</span>12345678REDACTED
+</span></span></code></pre></div><p>启动服务：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># prepare data folder</span>
+</span></span><span style="display:flex;"><span>sudo rm -rf data
+</span></span><span style="display:flex;"><span>sudo mkdir data
+</span></span><span style="display:flex;"><span>sudo chown 1001:root data
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># launch docker compose</span>
+</span></span><span style="display:flex;"><span>sudo docker-compose up -d
+</span></span></code></pre></div><p>然后就可以通过 ldapsearch 列出所有对象，默认情况下不需要登录（Bind DN），可以只读访问：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># search elements under dc=example,dc=com</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># -x: Simple authentication without user and password</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># -b dc=example,dc=com: base dn for search</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># -H: ldap server</span>
+</span></span><span style="display:flex;"><span>$ ldapsearch -x -b dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldap://localhost:1389/
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># user01, users, example.com</span>
+</span></span><span style="display:flex;"><span>dn: cn<span style="color:#f92672">=</span>user01,ou<span style="color:#f92672">=</span>users,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com
+</span></span><span style="display:flex;"><span>cn: User1
+</span></span><span style="display:flex;"><span>cn: user01
+</span></span><span style="display:flex;"><span>sn: Bar1
+</span></span><span style="display:flex;"><span>objectClass: inetOrgPerson
+</span></span><span style="display:flex;"><span>objectClass: posixAccount
+</span></span><span style="display:flex;"><span>objectClass: shadowAccount
+</span></span><span style="display:flex;"><span>userPassword:: Yml0bmFtaTE<span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>uid: user01
+</span></span><span style="display:flex;"><span>uidNumber: <span style="color:#ae81ff">1000</span>
+</span></span><span style="display:flex;"><span>gidNumber: <span style="color:#ae81ff">1000</span>
+</span></span><span style="display:flex;"><span>homeDirectory: /home/user01
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># user02, users, example.com</span>
+</span></span><span style="display:flex;"><span>dn: cn<span style="color:#f92672">=</span>user02,ou<span style="color:#f92672">=</span>users,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com
+</span></span><span style="display:flex;"><span>cn: User2
+</span></span><span style="display:flex;"><span>cn: user02
+</span></span><span style="display:flex;"><span>sn: Bar2
+</span></span><span style="display:flex;"><span>objectClass: inetOrgPerson
+</span></span><span style="display:flex;"><span>objectClass: posixAccount
+</span></span><span style="display:flex;"><span>objectClass: shadowAccount
+</span></span><span style="display:flex;"><span>userPassword:: Yml0bmFtaTI<span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>uid: user02
+</span></span><span style="display:flex;"><span>uidNumber: <span style="color:#ae81ff">1001</span>
+</span></span><span style="display:flex;"><span>gidNumber: <span style="color:#ae81ff">1001</span>
+</span></span><span style="display:flex;"><span>homeDirectory: /home/user02
+</span></span></code></pre></div><p>可以看到 Docker 镜像初始化了两个用户，仅供测试用，它用的密码比较弱。</p>
+<h1 id="tls">TLS</h1>
+<p>接着，给 OpenLDAP 配置 TLS。首先用 OpenSSL 生成 CA 和证书：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># https://arminreiter.com/2022/01/create-your-own-certificate-authority-ca-using-openssl/</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># setup CA</span>
+</span></span><span style="display:flex;"><span>rm -rf certs
+</span></span><span style="display:flex;"><span>mkdir -p certs
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>openssl genrsa -out certs/ldap_ca.key <span style="color:#ae81ff">4096</span>
+</span></span><span style="display:flex;"><span>openssl req -x509 -new -nodes -key certs/ldap_ca.key -sha256 -days <span style="color:#ae81ff">1826</span> -out certs/ldap_ca.crt -subj <span style="color:#e6db74">&#34;/CN=Example Com CA/ST=Somewhere/L=Earth/O=ExampleOrg&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># setup cert</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># CN must match hostname</span>
+</span></span><span style="display:flex;"><span>openssl req -new -nodes -out certs/ldap_server.csr -newkey rsa:4096 -keyout certs/ldap_server.key -subj <span style="color:#e6db74">&#34;/CN=</span><span style="color:#66d9ef">$(</span>hostname<span style="color:#66d9ef">)</span><span style="color:#e6db74">/ST=Somewhere/L=Earth/O=ExampleOrg&#34;</span>
+</span></span><span style="display:flex;"><span>openssl x509 -req -in certs/ldap_server.csr -CA certs/ldap_ca.crt -CAkey certs/ldap_ca.key -CAcreateserial -out certs/ldap_server.crt -days <span style="color:#ae81ff">730</span> -sha256
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>chown -R 1001:root certs
+</span></span></code></pre></div><p>然后修改 docker-compose.yml：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yml" data-lang="yml"><span style="display:flex;"><span><span style="color:#f92672">version</span>: <span style="color:#e6db74">&#39;2&#39;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">services</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">openldap</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">image</span>: <span style="color:#ae81ff">bitnami/openldap:2.6</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">ports</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;1389:1389&#39;</span> <span style="color:#75715e"># LDAP</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;1636:1636&#39;</span> <span style="color:#75715e"># LDAPS</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">environment</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_ROOT=dc=example,dc=com</span> <span style="color:#75715e"># example.com</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_ENABLE_TLS=yes</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_TLS_CERT_FILE=/opt/bitnami/openldap/certs/ldap_server.crt</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_TLS_KEY_FILE=/opt/bitnami/openldap/certs/ldap_server.key</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_TLS_CA_FILE=/opt/bitnami/openldap/certs/ldap_ca.crt</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">env_file</span>: <span style="color:#ae81ff">.env</span> <span style="color:#75715e"># admin password</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">volumes</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;./data:/bitnami/openldap&#39;</span> <span style="color:#75715e"># data storage</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;./certs:/opt/bitnami/openldap/certs&#39;</span>
+</span></span></code></pre></div><p>再重新启动，就可以用 LDAPS 来访问 LDAP Server：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># LDAP</span>
+</span></span><span style="display:flex;"><span>$ ldapsearch -x -b dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldap://localhost:1389/
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># LDAPS</span>
+</span></span><span style="display:flex;"><span>$ LDAPTLS_CACERT<span style="color:#f92672">=</span>$PWD/certs/ldap_ca.crt ldapsearch -x -b dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldaps://localhost:1636/
+</span></span></code></pre></div><h1 id="修改密码">修改密码</h1>
+<p>管理员修改用户的密码，使用 ldappasswd 修改：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e"># Generate a new password for cn=user01,ou=users,dc=example,dc=com</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># -W: prompt for bind(login) password</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># -D cn=admin,dc=example,dc=com: bind(login) to admin user</span>
+</span></span><span style="display:flex;"><span>$ ldappasswd -x -W -D cn<span style="color:#f92672">=</span>admin,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldap://localhost:1389/ cn<span style="color:#f92672">=</span>user01,ou<span style="color:#f92672">=</span>users,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com
+</span></span><span style="display:flex;"><span>Enter LDAP Password:
+</span></span><span style="display:flex;"><span>New password: REDACTED
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Set password for for cn=user01,ou=users,dc=example,dc=com</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># -S: prompt for new password</span>
+</span></span><span style="display:flex;"><span>$ ldappasswd -x -W -S -D cn<span style="color:#f92672">=</span>admin,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldap://localhost:1389/ cn<span style="color:#f92672">=</span>user01,ou<span style="color:#f92672">=</span>users,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com
+</span></span><span style="display:flex;"><span>New password:
+</span></span><span style="display:flex;"><span>Re-enter new password:
+</span></span><span style="display:flex;"><span>Enter LDAP Password:
+</span></span></code></pre></div><p>默认情况下，用户没有权限修改自己的密码。可以进入 Docker 容器，修改数据库的权限：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo docker-compose exec openldap bash
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Authenticate using local user</span>
+</span></span><span style="display:flex;"><span>openldap$ ldapmodify -Y EXTERNAL -H <span style="color:#e6db74">&#34;ldapi:///&#34;</span>
+</span></span><span style="display:flex;"><span>SASL/EXTERNAL authentication started
+</span></span><span style="display:flex;"><span>SASL username: gidNumber<span style="color:#f92672">=</span>0+uidNumber<span style="color:#f92672">=</span>1001,cn<span style="color:#f92672">=</span>peercred,cn<span style="color:#f92672">=</span>external,cn<span style="color:#f92672">=</span>auth
+</span></span><span style="display:flex;"><span>SASL SSF: <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Paste the following lines</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Allow user to change its own password</span>
+</span></span><span style="display:flex;"><span>dn: olcDatabase<span style="color:#f92672">={</span>2<span style="color:#f92672">}</span>mdb,cn<span style="color:#f92672">=</span>config
+</span></span><span style="display:flex;"><span>changetype: modify
+</span></span><span style="display:flex;"><span>replace: olcAccess
+</span></span><span style="display:flex;"><span>olcAccess: <span style="color:#f92672">{</span>0<span style="color:#f92672">}</span>to attrs<span style="color:#f92672">=</span>userPassword
+</span></span><span style="display:flex;"><span>  by anonymous auth
+</span></span><span style="display:flex;"><span>  by self write
+</span></span><span style="display:flex;"><span>  by * none
+</span></span><span style="display:flex;"><span>olcAccess: <span style="color:#f92672">{</span>1<span style="color:#f92672">}</span>to *
+</span></span><span style="display:flex;"><span>  by * read
+</span></span></code></pre></div><p>此时用户就可以自己修改密码了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ldappasswd -x -W -S -D cn<span style="color:#f92672">=</span>user01,ou<span style="color:#f92672">=</span>users,dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldap://localhost:1389/
+</span></span><span style="display:flex;"><span>New password:
+</span></span><span style="display:flex;"><span>Re-enter new password:
+</span></span><span style="display:flex;"><span>Enter LDAP Password:
+</span></span></code></pre></div><p>并且 userPassword 也对非 admin 用户被隐藏了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ ldapsearch -x -b dc<span style="color:#f92672">=</span>example,dc<span style="color:#f92672">=</span>com -H ldap://localhost:1389/
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># user01, users, craft.cn</span>
+</span></span><span style="display:flex;"><span>dn: cn<span style="color:#f92672">=</span>user01,ou<span style="color:#f92672">=</span>users,dc<span style="color:#f92672">=</span>craft,dc<span style="color:#f92672">=</span>cn
+</span></span><span style="display:flex;"><span>cn: User1
+</span></span><span style="display:flex;"><span>cn: user01
+</span></span><span style="display:flex;"><span>sn: Bar1
+</span></span><span style="display:flex;"><span>objectClass: inetOrgPerson
+</span></span><span style="display:flex;"><span>objectClass: posixAccount
+</span></span><span style="display:flex;"><span>objectClass: shadowAccount
+</span></span><span style="display:flex;"><span>uid: user01
+</span></span><span style="display:flex;"><span>uidNumber: <span style="color:#ae81ff">1000</span>
+</span></span><span style="display:flex;"><span>gidNumber: <span style="color:#ae81ff">1000</span>
+</span></span><span style="display:flex;"><span>homeDirectory: /home/user01
+</span></span></code></pre></div><h1 id="ldap-ui">ldap-ui</h1>
+<p>如果想要 Web 管理界面，可以用 ldap-ui，在 docker-compose 添加：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>  <span style="color:#f92672">ldap-ui</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">image</span>: <span style="color:#ae81ff">dnknth/ldap-ui</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">ports</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#e6db74">&#39;5000:5000&#39;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">links</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">openldap</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">environment</span>:
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">LDAP_URL=ldap://openldap:1389/</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">BASE_DN=dc=example,dc=com</span>
+</span></span><span style="display:flex;"><span>      - <span style="color:#ae81ff">BIND_PATTERN=cn=%s,dc=example,dc=com</span>
+</span></span></code></pre></div><p>访问 localhost:5000，就可以用 admin 用户登录了。如果想用其他用户登录，由于 BIND 路径多了一级 ou=users，所以要么修改 BIND_PATTERN，要么用户名要写成 user01,ou=users</p>
+<h1 id="权限管理">权限管理</h1>
+<p>前面修改了权限，从而允许用户修改自己的密码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ sudo docker-compose exec openldap bash
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Authenticate using local user</span>
+</span></span><span style="display:flex;"><span>openldap$ ldapmodify -Y EXTERNAL -H <span style="color:#e6db74">&#34;ldapi:///&#34;</span>
+</span></span><span style="display:flex;"><span>SASL/EXTERNAL authentication started
+</span></span><span style="display:flex;"><span>SASL username: gidNumber<span style="color:#f92672">=</span>0+uidNumber<span style="color:#f92672">=</span>1001,cn<span style="color:#f92672">=</span>peercred,cn<span style="color:#f92672">=</span>external,cn<span style="color:#f92672">=</span>auth
+</span></span><span style="display:flex;"><span>SASL SSF: <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Paste the following lines</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Allow user to change its own password</span>
+</span></span><span style="display:flex;"><span>dn: olcDatabase<span style="color:#f92672">={</span>2<span style="color:#f92672">}</span>mdb,cn<span style="color:#f92672">=</span>config
+</span></span><span style="display:flex;"><span>changetype: modify
+</span></span><span style="display:flex;"><span>replace: olcAccess
+</span></span><span style="display:flex;"><span>olcAccess: <span style="color:#f92672">{</span>0<span style="color:#f92672">}</span>to attrs<span style="color:#f92672">=</span>userPassword
+</span></span><span style="display:flex;"><span>  by anonymous auth
+</span></span><span style="display:flex;"><span>  by self write
+</span></span><span style="display:flex;"><span>  by * none
+</span></span><span style="display:flex;"><span>olcAccess: <span style="color:#f92672">{</span>1<span style="color:#f92672">}</span>to *
+</span></span><span style="display:flex;"><span>  by * read
+</span></span></code></pre></div><p>核心部分的含义如下：</p>
+<ol>
+<li>to attrs=userPassword：针对 userPassword 这个字段，任何人都可以认证，用户自己可以写，其他人没有权限</li>
+<li>to *：任何人可以读</li>
+</ol>
+<p>如果想要进一步收缩权限，例如：</p>
+<ol>
+<li>不登录看不到任何信息</li>
+<li>普通用户登录后，只能读取自己的信息</li>
+</ol>
+<p>那么，可以写出如下的配置：</p>
+<pre tabindex="0"><code class="language-ldif" data-lang="ldif">dn: olcDatabase={2}mdb,cn=config
+changetype: modify
+replace: olcAccess
+olcAccess: {0}to attrs=userPassword
+  by anonymous auth
+  by self write
+  by * none
+olcAccess: {1}to *
+  by self read
+  by * none
+</code></pre><p>由于从前往后匹配，找到第一个匹配就不看后面的规则的原因，更精确的过滤要放在前面。</p>
+<h1 id="ldap-用于其他软件的认证">LDAP 用于其他软件的认证</h1>
+<p>LDAP 很重要的一个用途是用于其他软件的认证，一般来说有两种用法：</p>
+<ol>
+<li>LDAP 自身带了认证的功能（Simple Auth），那么就需要把用户名（user01）映射到 LDAP 的 Bind DN 上（cn=user01,ou=users,cn=example,cn=com），Bind DN 和密码会传输到 LDAP Server；在 LDAP Server 上密码会与用户的 userPassword 进行匹配，如果 Bind 成功，就认为用户登录成功</li>
+<li>LDAP 附带了列用户的功能（Search），那么这个时候，一般是要创建一个用于搜索的 DN 来控制权限；然后其他软件 Bind 到用于搜索的 DN 上，搜索用户，把用户信息同步到本地</li>
+</ol>
+<p>第一种使用方法要求用户和 DN 有直接映射关系，例如上面的 <code>cn=%s,ou=users,cn=example=com</code>，好处是比较简单，缺点是要把所有用户放在同一个 DN 下面，不适合比较复杂的组织结构。</p>
+<p>第二种使用方法，则是其他软件先进行搜索（搜索本身可能需要 Bind 到用于搜索的 DN 上），找到匹配用户名或者邮箱的用户，再进行 Simple Auth。这样的好处是灵活性更好，用户不需要放在同一个 DN 下面，可以有更多层级。</p>
+<p>由于使用了 Simple Auth，密码会明文发送给 LDAP Server，因此为了安全性，建议配置 TLS。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#docker-compose">Docker-Compose</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ldap">ldap
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/openldap">openldap
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/docker">docker
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    <a href="/software/2023/05/23/tar-format/" id="article-nav-newer" class="article-nav-link-wrap">
+        <div class="article-nav-title"><span>&lt;</span>&nbsp;
+            Tar 文件格式
+        </div>
+    </a>
+    
+    
+    <a href="/hardware/2023/05/08/jlink-spi-nor-flash/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">使用 JLink 操作 SPI NOR Flash&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
