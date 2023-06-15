@@ -6,7 +6,298 @@
     <description>Recent content on 杰哥的{运维,编程,调板子}小笔记</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Tue, 23 May 2023 21:24:00 +0800</lastBuildDate><atom:link href="https://jia.je/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Thu, 15 Jun 2023 16:03:00 +0800</lastBuildDate><atom:link href="https://jia.je/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>从 libvirtd 迁移到 Proxmox VE</title>
+      <link>https://jia.je/software/2023/06/15/libvirtd-migrate-proxmox-ve/</link>
+      <pubDate>Thu, 15 Jun 2023 16:03:00 +0800</pubDate>
+      
+      <guid>https://jia.je/software/2023/06/15/libvirtd-migrate-proxmox-ve/</guid>
+      <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
+&lt;p&gt;之前用 libvirtd + virt-manager 做 Linux 上的虚拟化，好处是比较轻量级，但是远程控制起来比较麻烦，要么通过 RDP 访问 virt-manager 的 UI，要么就用 cockpit 在网页里去配置虚拟机。此时就会比较怀念 VMware ESXi 的网页，但是 ESXi 装完以后，宿主机就很不自由了，很多东西没法自定义。最后就想到在 Debian 上装一个 Proxmox VE，希望得到一个比较好的中间态。&lt;/p&gt;
+&lt;h2 id=&#34;proxmox-ve-安装&#34;&gt;Proxmox VE 安装&lt;/h2&gt;
+&lt;p&gt;按照官方的 &lt;a href=&#34;https://pve.proxmox.com/wiki/Install_Proxmox_VE_on_Debian_11_Bullseye&#34;&gt;Install Proxmox VE on Debian 11 Bullseye&lt;/a&gt; 去安装即可。我的环境是 Debian Bookworm，把路径改成 Bookworm 的 pvetest 即可。安装的时候可能会遇到一些小问题，例如用 ifupdown2 替换 ifupdown 的时候会检查 config 是否正确等等。安装完以后重启，就可以用 root 用户访问 Proxmox VE 了。&lt;/p&gt;
+&lt;h2 id=&#34;迁移-libvirtd-虚拟机&#34;&gt;迁移 libvirtd 虚拟机&lt;/h2&gt;
+&lt;p&gt;下一步是迁移 libvirtd 虚拟机。在网上搜索，会看到提供的方法是，在 Proxmox VE 里创建一个同样大小的镜像，然后把原来的 qcow2 的数据复制一份，但是这样复制的时候得存两份数据，而且对稀疏 qcow2 的支持也不太好。&lt;/p&gt;
+&lt;p&gt;最后实际的解决办法是：在 Proxmox VE 里创建一个和 qcow2 大小一样的镜像，设置为 qcow2 格式，然后去 &lt;code&gt;/var/lib/vz/images&lt;/code&gt; 路径下找到新建的 qcow2，直接用原来 libvirtd 创建的 qcow2 覆盖过去。目前来看，还没有遇到问题，毕竟 ProxmoxVE 用的也是 QEMU，和 libvirtd 一样。&lt;/p&gt;
+&lt;h2 id=&#34;uefi&#34;&gt;UEFI&lt;/h2&gt;
+&lt;p&gt;在 Proxmox VE 创建虚拟机，如果选的是 UEFI，由于它会采用新的 EFI vars 镜像，所以原来的 UEFI vars 就丢失了，启动的时候，如果 grub 的 EFI 程序不在标准的路径下，可能会找不到 grub。&lt;/p&gt;
+&lt;p&gt;解决办法是，先删掉网卡，然后修改 boot order，把 ESP 分区所在的盘加上去，这样 UEFI 启动的时候直接进 shell，然后在 fs0 里找到 grub 的 EFI 程序再启动。&lt;/p&gt;
+&lt;p&gt;在启动 NixOS 的时候，还发现运行 systemd-boot 的 EFI 程序的时候会 Access Denied，查询了一下，是因为 Secure Boot。进入 UEFI Firmware Setup，把 Secure Boot 关掉再重启，就可以正常进入了。&lt;/p&gt;
+&lt;h2 id=&#34;windows&#34;&gt;Windows&lt;/h2&gt;
+&lt;p&gt;在创建虚拟机的时候，如果指定了 Windows 11，就会自动勾选上 TPM 相关的配置。但启动的时候，说 swtpm 报错无法启动，按照错误信息查询了一下，找到了 &lt;a href=&#34;https://github.com/quickemu-project/quickemu/issues/487&#34;&gt;Apparmor &amp;gt; swtpm: Could not open UnixIO socket: Permission denied&lt;/a&gt;：原因是 AppArmor 拦截了 swtpm 的操作，可以用命令来解除 AppArmor 的拦截：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo aa-complain /usr/bin/swtpm
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apparmor_parser -r /etc/apparmor.d/usr.bin.swtpm
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样处理以后就可以正常启动 Windows 了。&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>LoongArch 初尝试</title>
+      <link>https://jia.je/hardware/2023/06/12/try-loongarch/</link>
+      <pubDate>Mon, 12 Jun 2023 22:51:00 +0800</pubDate>
+      
+      <guid>https://jia.je/hardware/2023/06/12/try-loongarch/</guid>
+      <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
+&lt;p&gt;最近应龙芯要求把监控程序移植到了 LoongArch 32 Reduced 架构上，趁此机会体验了一下 LoongArch 相关的软件和系统。&lt;/p&gt;
+&lt;h2 id=&#34;在-qemu-中运行-loongarch-arch-linux&#34;&gt;在 QEMU 中运行 LoongArch Arch Linux&lt;/h2&gt;
+&lt;p&gt;主页：https://github.com/loongarchlinux&lt;/p&gt;
+&lt;p&gt;环境：Debian Bookworm&lt;/p&gt;
+&lt;p&gt;QEMU 启动流程，参考&lt;a href=&#34;https://mirrors.wsyu.edu.cn/loongarch/archlinux/images/README.html&#34;&gt;官方文档&lt;/a&gt;：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;wget https://mirrors.wsyu.edu.cn/loongarch/archlinux/images/archlinux-xfce4-2023.05.10-loong64.qcow2.zst
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;zstd -d archlinux-xfce4-2023.05.10-loong64.qcow2.zst
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;wget https://mirrors.wsyu.edu.cn/loongarch/archlinux/images/QEMU_EFI_7.2.fd
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;然后就可以启动 QEMU 7.2.2 了：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;qemu-system-loongarch64 &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -m 4G &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -cpu la464-loongarch-cpu &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -machine virt &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -smp &lt;span style=&#34;color:#ae81ff&#34;&gt;4&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -bios ./QEMU_EFI_7.2.fd &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -serial stdio &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -device virtio-gpu-pci &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -net nic -net user &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -device nec-usb-xhci,id&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;xhci,addr&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;0x1b &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -device usb-tablet,id&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;tablet,bus&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;xhci.0,port&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -device usb-kbd,id&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;keyboard,bus&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;xhci.0,port&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;2&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -hda archlinux-xfce4-2023.05.10-loong64.qcow2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;启动后，可以正常看到 Xfce4 的界面，用 loongarch:loongarch 登录：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://jia.je/images/loongarchlinux.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;如果不想用 UI，可以先在虚拟机里启动 SSHD，再打开 SSH 转发：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# in vm&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo systemctl enable --now sshd
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# in host&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;qemu-system-loongarch64 &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -m 4G &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -cpu la464-loongarch-cpu &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -machine virt &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -smp &lt;span style=&#34;color:#ae81ff&#34;&gt;4&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -bios ./QEMU_EFI_7.2.fd &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -nographic &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -device virtio-net,netdev&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;net0 &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -netdev user,id&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;net0,hostfwd&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;tcp::4444-:22 &lt;span style=&#34;color:#ae81ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;&lt;/span&gt;    -hda archlinux-xfce4-2023.05.10-loong64.qcow2
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;然后就可以通过 SSH 访问 LoongArch 虚拟机了：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ ssh loongarch@localhost -p &lt;span style=&#34;color:#ae81ff&#34;&gt;4444&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;loongarch@localhost&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;&amp;#39;&lt;/span&gt;s password:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;loongarch@archlinux ~&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;$ uname -a
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Linux archlinux 6.3.0-12 &lt;span style=&#34;color:#75715e&#34;&gt;#1 SMP Thu, 27 Apr 2023 12:24:56 +0000 loongarch64 GNU/Linux&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id=&#34;loongarch-架构&#34;&gt;LoongArch 架构&lt;/h2&gt;
+&lt;p&gt;LoongArch 分为三个版本：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;LoongArch 32 Reduced：精简版本，系统和用户态都是 32 位&lt;/li&gt;
+&lt;li&gt;LoongArch 32：系统和用户态都是 32 位&lt;/li&gt;
+&lt;li&gt;LoongArch 64：系统是 64 位，用户态可以是 32 位，也可以是 64 位&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;目前上游工具链支持的是 LoongArch 64。&lt;/p&gt;
+&lt;p&gt;龙芯杯采用的是 LoongArch 32 Reduced 版本，相比 LoongArch 32 的区别有：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;删掉了部分算术指令&lt;/li&gt;
+&lt;li&gt;删掉了位操作指令&lt;/li&gt;
+&lt;li&gt;删除了边界检查访存指令&lt;/li&gt;
+&lt;li&gt;删除了 Atomic 原子指令，只保留了 LL+SC&lt;/li&gt;
+&lt;li&gt;删除了部分浮点运算指令&lt;/li&gt;
+&lt;li&gt;删除了 IOCSR 访问指令&lt;/li&gt;
+&lt;li&gt;删除了软件页表遍历指令&lt;/li&gt;
+&lt;li&gt;TLB Refill 异常的相关 CSR（ERA/BADV/PRMD/EHI/ELO0/ELO1/SAVE）不再单独提供一份，而是和其他异常共用&lt;/li&gt;
+&lt;li&gt;去掉了 STLB，只保留了 MTLB&lt;/li&gt;
+&lt;li&gt;去掉了部分 CSR&lt;/li&gt;
+&lt;li&gt;直接映射配置窗口数量砍到了两个&lt;/li&gt;
+&lt;li&gt;删除了 RAS，PMU，Watchpoint 和硬件调试功能&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;从用户态来看，主要是差了一些运算指令，需要编译器注意生成的指令范围。内核态上删减的比较多。&lt;/p&gt;
+&lt;h2 id=&#34;loongarch-32-reduced&#34;&gt;LoongArch 32 Reduced&lt;/h2&gt;
+&lt;p&gt;龙芯提供了一些 LoongArch 32 Reduced 的工具链：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;GCC + Binutils：&lt;a href=&#34;https://gitee.com/loongson-edu/la32r-toolchains/releases/download/v0.0.2/loongarch32r-linux-gnusf-2022-05-20-x86.tar.gz&#34;&gt;loongarch32r-linux-gnusf-2022-05-20-x86.tar.gz
+&lt;/a&gt;，有源码。&lt;/li&gt;
+&lt;li&gt;GDB：&lt;a href=&#34;https://gitee.com/loongson-edu/la32r-toolchains/releases/download/v0.0.2/loongarch32r-linux-gnusf-gdb-x86&#34;&gt;loongarch32r-linux-gnusf-gdb-x86&lt;/a&gt;，依赖的动态库较多，建议起一个 CentOS Docker。没有找到源码。&lt;/li&gt;
+&lt;li&gt;QEMU：&lt;a href=&#34;https://gitee.com/loongson-edu/la32r-QEMU/releases/download/v0.0.1-alpha/qemu-system-loongarch32_centos_x86_64&#34;&gt;qemu-system-loongarch32_centos_x86_64&lt;/a&gt;，依赖的动态库较多，建议克隆下来自己编译：&lt;code&gt;mkdir build; cd build; ../configure --target-list=loongarch32-softmmu --disable-werror --enable-debug&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;在 &lt;a href=&#34;https://gitee.com/loongson-edu/la32r-QEMU&#34;&gt;la32r-QEMU&lt;/a&gt; 中运行 &lt;a href=&#34;https://gitee.com/loongson-edu/la32r-Linux/&#34;&gt;la32r-Linux&lt;/a&gt;：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;wget https://gitee.com/loongson-edu/la32r-Linux/releases/download/v0.2/vmlinux
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;qemu-system-loongarch32 -m 4G -kernel vmlinux -M ls3a5k32 -nographic
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;loongson32_init: num_nodes &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;loongson32_init: node &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; mem 0x100000000
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Linux version 5.14.0-rc2-g32a8c74db8fc-dirty &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;mengfanrui@5.5&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;loongarch32r-linux-gnusf-gcc &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;GCC&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; 8.3.0, GNU ld &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;GNU Binutils&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; 2.31.1.20190122&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;#26 PREEMPT Tue May 31 13:46:54 CST 2022&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Standard 32-bit Loongson Processor probed
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; the link is empty!
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Scan bootparam failed
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; printk: bootconsole &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;early0&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; enabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Can&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#39;t find EFI system table.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] start_pfn=0x0, end_pfn=0x8000, num_physpages:0x8000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] The BIOS Version: (null)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Initrd not found or empty - disabling initrd
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] CPU0 revision is: 00004200 (Loongson-32bit)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Primary instruction cache 8kB, 2-way, VIPT, linesize 16 bytes.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Primary data cache 8kB, 2-way, VIPT, no aliases, linesize 16 bytes
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Zone ranges:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]   DMA32    [mem 0x0000000000000000-0x00000000ffffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]   Normal   empty
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Movable zone start for each node
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Early memory node ranges
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]   node   0: [mem 0x0000000000000000-0x0000000007ffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Initmem setup node 0 [mem 0x0000000000000000-0x0000000007ffffff]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] eentry = 0xa0210000,tlbrentry = 0xa0201000
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 32480
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Kernel command line: earlycon
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Dentry cache hash table entries: 16384 (order: 4, 65536 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Inode-cache hash table entries: 8192 (order: 3, 32768 bytes, linear)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Memory: 117732K/131072K available (4926K kernel code, 1114K rwdata, 944K rodata, 2480K init, 473K bss, 13340K reserved, 0K cma-reserved)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] rcu:     RCU event tracing is enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]  Trampoline variant of Tasks RCU enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]  Tracing variant of Tasks RCU enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] NR_IRQS: 320
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] ------------[ cut here ]------------
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] WARNING: CPU: 0 PID: 0 at kernel/time/clockevents.c:38 cev_delta2ns.isra.15+0x17c/0x1c8
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] CPU: 0 PID: 0 Comm: swapper Not tainted 5.14.0-rc2-g32a8c74db8fc-dirty #26
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Stack :
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Call Trace:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] random: get_random_bytes called from print_oops_end_marker+0x30/0x68 with crng_init=0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] ---[ end trace a8581308883ff14d ]---
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Constant clock event device register
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] clocksource: Constant: mask: 0xffffffffffffffff max_cycles: 0xffffffffffffffff, max_idle_ns: 9007199254740991 ns
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Constant clock source device register
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.752000] Console: colour dummy device 80x25
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.816000] printk: console [tty0] enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.856000] printk: bootconsole [early0] disabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Linux version 5.14.0-rc2-g32a8c74db8fc-dirty (mengfanrui@5.5) (loongarch32r-linux-gnusf-gcc (GCC) 8.3.0, GNU ld (GNU Binutils) 2.31.1.20190122) #26 PREEMPT Tue May 31 13:46:54 CST 2022
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Standard 32-bit Loongson Processor probed
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] the link is empty!
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Scan bootparam failed
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] printk: bootconsole [early0] enabled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;[    0.000000] Can&amp;#39;&lt;/span&gt;t find EFI system table.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; start_pfn&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;0x0, end_pfn&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;0x8000, num_physpages:0x8000
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; The BIOS Version: &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;null&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Initrd not found or empty - disabling initrd
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; CPU0 revision is: &lt;span style=&#34;color:#ae81ff&#34;&gt;00004200&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;Loongson-32bit&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Primary instruction cache 8kB, 2-way, VIPT, linesize &lt;span style=&#34;color:#ae81ff&#34;&gt;16&lt;/span&gt; bytes.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Primary data cache 8kB, 2-way, VIPT, no aliases, linesize &lt;span style=&#34;color:#ae81ff&#34;&gt;16&lt;/span&gt; bytes
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Zone ranges:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;   DMA32    &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;mem 0x0000000000000000-0x00000000ffffffff&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;   Normal   empty
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Movable zone start &lt;span style=&#34;color:#66d9ef&#34;&gt;for&lt;/span&gt; each node
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Early memory node ranges
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;   node   0: &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;mem 0x0000000000000000-0x0000000007ffffff&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Initmem setup node &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;mem 0x0000000000000000-0x0000000007ffffff&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; eentry &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; 0xa0210000,tlbrentry &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; 0xa0201000
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Built &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt; zonelists, mobility grouping on.  Total pages: &lt;span style=&#34;color:#ae81ff&#34;&gt;32480&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Kernel command line: earlycon
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Dentry cache hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;16384&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 4, &lt;span style=&#34;color:#ae81ff&#34;&gt;65536&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Inode-cache hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;8192&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 3, &lt;span style=&#34;color:#ae81ff&#34;&gt;32768&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; mem auto-init: stack:off, heap alloc:off, heap free:off
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Memory: 117732K/131072K available &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;4926K kernel code, 1114K rwdata, 944K rodata, 2480K init, 473K bss, 13340K reserved, 0K cma-reserved&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; SLUB: HWalign&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;64, Order&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;0-3, MinObjects&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;0, CPUs&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;1, Nodes&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; rcu: Preemptible hierarchical RCU implementation.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; rcu:     RCU event tracing is enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;  Trampoline variant of Tasks RCU enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;  Tracing variant of Tasks RCU enabled.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; rcu: RCU calculated value of scheduler-enlistment delay is &lt;span style=&#34;color:#ae81ff&#34;&gt;25&lt;/span&gt; jiffies.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; NR_IRQS: &lt;span style=&#34;color:#ae81ff&#34;&gt;320&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ------------&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt; cut here &lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;------------
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; WARNING: CPU: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; PID: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; at kernel/time/clockevents.c:38 cev_delta2ns.isra.15+0x17c/0x1c8
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; CPU: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; PID: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; Comm: swapper Not tainted 5.14.0-rc2-g32a8c74db8fc-dirty &lt;span style=&#34;color:#75715e&#34;&gt;#26&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Stack :
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Call Trace:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; random: get_random_bytes called from print_oops_end_marker+0x30/0x68 with crng_init&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ---&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt; end trace a8581308883ff14d &lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;---
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Constant clock event device register
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; clocksource: Constant: mask: 0xffffffffffffffff max_cycles: 0xffffffffffffffff, max_idle_ns: &lt;span style=&#34;color:#ae81ff&#34;&gt;9007199254740991&lt;/span&gt; ns
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.000000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Constant clock source device register
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.752000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Console: colour dummy device 80x25
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.816000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; printk: console &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;tty0&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; enabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    0.856000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; printk: bootconsole &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;early0&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; disabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    1.024000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; random: fast init &lt;span style=&#34;color:#66d9ef&#34;&gt;done&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    1.240000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Calibrating delay loop... 0.65 BogoMIPS &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;lpj&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;1312&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    1.444000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; pid_max: default: &lt;span style=&#34;color:#ae81ff&#34;&gt;32768&lt;/span&gt; minimum: &lt;span style=&#34;color:#ae81ff&#34;&gt;301&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    1.860000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Mount-cache hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;1024&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;    1.868000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Mountpoint-cache hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;1024&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   10.740000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; rcu: Hierarchical SRCU implementation.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   13.408000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; devtmpfs: initialized
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   15.948000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: &lt;span style=&#34;color:#ae81ff&#34;&gt;7645041785100000&lt;/span&gt; ns
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   15.980000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; futex hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;256&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: -1, &lt;span style=&#34;color:#ae81ff&#34;&gt;3072&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   16.948000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; NET: Registered PF_NETLINK/PF_ROUTE protocol family
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   28.832000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; pps_core: LinuxPPS API ver. &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt; registered
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   28.840000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti &amp;lt;giometti@linux.it&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; clocksource: Switched to clocksource Constant
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; FS-Cache: Loaded
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; NET: Registered PF_INET protocol family
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; IP idents hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;2048&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 2, &lt;span style=&#34;color:#ae81ff&#34;&gt;16384&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; tcp_listen_portaddr_hash hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;512&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; TCP established hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;1024&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; TCP bind hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;1024&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; TCP: Hash tables configured &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;established &lt;span style=&#34;color:#ae81ff&#34;&gt;1024&lt;/span&gt; bind 1024&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; UDP hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;256&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; UDP-Lite hash table entries: &lt;span style=&#34;color:#ae81ff&#34;&gt;256&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;order: 0, &lt;span style=&#34;color:#ae81ff&#34;&gt;4096&lt;/span&gt; bytes, linear&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; NET: Registered PF_UNIX/PF_LOCAL protocol family
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; workingset: timestamp_bits&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;14&lt;/span&gt; max_order&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;15&lt;/span&gt; bucket_order&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; IPMI message handler: version 39.2
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ipmi device interface
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ipmi_si: IPMI System Interface driver
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ipmi_si: Unable to find any System Interface&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;s&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Serial: 8250/16550 driver, &lt;span style=&#34;color:#ae81ff&#34;&gt;16&lt;/span&gt; ports, IRQ sharing enabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; 1fe001e0.serial: ttyS0 at MMIO 0x1fe001e0 &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;irq &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; 18, base_baud &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; 2062500&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; is a 16550A
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; printk: console &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;ttyS0&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; enabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ls1a-nand driver initializing
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ls1a_nand : mtd struct base address is a102b800
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; info-&amp;gt;data_buff&lt;span style=&#34;color:#f92672&#34;&gt;===================&lt;/span&gt;0x81130000
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; nand: No NAND device found
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ls1a-nand 1fe78000.nand: failed to scan nand
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; ITC MAC 10/100M Fast Ethernet Adapter driver 1.0 init
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; libphy: Fixed MDIO Bus: probed
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; mousedev: PS/2 mouse device common &lt;span style=&#34;color:#66d9ef&#34;&gt;for&lt;/span&gt; all mice
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; IR MCE Keyboard/mouse protocol handler initialized
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; hid: raw HID events driver &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;C&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; Jiri Kosina
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; NET: Registered PF_INET6 protocol family
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; random: crng init &lt;span style=&#34;color:#66d9ef&#34;&gt;done&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Segment Routing with IPv6
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Warning: unable to open an initial console.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Freeing unused kernel image &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;initmem&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; memory: 2480K
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; This architecture does not have kernel memory protection.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;   32.492000&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; Run /init as init process
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Processing /etc/profile... Done
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;/ &lt;span style=&#34;color:#75715e&#34;&gt;#&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;我在 la32r-QEMU 的基础上，把 LoongArch 32 Reduced 的支持部分移植到了 QEMU 8.0.0 上：&lt;a href=&#34;https://github.com/jiegec/qemu/commits/la32r-8.0.0&#34;&gt;https://github.com/jiegec/qemu/commits/la32r-8.0.0&lt;/a&gt;。&lt;/p&gt;
+&lt;h2 id=&#34;虚实地址映射&#34;&gt;虚实地址映射&lt;/h2&gt;
+&lt;p&gt;LoongArch 有两种虚实地址映射方法：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;直接地址翻译模式（CSR.CRMD.DA=1，CSR.CRMD.PG=0），此时物理地址等于虚拟地址，如果虚拟地址位数更多，则截断高位。&lt;/li&gt;
+&lt;li&gt;映射地址翻译模式（CSR.CRMD.DA=0，CSR.CRMD.PG=1），此时按照顺序进行下面的翻译：
+&lt;ol&gt;
+&lt;li&gt;直接映射模式：CSR.DMW 定义了四个（LA32R 只有两个）窗口，这些窗口内的虚拟地址与物理地址是平移的关系。&lt;/li&gt;
+&lt;li&gt;页表映射模式：如果没有匹配上直接映射模式，则会查询 TLB。虽说是页表映射模式，但依然是 MIPS 传统的 TLB 做法。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;相比 MIPS 来讲，LoongArch 的地址映射还是容易理解一些。&lt;/p&gt;
+&lt;p&gt;从复位中出来的时候，CSR.CRMD.DA=1，CSR.CRMD.PG=0，意味着是直接地址翻译模式。PC 是 0x1C000000，由于是直接地址翻译模式，所以物理地址也是 0x1C000000。&lt;/p&gt;
+&lt;p&gt;在遇到 TLB Refill 异常的时候，处理器会跳到 CSR.TLBRENTRY 的地址，同时进入直接地址翻译模式（CSR.CRMD.DA=1，CSR.CRMD.PG=0），意味着虚拟地址直接对应物理地址，所以此时需要做好相应的准备。LoongArch 提供了 lddir 和 ldpte 指令来加快页表到 TLB 项目的查询性能，例如下面是 &lt;a href=&#34;https://github.com/tianocore/edk2-platforms/blob/4c3e742e931538a1ee6cb3b571b1281e7fba2564/Platform/Loongson/LoongArchQemuPkg/Library/MmuLib/Mmu.S#L37&#34;&gt;EDK2 的 TLB Refill 异常处理函数&lt;/a&gt;：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-asm&#34; data-lang=&#34;asm&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;ASM_PFX&lt;/span&gt;(&lt;span style=&#34;color:#66d9ef&#34;&gt;HandleTlbRefill&lt;/span&gt;):
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;csrwr&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;LOONGARCH_CSR_TLBRSAVE&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;csrrd&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;LOONGARCH_CSR_PGD&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;lddir&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#ae81ff&#34;&gt;3&lt;/span&gt;   &lt;span style=&#34;color:#75715e&#34;&gt;#Put pud BaseAddress into T0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;lddir&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#ae81ff&#34;&gt;2&lt;/span&gt;   &lt;span style=&#34;color:#75715e&#34;&gt;#Put pmd BaseAddress into T0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;lddir&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;   &lt;span style=&#34;color:#75715e&#34;&gt;#Put pte BaseAddress into T0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;ldpte&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;ldpte&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;tlbfill&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;csrrd&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;T0&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;LOONGARCH_CSR_TLBRSAVE&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a6e22e&#34;&gt;ertn&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;比较有意思的是，csrwr 指令会把旧的 CSR 值写回到通用寄存器里，所以看起来名字是 write，其实是 swap。为了方便查表，还给用户态和内核态分别一个页表基地址：CSR.PGDL，CSR.PGDH，根据异常的高位判断要选择哪一个页表基地址。&lt;/p&gt;
+</description>
+    </item>
+    
     <item>
       <title>Tar 文件格式</title>
       <link>https://jia.je/software/2023/05/23/tar-format/</link>
@@ -4687,20 +4978,20 @@ sudo cp build/Release/watcher.node /usr/local/lib/node_modules/code-server/lib/v
 &lt;td&gt;RDNA3&lt;/td&gt;
 &lt;td&gt;FP7/FP7r2/FP8&lt;/td&gt;
 &lt;td&gt;Zen 4&lt;/td&gt;
-&lt;td&gt;7940HS/7840HS/7640HS&lt;/td&gt;
+&lt;td&gt;7940H(S)/7840H(S)/7840U/7640H(S)/7640U/7540U/7440U&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
 &lt;td&gt;Rembrandt R&lt;/td&gt;
 &lt;td&gt;笔记本&lt;/td&gt;
 &lt;td&gt;RDNA2&lt;/td&gt;
-&lt;td&gt;FP7&lt;/td&gt;
+&lt;td&gt;FP7/FP7r2&lt;/td&gt;
 &lt;td&gt;Zen 3+&lt;/td&gt;
-&lt;td&gt;7735HS/7535HS/7736U/7735U/7535U/7335U&lt;/td&gt;
+&lt;td&gt;7735HS/7736U/7735U/7535HS/7535U/7335U&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
 &lt;td&gt;Barcelo R&lt;/td&gt;
 &lt;td&gt;笔记本&lt;/td&gt;
-&lt;td&gt;GCN5?&lt;/td&gt;
+&lt;td&gt;GCN5&lt;/td&gt;
 &lt;td&gt;FP6&lt;/td&gt;
 &lt;td&gt;Zen 3&lt;/td&gt;
 &lt;td&gt;7730U/7530U/7330U&lt;/td&gt;
@@ -4709,7 +5000,7 @@ sudo cp build/Release/watcher.node /usr/local/lib/node_modules/code-server/lib/v
 &lt;td&gt;Mendocino&lt;/td&gt;
 &lt;td&gt;笔记本&lt;/td&gt;
 &lt;td&gt;RDNA2&lt;/td&gt;
-&lt;td&gt;？&lt;/td&gt;
+&lt;td&gt;FT6&lt;/td&gt;
 &lt;td&gt;Zen 2&lt;/td&gt;
 &lt;td&gt;7520U/7320U&lt;/td&gt;
 &lt;/tr&gt;
@@ -8572,153 +8863,6 @@ ld: symbol(s) not found for architecture arm64
 &lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apt install cuda-11-1
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;那么 CUDA 就会安装到 /usr/local/cuda-11.1 目录下。如果想要用 nvcc，我们可以手动把它加到 PATH 环境变量中。&lt;/p&gt;
 &lt;p&gt;CUDA 是可以多版本共存的，比如你可以把 CUDA 11.1 到 CUDA 11.7 一口气都装了。不过注意，CUDA 对 NVIDIA 驱动有版本要求，所以有一些可能会不满足 APT 的版本要求；同时，CUDA 对编译器版本有要求，所以如果系统还是 Ubuntu 16.04 或者 18.04，赶紧升级吧。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>切换 ConnectX-4 为以太网模式</title>
-      <link>https://jia.je/software/2022/07/02/connectx-4-switch-to-ethernet/</link>
-      <pubDate>Sat, 02 Jul 2022 20:26:00 +0800</pubDate>
-      
-      <guid>https://jia.je/software/2022/07/02/connectx-4-switch-to-ethernet/</guid>
-      <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
-&lt;p&gt;最近在给机房配置网络，遇到一个需求，就是想要把 ConnectX-4 当成以太网卡用，它既支持 Infiniband，又支持 Ethernet，只不过默认是 Infiniband 模式，所以需要用 mlxconfig 工具来做这个切换。&lt;/p&gt;
-&lt;h2 id=&#34;切换方法&#34;&gt;切换方法&lt;/h2&gt;
-&lt;p&gt;在 &lt;a href=&#34;https://docs.nvidia.com/networking/display/MFTv4110/Using+mlxconfig&#34;&gt;Using mlxconfig&lt;/a&gt; 文档中，写了如何切换网卡为 Infiniband 模式：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ mlxconfig -d /dev/mst/mt4103_pci_cr0 set LINK_TYPE_P1&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt; LINK_TYPE_P2&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; 
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Device &lt;span style=&#34;color:#75715e&#34;&gt;#1:&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;----------
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Device type:   ConnectX3Pro
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;PCI device:    /dev/mst/mt4103_pci_cr0
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Configurations:        Next Boot        New
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  LINK_TYPE_P1         ETH&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;2&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;           IB&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;1&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  LINK_TYPE_P2         ETH&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;2&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;           IB&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;1&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; 
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Apply new Configuration? ? &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;y/n&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;n&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; : y
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Applying... Done!
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;-I- Please reboot machine to load new configurations.
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;那么，我们只需要反其道而行之，设置模式为 &lt;code&gt;ETH(2)&lt;/code&gt; 即可。&lt;/p&gt;
-&lt;h2 id=&#34;mst-安装&#34;&gt;MST 安装&lt;/h2&gt;
-&lt;p&gt;要使用 mlxconfig，就需要安装 &lt;a href=&#34;https://network.nvidia.com/products/adapter-software/firmware-tools/&#34;&gt;MFT(Mellanox Firmware Tools)&lt;/a&gt;。我们用的是 Debian bookworm，于是要下载 DEB：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;wget https://www.mellanox.com/downloads/MFT/mft-4.20.1-14-x86_64-deb.tgz
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;unar mft-4.20.1-14-x86_64-deb.tgz
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;cd mft-4.20.1-14-x86_64-deb
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;UPDATE 2022-10-28: 现在最新版本 mft-4.21.0-99 已经修复了下面出现的编译问题。&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;wget https://www.mellanox.com/downloads/MFT/mft-4.21.0-99-x86_64-deb.tgz
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;unar mft-4.21.0-99-x86_64-deb.tgz
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;cd mft-4.21.0-99-x86_64-deb
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;尝试用 &lt;code&gt;sudo ./install.sh&lt;/code&gt; 安装，发现 dkms 报错。查看日志，发现是因为内核过高（5.18），有函数修改了用法，即要把 pci_unmap_single 的调用改为 dma_unmap_single，并且修改第一个参数，如 &lt;a href=&#34;https://github.com/torvalds/linux/commit/a2e759612e5ff3858856fe97be5245eecb84e29b&#34;&gt;linux commit a2e759612e5ff3858856fe97be5245eecb84e29b&lt;/a&gt; 指出的那样：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-patch&#34; data-lang=&#34;patch&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;-           pci_unmap_single(dev-&amp;gt;pci_dev, dev-&amp;gt;dma_props[i].dma_map, DMA_MBOX_SIZE, DMA_BIDIRECTIONAL);
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;+           dma_unmap_single(&amp;amp;dev-&amp;gt;pci_dev-&amp;gt;dev, dev-&amp;gt;dma_props[i].dma_map, DMA_MBOX_SIZE, DMA_BIDIRECTIONAL);
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;修改完以后，手动 &lt;code&gt;sudo dkms install kernel-mft-dkms/4.20.1&lt;/code&gt;，发现就编译成功了。再手动安装一下 mft 并启动服务：&lt;/p&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo dpkg -i DEBS/mft_4.20.1-14_amd64.deb
-$ sudo mst start
-Starting MST (Mellanox Software Tools) driver set
-Loading MST PCI module - Success
-[warn] mst_pciconf is already loaded, skipping
-Create devices
-Unloading MST PCI module (unused) - Success
-$ sudo mst status
-MST modules:
-------------
-    MST PCI module is not loaded
-    MST PCI configuration module loaded
-
-MST devices:
-------------
-/dev/mst/mtxxxx_pciconf0         - PCI configuration cycles access.
-                                   domain:bus:dev.fn=0000:xx:xx.0 addr.reg=yy data.reg=zz cr_bar.gw_offset=-1
-                                   Chip revision is: 00
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;既然已经安装好了，最后执行 &lt;code&gt;mlxconfig&lt;/code&gt; 即可切换为以太网：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ sudo mlxconfig -d /dev/mst/mtxxxx_pciconf0 set LINK_TYPE_P1&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;2&lt;/span&gt; LINK_TYPE_P2&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;2&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Device &lt;span style=&#34;color:#75715e&#34;&gt;#1:&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;----------
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Device type:    ConnectX4
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Name:           REDACTED
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Description:    ConnectX-4 VPI adapter card; FDR IB &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;56Gb/s&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; and 40GbE; dual-port QSFP28; PCIe3.0 x8; ROHS R6
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Device:         /dev/mst/mtxxxx_pciconf0
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Configurations:                              Next Boot       New
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;         LINK_TYPE_P1                        IB&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;1&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;           ETH&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;2&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;         LINK_TYPE_P2                        IB&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;1&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;           ETH&lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;2&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; Apply new Configuration? &lt;span style=&#34;color:#f92672&#34;&gt;(&lt;/span&gt;y/n&lt;span style=&#34;color:#f92672&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;n&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt; : y
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Applying... Done!
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;-I- Please reboot machine to load new configurations.
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;显示各个配置可能的选项和内容：&lt;code&gt;sudo mlxconfig -d /dev/mst/mtxxxx_pciconf0 show_confs&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;整个安装流程在仓库 &lt;a href=&#34;https://github.com/jiegec/mft-debian-bookworm&#34;&gt;https://github.com/jiegec/mft-debian-bookworm&lt;/a&gt; 中用脚本实现。&lt;/p&gt;
-&lt;h2 id=&#34;vmware-esxi&#34;&gt;VMware ESXi&lt;/h2&gt;
-&lt;p&gt;如果要在 ESXi 上把网卡改成以太网模式，可以参考下面的文档：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://docs.nvidia.com/networking/pages/releaseview.action?pageId=15049813&#34;&gt;https://docs.nvidia.com/networking/pages/releaseview.action?pageId=15049813&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://docs.nvidia.com/networking/plugins/servlet/mobile?contentId=15051769#content/view/15051769&#34;&gt;https://docs.nvidia.com/networking/plugins/servlet/mobile?contentId=15051769#content/view/15051769&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;命令（ESXi 7.0U3）：&lt;/p&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;scp *.vib root@esxi:/some/path
-esxcli software vib install -v /some/path/MEL_bootbank_mft_4.21.0.703-0.vib
-esxcli software vib install -v /some/path/MEL_bootbank_nmst_4.21.0.703-1OEM.703.0.0.18434556.vib
-reboot
-/opt/mellanox/bin/mst start
-/opt/mellanox/bin/mst status -vv
-/opt/mellanox/bin/mlxfwmanager --query
-/opt/mellanox/bin/mlxconfig -d mt4115_pciconf0 set LINK_TYPE_P1=2 LINK_TYPE_P2=2
-reboot
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;然后就可以看到网卡了。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>rsyslog 收集远程日志</title>
-      <link>https://jia.je/software/2022/07/01/rsyslog-remote/</link>
-      <pubDate>Fri, 01 Jul 2022 20:14:00 +0800</pubDate>
-      
-      <guid>https://jia.je/software/2022/07/01/rsyslog-remote/</guid>
-      <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
-&lt;p&gt;最近在运维的时候发现网络设备（如交换机）有一个远程发送日志的功能，即可以通过 syslog udp 协议发送日志到指定的服务器。为此，可以在服务器上运行 rsyslog 并收集日志。&lt;/p&gt;
-&lt;h2 id=&#34;rsyslog-配置&#34;&gt;rsyslog 配置&lt;/h2&gt;
-&lt;p&gt;默认的 rsyslog 配置是收集系统本地的配置，因此我们需要编写一个 rsyslog 配置，用于收集远程的日志。&lt;/p&gt;
-&lt;p&gt;首先复制 &lt;code&gt;/etc/rsyslog.conf&lt;/code&gt; 到 &lt;code&gt;/etc/rsyslog-remote.conf&lt;/code&gt;，然后修改：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;注释掉 &lt;code&gt;imuxsock&lt;/code&gt; 和 &lt;code&gt;imklog&lt;/code&gt; 相关的 module 加载&lt;/li&gt;
-&lt;li&gt;去掉 &lt;code&gt;imudp&lt;/code&gt; 和 &lt;code&gt;imtcp&lt;/code&gt; 相关的注释，这样就会监听在相应的端口上&lt;/li&gt;
-&lt;li&gt;修改 &lt;code&gt;$WorkDirectory&lt;/code&gt;，例如 &lt;code&gt;$WorkDirectory /var/spool/rsyslog-remote&lt;/code&gt;，防止与已有的 rsyslog 冲突&lt;/li&gt;
-&lt;li&gt;注释 &lt;code&gt;$IncludeConfig&lt;/code&gt;，防止引入了不必要的配置&lt;/li&gt;
-&lt;li&gt;注释所有已有的 &lt;code&gt;RULES&lt;/code&gt; 下面的配置&lt;/li&gt;
-&lt;li&gt;添加如下配置：&lt;/li&gt;
-&lt;/ol&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-conf&#34; data-lang=&#34;conf&#34;&gt;$template FromIp,&amp;#34;/var/log/rsyslog-remote/%FROMHOST-IP%.log&amp;#34;
-*.* ?FromIp
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这样，就会按照来源的 IP 地址进行分类，然后都写入到 &lt;code&gt;/var/log/rsyslog-remote/x.x.x.x.log&lt;/code&gt; 文件里。&lt;/p&gt;
-&lt;h2 id=&#34;systemd-service&#34;&gt;systemd service&lt;/h2&gt;
-&lt;p&gt;最后，写一个 systemd service 让它自动启动：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-toml&#34; data-lang=&#34;toml&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;[&lt;span style=&#34;color:#a6e22e&#34;&gt;Unit&lt;/span&gt;]
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;ConditionPathExists&lt;/span&gt;=&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;etc&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;rsyslog-remote&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;conf&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;Description&lt;/span&gt;=&lt;span style=&#34;color:#a6e22e&#34;&gt;Remote&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;Syslog&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;Service&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;[&lt;span style=&#34;color:#a6e22e&#34;&gt;Service&lt;/span&gt;]
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;Type&lt;/span&gt;=&lt;span style=&#34;color:#a6e22e&#34;&gt;simple&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;PIDFile&lt;/span&gt;=&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;var&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;run&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;rsyslogd-remote&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;pid&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;ExecStart&lt;/span&gt;=&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;usr&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;sbin&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;rsyslogd&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;-n&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;-f&lt;/span&gt; &lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;etc&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;rsyslog-remote&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;conf&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;-i&lt;/span&gt; &lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;var&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;run&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;rsyslogd-remote&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;pid&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;ExecReload&lt;/span&gt;=&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;bin&lt;/span&gt;&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;/&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;kill&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;-HUP&lt;/span&gt; &lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;$&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;MAINPID&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;[&lt;span style=&#34;color:#a6e22e&#34;&gt;Install&lt;/span&gt;]
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;WantedBy&lt;/span&gt;=&lt;span style=&#34;color:#a6e22e&#34;&gt;multi-user&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;target&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;systemctl daemon-reload
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;systemctl enable --now rsyslog-remote
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样就实现了远程日志的收集。&lt;/p&gt;
-&lt;h2 id=&#34;logrotate-设置&#34;&gt;logrotate 设置&lt;/h2&gt;
-&lt;p&gt;为了防止日志太多，还需要配置 logrotate。&lt;/p&gt;
-&lt;p&gt;复制 &lt;code&gt;/etc/logrotate.d/rsyslog&lt;/code&gt; 到 &lt;code&gt;/etc/logrotate.d/rsyslog-remote&lt;/code&gt;，然后修改开头为 &lt;code&gt;/var/log/rsyslog-remote/*.log&lt;/code&gt; 即可，路径和上面对应。注意脚本 &lt;code&gt;/usr/lib/rsyslog/rsyslog-remote&lt;/code&gt; 也需要复制一份，然后修改一下 systemd service 名字。&lt;/p&gt;
-&lt;h2 id=&#34;参考文档&#34;&gt;参考文档&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.makeuseof.com/set-up-linux-remote-logging-using-rsyslog/&#34;&gt;How to Set Up Remote Logging on Linux Using rsyslog&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.thegeekdiary.com/configuring-remote-logging-using-rsyslog-in-centos-rhel/&#34;&gt;Configuring Remote Logging using rsyslog in CentOS/RHEL&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.tecmint.com/install-rsyslog-centralized-logging-in-centos-ubuntu/&#34;&gt;How to Setup Central Logging Server with Rsyslog in Linux&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.tecmint.com/setup-rsyslog-client-to-send-logs-to-rsyslog-server-in-centos-7/&#34;&gt;How to Setup Rsyslog Client to Send Logs to Rsyslog Server in CentOS 7&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
 </description>
     </item>
     

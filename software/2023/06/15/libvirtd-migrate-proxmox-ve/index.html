@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>从 libvirtd 迁移到 Proxmox VE // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="从 libvirtd 迁移到 Proxmox VE" />
+    <meta property="og:description" content="背景 之前用 libvirtd &#43; virt-manager 做 Linux 上的虚拟化，好处是比较轻量级，但是远程控制起来比较麻烦，要么通过 RDP 访问 virt-manager 的 UI，要么就用 cockpit 在网页里去配置虚拟机。此时就会比较怀念 VMware ESXi 的网页，但是 ESXi 装完以后，宿主机就很不自由了，很多东西没法自定义。最后就想到在 Debian 上装一个 Proxmox VE，希望得到一个比较好的中间态。
+Proxmox VE 安装 按照官方的 Install Proxmox VE on Debian 11 Bullseye 去安装即可。我的环境是 Debian Bookworm，把路径改成 Bookworm 的 pvetest 即可。安装的时候可能会遇到一些小问题，例如用 ifupdown2 替换 ifupdown 的时候会检查 config 是否正确等等。安装完以后重启，就可以用 root 用户访问 Proxmox VE 了。
+迁移 libvirtd 虚拟机 下一步是迁移 libvirtd 虚拟机。在网上搜索，会看到提供的方法是，在 Proxmox VE 里创建一个同样大小的镜像，然后把原来的 qcow2 的数据复制一份，但是这样复制的时候得存两份数据，而且对稀疏 qcow2 的支持也不太好。
+最后实际的解决办法是：在 Proxmox VE 里创建一个和 qcow2 大小一样的镜像，设置为 qcow2 格式，然后去 /var/lib/vz/images 路径下找到新建的 qcow2，直接用原来 libvirtd 创建的 qcow2 覆盖过去。目前来看，还没有遇到问题，毕竟 ProxmoxVE 用的也是 QEMU，和 libvirtd 一样。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/software/2023/06/15/libvirtd-migrate-proxmox-ve/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.113.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">从 libvirtd 迁移到 Proxmox VE</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/software/2023/06/15/libvirtd-migrate-proxmox-ve/" class="article-date">
+                <time datetime='2023-06-15T16:03:00.000&#43;08:00' itemprop="datePublished">2023-06-15</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/software/2023/06/15/libvirtd-migrate-proxmox-ve/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="背景">背景</h2>
+<p>之前用 libvirtd + virt-manager 做 Linux 上的虚拟化，好处是比较轻量级，但是远程控制起来比较麻烦，要么通过 RDP 访问 virt-manager 的 UI，要么就用 cockpit 在网页里去配置虚拟机。此时就会比较怀念 VMware ESXi 的网页，但是 ESXi 装完以后，宿主机就很不自由了，很多东西没法自定义。最后就想到在 Debian 上装一个 Proxmox VE，希望得到一个比较好的中间态。</p>
+<h2 id="proxmox-ve-安装">Proxmox VE 安装</h2>
+<p>按照官方的 <a href="https://pve.proxmox.com/wiki/Install_Proxmox_VE_on_Debian_11_Bullseye">Install Proxmox VE on Debian 11 Bullseye</a> 去安装即可。我的环境是 Debian Bookworm，把路径改成 Bookworm 的 pvetest 即可。安装的时候可能会遇到一些小问题，例如用 ifupdown2 替换 ifupdown 的时候会检查 config 是否正确等等。安装完以后重启，就可以用 root 用户访问 Proxmox VE 了。</p>
+<h2 id="迁移-libvirtd-虚拟机">迁移 libvirtd 虚拟机</h2>
+<p>下一步是迁移 libvirtd 虚拟机。在网上搜索，会看到提供的方法是，在 Proxmox VE 里创建一个同样大小的镜像，然后把原来的 qcow2 的数据复制一份，但是这样复制的时候得存两份数据，而且对稀疏 qcow2 的支持也不太好。</p>
+<p>最后实际的解决办法是：在 Proxmox VE 里创建一个和 qcow2 大小一样的镜像，设置为 qcow2 格式，然后去 <code>/var/lib/vz/images</code> 路径下找到新建的 qcow2，直接用原来 libvirtd 创建的 qcow2 覆盖过去。目前来看，还没有遇到问题，毕竟 ProxmoxVE 用的也是 QEMU，和 libvirtd 一样。</p>
+<h2 id="uefi">UEFI</h2>
+<p>在 Proxmox VE 创建虚拟机，如果选的是 UEFI，由于它会采用新的 EFI vars 镜像，所以原来的 UEFI vars 就丢失了，启动的时候，如果 grub 的 EFI 程序不在标准的路径下，可能会找不到 grub。</p>
+<p>解决办法是，先删掉网卡，然后修改 boot order，把 ESP 分区所在的盘加上去，这样 UEFI 启动的时候直接进 shell，然后在 fs0 里找到 grub 的 EFI 程序再启动。</p>
+<p>在启动 NixOS 的时候，还发现运行 systemd-boot 的 EFI 程序的时候会 Access Denied，查询了一下，是因为 Secure Boot。进入 UEFI Firmware Setup，把 Secure Boot 关掉再重启，就可以正常进入了。</p>
+<h2 id="windows">Windows</h2>
+<p>在创建虚拟机的时候，如果指定了 Windows 11，就会自动勾选上 TPM 相关的配置。但启动的时候，说 swtpm 报错无法启动，按照错误信息查询了一下，找到了 <a href="https://github.com/quickemu-project/quickemu/issues/487">Apparmor &gt; swtpm: Could not open UnixIO socket: Permission denied</a>：原因是 AppArmor 拦截了 swtpm 的操作，可以用命令来解除 AppArmor 的拦截：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>sudo aa-complain /usr/bin/swtpm
+</span></span><span style="display:flex;"><span>sudo apparmor_parser -r /etc/apparmor.d/usr.bin.swtpm
+</span></span></code></pre></div><p>这样处理以后就可以正常启动 Windows 了。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#proxmox-ve-安装">Proxmox VE 安装</a></li>
+    <li><a href="#迁移-libvirtd-虚拟机">迁移 libvirtd 虚拟机</a></li>
+    <li><a href="#uefi">UEFI</a></li>
+    <li><a href="#windows">Windows</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/libvirtd">libvirtd
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/qemu">qemu
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/proxmoxve">proxmoxve
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/pve">pve
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/hardware/2023/06/12/try-loongarch/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">LoongArch 初尝试&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
