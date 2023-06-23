@@ -6,7 +6,108 @@
     <description>Recent content on 杰哥的{运维,编程,调板子}小笔记</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Thu, 15 Jun 2023 16:03:00 +0800</lastBuildDate><atom:link href="https://jia.je/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Tue, 20 Jun 2023 23:10:00 +0800</lastBuildDate><atom:link href="https://jia.je/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>生成树协议</title>
+      <link>https://jia.je/networking/2023/06/20/spanning-tree-protocol/</link>
+      <pubDate>Tue, 20 Jun 2023 23:10:00 +0800</pubDate>
+      
+      <guid>https://jia.je/networking/2023/06/20/spanning-tree-protocol/</guid>
+      <description>&lt;h2 id=&#34;spanning-tree-protocol&#34;&gt;Spanning Tree Protocol&lt;/h2&gt;
+&lt;p&gt;STP（Spanning Tree Protocol）可以在 &lt;a href=&#34;https://ieeexplore.ieee.org/document/1389253&#34;&gt;802.1D-1998&lt;/a&gt; 第 8 章中找到。STP 协议工作在交换机上，需要根据交换机连接的拓扑，自动计算出一个生成树，并且把不在生成树上的边禁用，这样即使连接的拓扑有环路，禁用以后就没有环了。有了 STP 以后，连接交换机的时候就可以刻意连成环，从而提供冗余。&lt;/p&gt;
+&lt;p&gt;在 STP 协议提出的时候，网络还不像现在这样以点对点为主，因此需要考虑共享介质的场景，也就是多个交换机连到同一个局域网，并且这个局域网通过 Hub 来共享介质。因此，实际上局域网也属于拓扑的一部分，对应生成树的一个结点。为了统一点对点和共享介质，不妨认为点对点连接中，也连接了一个共享介质的局域网，只不过这个局域网没有其他网络设备。这样设定以后，从网络拓扑上来看，就是很多个独立的局域网，用交换机连接起来。&lt;/p&gt;
+&lt;p&gt;STP 协议工作的第一步是选举出一个 Root Bridge，也就是生成树的根结点。为了保证选举出唯一的 Root Bridge，选择的标准是，找到最小的 Bridge ID，ID 由人为设定的优先级以及 MAC 地址组成。由于 MAC 地址是唯一的，所以 Bridge ID 也是唯一的，因此一定可以找到一个最小的 ID，那么它就是 Root Bridge。&lt;/p&gt;
+&lt;p&gt;实际工作的时候，交换机会收发 BPDU，并且把其他交换机发给自己的 Root ID 和自己的 ID 进行比较：如果自己的 ID 比别人发的 Root ID 都小，那么自己是 Root；如果别人发的 Root ID 比自己小，那自己肯定不是 Root。经过一段时间，拥有最小 ID 的 Bridge 信息会逐渐传播到整个网络，最后所有交换机都会对 Root Bridge 达成共识。&lt;/p&gt;
+&lt;p&gt;确定好 Root Bridge 之后，接下来就是得到生成树。每个交换机会接收相邻交换机发送的 BPDU，得知相邻交换机到 Root Bridge 的距离，然后像路由协议那样，计算出走从哪个 Port 走到达 Root Bridge 的距离最短，就把这个 Port 标记为 Root Port，意思是沿着这个方向走，就会一跳一跳地到达 Root Bridge。同时也会更新自己到 Root Bridge 的距离，发给相邻的交换机。这些 Root Port 的方向就对应了生成树里面的父亲节点。&lt;/p&gt;
+&lt;p&gt;得到生成树以后，就知道如何禁用不在生成树的边了：如果在某个非 Root 端口上监听到了其他交换机发送的 BPDU，那就说明交换机在这个端口方向上存在一条不在生成树上的边。但是，这条边上有一个局域网（前面提到，即使是交换机之间点对点连接，也可以认为有一个没有网络设备的局域网在中间），这个局域网依然需要能够访问其他局域网。因此，连接到同一个局域网的多个交换机，需要选择出一个交换机，负责这个局域网的所有流量，也就是 Designated Bridge。Designated Bridge 连向局域网的 Port 就是 Designated Port。而连接到局域网的非 Designated Bridge，就需要禁用端口，不收不发数据，只处理 BPDU，此时就是 Block Port。&lt;/p&gt;
+&lt;p&gt;因此，从交换机的视角，如果是 Root Bridge，看到的就是若干个 Designated Port；如果不是 Root Bridge，那么会看到一个 Root Port，若干个 Designated Port，可能还有 Blocked Port。&lt;/p&gt;
+&lt;p&gt;需要区分两个概念：Role 和 State。每个交换机在每个 Port 上，都有一个 Role 和一个 State：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Role：Root，Designated，Blocked&lt;/li&gt;
+&lt;li&gt;State：Disabled，Blocking，Listening，Learning，Forwarding&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Role 指的是端口的属性，用于 STP 内部：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Root：连向 Root 的最短路径的方向&lt;/li&gt;
+&lt;li&gt;Designated：负责转发局域网流量&lt;/li&gt;
+&lt;li&gt;Blocked：出现了环导致不能转发&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;State 指的是端口的状态，可以认为是 STP 的输出，把端口设置为对应的状态：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Blocking：不转发以太网帧&lt;/li&gt;
+&lt;li&gt;Listening：不转发以太网帧，但是收发 BPDU&lt;/li&gt;
+&lt;li&gt;Learning：在 Listening 的基础上，监听流量，学习 MAC 地址，添加到转发表&lt;/li&gt;
+&lt;li&gt;Forwarding：正常工作&lt;/li&gt;
+&lt;li&gt;Disabled：被管理员禁用&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;小结一下 STP 的工作流程：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;选举出 Root Bridge&lt;/li&gt;
+&lt;li&gt;对于每个 LAN Segment，选举出 Designated Switch&lt;/li&gt;
+&lt;li&gt;把不在生成树上的端口设置为 Blocking&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;rapid-spanning-tree-protocol&#34;&gt;Rapid Spanning Tree Protocol&lt;/h2&gt;
+&lt;p&gt;RSTP（Rapid Spanning Tree Protocol）是 STP 协议的升级，在 &lt;a href=&#34;https://ieeexplore.ieee.org/document/1309630&#34;&gt;802.1D-2004&lt;/a&gt; 标准中定义。&lt;/p&gt;
+&lt;p&gt;和 STP 不同，RSTP 定义了五个 Role：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Root：连向 Root 的最短路径的方向&lt;/li&gt;
+&lt;li&gt;Designated：负责转发局域网流量&lt;/li&gt;
+&lt;li&gt;Alternate：连向 Root 的另一条路径的方向&lt;/li&gt;
+&lt;li&gt;Backup：已经有另一个交换机连接的局域网方向&lt;/li&gt;
+&lt;li&gt;Disabled：被管理员禁用&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;除了 Disabled 以外，RSTP 和 STP 的区别在于，RSTP 把 Blocked 改成了 Alternate 和 Backup：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Alternate 作为 Root 的备份：记录交换机到 Root 的第二条路径，当 Root Port 出问题了，那么 Alternate Port 可以成为新的 Root Port&lt;/li&gt;
+&lt;li&gt;Backup 作为 Designated 的备份：连接的局域网有别的 Designated Bridge，如果 Designated Bridge 出问题了，自己可以成为新的 Designated Bridge&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这样的好处是，如果 Root Port 出问题了，可以及时切换到别的路径上，提高收敛速度。&lt;/p&gt;
+&lt;p&gt;相比 STP，RSTP 把 State 简化成了三个：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Discarding：不转发以太网帧，对应 STP 的 Blocking 和 Listening&lt;/li&gt;
+&lt;li&gt;Learning：不转发以太网帧，学习 MAC 地址&lt;/li&gt;
+&lt;li&gt;Forwarding：正常工作&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;vlan&#34;&gt;VLAN&lt;/h2&gt;
+&lt;p&gt;STP 和 RSTP 都没有考虑 VLAN，只考虑了交换机的拓扑。但实际上，每个 VLAN 可能是不同的一个拓扑，可能只有部分交换机参与到特定的 VLAN 中，这时候就希望可以做一个 Per VLAN 的 STP。&lt;/p&gt;
+&lt;p&gt;Per VLAN 的 STP 相关协议有：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;STP + VLAN: Per-VLAN Spanning Tree(PVST/PVST+) by Cisco&lt;/li&gt;
+&lt;li&gt;RSTP + VLAN: Rapid Per-VLAN Spanning Tree(Rapid PVST/Rapid PVST+) by Cisco&lt;/li&gt;
+&lt;li&gt;RSTP + VLAN: Vlan-based Spanning Tree(VBST) by Huawei&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;根据文档，VBST 和 Rapid PVST 是兼容的，虽然名字不同，但大概率是一样的协议。&lt;/p&gt;
+&lt;p&gt;此外还有 Multiple Spanning Tree Protocol(MSTP)，定义在 IEEE 802.1s-2002 标准中，它并不是 Per-VLAN Spanning Tree，而支持跨 VLAN 的生成树计算。&lt;/p&gt;
+&lt;p&gt;下面是在不同型号的交换机上观察到支持的协议：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Dell：stp pvst rstp rapid-pvst mstp&lt;/li&gt;
+&lt;li&gt;Huawei：stp rstp mstp vbst&lt;/li&gt;
+&lt;li&gt;Mellanox：rst mst rpvst&lt;/li&gt;
+&lt;li&gt;Cisco：mst rapid-pvst&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;实践中，可以使用 rapid-pvst/vbst/rpvst 的配置。&lt;/p&gt;
+&lt;h2 id=&#34;stp-port-type&#34;&gt;STP Port Type&lt;/h2&gt;
+&lt;p&gt;在交换机设置中，经常可以看到对 STP Port Type 的支持：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Edge：仅主机&lt;/li&gt;
+&lt;li&gt;Network：仅交换机&lt;/li&gt;
+&lt;li&gt;Normal：自适应&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;STP 协议在工作的时候，为了防止协议初始化过程中引入了不必要的环路，初始化时是不转发流量的。那么，如果事先知道端口连接的只有主机，没有交换机，就可以跳过这个过程，直接开始进入 Forwarding 状态，此时就可以设置为 Edge 模式。在 Edge 模式下，交换机不会发送 BPDU。&lt;/p&gt;
+&lt;p&gt;如果事先知道连接的是交换机，可以选择 Network，但是需要注意的是，Cisco 实现了 Bridge Assurance，也就是说，如果设置为 Network 模式，&lt;strong&gt;必须要求对方也设置为 Network 模式&lt;/strong&gt;，否则就不会工作。&lt;/p&gt;
+&lt;p&gt;普适的方法是设置为 Normal，此时就会按照正常的方法来初始化。&lt;/p&gt;
+&lt;h2 id=&#34;bpdu-filter&#34;&gt;BPDU Filter&lt;/h2&gt;
+&lt;p&gt;BPDU Filter 顾名思义，在特定端口上禁用 STP 协议：不发送 BPDU，收到的 BPDU 都忽略，可以用来限制 STP 工作的范围。&lt;/p&gt;
+&lt;h2 id=&#34;virtual-port-channel-vpc&#34;&gt;Virtual Port Channel (vPC)&lt;/h2&gt;
+&lt;p&gt;STP 解决了环路的问题，使得网络管理员在设计拓扑的时候，可以添加更多边来提供冗余。但是，STP 的工作原理决定了，冗余链路平时是被禁用的，不会走流量。是否有办法，在提供冗余的同时，又能够利用上冗余链路的带宽？&lt;/p&gt;
+&lt;p&gt;针对这个场景，厂商提供了不同的解决方案，这里以 Cisco 的 vPC 作为一个例子来介绍。vPC 就是虚拟的 Port Channel 的意思，Port Channel 就是链路聚合，把两个交换机之间的多条链路当成一个用；Virtual Port Channel(vPC) 则是把 Port Channel 扩展到了跨交换机，二对一，一部分链路连到 Switch 1，剩下的链路连到 Switch 2，但是从外面看过来，等价于只有一个交换机：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://jia.je/images/vpc.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;来源：&lt;a href=&#34;https://www.ciscopress.com/articles/article.asp?p=3150966&amp;amp;seqNum=2&#34;&gt;Port Channels and vPCs&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;这样就实现了对冗余链路的利用。&lt;/p&gt;
+&lt;p&gt;在 vPC 的 Peer Switch 模式下，为了让 Switch 3 看到的只是一个交换机，它把 Switch 1 和 Switch 2 伪装成同一个交换机：STP 的 Bridge ID 相同，在 STP 协议中看起来到就是一个 Root Bridge。&lt;/p&gt;
+</description>
+    </item>
+    
     <item>
       <title>从 libvirtd 迁移到 Proxmox VE</title>
       <link>https://jia.je/software/2023/06/15/libvirtd-migrate-proxmox-ve/</link>
@@ -7298,6 +7399,9 @@ soapysdr-with-plugins
 &lt;p&gt;第六步，修改 Failover 配置，找到 Distributed Switch，点击 ACTIONS，在 Distributed Port Group 里点击 Manager Distributed Port Groups，勾选 Teaming and failover，勾上所有的 Distributed Port Group，修改下面的 Failover Order，默认状态是 Active uplinks 只有 Uplink，没有 LAG，需要修改为 Active uplinks 只有 LAG，而 Uplink 都在 Unused Uplinks 中。这样才可以让虚拟机和 VMKernel 出去的流量走链路聚合。&lt;/p&gt;
 &lt;p&gt;参考文档：&lt;a href=&#34;https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-9454ED41-6CFC-49F1-9982-34C1276F775A.html&#34;&gt;LACP Teaming and Failover Configuration for Distributed Port Groups&lt;/a&gt; 和 &lt;a href=&#34;https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-45DF45A6-DBDB-4386-85BF-400797683D05.html&#34;&gt;Configure a Link Aggregation Group to Handle the Traffic for Distributed Port Groups&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;这样就配置完成了。&lt;/p&gt;
+&lt;h2 id=&#34;非-lacp-的链路聚合&#34;&gt;非 LACP 的链路聚合&lt;/h2&gt;
+&lt;p&gt;如果想要链路聚合，但是又不想用 Virtual Distributed Switch，可以在交换机上配置 Static Link Aggregation，然后在 ESXi 上添加多个 Uplink，配置 NIC teaming 为 &lt;code&gt;Route based on IP hash&lt;/code&gt; 模式即可。&lt;/p&gt;
+&lt;p&gt;参考：&lt;a href=&#34;https://kb.vmware.com/s/article/1004088&#34;&gt;NIC teaming in ESXi and ESX&lt;/a&gt;&lt;/p&gt;
 </description>
     </item>
     
@@ -8793,77 +8897,6 @@ ld: symbol(s) not found for architecture arm64
 	      a library, as it forces the linking of a library member just because it uses an uninitialized global that is undefined at that point
 	      in the linking.  This option is included only because this was the original behavior of ranlib.  This option is not the default.
 &lt;/code&gt;&lt;/pre&gt;</description>
-    </item>
-    
-    <item>
-      <title>NVIDIA 驱动和 CUDA 安装速查</title>
-      <link>https://jia.je/software/2022/07/06/install-nvidia-cuda/</link>
-      <pubDate>Wed, 06 Jul 2022 11:42:00 +0800</pubDate>
-      
-      <guid>https://jia.je/software/2022/07/06/install-nvidia-cuda/</guid>
-      <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
-&lt;p&gt;最近在 Ubuntu 上配置 NVIDIA 驱动和 CUDA 环境的次数比较多，在此总结一下整个流程，作为教程供大家学习。&lt;/p&gt;
-&lt;h2 id=&#34;配置-nvidia-apt-源&#34;&gt;配置 NVIDIA APT 源&lt;/h2&gt;
-&lt;p&gt;Ubuntu 源有自带的 NVIDIA 驱动版本，但这里我们要使用 NVIDIA 的 APT 源。首先，我们要访问 &lt;a href=&#34;https://developer.nvidia.com/cuda-downloads?target_os=Linux&amp;amp;target_arch=x86_64&amp;amp;Distribution=Ubuntu&amp;amp;target_version=20.04&amp;amp;target_type=deb_network&#34;&gt;https://developer.nvidia.com/cuda-downloads?target_os=Linux&amp;amp;target_arch=x86_64&amp;amp;Distribution=Ubuntu&amp;amp;target_version=20.04&amp;amp;target_type=deb_network&lt;/a&gt;，在网页中选择我们的系统，例如：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;Operating System: Linux&lt;/li&gt;
-&lt;li&gt;Architecture: x86_64&lt;/li&gt;
-&lt;li&gt;Distribution: Ubuntu&lt;/li&gt;
-&lt;li&gt;Version: 20.04&lt;/li&gt;
-&lt;li&gt;Installer Type: deb (network)&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;此时，下面就会显示一些命令，复制下来执行：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo dpkg -i cuda-keyring_1.0-1_all.deb
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apt-get update
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;最后一步的 &lt;code&gt;sudo apt-get -y install cuda&lt;/code&gt; 可以不着急安装，我们在后面再来讨论 CUDA 版本的问题。&lt;/p&gt;
-&lt;h2 id=&#34;nvidia-驱动&#34;&gt;NVIDIA 驱动&lt;/h2&gt;
-&lt;p&gt;配置好源以后，接下来，我们就要安装 NVIDIA 驱动了。首先，我们要选取一个 NVIDIA 版本，选择的标准如下：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;驱动版本需要支持所使用的显卡&lt;/li&gt;
-&lt;li&gt;驱动版本需要支持所使用的 CUDA 版本&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;这些信息在网络上都可以查到，也可以参考 &lt;a href=&#34;https://jia.je/software/2021/12/26/nvidia-cuda/&#34;&gt;NVIDIA 驱动和 CUDA 版本信息速查&lt;/a&gt;。&lt;/p&gt;
-&lt;p&gt;假如我们已经选择了要安装 470.129.06 版本，那么，我们接下来要确认一下 NVIDIA 的 APT 源的版本名称：&lt;/p&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;sudo apt show -a nvidia-driver-470
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在输出的结果中搜索 &lt;code&gt;470.129.06&lt;/code&gt;，找到 &lt;code&gt;Version: 470.129.06-0ubuntu1&lt;/code&gt;，下面写了 &lt;code&gt;APT-Sources: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64 Packages&lt;/code&gt;，这就说明这个版本是从 NVIDIA 的 APT 源来的。&lt;/p&gt;
-&lt;p&gt;所以，我们要用 &lt;code&gt;470.129.06-0ubuntu1&lt;/code&gt;，而不是 &lt;code&gt;470.129.06-0ubuntu0.20.04.1&lt;/code&gt;，后者是 Ubuntu 源自带的，我们要用前者。&lt;/p&gt;
-&lt;p&gt;接下来，指定版本安装驱动：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apt install nvidia-driver-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;如果系统里已经安装了其他版本的 nvidia 驱动，可能会出现冲突。这时候，只需要把冲突的包也写在要安装的包里即可，例如：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apt install nvidia-utils-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 cuda-drivers&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-1 cuda-drivers-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-1 nvidia-driver-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-gl-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-compute-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-decode-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-encode-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-ifr1-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-fbc1-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-common-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 nvidia-kernel-source-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 nvidia-dkms-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 nvidia-kernel-common-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-extra-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 nvidia-compute-utils-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 xserver-xorg-video-nvidia-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libnvidia-cfg1-470&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 nvidia-settings&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 libxnvctrl0&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1 nvidia-modprobe&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;470.129.06-0ubuntu1
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;最终，我们要保证，系统里面所有 nvidia 驱动相关的包都是同一个版本：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ sudo apt list --installed | grep nvidia
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-cfg1-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-common-470/unknown,now 470.129.06-0ubuntu1 all &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-compute-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-decode-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-encode-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-extra-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-fbc1-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-gl-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libnvidia-ifr1-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-compute-utils-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-dkms-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-driver-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-fabricmanager-470/unknown,now 470.129.06-1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-kernel-common-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-kernel-source-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-modprobe/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,upgradable to: 515.48.07-0ubuntu1&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-settings/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,upgradable to: 515.48.07-0ubuntu1&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;nvidia-utils-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;xserver-xorg-video-nvidia-470/unknown,now 470.129.06-0ubuntu1 amd64 &lt;span style=&#34;color:#f92672&#34;&gt;[&lt;/span&gt;installed,automatic&lt;span style=&#34;color:#f92672&#34;&gt;]&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;接下来，为了防止 apt 升级的时候顺手破坏了一致的版本，我们要把包固定在一个版本里：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apt-mark hold cuda-drivers nvidia-modprobe nvidia-settings libxnvctrl0
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;如果有其他 nvidia 包说要自动升级，也可以类似地固定住。&lt;/p&gt;
-&lt;h2 id=&#34;cuda&#34;&gt;CUDA&lt;/h2&gt;
-&lt;p&gt;CUDA 实际上是绿色软件，把整个目录放在任意一个目录，都可以使用。&lt;/p&gt;
-&lt;p&gt;安装 CUDA 的方式有很多，我们可以用 APT 安装全局的，也可以用 Spack 或者 Anaconda 安装到本地目录。实际上这些安装过程都是把同样的文件复制到不同的地方而已。&lt;/p&gt;
-&lt;p&gt;如果要安装全局的话，还是推荐用 NVIDIA 的 APT 源，以安装 CUDA 11.1 为例：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;sudo apt install cuda-11-1
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;那么 CUDA 就会安装到 /usr/local/cuda-11.1 目录下。如果想要用 nvcc，我们可以手动把它加到 PATH 环境变量中。&lt;/p&gt;
-&lt;p&gt;CUDA 是可以多版本共存的，比如你可以把 CUDA 11.1 到 CUDA 11.7 一口气都装了。不过注意，CUDA 对 NVIDIA 驱动有版本要求，所以有一些可能会不满足 APT 的版本要求；同时，CUDA 对编译器版本有要求，所以如果系统还是 Ubuntu 16.04 或者 18.04，赶紧升级吧。&lt;/p&gt;
-</description>
     </item>
     
   </channel>

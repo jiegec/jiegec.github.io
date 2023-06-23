@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>生成树协议 // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="生成树协议" />
+    <meta property="og:description" content="Spanning Tree Protocol STP（Spanning Tree Protocol）可以在 802.1D-1998 第 8 章中找到。STP 协议工作在交换机上，需要根据交换机连接的拓扑，自动计算出一个生成树，并且把不在生成树上的边禁用，这样即使连接的拓扑有环路，禁用以后就没有环了。有了 STP 以后，连接交换机的时候就可以刻意连成环，从而提供冗余。
+在 STP 协议提出的时候，网络还不像现在这样以点对点为主，因此需要考虑共享介质的场景，也就是多个交换机连到同一个局域网，并且这个局域网通过 Hub 来共享介质。因此，实际上局域网也属于拓扑的一部分，对应生成树的一个结点。为了统一点对点和共享介质，不妨认为点对点连接中，也连接了一个共享介质的局域网，只不过这个局域网没有其他网络设备。这样设定以后，从网络拓扑上来看，就是很多个独立的局域网，用交换机连接起来。
+STP 协议工作的第一步是选举出一个 Root Bridge，也就是生成树的根结点。为了保证选举出唯一的 Root Bridge，选择的标准是，找到最小的 Bridge ID，ID 由人为设定的优先级以及 MAC 地址组成。由于 MAC 地址是唯一的，所以 Bridge ID 也是唯一的，因此一定可以找到一个最小的 ID，那么它就是 Root Bridge。
+实际工作的时候，交换机会收发 BPDU，并且把其他交换机发给自己的 Root ID 和自己的 ID 进行比较：如果自己的 ID 比别人发的 Root ID 都小，那么自己是 Root；如果别人发的 Root ID 比自己小，那自己肯定不是 Root。经过一段时间，拥有最小 ID 的 Bridge 信息会逐渐传播到整个网络，最后所有交换机都会对 Root Bridge 达成共识。
+确定好 Root Bridge 之后，接下来就是得到生成树。每个交换机会接收相邻交换机发送的 BPDU，得知相邻交换机到 Root Bridge 的距离，然后像路由协议那样，计算出走从哪个 Port 走到达 Root Bridge 的距离最短，就把这个 Port 标记为 Root Port，意思是沿着这个方向走，就会一跳一跳地到达 Root Bridge。同时也会更新自己到 Root Bridge 的距离，发给相邻的交换机。这些 Root Port 的方向就对应了生成树里面的父亲节点。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/networking/2023/06/20/spanning-tree-protocol/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.113.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">生成树协议</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/networking/2023/06/20/spanning-tree-protocol/" class="article-date">
+                <time datetime='2023-06-20T23:10:00.000&#43;08:00' itemprop="datePublished">2023-06-20</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/networking/2023/06/20/spanning-tree-protocol/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <h2 id="spanning-tree-protocol">Spanning Tree Protocol</h2>
+<p>STP（Spanning Tree Protocol）可以在 <a href="https://ieeexplore.ieee.org/document/1389253">802.1D-1998</a> 第 8 章中找到。STP 协议工作在交换机上，需要根据交换机连接的拓扑，自动计算出一个生成树，并且把不在生成树上的边禁用，这样即使连接的拓扑有环路，禁用以后就没有环了。有了 STP 以后，连接交换机的时候就可以刻意连成环，从而提供冗余。</p>
+<p>在 STP 协议提出的时候，网络还不像现在这样以点对点为主，因此需要考虑共享介质的场景，也就是多个交换机连到同一个局域网，并且这个局域网通过 Hub 来共享介质。因此，实际上局域网也属于拓扑的一部分，对应生成树的一个结点。为了统一点对点和共享介质，不妨认为点对点连接中，也连接了一个共享介质的局域网，只不过这个局域网没有其他网络设备。这样设定以后，从网络拓扑上来看，就是很多个独立的局域网，用交换机连接起来。</p>
+<p>STP 协议工作的第一步是选举出一个 Root Bridge，也就是生成树的根结点。为了保证选举出唯一的 Root Bridge，选择的标准是，找到最小的 Bridge ID，ID 由人为设定的优先级以及 MAC 地址组成。由于 MAC 地址是唯一的，所以 Bridge ID 也是唯一的，因此一定可以找到一个最小的 ID，那么它就是 Root Bridge。</p>
+<p>实际工作的时候，交换机会收发 BPDU，并且把其他交换机发给自己的 Root ID 和自己的 ID 进行比较：如果自己的 ID 比别人发的 Root ID 都小，那么自己是 Root；如果别人发的 Root ID 比自己小，那自己肯定不是 Root。经过一段时间，拥有最小 ID 的 Bridge 信息会逐渐传播到整个网络，最后所有交换机都会对 Root Bridge 达成共识。</p>
+<p>确定好 Root Bridge 之后，接下来就是得到生成树。每个交换机会接收相邻交换机发送的 BPDU，得知相邻交换机到 Root Bridge 的距离，然后像路由协议那样，计算出走从哪个 Port 走到达 Root Bridge 的距离最短，就把这个 Port 标记为 Root Port，意思是沿着这个方向走，就会一跳一跳地到达 Root Bridge。同时也会更新自己到 Root Bridge 的距离，发给相邻的交换机。这些 Root Port 的方向就对应了生成树里面的父亲节点。</p>
+<p>得到生成树以后，就知道如何禁用不在生成树的边了：如果在某个非 Root 端口上监听到了其他交换机发送的 BPDU，那就说明交换机在这个端口方向上存在一条不在生成树上的边。但是，这条边上有一个局域网（前面提到，即使是交换机之间点对点连接，也可以认为有一个没有网络设备的局域网在中间），这个局域网依然需要能够访问其他局域网。因此，连接到同一个局域网的多个交换机，需要选择出一个交换机，负责这个局域网的所有流量，也就是 Designated Bridge。Designated Bridge 连向局域网的 Port 就是 Designated Port。而连接到局域网的非 Designated Bridge，就需要禁用端口，不收不发数据，只处理 BPDU，此时就是 Block Port。</p>
+<p>因此，从交换机的视角，如果是 Root Bridge，看到的就是若干个 Designated Port；如果不是 Root Bridge，那么会看到一个 Root Port，若干个 Designated Port，可能还有 Blocked Port。</p>
+<p>需要区分两个概念：Role 和 State。每个交换机在每个 Port 上，都有一个 Role 和一个 State：</p>
+<ul>
+<li>Role：Root，Designated，Blocked</li>
+<li>State：Disabled，Blocking，Listening，Learning，Forwarding</li>
+</ul>
+<p>Role 指的是端口的属性，用于 STP 内部：</p>
+<ul>
+<li>Root：连向 Root 的最短路径的方向</li>
+<li>Designated：负责转发局域网流量</li>
+<li>Blocked：出现了环导致不能转发</li>
+</ul>
+<p>State 指的是端口的状态，可以认为是 STP 的输出，把端口设置为对应的状态：</p>
+<ul>
+<li>Blocking：不转发以太网帧</li>
+<li>Listening：不转发以太网帧，但是收发 BPDU</li>
+<li>Learning：在 Listening 的基础上，监听流量，学习 MAC 地址，添加到转发表</li>
+<li>Forwarding：正常工作</li>
+<li>Disabled：被管理员禁用</li>
+</ul>
+<p>小结一下 STP 的工作流程：</p>
+<ol>
+<li>选举出 Root Bridge</li>
+<li>对于每个 LAN Segment，选举出 Designated Switch</li>
+<li>把不在生成树上的端口设置为 Blocking</li>
+</ol>
+<h2 id="rapid-spanning-tree-protocol">Rapid Spanning Tree Protocol</h2>
+<p>RSTP（Rapid Spanning Tree Protocol）是 STP 协议的升级，在 <a href="https://ieeexplore.ieee.org/document/1309630">802.1D-2004</a> 标准中定义。</p>
+<p>和 STP 不同，RSTP 定义了五个 Role：</p>
+<ul>
+<li>Root：连向 Root 的最短路径的方向</li>
+<li>Designated：负责转发局域网流量</li>
+<li>Alternate：连向 Root 的另一条路径的方向</li>
+<li>Backup：已经有另一个交换机连接的局域网方向</li>
+<li>Disabled：被管理员禁用</li>
+</ul>
+<p>除了 Disabled 以外，RSTP 和 STP 的区别在于，RSTP 把 Blocked 改成了 Alternate 和 Backup：</p>
+<ul>
+<li>Alternate 作为 Root 的备份：记录交换机到 Root 的第二条路径，当 Root Port 出问题了，那么 Alternate Port 可以成为新的 Root Port</li>
+<li>Backup 作为 Designated 的备份：连接的局域网有别的 Designated Bridge，如果 Designated Bridge 出问题了，自己可以成为新的 Designated Bridge</li>
+</ul>
+<p>这样的好处是，如果 Root Port 出问题了，可以及时切换到别的路径上，提高收敛速度。</p>
+<p>相比 STP，RSTP 把 State 简化成了三个：</p>
+<ul>
+<li>Discarding：不转发以太网帧，对应 STP 的 Blocking 和 Listening</li>
+<li>Learning：不转发以太网帧，学习 MAC 地址</li>
+<li>Forwarding：正常工作</li>
+</ul>
+<h2 id="vlan">VLAN</h2>
+<p>STP 和 RSTP 都没有考虑 VLAN，只考虑了交换机的拓扑。但实际上，每个 VLAN 可能是不同的一个拓扑，可能只有部分交换机参与到特定的 VLAN 中，这时候就希望可以做一个 Per VLAN 的 STP。</p>
+<p>Per VLAN 的 STP 相关协议有：</p>
+<ul>
+<li>STP + VLAN: Per-VLAN Spanning Tree(PVST/PVST+) by Cisco</li>
+<li>RSTP + VLAN: Rapid Per-VLAN Spanning Tree(Rapid PVST/Rapid PVST+) by Cisco</li>
+<li>RSTP + VLAN: Vlan-based Spanning Tree(VBST) by Huawei</li>
+</ul>
+<p>根据文档，VBST 和 Rapid PVST 是兼容的，虽然名字不同，但大概率是一样的协议。</p>
+<p>此外还有 Multiple Spanning Tree Protocol(MSTP)，定义在 IEEE 802.1s-2002 标准中，它并不是 Per-VLAN Spanning Tree，而支持跨 VLAN 的生成树计算。</p>
+<p>下面是在不同型号的交换机上观察到支持的协议：</p>
+<ul>
+<li>Dell：stp pvst rstp rapid-pvst mstp</li>
+<li>Huawei：stp rstp mstp vbst</li>
+<li>Mellanox：rst mst rpvst</li>
+<li>Cisco：mst rapid-pvst</li>
+</ul>
+<p>实践中，可以使用 rapid-pvst/vbst/rpvst 的配置。</p>
+<h2 id="stp-port-type">STP Port Type</h2>
+<p>在交换机设置中，经常可以看到对 STP Port Type 的支持：</p>
+<ul>
+<li>Edge：仅主机</li>
+<li>Network：仅交换机</li>
+<li>Normal：自适应</li>
+</ul>
+<p>STP 协议在工作的时候，为了防止协议初始化过程中引入了不必要的环路，初始化时是不转发流量的。那么，如果事先知道端口连接的只有主机，没有交换机，就可以跳过这个过程，直接开始进入 Forwarding 状态，此时就可以设置为 Edge 模式。在 Edge 模式下，交换机不会发送 BPDU。</p>
+<p>如果事先知道连接的是交换机，可以选择 Network，但是需要注意的是，Cisco 实现了 Bridge Assurance，也就是说，如果设置为 Network 模式，<strong>必须要求对方也设置为 Network 模式</strong>，否则就不会工作。</p>
+<p>普适的方法是设置为 Normal，此时就会按照正常的方法来初始化。</p>
+<h2 id="bpdu-filter">BPDU Filter</h2>
+<p>BPDU Filter 顾名思义，在特定端口上禁用 STP 协议：不发送 BPDU，收到的 BPDU 都忽略，可以用来限制 STP 工作的范围。</p>
+<h2 id="virtual-port-channel-vpc">Virtual Port Channel (vPC)</h2>
+<p>STP 解决了环路的问题，使得网络管理员在设计拓扑的时候，可以添加更多边来提供冗余。但是，STP 的工作原理决定了，冗余链路平时是被禁用的，不会走流量。是否有办法，在提供冗余的同时，又能够利用上冗余链路的带宽？</p>
+<p>针对这个场景，厂商提供了不同的解决方案，这里以 Cisco 的 vPC 作为一个例子来介绍。vPC 就是虚拟的 Port Channel 的意思，Port Channel 就是链路聚合，把两个交换机之间的多条链路当成一个用；Virtual Port Channel(vPC) 则是把 Port Channel 扩展到了跨交换机，二对一，一部分链路连到 Switch 1，剩下的链路连到 Switch 2，但是从外面看过来，等价于只有一个交换机：</p>
+<p><img src="/images/vpc.png" alt=""></p>
+<p>来源：<a href="https://www.ciscopress.com/articles/article.asp?p=3150966&amp;seqNum=2">Port Channels and vPCs</a></p>
+<p>这样就实现了对冗余链路的利用。</p>
+<p>在 vPC 的 Peer Switch 模式下，为了让 Switch 3 看到的只是一个交换机，它把 Switch 1 和 Switch 2 伪装成同一个交换机：STP 的 Bridge ID 相同，在 STP 协议中看起来到就是一个 Root Bridge。</p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#spanning-tree-protocol">Spanning Tree Protocol</a></li>
+    <li><a href="#rapid-spanning-tree-protocol">Rapid Spanning Tree Protocol</a></li>
+    <li><a href="#vlan">VLAN</a></li>
+    <li><a href="#stp-port-type">STP Port Type</a></li>
+    <li><a href="#bpdu-filter">BPDU Filter</a></li>
+    <li><a href="#virtual-port-channel-vpc">Virtual Port Channel (vPC)</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/stp">stp
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/rstp">rstp
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/mstp">mstp
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/pvst">pvst
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/vbst">vbst
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/software/2023/06/15/libvirtd-migrate-proxmox-ve/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">从 libvirtd 迁移到 Proxmox VE&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.css" integrity="sha384-ZPe7yZ91iWxYumsBEOn7ieg8q/o+qh/hQpSaPow8T6BwALcXSCS6C6fSRPIAnTQs" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/katex.min.js" integrity="sha384-ljao5I1l+8KYFXG7LNEA7DyaFvuvSCmedUf6Y6JI7LJqiu8q5dEivP2nDdFH31V4" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.6/contrib/auto-render.min.js" integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+        <script>renderMathInElement(document.body);</script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
