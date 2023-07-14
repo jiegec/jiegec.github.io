@@ -514,6 +514,165 @@
 <div class="md-post__meta md-meta">
 <ul class="md-meta__list">
 <li class="md-meta__item">
+<time datetime="2023-02-07 00:00:00">2023年2月7日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/system/">system</a></li>
+<li class="md-meta__item">
+            
+              需要 6 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="openbsd-xonly"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/">OpenBSD xonly 实现原理</a></h2>
+<h3 id="_1"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#_1">背景</a></h3>
+<p>最近看到 <a href="https://marc.info/?l=openbsd-tech&amp;m=167501519712725&amp;w=2">xonly status</a>，看到 OpenBSD 最近在实现 xonly，也就是让一些页只能执行，不能读不能写。以往类似的做法是 <code>W^X</code>，也就是可以执行的时候不能写，可以写的时候不能执行。显然，xonly 是更加严格的，连读都不可以。查了一下历史，<code>W^X</code> 最早也是在 OpenBSD 中实现的，说不定以后 xonly 也会被各个操作系统实现。</p>
+<h3 id="amd64"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#amd64">amd64 上的实现</a></h3>
+<p>在 amd64 的页表中，决定执行/读/写权限的是（见 Intel 文档 <code>Table 4-20. Format of a Page-Table Entry that Maps a 4-KByte Page</code>）：</p>
+<ul>
+<li>Bit 1(R/W): <code>Read/write; if 0, writes may not be allowed to the 4-KByte page referenced by this entry (see Section 4.6)</code></li>
+<li>Bit 63(XD): <code>If IA32_EFER.NXE = 1, execute-disable (if 1, instruction fetches are not allowed from the 4-KByte page controlled by this entry; see Section 4.6); otherwise, reserved (must be 0)</code></li>
+</ul>
+<p>可以看到，在这个定义下，可能出现的权限组合：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>R</th>
+<th>W</th>
+<th>X</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R/W=0, NXE=0</td>
+<td>Y</td>
+<td>N</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=1, NXE=0</td>
+<td>Y</td>
+<td>Y</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=0, NXE=1, XD=0</td>
+<td>Y</td>
+<td>N</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=1, NXE=1, XD=0</td>
+<td>Y</td>
+<td>Y</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>R/W=0, NXE=1, XD=1</td>
+<td>Y</td>
+<td>N</td>
+<td>N</td>
+</tr>
+<tr>
+<td>R/W=1, NXE=1, XD=1</td>
+<td>Y</td>
+<td>Y</td>
+<td>N</td>
+</tr>
+</tbody>
+</table>
+<p>需要注意的是，<code>IA32_EFER.NXE</code> 是全局的，而 <code>R/W</code> 和 <code>XD</code> 的粒度是页。可以看到，上面的所有组合中，都是可以读的。</p>
+<p>那么，怎么实现 x-only 呢？OpenBSD 的实现方法是 Protection Keys。在比较新的 CPU 中，页表的 4 个位用来表示使用的 Protection Key 下标，一共有 16 个：</p>
+<ul>
+<li>Bits 62:59: <code>Protection key; if CR4.PKE = 1 or CR4.PKS = 1, this may control the page's access rights (see Section 4.6.2); otherwise, it is ignored and not used to control access rights.</code></li>
+</ul>
+<p>那么 CPU 在查页表的时候，如果 <code>CR4.PKE=1 or CR4.PKS=1</code>，就会根据这四个位去查找 PKRU 寄存器的取值。PKRU 是一个 32 位的寄存器，每两位对应一个 Protection Key，这两位表示是否允许读写：</p>
+<div class="language-text highlight"><pre><span></span><code>The PKRU register (protection-key rights for user pages) is a 32-bit
+register with the following format: for each i (0 ≤ i ≤ 15), PKRU[2i] is
+the access-disable bit for protection key i (ADi); PKRU[2i+1] is the
+write-disable bit for protection key i (WDi). The IA32_PKRS MSR has the
+same format (bits 63:32 of the MSR are reserved and must be zero).
+</code></pre></div>
+<p>有了这个机制以后，就可以构造出 xonly 的页表项：</p>
+<ul>
+<li>R/W=0：不允许写</li>
+<li>NXE=1, XD=0：允许执行</li>
+<li>设置 62:59 位为一个 Key 编号，将对应的 PKRU 的两个位设为 1：不允许读，不允许写</li>
+</ul>
+<p>接下来看 OpenBSD 的<a href="https://github.com/openbsd/src/commit/e9e0c464329db9b56e1f2db65b0f536e53aa7e5f#diff-ab04285d8fd81f41887d9c9de2eb231be5e44c2d465f5c479943a1e21cf977ce">代码</a>：</p>
+<p>首先，检测 CPU 是否支持 PKU 机制：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="cm">/*</span>
+</span><span id="__span-0-2"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="cm"> * If PKU is available, initialize PROT_EXEC entry correctly,</span>
+</span><span id="__span-0-3"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="cm"> * and enable the feature before it gets used</span>
+</span><span id="__span-0-4"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="cm"> * XXX Some Hypervisors forget to save/restore PKU</span>
+</span><span id="__span-0-5"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="cm"> */</span>
+</span><span id="__span-0-6"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cpuid_level</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mh">0x7</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-7"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">ecx</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+</span><span id="__span-0-8"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="w">    </span><span class="n">CPUID_LEAF</span><span class="p">(</span><span class="mh">0x7</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">,</span><span class="w"> </span><span class="n">ecx</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">);</span>
+</span><span id="__span-0-9"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">ecx</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">SEFF0ECX_PKU</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+</span><span id="__span-0-10"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="w">        </span><span class="p">(</span><span class="n">cpu_ecxfeature</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">CPUIDECX_HV</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-11"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="w">        </span><span class="n">lcr4</span><span class="p">(</span><span class="n">rcr4</span><span class="p">()</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">CR4_PKE</span><span class="p">);</span>
+</span><span id="__span-0-12"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="w">        </span><span class="n">pg_xo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PG_XO</span><span class="p">;</span>
+</span><span id="__span-0-13"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-14"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>其中 <code>PG_XO</code> 的值是 <code>0x0800000000000000UL</code>，也就是只有 bit 59 位 1，对应 Protection Key #1。OpenBSD 内核设置 PKRU 寄存器为 <code>0xfffffffc</code>，即只有 Protection Key #0 不修改权限，其他 Protection Key 都是禁止读写。剩下的代码就是维护 PKRU 寄存器的取值，然后把 xonly 的页的 Protection Key 都设为 1，否则设为 0。</p>
+<p>但需要注意的是，PKRU 寄存器用户态也可以读写。Linux 把 PKRU 暴露给了<a href="https://www.kernel.org/doc/html/latest/core-api/protection-keys.html">用户态</a>，允许用户态来自己设置页表的 Protection Key。OpenBSD 的实现方法则是进内核以后，检查 PKRU 寄存器，如果值修改了，就 SIGABRT。这有一定的风险，如果攻击代码修改了 PKRU 寄存器的内容，是有可能读取本来 xonly 的页的内容的。</p>
+<h3 id="powerpc64"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#powerpc64">powerpc64 上的实现</a></h3>
+<p>powerpc64 的实现方法和 amd64 类似，见 <a href="https://github.com/openbsd/src/commit/6bd9427e6879f79e0e2c1e03d8411439da5bb69">commit</a>。机制和 AMD64 很像，下面引用一段 PowerISA 文档：</p>
+<div class="language-text highlight"><pre><span></span><code>The Virtual Page Class Key Protection mechanism provides the means to
+assign virtual pages to one of 32 classes, and to modify data access
+permissions for each class by modifying the Authority Mask Register
+(AMR), shown in Figure 28, and to modify instruction access permissions
+for each class by modifying the Instruction Authority Mask Register
+(IAMR) shown in Figure 29.
+</code></pre></div>
+<p>对应如下代码：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="c1">// sys/arch/powerpc64/powerpc64/cpu.c</span>
+</span><span id="__span-1-2"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="w">    </span><span class="cm">/*</span>
+</span><span id="__span-1-3"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="cm">     * Set AMR to inhibit loads and stores for all virtual page</span>
+</span><span id="__span-1-4"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="cm">     * class keys, except for Key0 which is used for normal kernel</span>
+</span><span id="__span-1-5"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="cm">     * access.  This means we can pick any other key to implement</span>
+</span><span id="__span-1-6"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="cm">     * execute-only mappings.  But we pick Key1 since that allows</span>
+</span><span id="__span-1-7"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="cm">     * us to use the same bit in the PTE as was used to enable the</span>
+</span><span id="__span-1-8"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="cm">     * Data Access Compare mechanism on CPUs based on older</span>
+</span><span id="__span-1-9"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a><span class="cm">     * versions of the architecture (such as the PowerPC 970).</span>
+</span><span id="__span-1-10"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a><span class="cm">     *</span>
+</span><span id="__span-1-11"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="cm">     * Set UAMOR (and AMOR just to be safe) to zero to prevent</span>
+</span><span id="__span-1-12"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="cm">     * userland from modifying any bits in AMR.</span>
+</span><span id="__span-1-13"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="cm">     */</span>
+</span><span id="__span-1-14"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="w">    </span><span class="n">mtamr</span><span class="p">(</span><span class="mh">0x3fffffffffffffff</span><span class="p">);</span>
+</span><span id="__span-1-15"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="w">    </span><span class="n">mtuamor</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span><span id="__span-1-16"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a><span class="w">    </span><span class="n">mtamor</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span><span id="__span-1-17"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a><span class="w">    </span><span class="n">isync</span><span class="p">();</span>
+</span></code></pre></div>
+<p>可以看到方法是一样的，Key0 正常，其他 Key 禁止读写。额外地，PowerISA 还可以设置 Protection Key 禁止执行。并且通过设置 UAMOR 寄存器，用户态不可以修改 AMR 寄存器，这让 xonly 比 AMD64 上更为完备。</p>
+<p>最后一步，就是修改 PTE 属性，指定 Key 即可：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="c1">// sys/arch/powerpc64/include/pte.h</span>
+</span><span id="__span-2-2"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="cp">##define PTE_AC         0x0000000000000200ULL</span>
+</span><span id="__span-2-3"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="c1">// sys/arch/powerpc64/powerpc64/pmap.c</span>
+</span><span id="__span-2-4"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">prot</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">PROT_READ</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">PROT_WRITE</span><span class="p">))</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-2-5"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">        </span><span class="n">pte</span><span class="o">-&gt;</span><span class="n">pte_lo</span><span class="w"> </span><span class="o">|=</span><span class="w"> </span><span class="n">PTE_AC</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="_2"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#_2">其他指令集架构</a></h3>
+<p>一些指令集架构的页表在设计的时候，就有独立的 R W X 权限位，于是不需要特殊的处理，直接把 mmap 的参数映射过去即可。</p>
+<nav class="md-post__action">
+<a href="../../system/2023/02/07/openbsd-xonly/">
+        继续阅读
+      </a>
+</nav>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
 <time datetime="2023-02-03 00:00:00">2023年2月3日</time></li>
 <li class="md-meta__item">
             分类于
@@ -2832,68 +2991,6 @@ either the static MCFG table or a _CBA method in the PNP0A03 device.
 </ul>
 <nav class="md-post__action">
 <a href="../../hardware/2022/12/06/infiniband-notes/">
-        继续阅读
-      </a>
-</nav>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2022-11-23 00:00:00">2022年11月23日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 3 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="mellanox"><a class="toclink" href="../../hardware/2022/11/23/upgrade-mlnx-firmware/">升级 Mellanox 网卡固件</a></h2>
-<h3 id="_1"><a class="toclink" href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#_1">背景</a></h3>
-<p>最近发现有一台机器，插上 ConnectX-4 IB 网卡后，内核模块可以识别到设备，但是无法使用，现象是 <code>ibstat</code> 等命令都看不到设备。降级 OFED 从 5.8 到 5.4 以后问题消失，所以认为可能是新的 OFED 与比较旧的固件版本有兼容性问题，所以尝试升级网卡固件。升级以后，问题就消失了。</p>
-<h3 id="mft"><a class="toclink" href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#mft">安装 MFT</a></h3>
-<p>首先，在 https://network.nvidia.com/products/adapter-software/firmware-tools/ 下载 MFT，按照指示解压，安装后，启动 mst 服务，就可以使用 <code>mlxfwmanager</code> 得到网卡的型号以及固件版本：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>Device Type: ConnectX4
-</span><span id="__span-0-2"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>Description: Mellanox ConnectX-4 Single Port EDR PCIE Adapter LP
-</span><span id="__span-0-3"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a>PSID:        DEL2180110032
-</span><span id="__span-0-4"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a>Versions:    Current
-</span><span id="__span-0-5"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a>  FW         12.20.1820
-</span></code></pre></div>
-<h3 id="_2"><a class="toclink" href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#_2">升级固件</a></h3>
-<p>从 PSID 可以看到，这是 DELL OEM 版本的网卡，可以在 https://network.nvidia.com/support/firmware/dell/ 处寻找最新固件，注意需要保证 PSID 一致，可以找到这个 PSID 的 DELL 固件地址：https://www.mellanox.com/downloads/firmware/fw-ConnectX4-rel-12_28_4512-06W1HY_0JJN39_Ax-FlexBoot-3.6.203.bin.zip。</p>
-<p>下载以后，解压，然后就可以升级固件：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>mlxfwmanager<span class="w"> </span>-u<span class="w"> </span>-i<span class="w"> </span>fw-ConnectX4-rel-12_28_4512-06W1HY_0JJN39_Ax-FlexBoot-3.6.203.bin
-</span></code></pre></div>
-<p>升级以后重启就工作了。</p>
-<p>考虑到类似的情况之后还可能发生，顺便还升级了其他几台机器的网卡，下面是一个例子：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>Device Type: ConnectX4
-</span><span id="__span-2-2"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>Description: ConnectX-4 VPI adapter card; FDR IB (56Gb/s) and 40GbE; dual-port QSFP28; PCIe3.0 x8; ROHS R6
-</span><span id="__span-2-3"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>PSID:        MT_2170110021
-</span><span id="__span-2-4"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a>Versions:    Current
-</span><span id="__span-2-5"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a>  FW         12.25.1020
-</span></code></pre></div>
-<p>注意这里的 PSID 是 MT_ 开头，说明是官方版本。这个型号可以在 https://network.nvidia.com/support/firmware/connectx4ib/ 找到最新的固件，注意 PSID 要正确，可以找到固件下载地址 https://www.mellanox.com/downloads/firmware/fw-ConnectX4-rel-12_28_2006-MCX454A-FCA_Ax-UEFI-14.21.17-FlexBoot-3.6.102.bin.zip。用同样的方法更新即可。</p>
-<p>还有一个 ConnectX-3 的例子：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>Device Type: ConnectX3
-</span><span id="__span-3-2"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a>Description: ConnectX-3 VPI adapter card; single-port QSFP; FDR IB (56Gb/s) and 40GigE; PCIe3.0 x8 8GT/s; RoHS R6
-</span><span id="__span-3-3"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a>PSID:        MT_1100120019
-</span><span id="__span-3-4"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a>Versions:    Current
-</span><span id="__span-3-5"><a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a>  FW         2.36.5150
-</span></code></pre></div>
-<p>ConnectX-3 系列的网卡固件可以在 https://network.nvidia.com/support/firmware/connectx3ib/ 找，根据 PSID，可以找到固件下载地址是 http://www.mellanox.com/downloads/firmware/fw-ConnectX3-rel-2_42_5000-MCX353A-FCB_A2-A5-FlexBoot-3.4.752.bin.zip。</p>
-<h3 id="_3"><a class="toclink" href="../../hardware/2022/11/23/upgrade-mlnx-firmware/#_3">小结</a></h3>
-<p>如果遇到 Mellanox 网卡能识别 PCIe，但是不能使用，可以考虑降级 OFED 或者升级网卡固件。</p>
-<p>可以用 mlxfwmanager 查看 PSID 和更新固件。根据 PSID，判断是 OEM（DELL）版本还是官方版本。如果是 OEM 版本，要到对应 OEM 的固件下载地址找，例如 https://network.nvidia.com/support/firmware/dell/；如果是官方版，在 https://network.nvidia.com/support/firmware/firmware-downloads/ 找。</p>
-<nav class="md-post__action">
-<a href="../../hardware/2022/11/23/upgrade-mlnx-firmware/">
         继续阅读
       </a>
 </nav>

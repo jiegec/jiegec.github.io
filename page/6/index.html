@@ -514,6 +514,416 @@
 <div class="md-post__meta md-meta">
 <ul class="md-meta__list">
 <li class="md-meta__item">
+<time datetime="2022-07-16 00:00:00">2022年7月16日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/devops/">devops</a></li>
+<li class="md-meta__item">
+            
+              需要 14 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="ceph-cookbook"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/">Ceph Cookbook</a></h2>
+<h3 id="_1"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_1">概念</a></h3>
+<ul>
+<li>OSD：负责操作硬盘的程序，一个硬盘一个 OSD</li>
+<li>MON：管理集群状态，比较重要，可以在多个节点上各跑一个</li>
+<li>MGR：监测集群状态</li>
+<li>RGW(optional)：提供对象存储 API</li>
+<li>MDS(optional)：提供 CephFS</li>
+</ul>
+<p>使用 Ceph 做存储的方式：</p>
+<ol>
+<li>librados: 库</li>
+<li>radosgw: 对象存储 HTTP API</li>
+<li>rbd: 块存储</li>
+<li>cephfs: 文件系统</li>
+</ol>
+<h3 id="_2"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_2">认证</a></h3>
+<p>Ceph 客户端认证需要用户名 + 密钥。默认情况下，用户名是 <code>client.admin</code>，密钥路径是 <code>/etc/ceph/ceph.用户名.keyring</code>。<code>ceph --user abc</code> 表示以用户 <code>client.abc</code> 的身份访问集群。</p>
+<p>用户的权限是按照服务类型决定的。可以用 <code>ceph auth ls</code> 显示所有的用户以及权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>$<span class="w"> </span>ceph<span class="w"> </span>auth<span class="w"> </span>ls
+</span><span id="__span-0-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>osd.0
+</span><span id="__span-0-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="w">        </span>key:<span class="w"> </span>REDACTED
+</span><span id="__span-0-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mgr<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>profile<span class="w"> </span>osd
+</span><span id="__span-0-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mon<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>profile<span class="w"> </span>osd
+</span><span id="__span-0-6"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>osd<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-0-7"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a>client.admin
+</span><span id="__span-0-8"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="w">        </span>key:<span class="w"> </span>REDACTED
+</span><span id="__span-0-9"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mds<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-0-10"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mgr<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-0-11"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mon<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-0-12"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>osd<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span></code></pre></div>
+<p>可以看到，<code>osd.0</code> 对 OSD 有所有权限，对 mgr 和 mon 都只有 osd 相关功能的权限；<code>client.admin</code> 有所有权限。<code>profile</code> 可以认为是预定义的一些权限集合。</p>
+<p>新建用户并赋予权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>get-or-create<span class="w"> </span>client.abc<span class="w"> </span>mon<span class="w"> </span><span class="s1">'allow r'</span>
+</span></code></pre></div>
+<p>修改权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-2-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>caps<span class="w"> </span>client.abc<span class="w"> </span>mon<span class="w"> </span><span class="s1">'allow rw'</span>
+</span></code></pre></div>
+<p>获取权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>get<span class="w"> </span>client.abc
+</span></code></pre></div>
+<p>删除用户：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-4-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>print-key<span class="w"> </span>client.abc
+</span></code></pre></div>
+<h3 id="osd"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#osd">OSD</a></h3>
+<p>管理 OSD 实际上就是管理存储数据的硬盘。</p>
+<p>查看状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>stat
+</span></code></pre></div>
+<p>显示有多少个在线和离线的 OSD。</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>tree
+</span></code></pre></div>
+<p>显示了存储的层级，其中 ID 非负数是实际的 OSD，负数是其他层级，例如存储池，机柜，主机等等。</p>
+<h3 id="crush"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#crush">CRUSH</a></h3>
+<p>CRUSH 是一个算法，指定了如何给 PG 分配 OSD，到什么类型的设备，确定它的 failure domain 等等。例如，如果指定 failure domain 为 host，那么它就会分配到不同 host 上的 osd，这样一个 host 挂了不至于全军覆没。类似地，还可以设定更多级别的 failure domain，例如 row，rack，chassis 等等。</p>
+<p>OSD 可以设置它的 CRUSH Location，在 ceph.conf 中定义。</p>
+<p>为了配置数据置放的规则，需要设置 CRUSH Rule。</p>
+<p>列举 CRUSH Rule：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>ls
+</span><span id="__span-7-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>dump
+</span></code></pre></div>
+<p>查看 CRUSH 层级：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>tree<span class="w"> </span>--show-shadow
+</span></code></pre></div>
+<p>在里面可能会看到 <code>default~ssd</code>，它指的意思就是只保留 default 下面的 ssd 设备。</p>
+<p>文本形式导出 CRUSH 配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-9-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>getcrushmap<span class="w"> </span><span class="p">|</span><span class="w"> </span>crushtool<span class="w"> </span>-d<span class="w"> </span>-<span class="w"> </span>-o<span class="w"> </span>crushmap
+</span><span id="__span-9-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-9-2" id="__codelineno-9-2" name="__codelineno-9-2"></a>cat<span class="w"> </span>crushmap
+</span></code></pre></div>
+<p>可以看到 Rule 的定义，如：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>## simple replicated
+</span><span id="__span-10-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-2" id="__codelineno-10-2" name="__codelineno-10-2"></a>rule replicated_rule {
+</span><span id="__span-10-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-3" id="__codelineno-10-3" name="__codelineno-10-3"></a>        id 0
+</span><span id="__span-10-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-4" id="__codelineno-10-4" name="__codelineno-10-4"></a>        # a replicated rule
+</span><span id="__span-10-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-5" id="__codelineno-10-5" name="__codelineno-10-5"></a>        type replicated
+</span><span id="__span-10-6"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-6" id="__codelineno-10-6" name="__codelineno-10-6"></a>        # iterate all devices of "default"
+</span><span id="__span-10-7"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-7" id="__codelineno-10-7" name="__codelineno-10-7"></a>        step take default
+</span><span id="__span-10-8"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-8" id="__codelineno-10-8" name="__codelineno-10-8"></a>        # select n osd with failure domain "osd"
+</span><span id="__span-10-9"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-9" id="__codelineno-10-9" name="__codelineno-10-9"></a>        # firstn: continuous
+</span><span id="__span-10-10"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-10" id="__codelineno-10-10" name="__codelineno-10-10"></a>        step chooseleaf firstn 0 type osd
+</span><span id="__span-10-11"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-11" id="__codelineno-10-11" name="__codelineno-10-11"></a>        step emit
+</span><span id="__span-10-12"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-12" id="__codelineno-10-12" name="__codelineno-10-12"></a>}
+</span><span id="__span-10-13"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-13" id="__codelineno-10-13" name="__codelineno-10-13"></a>
+</span><span id="__span-10-14"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-14" id="__codelineno-10-14" name="__codelineno-10-14"></a>## erasure on hdd
+</span><span id="__span-10-15"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-15" id="__codelineno-10-15" name="__codelineno-10-15"></a>rule erasure-hdd {
+</span><span id="__span-10-16"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-16" id="__codelineno-10-16" name="__codelineno-10-16"></a>        id 4
+</span><span id="__span-10-17"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-17" id="__codelineno-10-17" name="__codelineno-10-17"></a>        # an erasure rule
+</span><span id="__span-10-18"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-18" id="__codelineno-10-18" name="__codelineno-10-18"></a>        type erasure
+</span><span id="__span-10-19"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-19" id="__codelineno-10-19" name="__codelineno-10-19"></a>        # try more times to find a good mapping
+</span><span id="__span-10-20"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-20" id="__codelineno-10-20" name="__codelineno-10-20"></a>        step set_chooseleaf_tries 5
+</span><span id="__span-10-21"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-21" id="__codelineno-10-21" name="__codelineno-10-21"></a>        step set_choose_tries 100
+</span><span id="__span-10-22"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-22" id="__codelineno-10-22" name="__codelineno-10-22"></a>        # iterate hdd devices of "default", i.e. "default~hdd"
+</span><span id="__span-10-23"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-23" id="__codelineno-10-23" name="__codelineno-10-23"></a>        step take default class hdd
+</span><span id="__span-10-24"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-24" id="__codelineno-10-24" name="__codelineno-10-24"></a>        # select n osd with failure domain "osd"
+</span><span id="__span-10-25"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-25" id="__codelineno-10-25" name="__codelineno-10-25"></a>        # indep: replace failed osd with another
+</span><span id="__span-10-26"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-26" id="__codelineno-10-26" name="__codelineno-10-26"></a>        step choose indep 0 type osd
+</span><span id="__span-10-27"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-27" id="__codelineno-10-27" name="__codelineno-10-27"></a>        step emit
+</span><span id="__span-10-28"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-28" id="__codelineno-10-28" name="__codelineno-10-28"></a>}
+</span><span id="__span-10-29"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-29" id="__codelineno-10-29" name="__codelineno-10-29"></a>
+</span><span id="__span-10-30"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-30" id="__codelineno-10-30" name="__codelineno-10-30"></a>## replicated on hdd
+</span><span id="__span-10-31"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-31" id="__codelineno-10-31" name="__codelineno-10-31"></a>rule replicated-hdd-osd {
+</span><span id="__span-10-32"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-32" id="__codelineno-10-32" name="__codelineno-10-32"></a>        id 5
+</span><span id="__span-10-33"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-33" id="__codelineno-10-33" name="__codelineno-10-33"></a>        # a replicated rule
+</span><span id="__span-10-34"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-34" id="__codelineno-10-34" name="__codelineno-10-34"></a>        type replicated
+</span><span id="__span-10-35"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-35" id="__codelineno-10-35" name="__codelineno-10-35"></a>        # iterate hdd devices of "default", i.e. "default~hdd"
+</span><span id="__span-10-36"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-36" id="__codelineno-10-36" name="__codelineno-10-36"></a>        step take default class hdd
+</span><span id="__span-10-37"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-37" id="__codelineno-10-37" name="__codelineno-10-37"></a>        # select n osd with failure domain "osd"
+</span><span id="__span-10-38"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-38" id="__codelineno-10-38" name="__codelineno-10-38"></a>        # firstn: continuous
+</span><span id="__span-10-39"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-39" id="__codelineno-10-39" name="__codelineno-10-39"></a>        step choose firstn 0 type osd
+</span><span id="__span-10-40"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-40" id="__codelineno-10-40" name="__codelineno-10-40"></a>        step emit
+</span><span id="__span-10-41"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-41" id="__codelineno-10-41" name="__codelineno-10-41"></a>}
+</span><span id="__span-10-42"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-42" id="__codelineno-10-42" name="__codelineno-10-42"></a>
+</span><span id="__span-10-43"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-43" id="__codelineno-10-43" name="__codelineno-10-43"></a>## replicated on different hosts
+</span><span id="__span-10-44"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-44" id="__codelineno-10-44" name="__codelineno-10-44"></a>rule replicated-host {
+</span><span id="__span-10-45"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-45" id="__codelineno-10-45" name="__codelineno-10-45"></a>        id 6
+</span><span id="__span-10-46"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-46" id="__codelineno-10-46" name="__codelineno-10-46"></a>        # a replicated rule
+</span><span id="__span-10-47"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-47" id="__codelineno-10-47" name="__codelineno-10-47"></a>        type replicated
+</span><span id="__span-10-48"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-48" id="__codelineno-10-48" name="__codelineno-10-48"></a>        # iterate all devices of "default"
+</span><span id="__span-10-49"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-49" id="__codelineno-10-49" name="__codelineno-10-49"></a>        step take default
+</span><span id="__span-10-50"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-50" id="__codelineno-10-50" name="__codelineno-10-50"></a>        # select n osd with failure domain "host"
+</span><span id="__span-10-51"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-51" id="__codelineno-10-51" name="__codelineno-10-51"></a>        # firstn: continuous
+</span><span id="__span-10-52"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-52" id="__codelineno-10-52" name="__codelineno-10-52"></a>        step chooseleaf firstn 0 type host
+</span><span id="__span-10-53"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-53" id="__codelineno-10-53" name="__codelineno-10-53"></a>        step emit
+</span><span id="__span-10-54"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-54" id="__codelineno-10-54" name="__codelineno-10-54"></a>}
+</span><span id="__span-10-55"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-55" id="__codelineno-10-55" name="__codelineno-10-55"></a>
+</span><span id="__span-10-56"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-56" id="__codelineno-10-56" name="__codelineno-10-56"></a>## replicate one on ssd, two on hdd
+</span><span id="__span-10-57"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-57" id="__codelineno-10-57" name="__codelineno-10-57"></a>rule replicated-ssd-primary {
+</span><span id="__span-10-58"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-58" id="__codelineno-10-58" name="__codelineno-10-58"></a>        id 7
+</span><span id="__span-10-59"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-59" id="__codelineno-10-59" name="__codelineno-10-59"></a>        # a replicated rule
+</span><span id="__span-10-60"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-60" id="__codelineno-10-60" name="__codelineno-10-60"></a>        type replicated
+</span><span id="__span-10-61"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-61" id="__codelineno-10-61" name="__codelineno-10-61"></a>
+</span><span id="__span-10-62"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-62" id="__codelineno-10-62" name="__codelineno-10-62"></a>        # iterate ssd devices of "default"
+</span><span id="__span-10-63"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-63" id="__codelineno-10-63" name="__codelineno-10-63"></a>        step take default class ssd
+</span><span id="__span-10-64"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-64" id="__codelineno-10-64" name="__codelineno-10-64"></a>        step chooseleaf firstn 1 type host
+</span><span id="__span-10-65"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-65" id="__codelineno-10-65" name="__codelineno-10-65"></a>        step emit
+</span><span id="__span-10-66"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-66" id="__codelineno-10-66" name="__codelineno-10-66"></a>
+</span><span id="__span-10-67"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-67" id="__codelineno-10-67" name="__codelineno-10-67"></a>        # iterate hdd devices of "default"
+</span><span id="__span-10-68"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-68" id="__codelineno-10-68" name="__codelineno-10-68"></a>        step take default class hdd
+</span><span id="__span-10-69"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-69" id="__codelineno-10-69" name="__codelineno-10-69"></a>        step chooseleaf firstn 2 type host
+</span><span id="__span-10-70"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-70" id="__codelineno-10-70" name="__codelineno-10-70"></a>        step emit
+</span><span id="__span-10-71"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-10-71" id="__codelineno-10-71" name="__codelineno-10-71"></a>}
+</span></code></pre></div>
+<p>choose 和 chooseleaf 的区别是，前者可以 choose 到中间层级，例如先选择 host，再在 host 里面选 osd；而 chooseleaf 是直接找到 osd。所以 <code>choose type osd</code> 和 <code>chooseleaf type osd</code> 是等价的。</p>
+<p>如果这个搜索条件比较复杂，例如找到了某一个 host，里面的 osd 个数不够，就需要重新搜。</p>
+<p>新建一个 Replicated CRUSH Rule：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="c1">## root=default, failure domain=osd</span>
+</span><span id="__span-11-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>create-replicated<span class="w"> </span>xxx<span class="w"> </span>default<span class="w"> </span>osd
+</span><span id="__span-11-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-11-3" id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="c1">## root=default, failure domain=host, class=ssd</span>
+</span><span id="__span-11-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-11-4" id="__codelineno-11-4" name="__codelineno-11-4"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>create-replicated<span class="w"> </span>yyy<span class="w"> </span>default<span class="w"> </span>host<span class="w"> </span>ssd
+</span></code></pre></div>
+<p>如果指定了 device class，它只会在对应类型的设备上存储。</p>
+<h3 id="pool"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#pool">Pool</a></h3>
+<p>Pool 是存储池，后续的 RBD/CephFS 功能都需要指定存储池来工作。</p>
+<p>创建存储池：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>create<span class="w"> </span>xxx
+</span><span id="__span-12-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-12-2" id="__codelineno-12-2" name="__codelineno-12-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>create<span class="w"> </span>PG_NUM
+</span></code></pre></div>
+<p>为了性能考虑，可以设置 PG（Placement Group）数量。默认情况下，会创建 replicated 类型的存储池，也就是会存多份，类似 RAID1。也可以设置成 erasure 类型的存储池，类似 RAID5。</p>
+<p>每个 Placement Group 里的数据会保存在同一组 OSD 中。数据通过 hash，会分布在不同的 PG 里。</p>
+<p>列举所有的存储池：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-13-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>lspools
+</span></code></pre></div>
+<p>查看存储池的使用量：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-14-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a>rados<span class="w"> </span>df
+</span></code></pre></div>
+<p>存储池的 IO 状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-15-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-15-1" id="__codelineno-15-1" name="__codelineno-15-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>stats
+</span></code></pre></div>
+<p>对存储池做快照：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-16-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-16-1" id="__codelineno-16-1" name="__codelineno-16-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>mksnap<span class="w"> </span>xxx<span class="w"> </span>snap-xxx-123
+</span></code></pre></div>
+<h4 id="pg"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#pg">PG</a></h4>
+<p>PG 是数据存放的组，每个对象都会放到一个 PG 里面，而 PG 会决定它保存到哪些 OSD 上（具体哪些 OSD 是由 CRUSH 决定的）。PG 数量只有一个的话，那么一个 pool 的所有数据都会存放在某几个 OSD 中，一旦这几个 OSD 都不工作了，那么整个 pool 的数据都不能访问了。PG 增多了以后，就会分布到不同的 OSD 上，并且各个 OSD 的占用也会比较均匀。</p>
+<p>查看 PG 状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-17-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-17-1" id="__codelineno-17-1" name="__codelineno-17-1"></a>ceph<span class="w"> </span>pg<span class="w"> </span>dump
+</span></code></pre></div>
+<h5 id="auto-scale"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#auto-scale">Auto Scale</a></h5>
+<p>PG 数量可以让集群自动调整：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-18-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-18-1" id="__codelineno-18-1" name="__codelineno-18-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span><span class="nb">set</span><span class="w"> </span>xxx<span class="w"> </span>pg_autoscale_mode<span class="w"> </span>on
+</span></code></pre></div>
+<p>设置 autoscale 目标为每个 OSD 平均 100 个 PG：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-19-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-19-1" id="__codelineno-19-1" name="__codelineno-19-1"></a>ceph<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>global<span class="w"> </span>mon_target_pg_per_osd<span class="w"> </span><span class="m">100</span>
+</span></code></pre></div>
+<p>全局 autoscale 开关：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-20-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-20-1" id="__codelineno-20-1" name="__codelineno-20-1"></a><span class="c1">## Enable</span>
+</span><span id="__span-20-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-20-2" id="__codelineno-20-2" name="__codelineno-20-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span><span class="nb">unset</span><span class="w"> </span>noautoscale
+</span><span id="__span-20-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-20-3" id="__codelineno-20-3" name="__codelineno-20-3"></a><span class="c1">## Disable</span>
+</span><span id="__span-20-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-20-4" id="__codelineno-20-4" name="__codelineno-20-4"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span><span class="nb">set</span><span class="w"> </span>unautoscale
+</span><span id="__span-20-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-20-5" id="__codelineno-20-5" name="__codelineno-20-5"></a><span class="c1">## Read</span>
+</span><span id="__span-20-6"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-20-6" id="__codelineno-20-6" name="__codelineno-20-6"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>get<span class="w"> </span>noautoscale
+</span></code></pre></div>
+<p>查看 autoscale 状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-21-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-21-1" id="__codelineno-21-1" name="__codelineno-21-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>autoscale-status
+</span></code></pre></div>
+<p>如果没有显示，说明 autoscale 没有工作，可能的原因是，部分 pool 采用了指定 osd class 的 crush rule，例如指定了 hdd 盘，但是也有部分 pool 没有指定盘的类型，例如默认的 replicated_rule。这时候，把这些盘也设置成一个指定 osd class 的 crush rule 即可。</p>
+<h3 id="rbd"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#rbd">RBD</a></h3>
+<p>RBD 把 Ceph 暴露为块设备。</p>
+<h4 id="_3"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_3">创建</a></h4>
+<p>初始化 Pool 用于 RBD：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-22-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a>rbd<span class="w"> </span>pool<span class="w"> </span>init<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>为了安全性考虑，一般会为 RBD 用户创建单独的用户：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-23-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>get-or-create<span class="w"> </span>client.abc<span class="w"> </span>mon<span class="w"> </span><span class="s1">'profile rbd'</span><span class="w"> </span>osd<span class="w"> </span><span class="s1">'profile rbd pool=xxx'</span><span class="w"> </span>mgr<span class="w"> </span><span class="s1">'profile rbd pool=xxx'</span>
+</span></code></pre></div>
+<p>创建 RBD 镜像：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-24-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a>rbd<span class="w"> </span>create<span class="w"> </span>--size<span class="w"> </span><span class="m">1024</span><span class="w"> </span>xxx/yyy
+</span></code></pre></div>
+<p>表示在 Pool xxx 上面创建了一个名字为 yyy 大小为 1024MB 的镜像。</p>
+<h4 id="_4"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_4">状态</a></h4>
+<p>列举 Pool 里的镜像：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-25-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a>rbd<span class="w"> </span>ls
+</span><span id="__span-25-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a>rbd<span class="w"> </span>ls<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>默认的 Pool 名字是 <code>rbd</code>。</p>
+<p>查看镜像信息：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-26-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-26-1" id="__codelineno-26-1" name="__codelineno-26-1"></a>rbd<span class="w"> </span>info<span class="w"> </span>yyy
+</span><span id="__span-26-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-26-2" id="__codelineno-26-2" name="__codelineno-26-2"></a>rbd<span class="w"> </span>info<span class="w"> </span>xxx/yyy
+</span></code></pre></div>
+<h4 id="_5"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_5">扩容</a></h4>
+<p>修改镜像的容量：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-27-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-27-1" id="__codelineno-27-1" name="__codelineno-27-1"></a>rbd<span class="w"> </span>resize<span class="w"> </span>--size<span class="w"> </span><span class="m">2048</span><span class="w"> </span>yyy
+</span><span id="__span-27-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-27-2" id="__codelineno-27-2" name="__codelineno-27-2"></a>rbd<span class="w"> </span>resize<span class="w"> </span>--size<span class="w"> </span><span class="m">512</span><span class="w"> </span>yyy<span class="w"> </span>--allow-shrink
+</span></code></pre></div>
+<h4 id="_6"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_6">挂载</a></h4>
+<p>在其他机器挂载 RBD 的时候，首先要修改 <code>/etc/ceph</code> 下配置，确认有用户，密钥和 MON 的地址。</p>
+<p>然后，用 rbd 挂载设备：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-28-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-28-1" id="__codelineno-28-1" name="__codelineno-28-1"></a>rbd<span class="w"> </span>device<span class="w"> </span>map<span class="w"> </span>xxx/yyy<span class="w"> </span>--id<span class="w"> </span>abc
+</span></code></pre></div>
+<p>以用户 abc 的身份挂载 Pool xxx 下面的 yyy 镜像。</p>
+<p>这时候就可以在 <code>/dev/rbd*</code> 或者 <code>/dev/rbd/</code> 下面看到设备文件了。</p>
+<p>显示已经挂载的设备：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-29-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-29-1" id="__codelineno-29-1" name="__codelineno-29-1"></a>rbd<span class="w"> </span>device<span class="w"> </span>list
+</span></code></pre></div>
+<h3 id="cephfs"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#cephfs">CephFS</a></h3>
+<h4 id="_7"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_7">创建</a></h4>
+<p>如果配置了编排器（Orchestrator），可以直接用命令：</p>
+<p><div class="language-shell highlight"><pre><span></span><code><span id="__span-30-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-30-1" id="__codelineno-30-1" name="__codelineno-30-1"></a>ceph<span class="w"> </span>fs<span class="w"> </span>volume<span class="w"> </span>create<span class="w"> </span>xxx
+</span></code></pre></div>
+创建一个名为 <code>xxx</code> 的 CephFS。</p>
+<p>也可以手动创建：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-31-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-31-1" id="__codelineno-31-1" name="__codelineno-31-1"></a>ceph osd pool create xxx_data0
+</span><span id="__span-31-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-31-2" id="__codelineno-31-2" name="__codelineno-31-2"></a>ceph osd pool create xxx_metadata
+</span><span id="__span-31-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-31-3" id="__codelineno-31-3" name="__codelineno-31-3"></a>ceph fs new xxx xxx_metadata xxx_data0
+</span></code></pre></div>
+<p>这样就创建了两个 pool，分别用于存储元数据和文件数据。一个 CephFS 需要一个 pool 保存元数据，若干个 pool 保存文件数据。</p>
+<p>创建了 CephFS 以后，相应的 MDS 也会启动。</p>
+<h4 id="_8"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_8">状态</a></h4>
+<p>查看 MDS 状态：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-32-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-32-1" id="__codelineno-32-1" name="__codelineno-32-1"></a>ceph mds stat
+</span></code></pre></div>
+<h4 id="_9"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_9">客户端配置</a></h4>
+<p>在挂载 CephFS 之前，首先要配置客户端。</p>
+<p>在集群里运行 <code>ceph config generate-minimal-conf</code>，它会生成一个配置文件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-33-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-33-1" id="__codelineno-33-1" name="__codelineno-33-1"></a>$<span class="w"> </span>ceph<span class="w"> </span>config<span class="w"> </span>generate-minimal-conf
+</span><span id="__span-33-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-33-2" id="__codelineno-33-2" name="__codelineno-33-2"></a><span class="c1">## minimal ceph.conf for &lt;fsid&gt;</span>
+</span><span id="__span-33-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-33-3" id="__codelineno-33-3" name="__codelineno-33-3"></a><span class="o">[</span>global<span class="o">]</span>
+</span><span id="__span-33-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-33-4" id="__codelineno-33-4" name="__codelineno-33-4"></a><span class="w">        </span><span class="nv">fsid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>&lt;fsid&gt;
+</span><span id="__span-33-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-33-5" id="__codelineno-33-5" name="__codelineno-33-5"></a><span class="w">        </span><span class="nv">mon_host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>v2:x.x.x.x:3300/0,v1:x.x.x.x:6789/0<span class="o">]</span>
+</span></code></pre></div>
+<p>把内容复制到客户端的 <code>/etc/ceph/ceph.conf</code>。这样客户端就能找到集群的 MON 地址和 FSID。</p>
+<p>接着，我们在集群上给客户端创建一个用户：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-34-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-34-1" id="__codelineno-34-1" name="__codelineno-34-1"></a>ceph fs authorize xxx client.abc / rw
+</span></code></pre></div>
+<p>创建一个用户 abc，对 CephFS xxx 有读写的权限。把输出保存到客户端的 <code>/etc/ceph/ceph.client.abc.keyring</code> 即可。</p>
+<h4 id="_10"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_10">挂载</a></h4>
+<p>挂载：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-35-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-1" id="__codelineno-35-1" name="__codelineno-35-1"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@.xxx<span class="o">=</span>/<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-35-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-2" id="__codelineno-35-2" name="__codelineno-35-2"></a><span class="c1">## or</span>
+</span><span id="__span-35-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-3" id="__codelineno-35-3" name="__codelineno-35-3"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@&lt;fsid&gt;.xxx<span class="o">=</span>/<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-35-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-4" id="__codelineno-35-4" name="__codelineno-35-4"></a><span class="c1">## or</span>
+</span><span id="__span-35-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-5" id="__codelineno-35-5" name="__codelineno-35-5"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@&lt;fsid&gt;.xxx<span class="o">=</span>/<span class="w"> </span>-o<span class="w"> </span><span class="nv">mon_addr</span><span class="o">=</span>x.x.x.x:6789,secret<span class="o">=</span>REDACTED<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-35-6"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-6" id="__codelineno-35-6" name="__codelineno-35-6"></a><span class="c1">##or</span>
+</span><span id="__span-35-7"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-7" id="__codelineno-35-7" name="__codelineno-35-7"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@.xxx<span class="o">=</span>/<span class="w"> </span>-o<span class="w"> </span><span class="nv">mon_addr</span><span class="o">=</span>x.x.x.x:6789/y.y.y.y:6789,secretfile<span class="o">=</span>/etc/ceph/xxx.secret<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-35-8"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-8" id="__codelineno-35-8" name="__codelineno-35-8"></a><span class="c1">## or</span>
+</span><span id="__span-35-9"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-35-9" id="__codelineno-35-9" name="__codelineno-35-9"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>-o<span class="w"> </span><span class="nv">name</span><span class="o">=</span>client.abc,secret<span class="o">=</span>REDACTED,mds_namespace<span class="o">=</span>xxx<span class="w"> </span>MON_IP:/<span class="w"> </span>MOUNTPOINT
+</span></code></pre></div>
+<p>以用户 <code>client.abc</code> 的身份登录，挂载 CepFS <code>xxx</code> 下面的 <code>/</code> 目录到 <code>MOUNTPOINT</code>。它会读取 <code>/etc/ceph</code> 下面的配置，如果已经 <code>ceph.conf</code> 写了，命令行里就可以不写。</p>
+<p>fsid 指的不是 CephFS 的 ID，实际上是集群的 ID：<code>ceph fsid</code>。</p>
+<h4 id="_11"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_11">限额</a></h4>
+<p>CephFS 可以对目录进行限额：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-36-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-36-1" id="__codelineno-36-1" name="__codelineno-36-1"></a>setfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_bytes<span class="w"> </span>-v<span class="w"> </span>LIMIT<span class="w"> </span>PATH
+</span><span id="__span-36-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-36-2" id="__codelineno-36-2" name="__codelineno-36-2"></a>setfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_files<span class="w"> </span>-v<span class="w"> </span>LIMIT<span class="w"> </span>PATH
+</span><span id="__span-36-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-36-3" id="__codelineno-36-3" name="__codelineno-36-3"></a>getfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_bytes<span class="w"> </span>PATH
+</span><span id="__span-36-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-36-4" id="__codelineno-36-4" name="__codelineno-36-4"></a>getfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_files<span class="w"> </span>PATH
+</span></code></pre></div>
+<p>限制目录大小和文件数量。LIMIT 是 0 的时候表示没有限制。</p>
+<h4 id="nfs"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#nfs">NFS</a></h4>
+<p>可以把 CephFS 或者 RGW 通过 NFS 的方式共享出去。</p>
+<p>启动 NFS 服务：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-37-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-37-1" id="__codelineno-37-1" name="__codelineno-37-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>create<span class="w"> </span>xxx
+</span><span id="__span-37-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-37-2" id="__codelineno-37-2" name="__codelineno-37-2"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>create<span class="w"> </span>xxx<span class="w"> </span><span class="s2">"host1,host2"</span>
+</span></code></pre></div>
+<p>在主机上运行 NFS 服务器，NFS 集群的名字叫做 xxx。</p>
+<p>查看 NFS 集群信息：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-38-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-38-1" id="__codelineno-38-1" name="__codelineno-38-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>info<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>列举所有 NFS 集群：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-39-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-39-1" id="__codelineno-39-1" name="__codelineno-39-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>ls
+</span></code></pre></div>
+<p>NFS 导出 CephFS：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-40-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-40-1" id="__codelineno-40-1" name="__codelineno-40-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span><span class="nb">export</span><span class="w"> </span>create<span class="w"> </span>cephfs<span class="w"> </span>--cluster-id<span class="w"> </span>xxx<span class="w"> </span>--pseudo-path<span class="w"> </span>/a/b/c<span class="w"> </span>--fsname<span class="w"> </span>some-cephfs-name<span class="w"> </span><span class="o">[</span>--path<span class="o">=</span>/d/e/f<span class="o">]</span><span class="w"> </span><span class="o">[</span>--client_addr<span class="w"> </span>y.y.y.y<span class="o">]</span>
+</span></code></pre></div>
+<p>这样就导出了 CephFS 内的一个目录，客户端可以通过 NFS 挂载 /a/b/c 路径（pseudo path）来访问。可以设置客户端的 IP 访问权限。</p>
+<p>这样在客户端就可以 mount：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-41-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-41-1" id="__codelineno-41-1" name="__codelineno-41-1"></a>mount<span class="w"> </span>-t<span class="w"> </span>nfs<span class="w"> </span>x.x.x.x:/a/b/c<span class="w"> </span>/mnt
+</span></code></pre></div>
+<h3 id="radosgw"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#radosgw">RadosGW</a></h3>
+<p>RGW 提供了 S3 或者 OpenStack Swift 兼容的对象存储 API。</p>
+<p>TODO</p>
+<h3 id="_12"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_12">编排器</a></h3>
+<p>由于 Ceph 需要运行多个 daemon，并且都在不同的容器中运行，所以一般会跑一个系统级的编排器，用于新增和管理这些容器。</p>
+<p>查看当前编排器：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-42-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-42-1" id="__codelineno-42-1" name="__codelineno-42-1"></a>$<span class="w"> </span>ceph<span class="w"> </span>orch<span class="w"> </span>status
+</span><span id="__span-42-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-42-2" id="__codelineno-42-2" name="__codelineno-42-2"></a>Backend:<span class="w"> </span>cephadm
+</span><span id="__span-42-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-42-3" id="__codelineno-42-3" name="__codelineno-42-3"></a>Available:<span class="w"> </span>Yes
+</span><span id="__span-42-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-42-4" id="__codelineno-42-4" name="__codelineno-42-4"></a>Paused:<span class="w"> </span>No
+</span></code></pre></div>
+<p>比较常见的就是 cephadm，安装的时候如果用了 cephadm，那么编排器也是它。</p>
+<p>被编排的服务：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-43-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-43-1" id="__codelineno-43-1" name="__codelineno-43-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ls
+</span></code></pre></div>
+<p>被编排的容器：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-44-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-44-1" id="__codelineno-44-1" name="__codelineno-44-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ps
+</span></code></pre></div>
+<p>被编排的主机：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-45-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-45-1" id="__codelineno-45-1" name="__codelineno-45-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>host<span class="w"> </span>ls
+</span></code></pre></div>
+<h4 id="_13"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_13">添加新机器</a></h4>
+<p>首先，复制 <code>/etc/ceph/ceph.pub</code> 到新机器的 <code>/root/.ssh/authorized_keys</code> 中</p>
+<p>接着，添加机器到编排器中：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-46-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-46-1" id="__codelineno-46-1" name="__codelineno-46-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>host<span class="w"> </span>add<span class="w"> </span>xxxx<span class="w"> </span>y.y.y.y
+</span></code></pre></div>
+<p>导出编排器配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-47-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-47-1" id="__codelineno-47-1" name="__codelineno-47-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ls<span class="w"> </span>--export<span class="w"> </span>&gt;<span class="w"> </span>cephadm.yaml
+</span></code></pre></div>
+<p>如果想让一些 daemon 只运行在部分主机上，可以修改：</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-48-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-48-1" id="__codelineno-48-1" name="__codelineno-48-1"></a><span class="c1">## change</span>
+</span><span id="__span-48-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-48-2" id="__codelineno-48-2" name="__codelineno-48-2"></a><span class="nt">placement</span><span class="p">:</span>
+</span><span id="__span-48-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-48-3" id="__codelineno-48-3" name="__codelineno-48-3"></a><span class="w">  </span><span class="nt">host_pattern</span><span class="p">:</span><span class="w"> </span><span class="s">'*'</span>
+</span><span id="__span-48-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-48-4" id="__codelineno-48-4" name="__codelineno-48-4"></a><span class="c1">## to</span>
+</span><span id="__span-48-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-48-5" id="__codelineno-48-5" name="__codelineno-48-5"></a><span class="nt">placement</span><span class="p">:</span>
+</span><span id="__span-48-6"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-48-6" id="__codelineno-48-6" name="__codelineno-48-6"></a><span class="w">  </span><span class="nt">host_pattern</span><span class="p">:</span><span class="w"> </span><span class="s">'xxx'</span>
+</span></code></pre></div>
+<p>然后应用：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-49-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-49-1" id="__codelineno-49-1" name="__codelineno-49-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>-i<span class="w"> </span>cephadm.yaml
+</span></code></pre></div>
+<h4 id="_14"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_14">配置监控</a></h4>
+<p>添加监控相关的服务：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-50-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-50-1" id="__codelineno-50-1" name="__codelineno-50-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>node-exporter
+</span><span id="__span-50-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-50-2" id="__codelineno-50-2" name="__codelineno-50-2"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>alertmanager
+</span><span id="__span-50-3"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-50-3" id="__codelineno-50-3" name="__codelineno-50-3"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>prometheus
+</span><span id="__span-50-4"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-50-4" id="__codelineno-50-4" name="__codelineno-50-4"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>grafana
+</span><span id="__span-50-5"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-50-5" id="__codelineno-50-5" name="__codelineno-50-5"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ps
+</span></code></pre></div>
+<p>然后就可以访问 Grafana 看到集群的状态。</p>
+<h3 id="_15"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_15">更新</a></h3>
+<p>使用容器编排器来升级：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-51-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-51-1" id="__codelineno-51-1" name="__codelineno-51-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--ceph-version<span class="w"> </span>x.x.x
+</span><span id="__span-51-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-51-2" id="__codelineno-51-2" name="__codelineno-51-2"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--image<span class="w"> </span>quay.io/ceph/ceph:vx.x.x
+</span></code></pre></div>
+<p>如果 docker hub 上找不到 image，就从 quay.io 拉取。</p>
+<p>查看升级状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-52-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-52-1" id="__codelineno-52-1" name="__codelineno-52-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>status
+</span><span id="__span-52-2"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-52-2" id="__codelineno-52-2" name="__codelineno-52-2"></a>ceph<span class="w"> </span>-s
+</span></code></pre></div>
+<p>查看 cephadm 日志：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-53-1"><a href="../../devops/2022/07/16/ceph-cookbook/#__codelineno-53-1" id="__codelineno-53-1" name="__codelineno-53-1"></a>ceph<span class="w"> </span>-W<span class="w"> </span>cephadm
+</span></code></pre></div>
+<h3 id="_16"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#_16">参考文档</a></h3>
+<ul>
+<li><a href="https://docs.ceph.com/en/latest/architecture/">Ceph Architecture</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rados/operations/user-management/">Ceph User Management</a></li>
+<li><a href="https://docs.ceph.com/en/latest/cephfs/createfs/">Ceph Create a Ceph File System</a></li>
+<li><a href="https://docs.ceph.com/en/latest/man/8/mount.ceph/">mount.ceph</a></li>
+<li><a href="https://docs.ceph.com/en/latest/cephfs/quota/">Ceph CephFS Quota</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/">Ceph Basic Block Device Commands</a></li>
+<li><a href="https://docs.ceph.com/en/quincy/cephadm/upgrade/">Ceph Upgrade</a></li>
+<li><a href="https://docs.ceph.com/en/latest/mgr/nfs/">Ceph CephFS &amp; RGW Exports Over NFS</a></li>
+<li><a href="https://docs.ceph.com/en/quincy/rados/operations/crush-map/">CRUSH Maps</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/">CRUSH Map Edits</a></li>
+<li><a href="https://llussy.github.io/2019/08/17/ceph-architecture/">ceph 架构和概念</a></li>
+<li><a href="https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw">RedHat Object Gateway Guide</a></li>
+</ul>
+<nav class="md-post__action">
+<a href="../../devops/2022/07/16/ceph-cookbook/">
+        继续阅读
+      </a>
+</nav>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
 <time datetime="2022-07-12 00:00:00">2022年7月12日</time></li>
 <li class="md-meta__item">
             分类于
@@ -2253,101 +2663,6 @@ ensure the address bus is valid.
 </ul>
 <nav class="md-post__action">
 <a href="../../hardware/2022/05/19/async-sram-timing/">
-        继续阅读
-      </a>
-</nav>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2022-05-16 00:00:00">2022年5月16日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 10 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="ace"><a class="toclink" href="../../hardware/2022/05/16/ace/">「教学」ACE 缓存一致性协议</a></h2>
-<p>本文的内容已经整合到<a href="/kb/hardware/cache_coherence_protocol.html">知识库</a>中。</p>
-<h3 id="_1"><a class="toclink" href="../../hardware/2022/05/16/ace/#_1">背景</a></h3>
-<p>最近几天分析了 TileLink 的缓存一致性协议部分内容，见<a href="../../hardware/2022/05/09/tilelink/">TileLink 总线协议分析</a>，趁此机会研究一下之前尝试过研究，但是因为缺少一些基础知识而弃坑的 ACE 协议分析。</p>
-<p>下面主要参考了 IHI0022E 的版本，也就是 AXI4 对应的 ACE 版本。</p>
-<h3 id="_2"><a class="toclink" href="../../hardware/2022/05/16/ace/#_2">回顾</a></h3>
-<p>首先回顾一下一个缓存一致性协议需要支持哪些操作。对于较上一级 Cache 来说，它需要这么几件事情：</p>
-<ol>
-<li>读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
-<li>写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。</li>
-<li>需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知，也可以选择不通知下一级。</li>
-<li>收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。</li>
-<li>需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。</li>
-</ol>
-<p>如果之前看过我的 TileLink 分析，那么上面的这些操作对应到 TileLink 就是：</p>
-<ol>
-<li>读或写 miss 的时候，需要请求这个缓存行的数据（发送 AcquireBlock，等待 GrantData），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
-<li>写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态（发送 AcquirePerm，等待 Grant），比如从 Shared 到 Modified。</li>
-<li>需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回（发送 ReleaseData，等待 ReleaseAck），并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知（发送 Release，等待 ReleaseAck），也可以选择不通知下一级。</li>
-<li>收到 snoop 请求的时候（收到 Probe），需要返回当前的缓存数据（发送 ProbeAck/ProbeAckData），并且更新状态。</li>
-<li>需要一个方法（发送 GrantAck）来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。</li>
-</ol>
-<p>秉承着这个思路，再往下看 ACE 的设计，就会觉得很自然了。</p>
-<h3 id="cache-state-model"><a class="toclink" href="../../hardware/2022/05/16/ace/#cache-state-model">Cache state model</a></h3>
-<p>首先来看一下 ACE 的缓存状态模型，我在之前的<a href="../../hardware/2021/12/17/cache-coherency-protocol/">缓存一致性协议分析</a>中也分析过，它有这么五种，就是 MOESI 的不同说法：</p>
-<ol>
-<li>UniqueDirty: Modified</li>
-<li>SharedDirty: Owned</li>
-<li>UniqueClean: Exclusive</li>
-<li>SharedClean: Shared</li>
-<li>Invalid: Invalid</li>
-</ol>
-<p>文档中的定义如下：</p>
-<ul>
-<li>Valid, Invalid: When valid, the cache line is present in the cache. When invalid, the cache line is not present in the cache.</li>
-<li>Unique, Shared: When unique, the cache line exists only in one cache. When shared, the cache line might exist in more than one cache, but this is not guaranteed.</li>
-<li>Clean, Dirty: When clean, the cache does not have responsibility for updating main memory. When dirty, the cache line has been modified with respect to main memory, and this cache must ensure that main memory is eventually updated.</li>
-</ul>
-<p>大致理解的话，Unique 表示只有一个缓存有这个缓存行，Shared 表示有可能有多个缓存有这个缓存行；Clean 表示它不负责更新内存，Dirty 表示它负责更新内存。下面的很多操作都是围绕这些状态进行的。</p>
-<p>文档中也说，它支持 MOESI 的不同子集：MESI, ESI, MEI, MOESI，所以也许在一个简化的系统里，一些状态可以不存在，实现会有所不同。</p>
-<h3 id="channel-usage-examples"><a class="toclink" href="../../hardware/2022/05/16/ace/#channel-usage-examples">Channel usage examples</a></h3>
-<p>到目前为止，我还没有介绍 ACE 的信号，但是我们可以尝试一下，如果我们是协议的设计者，我们要如何添加信号来完成这个事情。</p>
-<p>首先考虑上面提到的第一件事情：读或写 miss 的时候，需要请求这个缓存行的数据，并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</p>
-<p>我们知道，AXI 有 AR 和 R channel 用于读取数据，那么遇到读或者写 miss 的时候，可以在 AR channel 上捎带一些信息，让下一级的 Interconnect 知道自己的意图是读还是写，然后 Interconnect 就在 R channel 上返回数据。</p>
-<p>那么，具体要捎带什么信息呢？我们“不妨”用这样一种命名方式：<code>操作 + 目的状态</code>，比如我读 miss 的时候，需要读取数据，进入 Shared 状态，那就叫 ReadShared；我写 miss 的时候，需要读取数据（通常写入缓存的只是一个缓存行的一部分，所以先要把完整的读进来），那就叫 ReadUnique。这个操作可以编码到一个信号中，传递给 Interconnect。</p>
-<p>再来考虑上面提到的第二件事情：写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态，比如从 Shared 到 Modified。</p>
-<p>这个操作，需要让 Interconnect 把其他缓存中的这个缓存行数据清空，并且把自己升级到 Unique。根据上面的 <code>操作 + 目的状态</code> 的命名方式，我们可以命名为 CleanUnique，即把其他缓存都 Clean 掉，然后自己变成 Unique。</p>
-<p>接下来考虑上面提到的第三件事情：需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。</p>
-<p>按照前面的 <code>操作 + 目的状态</code> 命名法，可以命名为 WriteBackInvalid。ACE 实际采用的命名是 WriteBack。</p>
-<p>终于到了第四件事情：收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。</p>
-<p>既然 snoop 是从 Interconnect 发给 Master，在已有的 AR R AW W B channel 里没办法做这个事情，不然会打破已有的逻辑。那不得不添加一对 channel，比如我规定一个 AC channel 发送 snoop 请求，规定一个 C channel 让 master 发送响应，这样就可以了。这就相当于 TileLink 里面的 B channel（Probe 请求）和 C channel（ProbeAck 响应）。实际 ACE 和刚才设计的实际有一些区别，把 C channel 拆成了两个：CR 用于返回所有响应，CD 用于返回那些需要数据的响应。这就像 AW 和 W 的关系，一个传地址，一个传数据；类似地，CR 传状态，CD 传数据。</p>
-<p>那么，接下来考虑一下 AC channel 上要发送什么请求呢？我们回顾一下上面已经用到的请求类型：需要 snoop 的有 ReadShared，ReadUnique 和 CleanUnique，不需要 snoop 的有 WriteBack。那我们直接通过 AC channel 把 ReadShared，ReadUnique 和 CleanUnique 这三种请求原样发送给需要 snoop 的 cache 那里就可以了。</p>
-<p>Cache 在 AC channel 收到这些请求的时候，可以做相应的动作。由于 MOESI 协议下同样的请求可以有不同的响应方法，这里就不细说了。</p>
-<p>这时候我们已经基本把 ACE 协议的信号和大题的工作流程推导出来了。哦，我们还忘了第五件事情：需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。TileLink 添加了一个额外的 E channel 来做这个事情，ACE 更加粗暴：直接用一对 RACK 和 WACK 信号来分别表示最后一次读和写已经完成。</p>
-<p>关于 WACK 和 RACK 详见 <a href="https://community.arm.com/support-forums/f/soc-design-and-simulation-forum/9888/what-s-the-purpose-for-wack-and-rack-for-ace-and-what-s-the-relationship-with-wvalid-and-rvalid">What's the purpose for WACK and RACK for ACE and what's the relationship with WVALID and RVALID?</a> 的讨论。</p>
-<h3 id="_3"><a class="toclink" href="../../hardware/2022/05/16/ace/#_3">总结</a></h3>
-<p>到这里就暂时不继续分析了，其他的很多请求类型是服务于更多场景，比如一次写整个 Cache Line 的话，就不需要读取已有的数据了；或者一次性读取完就不管了，或者这是一个不带缓存的加速器，DMA 等，有一些针对性的优化或者简化的处理，比如对于不带缓存的 master，可以简化为 ACE-Lite，比如 ARM 的 CCI-400 支持两个 ACE master 和 三个 ACE-Lite Master，这些 Master 可以用来接 GPU 等外设。再简化一下 ACE-Lite，就得到了 ACP（Accelerator Coherency Port）。</p>
-<p>最后我们再把文章开头的五件事对应到 ACE 上，作为一个前后的呼应：</p>
-<ol>
-<li>读或写 miss 的时候，需要请求这个缓存行的数据（AR 上发送 ReadShared/ReadUnique），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
-<li>写入一个 valid &amp;&amp; !dirty 的缓存行的时候，需要升级自己的状态（AR 上发送 CleanUnique），比如从 Shared 到 Modified。</li>
-<li>需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回（AW 上发送 WriteBack），并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。如果需要 evict 一个 valid &amp;&amp; !dirty 的缓存行，可以选择通知（AW 上发送 Evict），也可以选择不通知下一级。</li>
-<li>收到 snoop 请求的时候（AC 上收到 snoop 请求），需要返回当前的缓存数据（通过 CR 和 CD），并且更新状态。</li>
-<li>需要一个方法（读 RACK 写 WACK）来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。</li>
-</ol>
-<h3 id="_4"><a class="toclink" href="../../hardware/2022/05/16/ace/#_4">参考文献</a></h3>
-<ul>
-<li><a href="https://developer.arm.com/documentation/ihi0022/e/">IHI0022E-AMBA AXI and ACE</a></li>
-</ul>
-<nav class="md-post__action">
-<a href="../../hardware/2022/05/16/ace/">
         继续阅读
       </a>
 </nav>

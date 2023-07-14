@@ -528,6 +528,97 @@
 </div>
 </header>
 <div class="md-post__content md-typeset">
+<h2 id="aix-72"><a class="toclink" href="../../system/2023/04/09/aix/">AIX 7.2 虚拟机安装</a></h2>
+<h3 id="_1"><a class="toclink" href="../../system/2023/04/09/aix/#_1">安装过程</a></h3>
+<p>宿主机环境是 Debian bookworm，不需要像其他教程那样自己编译 qemu，直接 apt install 即可。</p>
+<p>通过 google 可以搜索到 AIX 7.2 的 ISO，下载第一个 ISO 到本地，然后在 QEMU 中启动安装镜像：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a href="../../system/2023/04/09/aix/#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>qemu-img<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>qcow2<span class="w"> </span>aix-hdd.qcow2<span class="w"> </span>20G
+</span><span id="__span-0-2"><a href="../../system/2023/04/09/aix/#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>qemu-system-ppc64<span class="w"> </span>-cpu<span class="w"> </span>POWER8<span class="w"> </span>-machine<span class="w"> </span>pseries<span class="w"> </span>-m<span class="w"> </span><span class="m">16384</span><span class="w"> </span>-serial<span class="w"> </span>mon:stdio<span class="w"> </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>aix-hdd.qcow2,if<span class="o">=</span>none,id<span class="o">=</span>drive-virtio-disk0<span class="w"> </span>-device<span class="w"> </span>virtio-scsi-pci,id<span class="o">=</span>scsi<span class="w"> </span>-device<span class="w"> </span>scsi-hd,drive<span class="o">=</span>drive-virtio-disk0<span class="w"> </span>-cdrom<span class="w"> </span>aix_7200-04-02-2027_1of2_072020.iso<span class="w"> </span>-prom-env<span class="w"> </span>boot-command<span class="o">=</span><span class="s1">'boot cdrom:\ppc\chrp\bootfile.exe'</span><span class="w"> </span>-display<span class="w"> </span>none
+</span></code></pre></div>
+<p>进去以后，耐心等待，直到进入安装界面，按照提示进行安装，建议安装上 SSH Server，关掉图形界面，这样安装会比较快。安装需要几十分钟，安装完成后会进入 bootloop，关掉 QEMU。接着，准备好网络：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a href="../../system/2023/04/09/aix/#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>sudo<span class="w"> </span>ip<span class="w"> </span>tuntap<span class="w"> </span>add<span class="w"> </span>tap0<span class="w"> </span>mode<span class="w"> </span>tap
+</span><span id="__span-1-2"><a href="../../system/2023/04/09/aix/#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>tap0<span class="w"> </span>up
+</span><span id="__span-1-3"><a href="../../system/2023/04/09/aix/#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a>sudo<span class="w"> </span>ip<span class="w"> </span>a<span class="w"> </span>add<span class="w"> </span><span class="m">10</span>.0.2.15/24<span class="w"> </span>dev<span class="w"> </span>tap0
+</span></code></pre></div>
+<p>再启动虚拟机，注意启动选项修改了，并且多了网络的配置：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a href="../../system/2023/04/09/aix/#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>qemu-system-ppc64<span class="w"> </span>-cpu<span class="w"> </span>POWER8<span class="w"> </span>-machine<span class="w"> </span>pseries<span class="w"> </span>-m<span class="w"> </span><span class="m">16384</span><span class="w"> </span>-serial<span class="w"> </span>mon:stdio<span class="w"> </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>aix-hdd.qcow2,if<span class="o">=</span>none,id<span class="o">=</span>drive-virtio-disk0<span class="w"> </span>-device<span class="w"> </span>virtio-scsi-pci,id<span class="o">=</span>scsi<span class="w"> </span>-device<span class="w"> </span>scsi-hd,drive<span class="o">=</span>drive-virtio-disk0<span class="w"> </span>-cdrom<span class="w"> </span>aix_7200-04-02-2027_1of2_072020.iso<span class="w"> </span>-prom-env<span class="w"> </span>boot-command<span class="o">=</span><span class="s1">'boot disk:'</span><span class="w"> </span>-display<span class="w"> </span>none<span class="w"> </span>-net<span class="w"> </span>nic<span class="w"> </span>-net<span class="w"> </span>tap,script<span class="o">=</span>no,ifname<span class="o">=</span>tap0
+</span></code></pre></div>
+<p>第一次启动系统时，会进入配置界面，修改好 root 密码，然后配置网络：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a href="../../system/2023/04/09/aix/#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>chdev<span class="w"> </span>-l<span class="w"> </span>en0<span class="w"> </span>-a<span class="w"> </span><span class="nv">netaddr</span><span class="o">=</span><span class="m">10</span>.0.2.16<span class="w"> </span>-a<span class="w"> </span><span class="nv">netmask</span><span class="o">=</span><span class="m">255</span>.255.255.0<span class="w"> </span>-a<span class="w"> </span><span class="nv">state</span><span class="o">=</span>up
+</span></code></pre></div>
+<p>到这里了以后，就可以通过 ssh 访问虚拟机：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a href="../../system/2023/04/09/aix/#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a>ssh<span class="w"> </span>root@10.0.2.16
+</span></code></pre></div>
+<h3 id="kvm"><a class="toclink" href="../../system/2023/04/09/aix/#kvm">KVM</a></h3>
+<p>另外测试了一下，在 powerpc64 机器上，可以开启 KVM 来加速 QEMU，但是需要首先关掉 SMT。另外在使用过程中出现了玄学问题，最后还是在 x86 上跑了虚拟机。</p>
+<h3 id="_2"><a class="toclink" href="../../system/2023/04/09/aix/#_2">安装软件</a></h3>
+<p>接下来，可以从 <a href="https://www.ibm.com/support/pages/node/882892">AIX Toolbox for Open Source Software</a> 安装软件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a href="../../system/2023/04/09/aix/#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1">## in aix</span>
+</span><span id="__span-5-2"><a href="../../system/2023/04/09/aix/#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a>chfs<span class="w"> </span>-a<span class="w"> </span><span class="nv">size</span><span class="o">=</span>+200M<span class="w"> </span>/home
+</span><span id="__span-5-3"><a href="../../system/2023/04/09/aix/#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a>chfs<span class="w"> </span>-a<span class="w"> </span><span class="nv">size</span><span class="o">=</span>+400M<span class="w"> </span>/opt
+</span><span id="__span-5-4"><a href="../../system/2023/04/09/aix/#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a>chfs<span class="w"> </span>-a<span class="w"> </span><span class="nv">size</span><span class="o">=</span>+400M<span class="w"> </span>/tmp
+</span><span id="__span-5-5"><a href="../../system/2023/04/09/aix/#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="c1">## setup default gateway</span>
+</span><span id="__span-5-6"><a href="../../system/2023/04/09/aix/#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a>route<span class="w"> </span>add<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">10</span>.0.2.15<span class="w"> </span>-if<span class="w"> </span>en0
+</span><span id="__span-5-7"><a href="../../system/2023/04/09/aix/#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="c1">## edit /etc/resolv.conf</span>
+</span><span id="__span-5-8"><a href="../../system/2023/04/09/aix/#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"nameserver 1.1.1.1"</span><span class="w"> </span>&gt;<span class="w"> </span>/etc/resolv.conf
+</span><span id="__span-5-9"><a href="../../system/2023/04/09/aix/#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a><span class="c1">## in host</span>
+</span><span id="__span-5-10"><a href="../../system/2023/04/09/aix/#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a>wget<span class="w"> </span>https://public.dhe.ibm.com/aix/freeSoftware/aixtoolbox/ezinstall/ppc/dnf_aixtoolbox.sh
+</span><span id="__span-5-11"><a href="../../system/2023/04/09/aix/#__codelineno-5-11" id="__codelineno-5-11" name="__codelineno-5-11"></a>scp<span class="w"> </span>dnf_aixtoolbox.sh<span class="w"> </span>root@10.0.2.16:/
+</span><span id="__span-5-12"><a href="../../system/2023/04/09/aix/#__codelineno-5-12" id="__codelineno-5-12" name="__codelineno-5-12"></a><span class="c1">## in aix</span>
+</span><span id="__span-5-13"><a href="../../system/2023/04/09/aix/#__codelineno-5-13" id="__codelineno-5-13" name="__codelineno-5-13"></a>rpm<span class="w"> </span>--rebuilddb
+</span><span id="__span-5-14"><a href="../../system/2023/04/09/aix/#__codelineno-5-14" id="__codelineno-5-14" name="__codelineno-5-14"></a>ksh<span class="w"> </span>/dnf_aixtoolbox.sh<span class="w"> </span>-y
+</span><span id="__span-5-15"><a href="../../system/2023/04/09/aix/#__codelineno-5-15" id="__codelineno-5-15" name="__codelineno-5-15"></a>/opt/freeware/bin/dnf<span class="w"> </span>update
+</span><span id="__span-5-16"><a href="../../system/2023/04/09/aix/#__codelineno-5-16" id="__codelineno-5-16" name="__codelineno-5-16"></a>/opt/freeware/bin/dnf<span class="w"> </span>install<span class="w"> </span>gcc
+</span></code></pre></div>
+<p>安装好的包会放到 /opt/freeware 路径下。</p>
+<p>安装过程中可能需要继续扩大各个 fs 的大小。</p>
+<p>dnf 如果提示缺少 <code>libssl.a</code>，参考 <a href="https://www.ibm.com/support/pages/resolving-rpm-libssla-and-libcryptoa-errors">https://www.ibm.com/support/pages/resolving-rpm-libssla-and-libcryptoa-errors</a> 进行解决：</p>
+<ol>
+<li>
+<p>访问 <a href="https://www.ibm.com/resources/mrs/assets?source=aixbp&amp;S_PKG=openssl">https://www.ibm.com/resources/mrs/assets?source=aixbp&amp;S_PKG=openssl</a> 下载安装包，例如 <code>openssl-1.1.2.2000.tar.Z</code>。</p>
+</li>
+<li>
+<p>scp 到 AXI 上安装：</p>
+</li>
+</ol>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a href="../../system/2023/04/09/aix/#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>uncompress<span class="w"> </span>openssl-1.1.2.2000.tar.Z
+</span><span id="__span-6-2"><a href="../../system/2023/04/09/aix/#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>tar<span class="w"> </span>-xvf<span class="w"> </span>openssl-1.1.2.2000.tar
+</span><span id="__span-6-3"><a href="../../system/2023/04/09/aix/#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a><span class="c1">## install openssl.base using smitty</span>
+</span></code></pre></div>
+<p>为了方便，可以修改 <code>/etc/environment</code> 文件，把 <code>/opt/freeware/bin</code> 目录加到 PATH 目录中。</p>
+<h3 id="_3"><a class="toclink" href="../../system/2023/04/09/aix/#_3">参考文档</a></h3>
+<p>本博客参考了以下文档中的命令：</p>
+<ul>
+<li><a href="https://aix4admins.blogspot.com/2020/04/qemu-aix-on-x86-qemu-quick-emulator-is.html">https://aix4admins.blogspot.com/2020/04/qemu-aix-on-x86-qemu-quick-emulator-is.html</a></li>
+<li><a href="https://virtuallyfun.com/2019/04/22/installing-aix-on-qemu/">https://virtuallyfun.com/2019/04/22/installing-aix-on-qemu/</a></li>
+<li><a href="https://www.ibm.com/support/pages/resolving-rpm-libssla-and-libcryptoa-errors">https://www.ibm.com/support/pages/resolving-rpm-libssla-and-libcryptoa-errors</a></li>
+</ul>
+<nav class="md-post__action">
+<a href="../../system/2023/04/09/aix/">
+        继续阅读
+      </a>
+</nav>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2023-04-09 00:00:00">2023年4月9日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/system/">system</a></li>
+<li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
 <h2 id="sco-openserver-507"><a class="toclink" href="../../system/2023/04/09/sco5/">SCO OpenServer 5.0.7 虚拟机安装</a></h2>
 <h3 id="_1"><a class="toclink" href="../../system/2023/04/09/sco5/#_1">安装过程</a></h3>
 <p>首先从 <a href="https://www.sco.com/support/update/download/release.php?rid=218">https://www.sco.com/support/update/download/release.php?rid=218</a> 下载 SCO OpenServer 的安装 ISO 和从 <a href="https://www.sco.com/support/update/download/release.php?rid=187">https://www.sco.com/support/update/download/release.php?rid=187</a> 下载 Supplement CD 5 ISO，然后用 QEMU 启动，这次需要用图形界面：</p>
@@ -2492,165 +2583,6 @@ more information, please see the ROADMAP.
 <p>This UDP echo server listens on a specific port and waits for incoming messages from clients. When it receives a message, it sends the same message back to the client as a response. Note that this example assumes that the TLI library is already installed on your system, and the program is compiled with the appropriate TLI library flags.</p>
 <nav class="md-post__action">
 <a href="../../networking/2023/02/12/transport-layer-interface/">
-        继续阅读
-      </a>
-</nav>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2023-02-07 00:00:00">2023年2月7日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/system/">system</a></li>
-<li class="md-meta__item">
-            
-              需要 6 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="openbsd-xonly"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/">OpenBSD xonly 实现原理</a></h2>
-<h3 id="_1"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#_1">背景</a></h3>
-<p>最近看到 <a href="https://marc.info/?l=openbsd-tech&amp;m=167501519712725&amp;w=2">xonly status</a>，看到 OpenBSD 最近在实现 xonly，也就是让一些页只能执行，不能读不能写。以往类似的做法是 <code>W^X</code>，也就是可以执行的时候不能写，可以写的时候不能执行。显然，xonly 是更加严格的，连读都不可以。查了一下历史，<code>W^X</code> 最早也是在 OpenBSD 中实现的，说不定以后 xonly 也会被各个操作系统实现。</p>
-<h3 id="amd64"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#amd64">amd64 上的实现</a></h3>
-<p>在 amd64 的页表中，决定执行/读/写权限的是（见 Intel 文档 <code>Table 4-20. Format of a Page-Table Entry that Maps a 4-KByte Page</code>）：</p>
-<ul>
-<li>Bit 1(R/W): <code>Read/write; if 0, writes may not be allowed to the 4-KByte page referenced by this entry (see Section 4.6)</code></li>
-<li>Bit 63(XD): <code>If IA32_EFER.NXE = 1, execute-disable (if 1, instruction fetches are not allowed from the 4-KByte page controlled by this entry; see Section 4.6); otherwise, reserved (must be 0)</code></li>
-</ul>
-<p>可以看到，在这个定义下，可能出现的权限组合：</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>R</th>
-<th>W</th>
-<th>X</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>R/W=0, NXE=0</td>
-<td>Y</td>
-<td>N</td>
-<td>Y</td>
-</tr>
-<tr>
-<td>R/W=1, NXE=0</td>
-<td>Y</td>
-<td>Y</td>
-<td>Y</td>
-</tr>
-<tr>
-<td>R/W=0, NXE=1, XD=0</td>
-<td>Y</td>
-<td>N</td>
-<td>Y</td>
-</tr>
-<tr>
-<td>R/W=1, NXE=1, XD=0</td>
-<td>Y</td>
-<td>Y</td>
-<td>Y</td>
-</tr>
-<tr>
-<td>R/W=0, NXE=1, XD=1</td>
-<td>Y</td>
-<td>N</td>
-<td>N</td>
-</tr>
-<tr>
-<td>R/W=1, NXE=1, XD=1</td>
-<td>Y</td>
-<td>Y</td>
-<td>N</td>
-</tr>
-</tbody>
-</table>
-<p>需要注意的是，<code>IA32_EFER.NXE</code> 是全局的，而 <code>R/W</code> 和 <code>XD</code> 的粒度是页。可以看到，上面的所有组合中，都是可以读的。</p>
-<p>那么，怎么实现 x-only 呢？OpenBSD 的实现方法是 Protection Keys。在比较新的 CPU 中，页表的 4 个位用来表示使用的 Protection Key 下标，一共有 16 个：</p>
-<ul>
-<li>Bits 62:59: <code>Protection key; if CR4.PKE = 1 or CR4.PKS = 1, this may control the page's access rights (see Section 4.6.2); otherwise, it is ignored and not used to control access rights.</code></li>
-</ul>
-<p>那么 CPU 在查页表的时候，如果 <code>CR4.PKE=1 or CR4.PKS=1</code>，就会根据这四个位去查找 PKRU 寄存器的取值。PKRU 是一个 32 位的寄存器，每两位对应一个 Protection Key，这两位表示是否允许读写：</p>
-<div class="language-text highlight"><pre><span></span><code>The PKRU register (protection-key rights for user pages) is a 32-bit
-register with the following format: for each i (0 ≤ i ≤ 15), PKRU[2i] is
-the access-disable bit for protection key i (ADi); PKRU[2i+1] is the
-write-disable bit for protection key i (WDi). The IA32_PKRS MSR has the
-same format (bits 63:32 of the MSR are reserved and must be zero).
-</code></pre></div>
-<p>有了这个机制以后，就可以构造出 xonly 的页表项：</p>
-<ul>
-<li>R/W=0：不允许写</li>
-<li>NXE=1, XD=0：允许执行</li>
-<li>设置 62:59 位为一个 Key 编号，将对应的 PKRU 的两个位设为 1：不允许读，不允许写</li>
-</ul>
-<p>接下来看 OpenBSD 的<a href="https://github.com/openbsd/src/commit/e9e0c464329db9b56e1f2db65b0f536e53aa7e5f#diff-ab04285d8fd81f41887d9c9de2eb231be5e44c2d465f5c479943a1e21cf977ce">代码</a>：</p>
-<p>首先，检测 CPU 是否支持 PKU 机制：</p>
-<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="cm">/*</span>
-</span><span id="__span-0-2"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="cm"> * If PKU is available, initialize PROT_EXEC entry correctly,</span>
-</span><span id="__span-0-3"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="cm"> * and enable the feature before it gets used</span>
-</span><span id="__span-0-4"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="cm"> * XXX Some Hypervisors forget to save/restore PKU</span>
-</span><span id="__span-0-5"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="cm"> */</span>
-</span><span id="__span-0-6"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cpuid_level</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mh">0x7</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-7"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">ecx</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
-</span><span id="__span-0-8"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="w">    </span><span class="n">CPUID_LEAF</span><span class="p">(</span><span class="mh">0x7</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">,</span><span class="w"> </span><span class="n">ecx</span><span class="p">,</span><span class="w"> </span><span class="n">dummy</span><span class="p">);</span>
-</span><span id="__span-0-9"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">ecx</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">SEFF0ECX_PKU</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
-</span><span id="__span-0-10"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="w">        </span><span class="p">(</span><span class="n">cpu_ecxfeature</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">CPUIDECX_HV</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-11"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="w">        </span><span class="n">lcr4</span><span class="p">(</span><span class="n">rcr4</span><span class="p">()</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">CR4_PKE</span><span class="p">);</span>
-</span><span id="__span-0-12"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="w">        </span><span class="n">pg_xo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PG_XO</span><span class="p">;</span>
-</span><span id="__span-0-13"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-0-14"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>其中 <code>PG_XO</code> 的值是 <code>0x0800000000000000UL</code>，也就是只有 bit 59 位 1，对应 Protection Key #1。OpenBSD 内核设置 PKRU 寄存器为 <code>0xfffffffc</code>，即只有 Protection Key #0 不修改权限，其他 Protection Key 都是禁止读写。剩下的代码就是维护 PKRU 寄存器的取值，然后把 xonly 的页的 Protection Key 都设为 1，否则设为 0。</p>
-<p>但需要注意的是，PKRU 寄存器用户态也可以读写。Linux 把 PKRU 暴露给了<a href="https://www.kernel.org/doc/html/latest/core-api/protection-keys.html">用户态</a>，允许用户态来自己设置页表的 Protection Key。OpenBSD 的实现方法则是进内核以后，检查 PKRU 寄存器，如果值修改了，就 SIGABRT。这有一定的风险，如果攻击代码修改了 PKRU 寄存器的内容，是有可能读取本来 xonly 的页的内容的。</p>
-<h3 id="powerpc64"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#powerpc64">powerpc64 上的实现</a></h3>
-<p>powerpc64 的实现方法和 amd64 类似，见 <a href="https://github.com/openbsd/src/commit/6bd9427e6879f79e0e2c1e03d8411439da5bb69">commit</a>。机制和 AMD64 很像，下面引用一段 PowerISA 文档：</p>
-<div class="language-text highlight"><pre><span></span><code>The Virtual Page Class Key Protection mechanism provides the means to
-assign virtual pages to one of 32 classes, and to modify data access
-permissions for each class by modifying the Authority Mask Register
-(AMR), shown in Figure 28, and to modify instruction access permissions
-for each class by modifying the Instruction Authority Mask Register
-(IAMR) shown in Figure 29.
-</code></pre></div>
-<p>对应如下代码：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="c1">// sys/arch/powerpc64/powerpc64/cpu.c</span>
-</span><span id="__span-1-2"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="w">    </span><span class="cm">/*</span>
-</span><span id="__span-1-3"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="cm">     * Set AMR to inhibit loads and stores for all virtual page</span>
-</span><span id="__span-1-4"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="cm">     * class keys, except for Key0 which is used for normal kernel</span>
-</span><span id="__span-1-5"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="cm">     * access.  This means we can pick any other key to implement</span>
-</span><span id="__span-1-6"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="cm">     * execute-only mappings.  But we pick Key1 since that allows</span>
-</span><span id="__span-1-7"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="cm">     * us to use the same bit in the PTE as was used to enable the</span>
-</span><span id="__span-1-8"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="cm">     * Data Access Compare mechanism on CPUs based on older</span>
-</span><span id="__span-1-9"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a><span class="cm">     * versions of the architecture (such as the PowerPC 970).</span>
-</span><span id="__span-1-10"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a><span class="cm">     *</span>
-</span><span id="__span-1-11"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="cm">     * Set UAMOR (and AMOR just to be safe) to zero to prevent</span>
-</span><span id="__span-1-12"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="cm">     * userland from modifying any bits in AMR.</span>
-</span><span id="__span-1-13"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="cm">     */</span>
-</span><span id="__span-1-14"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="w">    </span><span class="n">mtamr</span><span class="p">(</span><span class="mh">0x3fffffffffffffff</span><span class="p">);</span>
-</span><span id="__span-1-15"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="w">    </span><span class="n">mtuamor</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-</span><span id="__span-1-16"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a><span class="w">    </span><span class="n">mtamor</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-</span><span id="__span-1-17"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a><span class="w">    </span><span class="n">isync</span><span class="p">();</span>
-</span></code></pre></div>
-<p>可以看到方法是一样的，Key0 正常，其他 Key 禁止读写。额外地，PowerISA 还可以设置 Protection Key 禁止执行。并且通过设置 UAMOR 寄存器，用户态不可以修改 AMR 寄存器，这让 xonly 比 AMD64 上更为完备。</p>
-<p>最后一步，就是修改 PTE 属性，指定 Key 即可：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="c1">// sys/arch/powerpc64/include/pte.h</span>
-</span><span id="__span-2-2"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="cp">##define PTE_AC         0x0000000000000200ULL</span>
-</span><span id="__span-2-3"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="c1">// sys/arch/powerpc64/powerpc64/pmap.c</span>
-</span><span id="__span-2-4"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">prot</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">PROT_READ</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">PROT_WRITE</span><span class="p">))</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-2-5"><a href="../../system/2023/02/07/openbsd-xonly/#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">        </span><span class="n">pte</span><span class="o">-&gt;</span><span class="n">pte_lo</span><span class="w"> </span><span class="o">|=</span><span class="w"> </span><span class="n">PTE_AC</span><span class="p">;</span>
-</span></code></pre></div>
-<h3 id="_2"><a class="toclink" href="../../system/2023/02/07/openbsd-xonly/#_2">其他指令集架构</a></h3>
-<p>一些指令集架构的页表在设计的时候，就有独立的 R W X 权限位，于是不需要特殊的处理，直接把 mmap 的参数映射过去即可。</p>
-<nav class="md-post__action">
-<a href="../../system/2023/02/07/openbsd-xonly/">
         继续阅读
       </a>
 </nav>

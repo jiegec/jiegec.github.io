@@ -514,6 +514,52 @@
 <div class="md-post__meta md-meta">
 <ul class="md-meta__list">
 <li class="md-meta__item">
+<time datetime="2018-11-05 00:00:00">2018年11月5日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="_1"><a class="toclink" href="../../hardware/2018/11/05/salted-fish-pi/">咸鱼派的启动配置</a></h2>
+<p>最近刚拿到了一个<a href="https://github.com/sbc-fish/sfpi">咸鱼派</a>的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot，我用的是现在的 master 分支的最新版 99431c1c：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>$ # Archlinux
+</span><span id="__span-0-2"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>$ sudo pacman -Sy arm-none-eabi-gcc
+</span><span id="__span-0-3"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a>$ make LicheePi_Zero_defconfig
+</span><span id="__span-0-4"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a>$ make ARCH=arm CROSS_COMPILE=arm-none-eabi- -j24
+</span></code></pre></div>
+<p>这时候会得到一个 u-boot-sunxi-with-spl.bin 的文件。我们只要把它写到 SD 卡的 8192 偏移处，就可以把 U-Boot 跑起来了：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>$ diskutil unmountDisk /dev/disk4
+</span><span id="__span-1-2"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>$ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8
+</span></code></pre></div>
+<p>接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk 进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。</p>
+<p>我用的是八月份时候的 4.18.2 内核，虽然不是很新但也足够新了。一番调整内核参数后，得到了一个可用的内核，然后把 zImage 和 sun8i-v3s-licheepi-zero.dtb 都复制到刚才创建的 FAT-32 启动分区，然后进入 U-Boot 进行启动：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>$ setenv bootcmd 'fatload mmc 0 0x41000000 zImage; fatload mmc 0 0x41800000 sun8i-v3s-licheepi-zero.dtb; setenv bootargs console=ttyS0,115200 root=/dev/mmcblk0p2 rw rootwait; bootz 0x41000000 - 0x41800000'
+</span><span id="__span-2-2"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>$ saveenv # optional
+</span><span id="__span-2-3"><a href="../../hardware/2018/11/05/salted-fish-pi/#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>$ boot
+</span></code></pre></div>
+<p>这里一开始遇到了很多坑，比如一直看不到 console，这个是找了 <a href="https://github.com/gaoyichuan">@gaoyichuan</a> 拿到的一份 Kernel Config 进行修改修好的。另一个是进去以后找不到 root，我先是搞了一个有 busybox 的 initrd，进去看发现是能找到 mmc 的，但是有延迟，那么添加上 rootwait 就好了。进去以后就差 rootfs。由于我缺少一个写 ext4 的工具，又发现手上有一个 Raspbian 的镜像，它里面也正好是两个分区，而且架构也同样是 armv7l，我就直接把它烧到 SD 卡中，把 U-Boot 写进去，然后往 boot 分区里写内核和 dtb，然后就成功进去，并且跑起来了。最喜感的就是，进去以后是个 pi@raspberrypi，实际上确是另一个东西。不过，只有当我 <code>apt update</code> 发现用了半小时的时候，我才想起来这其实是是一个嵌入式系统。。</p>
+<p>进去以后发现，没有识别到网卡驱动。网上找了 LicheePi Zero 的一个解决方案，但是并不能用，还出现了神奇的 Kernel Oops，怀疑是内核版本太新的问题。我又找到 <a href="https://github.com/icenowy">@icenowy</a> 的一个 <a href="https://lore.kernel.org/patchwork/patch/884656/">Patch</a> ，它终于是解决了这个问题，成功地找到了网卡，并且愉快地 <code>ssh pi@raspberrypi.local</code> 。之后会在咸鱼派那边公布一下我们做的修改。</p>
+<p>现在的想法是，把 HomeBridge 搭建到它上面，不过目前来看硬件资源有点紧张，放着会有点慢。可能还是用树莓派做这个事情比较合适。</p>
+<nav class="md-post__action">
+<a href="../../hardware/2018/11/05/salted-fish-pi/">
+        继续阅读
+      </a>
+</nav>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
 <time datetime="2018-11-04 00:00:00">2018年11月4日</time></li>
 <li class="md-meta__item">
             分类于
@@ -802,38 +848,6 @@
 <p>接下来就等待官方的 writeup 和别人的 writeup，学习一下别人的做法吧。</p>
 <nav class="md-post__action">
 <a href="../../ctf/2018/10/04/2018-10-04-thuctf-2018-and-teaser-dragon-ctf-2018/">
-        继续阅读
-      </a>
-</nav>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2018-10-04 00:00:00">2018年10月4日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/networking/">networking</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="android-lte-ipv6"><a class="toclink" href="../../networking/2018/10/04/enable-lte-ipv6-on-android/">在 Android 上打开 LTE 的 IPv6</a></h2>
-<p>听闻北京移动给 LTE 配置了 SLAAC，但现在需要手动打开，方法如下：</p>
-<p>Settings -&gt; Network &amp; Internet -&gt; Mobile Network -&gt; Advanced -&gt; Access Point Names -&gt; 中国移动 GPRS (China Mobile) -&gt; 把 APN procotol 和 APN roaming protocol 两项都改成 IPv4/IPv6 </p>
-<p>然后在 <a href="https://test-ipv6.com">test-ipv6.com</a> 上可以看到确实分配了 IPv6 地址，不过目前评分只有 1/10。也就是说可用性还不佳。</p>
-<p>而在 iOS 上，通过 HE 的 Network Tools 能看到，确实拿到了 IPv6 的地址，但是出不去，怀疑是运营商没有下发相关配置，所以还不能使用，只能继续等。</p>
-<p>2018-11-06 更新：现在 iOS 用户也有 LTE 的 v6 了。评分是 9/10。目前可用性已经可以了，就是国内互联还不大好。</p>
-<nav class="md-post__action">
-<a href="../../networking/2018/10/04/enable-lte-ipv6-on-android/">
         继续阅读
       </a>
 </nav>
