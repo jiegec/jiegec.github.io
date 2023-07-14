@@ -1,296 +1,934 @@
+
 <!DOCTYPE html>
-<html>
+
+<html class="no-js" lang="zh">
 <head>
-    <title>用 Nix 编译 Rust 项目 // 杰哥的{运维,编程,调板子}小笔记</title>
-
-    <meta charset="utf-8">
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-    
-    
-    
-
-        <meta property="og:title" content="用 Nix 编译 Rust 项目" />
-    <meta property="og:description" content="背景 Rust 项目一般是用 Cargo 管理，但是它的缺点是每个项目都要重新编译一次所有依赖，硬盘空间占用较大，不能跨项目共享编译缓存。调研了一下，有若干基于 Nix 的 Rust 构建工具：
-cargo2nix: https://github.com/cargo2nix/cargo2nix carnix: 不再更新 crane: https://github.com/ipetkov/crane crate2nix: https://github.com/kolloch/crate2nix naersk: https://github.com/nix-community/naersk nocargo: https://github.com/oxalica/nocargo 下面我分别来尝试一下这几个工具的使用。
-下面出现的一些命令参考了对应项目的文档。
-cargo2nix 卖点 cargo2nix 的 README 提到了它的卖点：
-Development Shell - knowing all the dependencies means easy creation of complete shells. Run nix develop or direnv allow in this repo and see! Caching - CI &amp; CD pipelines move faster when purity guarantees allow skipping more work! Reproducibility - Pure builds." />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/software/2022/08/02/rust-nix/" />
-    
-
-    <link rel="shortcut icon" href="/favicon.ico">
-
-    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
-    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
-
-    <link rel="stylesheet" href="/css/style.css">
-    
-    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
-    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
-
-    <meta name="generator" content="Hugo 0.115.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
+<link href="https://jia.je/software/2022/08/02/rust-nix/" rel="canonical"/>
+<link href="../../../07/26/invalid-date-timezone/" rel="prev"/>
+<link href="../../05/from-tex-to-pdf/" rel="next"/>
+<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
+<title>用 Nix 编译 Rust 项目 - 杰哥的{运维,编程,调板子}小笔记</title>
+<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
+<body dir="ltr">
+<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#nix-rust">
+          跳转至
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="页眉" class="md-header__inner md-grid">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            杰哥的{运维,编程,调板子}小笔记
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              用 Nix 编译 Rust 项目
+            
+          </span>
+</div>
+</div>
+</div>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</label>
+<nav aria-label="查找" class="md-search__options">
+<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../../../../..">
+        
+  
+    
+  
+  博客
 
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../about/">
+        
+  
+    
+  
+  关于
 
-<body onload="WaveDrom.ProcessAll()">
-<div id="container">
-    <header id="header">
-    <div id="header-outer" class="outer">
-        <div id="header-inner" class="inner">
-            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
-            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
-            <nav id="main-nav">
-                
-                <a class="main-nav-link" href="/about/">关于</a>
-                
-                <a class="main-nav-link" href="/category/">分类</a>
-                
-                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
-                
-                <a class="main-nav-link" href="/tags/">标签</a>
-                
-                <a class="main-nav-link" href="/kb/">知识库</a>
-                
-                <a class="main-nav-link" href="/series/">系列</a>
-                
-                <a class="main-nav-link" href="/feed.xml">订阅</a>
-                
-                <a class="main-nav-link" href="/projects/readme/">项目</a>
-                
-            </nav>
-            <nav id="sub-nav">
-                <div id="search-form-wrap">
-                </div>
-            </nav>
-        </div>
-    </div>
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+        
+  
+    
+  
+  开源
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tags/">
+        
+  
+    
+  
+  标签
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/kb/">
+        
+  
+    
+  
+  知识库
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../series/">
+        
+  
+    
+  
+  系列
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../projects/">
+        
+  
+    
+  
+  项目
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tools/">
+        
+  
+    
+  
+  工具
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/feed.xml">
+        
+  
+    
+  
+  订阅
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../archive/2023/">
+          
+  
+  归档
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../category/crypto/">
+          
+  
+  分类
+
+        </a>
+</li>
+</ul>
+</div>
+</nav>
 </header>
-
-    <section id="main" class="outer">
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        <header class="article-header">
-            <h1 class="article-title" itemprop="name">用 Nix 编译 Rust 项目</h1>
-        </header>
-        
-        <div class="article-meta">
-            <a href="/software/2022/08/02/rust-nix/" class="article-date">
-                <time datetime='2022-08-02T14:28:00.000&#43;08:00' itemprop="datePublished">2022-08-02</time>
-            </a>
-            
-            
-            
-            <div class="article-comment-link-wrap">
-                <a href="/software/2022/08/02/rust-nix/#disqus_thread" class="article-comment-link">Comments</a>
-            </div>
-            
-        </div>
-        <div class="article-entry" itemprop="articleBody">
-            <h2 id="背景">背景</h2>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+    杰哥的{运维,编程,调板子}小笔记
+  </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<a class="md-nav__link" href="../../../../..">
+<span class="md-ellipsis">
+    博客
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../about/">
+<span class="md-ellipsis">
+    关于
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../open-source-contributions/">
+<span class="md-ellipsis">
+    开源
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tags/">
+<span class="md-ellipsis">
+    标签
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/kb/">
+<span class="md-ellipsis">
+    知识库
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../series/">
+<span class="md-ellipsis">
+    系列
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../projects/">
+<span class="md-ellipsis">
+    项目
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tools/">
+<span class="md-ellipsis">
+    工具
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/feed.xml">
+<span class="md-ellipsis">
+    订阅
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
+<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+<span class="md-ellipsis">
+    归档
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_10">
+<span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2023/">
+<span class="md-ellipsis">
+    2023
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2022/">
+<span class="md-ellipsis">
+    2022
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2021/">
+<span class="md-ellipsis">
+    2021
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2020/">
+<span class="md-ellipsis">
+    2020
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2019/">
+<span class="md-ellipsis">
+    2019
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2018/">
+<span class="md-ellipsis">
+    2018
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2017/">
+<span class="md-ellipsis">
+    2017
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2016/">
+<span class="md-ellipsis">
+    2016
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2014/">
+<span class="md-ellipsis">
+    2014
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
+<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+<span class="md-ellipsis">
+    分类
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_11">
+<span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/crypto/">
+<span class="md-ellipsis">
+    crypto
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/csdn/">
+<span class="md-ellipsis">
+    csdn
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/ctf/">
+<span class="md-ellipsis">
+    ctf
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/devops/">
+<span class="md-ellipsis">
+    devops
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/hardware/">
+<span class="md-ellipsis">
+    hardware
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/life/">
+<span class="md-ellipsis">
+    life
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/logo/">
+<span class="md-ellipsis">
+    logo
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/meta/">
+<span class="md-ellipsis">
+    meta
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/misc/">
+<span class="md-ellipsis">
+    misc
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/networking/">
+<span class="md-ellipsis">
+    networking
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/news/">
+<span class="md-ellipsis">
+    news
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/os/">
+<span class="md-ellipsis">
+    os
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/others/">
+<span class="md-ellipsis">
+    others
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/programming/">
+<span class="md-ellipsis">
+    programming
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/software/">
+<span class="md-ellipsis">
+    software
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/speech/">
+<span class="md-ellipsis">
+    speech
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/system/">
+<span class="md-ellipsis">
+    system
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/unboxing/">
+<span class="md-ellipsis">
+    unboxing
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content md-content--post" data-md-component="content">
+<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner md-post">
+<nav class="md-nav">
+<div class="md-post__back">
+<div class="md-nav__title md-nav__container">
+<a class="md-nav__link" href="../../../../..">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+<span class="md-ellipsis">
+                    回到主页
+                  </span>
+</a>
+</div>
+</div>
+<ul class="md-post__meta md-nav__list">
+<li class="md-nav__item md-nav__title">
+<div class="md-nav__link">
+<span class="md-ellipsis">
+                    元数据
+                  </span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
+<time class="md-ellipsis" datetime="2022-08-02 00:00:00">2022年8月2日</time>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
+<span class="md-ellipsis">
+                      分类于
+                      
+                        <a href="../../../../../category/software/">software</a></span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
+<span class="md-ellipsis">
+                      
+                        需要 11 分钟阅读时间
+                      
+                    </span>
+</div>
+</li>
+</ul>
+</nav>
+<nav aria-label="目录" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_1">
+    背景
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#cargo2nix">
+    cargo2nix
+  </a>
+<nav aria-label="cargo2nix" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_2">
+    卖点
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_3">
+    安装
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_4">
+    使用
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_5">
+    原理
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#crane">
+    crane
+  </a>
+<nav aria-label="crane" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_6">
+    卖点
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_7">
+    安装
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_8">
+    使用
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_9">
+    原理
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#crate2nix">
+    crate2nix
+  </a>
+<nav aria-label="crate2nix" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_10">
+    卖点
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_11">
+    安装
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_12">
+    使用
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_13">
+    原理
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#naersk">
+    naersk
+  </a>
+<nav aria-label="naersk" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_14">
+    安装
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_15">
+    使用
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_16">
+    原理
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#nocargo">
+    nocargo
+  </a>
+<nav aria-label="nocargo" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_17">
+    卖点
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_18">
+    使用
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_19">
+    总结
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<article class="md-content__inner md-typeset">
+<nav class="md-tags">
+<a class="md-tag" href="../../../../../tags/#nix">nix</a>
+<a class="md-tag" href="../../../../../tags/#rust">rust</a>
+</nav>
+<h1 id="nix-rust">用 Nix 编译 Rust 项目</h1>
+<h2 id="_1">背景</h2>
 <p>Rust 项目一般是用 Cargo 管理，但是它的缺点是每个项目都要重新编译一次所有依赖，硬盘空间占用较大，不能跨项目共享编译缓存。调研了一下，有若干基于 Nix 的 Rust 构建工具：</p>
 <ul>
-<li>cargo2nix: <a href="https://github.com/cargo2nix/cargo2nix">https://github.com/cargo2nix/cargo2nix</a></li>
+<li>cargo2nix: https://github.com/cargo2nix/cargo2nix</li>
 <li>carnix: 不再更新</li>
-<li>crane: <a href="https://github.com/ipetkov/crane">https://github.com/ipetkov/crane</a></li>
-<li>crate2nix: <a href="https://github.com/kolloch/crate2nix">https://github.com/kolloch/crate2nix</a></li>
-<li>naersk: <a href="https://github.com/nix-community/naersk">https://github.com/nix-community/naersk</a></li>
-<li>nocargo: <a href="https://github.com/oxalica/nocargo">https://github.com/oxalica/nocargo</a></li>
+<li>crane: https://github.com/ipetkov/crane</li>
+<li>crate2nix: https://github.com/kolloch/crate2nix</li>
+<li>naersk: https://github.com/nix-community/naersk</li>
+<li>nocargo: https://github.com/oxalica/nocargo</li>
 </ul>
 <p>下面我分别来尝试一下这几个工具的使用。</p>
 <p>下面出现的一些命令参考了对应项目的文档。</p>
 <h2 id="cargo2nix">cargo2nix</h2>
-<h3 id="卖点">卖点</h3>
+<h3 id="_2">卖点</h3>
 <p>cargo2nix 的 README 提到了它的卖点：</p>
 <ul>
 <li>Development Shell - knowing all the dependencies means easy creation of complete shells. Run nix develop or direnv allow in this repo and see!</li>
 <li>Caching - CI &amp; CD pipelines move faster when purity guarantees allow skipping more work!</li>
 <li>Reproducibility - Pure builds. Access to all of nixpkgs for repeatable environment setup across multiple distributions and platforms</li>
 </ul>
-<h3 id="安装">安装</h3>
+<h3 id="_3">安装</h3>
 <p>cargo2nix 提供了 flakes 支持，不需要单独安装。</p>
-<h3 id="使用">使用</h3>
+<h3 id="_4">使用</h3>
 <p>cargo2nix 的运行比较简单，利用 flakes 的特性，直接 <code>nix run</code> 即可：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix run github:cargo2nix/cargo2nix
-</span></span></code></pre></div><p>它会生成一个 Cargo.nix 文件，还需要编写一个 <code>flake.nix</code> 配合使用，这里以 <code>jiegec/webhookd</code> 为例：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  inputs <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>    cargo2nix<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:cargo2nix/cargo2nix/release-0.11.0&#34;</span>;
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;cargo2nix/flake-utils&#34;</span>;
-</span></span><span style="display:flex;"><span>    nixpkgs<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;cargo2nix/nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>  };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  outputs <span style="color:#f92672">=</span> inputs: <span style="color:#66d9ef">with</span> inputs;
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span>eachDefaultSystem (system:
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">let</span>
-</span></span><span style="display:flex;"><span>        pkgs <span style="color:#f92672">=</span> <span style="color:#f92672">import</span> nixpkgs {
-</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">inherit</span> system;
-</span></span><span style="display:flex;"><span>          overlays <span style="color:#f92672">=</span> [cargo2nix<span style="color:#f92672">.</span>overlays<span style="color:#f92672">.</span>default];
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>        rustPkgs <span style="color:#f92672">=</span> pkgs<span style="color:#f92672">.</span>rustBuilder<span style="color:#f92672">.</span>makePackageSet {
-</span></span><span style="display:flex;"><span>          rustVersion <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1.61.0&#34;</span>;
-</span></span><span style="display:flex;"><span>          packageFun <span style="color:#f92672">=</span> <span style="color:#f92672">import</span> <span style="color:#e6db74">./Cargo.nix</span>;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">in</span> <span style="color:#66d9ef">rec</span> {
-</span></span><span style="display:flex;"><span>        packages <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>          webhookd <span style="color:#f92672">=</span> (rustPkgs<span style="color:#f92672">.</span>workspace<span style="color:#f92672">.</span>webhookd {})<span style="color:#f92672">.</span>bin;
-</span></span><span style="display:flex;"><span>          default <span style="color:#f92672">=</span> packages<span style="color:#f92672">.</span>webhookd;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>    );
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>然后编译：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git add .
-</span></span><span style="display:flex;"><span>$ nix build
-</span></span><span style="display:flex;"><span>$ ./result-bin/bin/webhookd --version
-</span></span><span style="display:flex;"><span>webhookd 0.2.1
-</span></span></code></pre></div><h3 id="原理">原理</h3>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>nix<span class="w"> </span>run<span class="w"> </span>github:cargo2nix/cargo2nix
+</span></code></pre></div>
+<p>它会生成一个 Cargo.nix 文件，还需要编写一个 <code>flake.nix</code> 配合使用，这里以 <code>jiegec/webhookd</code> 为例：</p>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="p">{</span>
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>  <span class="ss">inputs =</span> <span class="p">{</span>
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a>    cargo2nix<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:cargo2nix/cargo2nix/release-0.11.0"</span><span class="p">;</span>
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a>    flake-utils<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"cargo2nix/flake-utils"</span><span class="p">;</span>
+</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a>    nixpkgs<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"cargo2nix/nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a>  <span class="p">};</span>
+</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a>  <span class="ss">outputs =</span> inputs<span class="p">:</span> <span class="k">with</span> inputs<span class="p">;</span>
+</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a>    flake-utils<span class="o">.</span>lib<span class="o">.</span>eachDefaultSystem <span class="p">(</span>system<span class="p">:</span>
+</span><span id="__span-1-10"><a href="#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a>      <span class="k">let</span>
+</span><span id="__span-1-11"><a href="#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a>        <span class="ss">pkgs =</span> <span class="nb">import</span> nixpkgs <span class="p">{</span>
+</span><span id="__span-1-12"><a href="#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a>          <span class="k">inherit</span> system<span class="p">;</span>
+</span><span id="__span-1-13"><a href="#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a>          <span class="ss">overlays =</span> <span class="p">[</span>cargo2nix<span class="o">.</span>overlays<span class="o">.</span>default<span class="p">];</span>
+</span><span id="__span-1-14"><a href="#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a>        <span class="p">};</span>
+</span><span id="__span-1-15"><a href="#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a>
+</span><span id="__span-1-16"><a href="#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a>        <span class="ss">rustPkgs =</span> pkgs<span class="o">.</span>rustBuilder<span class="o">.</span>makePackageSet <span class="p">{</span>
+</span><span id="__span-1-17"><a href="#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a>          <span class="ss">rustVersion =</span> <span class="s2">"1.61.0"</span><span class="p">;</span>
+</span><span id="__span-1-18"><a href="#__codelineno-1-18" id="__codelineno-1-18" name="__codelineno-1-18"></a>          <span class="ss">packageFun =</span> <span class="nb">import</span> <span class="o">.</span><span class="l">/Cargo.nix</span><span class="p">;</span>
+</span><span id="__span-1-19"><a href="#__codelineno-1-19" id="__codelineno-1-19" name="__codelineno-1-19"></a>        <span class="p">};</span>
+</span><span id="__span-1-20"><a href="#__codelineno-1-20" id="__codelineno-1-20" name="__codelineno-1-20"></a>
+</span><span id="__span-1-21"><a href="#__codelineno-1-21" id="__codelineno-1-21" name="__codelineno-1-21"></a>      <span class="k">in</span> <span class="k">rec</span> <span class="p">{</span>
+</span><span id="__span-1-22"><a href="#__codelineno-1-22" id="__codelineno-1-22" name="__codelineno-1-22"></a>        <span class="ss">packages =</span> <span class="p">{</span>
+</span><span id="__span-1-23"><a href="#__codelineno-1-23" id="__codelineno-1-23" name="__codelineno-1-23"></a>          <span class="ss">webhookd =</span> <span class="p">(</span>rustPkgs<span class="o">.</span>workspace<span class="o">.</span>webhookd <span class="p">{})</span><span class="o">.</span>bin<span class="p">;</span>
+</span><span id="__span-1-24"><a href="#__codelineno-1-24" id="__codelineno-1-24" name="__codelineno-1-24"></a>          <span class="ss">default =</span> packages<span class="o">.</span>webhookd<span class="p">;</span>
+</span><span id="__span-1-25"><a href="#__codelineno-1-25" id="__codelineno-1-25" name="__codelineno-1-25"></a>        <span class="p">};</span>
+</span><span id="__span-1-26"><a href="#__codelineno-1-26" id="__codelineno-1-26" name="__codelineno-1-26"></a>      <span class="p">}</span>
+</span><span id="__span-1-27"><a href="#__codelineno-1-27" id="__codelineno-1-27" name="__codelineno-1-27"></a>    <span class="p">);</span>
+</span><span id="__span-1-28"><a href="#__codelineno-1-28" id="__codelineno-1-28" name="__codelineno-1-28"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>然后编译：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>$<span class="w"> </span>nix<span class="w"> </span>build
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>$<span class="w"> </span>./result-bin/bin/webhookd<span class="w"> </span>--version
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a>webhookd<span class="w"> </span><span class="m">0</span>.2.1
+</span></code></pre></div>
+<h3 id="_5">原理</h3>
 <p>cargo2nix 解析了 Cargo.lock，生成 Cargo.nix 文件，最后包装成 flake.nix。</p>
 <h2 id="crane">crane</h2>
-<h3 id="卖点-1">卖点</h3>
+<h3 id="_6">卖点</h3>
 <p>crane 的 README 提到了它的卖点：</p>
 <ul>
 <li>Source fetching: automatically done using a Cargo.lock file</li>
 <li>Incremental: build your workspace dependencies just once, then quickly lint, build, and test changes to your project without slowing down</li>
 <li>Composable: split builds and tests into granular steps. Gate CI without burdening downstream consumers building from source.</li>
 </ul>
-<h3 id="安装-1">安装</h3>
+<h3 id="_7">安装</h3>
 <p>crane 不需要安装，直接用 flakes 即可。</p>
-<h3 id="使用-1">使用</h3>
+<h3 id="_8">使用</h3>
 <p>crane 使用的时候，直接在项目中编写 <code>flake.nix</code>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  inputs <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>    nixpkgs<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:NixOS/nixpkgs/nixpkgs-unstable&#34;</span>;
-</span></span><span style="display:flex;"><span>    crane<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:ipetkov/crane&#34;</span>;
-</span></span><span style="display:flex;"><span>    crane<span style="color:#f92672">.</span>inputs<span style="color:#f92672">.</span>nixpkgs<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:numtide/flake-utils&#34;</span>;
-</span></span><span style="display:flex;"><span>  };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  outputs <span style="color:#f92672">=</span> { self<span style="color:#f92672">,</span> nixpkgs<span style="color:#f92672">,</span> crane<span style="color:#f92672">,</span> flake-utils<span style="color:#f92672">,</span> <span style="color:#f92672">...</span> }:
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span>eachDefaultSystem (system: {
-</span></span><span style="display:flex;"><span>      packages<span style="color:#f92672">.</span>default <span style="color:#f92672">=</span> crane<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span><span style="color:#e6db74">${</span>system<span style="color:#e6db74">}</span><span style="color:#f92672">.</span>buildPackage {
-</span></span><span style="display:flex;"><span>        src <span style="color:#f92672">=</span> <span style="color:#e6db74">./.</span>;
-</span></span><span style="display:flex;"><span>      };
-</span></span><span style="display:flex;"><span>    });
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>这样就可以了，不需要使用工具从 Cargo.lock 生成对应的 Cargo.nix。</p>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="p">{</span>
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a>  <span class="ss">inputs =</span> <span class="p">{</span>
+</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a>    nixpkgs<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:NixOS/nixpkgs/nixpkgs-unstable"</span><span class="p">;</span>
+</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a>    crane<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:ipetkov/crane"</span><span class="p">;</span>
+</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a>    crane<span class="o">.</span>inputs<span class="o">.</span>nixpkgs<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a>    flake-utils<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:numtide/flake-utils"</span><span class="p">;</span>
+</span><span id="__span-3-7"><a href="#__codelineno-3-7" id="__codelineno-3-7" name="__codelineno-3-7"></a>  <span class="p">};</span>
+</span><span id="__span-3-8"><a href="#__codelineno-3-8" id="__codelineno-3-8" name="__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a href="#__codelineno-3-9" id="__codelineno-3-9" name="__codelineno-3-9"></a>  <span class="ss">outputs =</span> <span class="p">{</span> self<span class="p">,</span> nixpkgs<span class="p">,</span> crane<span class="p">,</span> flake-utils<span class="p">,</span> <span class="o">...</span> <span class="p">}:</span>
+</span><span id="__span-3-10"><a href="#__codelineno-3-10" id="__codelineno-3-10" name="__codelineno-3-10"></a>    flake-utils<span class="o">.</span>lib<span class="o">.</span>eachDefaultSystem <span class="p">(</span>system<span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-3-11"><a href="#__codelineno-3-11" id="__codelineno-3-11" name="__codelineno-3-11"></a>      packages<span class="o">.</span><span class="ss">default =</span> crane<span class="o">.</span>lib<span class="o">.</span><span class="err">$</span><span class="p">{</span>system<span class="p">}</span><span class="o">.</span>buildPackage <span class="p">{</span>
+</span><span id="__span-3-12"><a href="#__codelineno-3-12" id="__codelineno-3-12" name="__codelineno-3-12"></a>        <span class="ss">src =</span> <span class="o">.</span><span class="l">/.</span><span class="p">;</span>
+</span><span id="__span-3-13"><a href="#__codelineno-3-13" id="__codelineno-3-13" name="__codelineno-3-13"></a>      <span class="p">};</span>
+</span><span id="__span-3-14"><a href="#__codelineno-3-14" id="__codelineno-3-14" name="__codelineno-3-14"></a>    <span class="p">});</span>
+</span><span id="__span-3-15"><a href="#__codelineno-3-15" id="__codelineno-3-15" name="__codelineno-3-15"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这样就可以了，不需要使用工具从 Cargo.lock 生成对应的 Cargo.nix。</p>
 <p>但是由于 webhookd 依赖 native 库，所以还需要需要手动加入 native 依赖：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  inputs <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>    nixpkgs<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:NixOS/nixpkgs/nixpkgs-unstable&#34;</span>;
-</span></span><span style="display:flex;"><span>    crane<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:ipetkov/crane&#34;</span>;
-</span></span><span style="display:flex;"><span>    crane<span style="color:#f92672">.</span>inputs<span style="color:#f92672">.</span>nixpkgs<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:numtide/flake-utils&#34;</span>;
-</span></span><span style="display:flex;"><span>  };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  outputs <span style="color:#f92672">=</span> { self<span style="color:#f92672">,</span> nixpkgs<span style="color:#f92672">,</span> crane<span style="color:#f92672">,</span> flake-utils<span style="color:#f92672">,</span> <span style="color:#f92672">...</span> }:
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span>eachDefaultSystem (system:
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">let</span>
-</span></span><span style="display:flex;"><span>        pkgs <span style="color:#f92672">=</span> <span style="color:#f92672">import</span> nixpkgs {
-</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">inherit</span> system;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">in</span>
-</span></span><span style="display:flex;"><span>      {
-</span></span><span style="display:flex;"><span>        packages<span style="color:#f92672">.</span>default <span style="color:#f92672">=</span> crane<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span><span style="color:#e6db74">${</span>system<span style="color:#e6db74">}</span><span style="color:#f92672">.</span>buildPackage {
-</span></span><span style="display:flex;"><span>          src <span style="color:#f92672">=</span> <span style="color:#e6db74">./.</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>          buildInputs <span style="color:#f92672">=</span> <span style="color:#66d9ef">with</span> pkgs; [
-</span></span><span style="display:flex;"><span>            libiconv
-</span></span><span style="display:flex;"><span>            darwin<span style="color:#f92672">.</span>apple_sdk<span style="color:#f92672">.</span>frameworks<span style="color:#f92672">.</span>Security
-</span></span><span style="display:flex;"><span>          ];
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      });
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>构建：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ nix build
-</span></span><span style="display:flex;"><span>$ ./result/bin/webhookd --version
-</span></span><span style="display:flex;"><span>webhookd 0.2.1
-</span></span></code></pre></div><h3 id="原理-1">原理</h3>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="p">{</span>
+</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a>  <span class="ss">inputs =</span> <span class="p">{</span>
+</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a>    nixpkgs<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:NixOS/nixpkgs/nixpkgs-unstable"</span><span class="p">;</span>
+</span><span id="__span-4-4"><a href="#__codelineno-4-4" id="__codelineno-4-4" name="__codelineno-4-4"></a>    crane<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:ipetkov/crane"</span><span class="p">;</span>
+</span><span id="__span-4-5"><a href="#__codelineno-4-5" id="__codelineno-4-5" name="__codelineno-4-5"></a>    crane<span class="o">.</span>inputs<span class="o">.</span>nixpkgs<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-4-6"><a href="#__codelineno-4-6" id="__codelineno-4-6" name="__codelineno-4-6"></a>    flake-utils<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:numtide/flake-utils"</span><span class="p">;</span>
+</span><span id="__span-4-7"><a href="#__codelineno-4-7" id="__codelineno-4-7" name="__codelineno-4-7"></a>  <span class="p">};</span>
+</span><span id="__span-4-8"><a href="#__codelineno-4-8" id="__codelineno-4-8" name="__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a href="#__codelineno-4-9" id="__codelineno-4-9" name="__codelineno-4-9"></a>  <span class="ss">outputs =</span> <span class="p">{</span> self<span class="p">,</span> nixpkgs<span class="p">,</span> crane<span class="p">,</span> flake-utils<span class="p">,</span> <span class="o">...</span> <span class="p">}:</span>
+</span><span id="__span-4-10"><a href="#__codelineno-4-10" id="__codelineno-4-10" name="__codelineno-4-10"></a>    flake-utils<span class="o">.</span>lib<span class="o">.</span>eachDefaultSystem <span class="p">(</span>system<span class="p">:</span>
+</span><span id="__span-4-11"><a href="#__codelineno-4-11" id="__codelineno-4-11" name="__codelineno-4-11"></a>      <span class="k">let</span>
+</span><span id="__span-4-12"><a href="#__codelineno-4-12" id="__codelineno-4-12" name="__codelineno-4-12"></a>        <span class="ss">pkgs =</span> <span class="nb">import</span> nixpkgs <span class="p">{</span>
+</span><span id="__span-4-13"><a href="#__codelineno-4-13" id="__codelineno-4-13" name="__codelineno-4-13"></a>          <span class="k">inherit</span> system<span class="p">;</span>
+</span><span id="__span-4-14"><a href="#__codelineno-4-14" id="__codelineno-4-14" name="__codelineno-4-14"></a>        <span class="p">};</span>
+</span><span id="__span-4-15"><a href="#__codelineno-4-15" id="__codelineno-4-15" name="__codelineno-4-15"></a>      <span class="k">in</span>
+</span><span id="__span-4-16"><a href="#__codelineno-4-16" id="__codelineno-4-16" name="__codelineno-4-16"></a>      <span class="p">{</span>
+</span><span id="__span-4-17"><a href="#__codelineno-4-17" id="__codelineno-4-17" name="__codelineno-4-17"></a>        packages<span class="o">.</span><span class="ss">default =</span> crane<span class="o">.</span>lib<span class="o">.</span><span class="err">$</span><span class="p">{</span>system<span class="p">}</span><span class="o">.</span>buildPackage <span class="p">{</span>
+</span><span id="__span-4-18"><a href="#__codelineno-4-18" id="__codelineno-4-18" name="__codelineno-4-18"></a>          <span class="ss">src =</span> <span class="o">.</span><span class="l">/.</span><span class="p">;</span>
+</span><span id="__span-4-19"><a href="#__codelineno-4-19" id="__codelineno-4-19" name="__codelineno-4-19"></a>
+</span><span id="__span-4-20"><a href="#__codelineno-4-20" id="__codelineno-4-20" name="__codelineno-4-20"></a>          <span class="ss">buildInputs =</span> <span class="k">with</span> pkgs<span class="p">;</span> <span class="p">[</span>
+</span><span id="__span-4-21"><a href="#__codelineno-4-21" id="__codelineno-4-21" name="__codelineno-4-21"></a>            libiconv
+</span><span id="__span-4-22"><a href="#__codelineno-4-22" id="__codelineno-4-22" name="__codelineno-4-22"></a>            darwin<span class="o">.</span>apple_sdk<span class="o">.</span>frameworks<span class="o">.</span>Security
+</span><span id="__span-4-23"><a href="#__codelineno-4-23" id="__codelineno-4-23" name="__codelineno-4-23"></a>          <span class="p">];</span>
+</span><span id="__span-4-24"><a href="#__codelineno-4-24" id="__codelineno-4-24" name="__codelineno-4-24"></a>        <span class="p">};</span>
+</span><span id="__span-4-25"><a href="#__codelineno-4-25" id="__codelineno-4-25" name="__codelineno-4-25"></a>      <span class="p">});</span>
+</span><span id="__span-4-26"><a href="#__codelineno-4-26" id="__codelineno-4-26" name="__codelineno-4-26"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>构建：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a>$<span class="w"> </span>nix<span class="w"> </span>build
+</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a>$<span class="w"> </span>./result/bin/webhookd<span class="w"> </span>--version
+</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a>webhookd<span class="w"> </span><span class="m">0</span>.2.1
+</span></code></pre></div>
+<h3 id="_9">原理</h3>
 <p>crane 会把所有的依赖下载起来用 cargo 进行一次构建，把生成的 target 目录打成 <code>target.tar.zst</code>，然后再加上项目的源代码再构建一次，这样来实现 incremental compilation。它还提供了一些 check lint 等实用的命令。但是，它的目的和其他项目不大一样，它并不考虑跨项目的依赖缓存。</p>
 <h2 id="crate2nix">crate2nix</h2>
-<h3 id="卖点-2">卖点</h3>
+<h3 id="_10">卖点</h3>
 <p>crate2nix 在 README 中写的卖点：</p>
 <ul>
 <li>Same dependency tree as cargo: It uses cargo_metadata to obtain the dependency tree from cargo. Therefore, it will use the exact same library versions as cargo and respect any locked down version in Cargo.lock.</li>
-<li>Smart caching: It uses smart crate by crate caching so that nix rebuilds exactly the crates that need to be rebuilt. Compare that to docker layers&hellip;</li>
-<li>Nix ecosystem goodness: You can use all things that make the nix/NixOS ecosystem great, e.g. distributed/remote builds, build minimal docker images, deploy your binary as a service to the cloud with NixOps, &hellip;</li>
+<li>Smart caching: It uses smart crate by crate caching so that nix rebuilds exactly the crates that need to be rebuilt. Compare that to docker layers...</li>
+<li>Nix ecosystem goodness: You can use all things that make the nix/NixOS ecosystem great, e.g. distributed/remote builds, build minimal docker images, deploy your binary as a service to the cloud with NixOps, ...</li>
 <li>Out of the box support for libraries with non-rust dependencies: It builds on top of the buildRustCrate function from NixOS so that native dependencies of many rust libraries are already correctly fetched when needed. If your library with native dependencies is not yet supported, you can customize defaultCrateOverrides / crateOverrides, see below.</li>
 <li>Easy to understand nix template: The actual nix code is generated via templates/build.nix.tera so you can fix/improve the nix code without knowing rust if all the data is already there.</li>
 </ul>
-<h3 id="安装-2">安装</h3>
+<h3 id="_11">安装</h3>
 <p>首先要安装 crate2nix，由于它的稳定版本 0.10.0 已经是去年的版本了，我直接用了 master 分支。如果是直接安装，用：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix-env -i -f https://github.com/kolloch/crate2nix/tarball/master
-</span></span></code></pre></div><p>但我是用 flakes + home-manager 管理的，所以我实际的配置方法是：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>nix-env<span class="w"> </span>-i<span class="w"> </span>-f<span class="w"> </span>https://github.com/kolloch/crate2nix/tarball/master
+</span></code></pre></div>
+<p>但我是用 flakes + home-manager 管理的，所以我实际的配置方法是：</p>
 <ol>
 <li>向 flake.nix 添加 crate2nix 到 inputs，并且设置 <code>crate2nix.flake = false</code></li>
 <li>把 crate2nix 从 inputs 传到实际的 home manager 配置，然后在 <code>home.packages</code> 里加入 <code>callPackage crate2nix {}</code></li>
 </ol>
-<h3 id="使用-2">使用</h3>
+<h3 id="_12">使用</h3>
 <p>接下来，找到一个 Rust 项目，在其中运行 <code>crate2nix generate</code>:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ crate2nix generate
-</span></span><span style="display:flex;"><span>Generated ./Cargo.nix successfully.
-</span></span></code></pre></div><p>构建：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix build -f Cargo.nix rootCrate.build
-</span></span></code></pre></div><p>编译的结果可以在 <code>result/bin</code> 下看到。</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a>$<span class="w"> </span>crate2nix<span class="w"> </span>generate
+</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a>Generated<span class="w"> </span>./Cargo.nix<span class="w"> </span>successfully.
+</span></code></pre></div>
+<p>构建：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>nix<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>Cargo.nix<span class="w"> </span>rootCrate.build
+</span></code></pre></div>
+<p>编译的结果可以在 <code>result/bin</code> 下看到。</p>
 <p>我编译的是 <code>jiegec/webhookd</code>，编译过程中出现了报错：</p>
-<pre tabindex="0"><code>&gt;   = note: ld: framework not found Security
-&gt;           clang-11: error: linker command failed with exit code 1 (use -v to see invocation)
-&gt;
-&gt;
-&gt; error: aborting due to previous error
-</code></pre><p>前面的 cargo2nix 没有出现这样的问题，应该是因为 cargo2nix 帮我们引入了 Security 的依赖，见 <a href="https://github.com/cargo2nix/cargo2nix/blob/9c3b846c727300f8146f20f01c5387b398d1e0e4/overlay/overrides.nix">overrides.nix</a>。</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>&gt;   = note: ld: framework not found Security
+</span><span id="__span-9-2"><a href="#__codelineno-9-2" id="__codelineno-9-2" name="__codelineno-9-2"></a>&gt;           clang-11: error: linker command failed with exit code 1 (use -v to see invocation)
+</span><span id="__span-9-3"><a href="#__codelineno-9-3" id="__codelineno-9-3" name="__codelineno-9-3"></a>&gt;
+</span><span id="__span-9-4"><a href="#__codelineno-9-4" id="__codelineno-9-4" name="__codelineno-9-4"></a>&gt;
+</span><span id="__span-9-5"><a href="#__codelineno-9-5" id="__codelineno-9-5" name="__codelineno-9-5"></a>&gt; error: aborting due to previous error
+</span></code></pre></div>
+<p>前面的 cargo2nix 没有出现这样的问题，应该是因为 cargo2nix 帮我们引入了 Security 的依赖，见 <a href="https://github.com/cargo2nix/cargo2nix/blob/9c3b846c727300f8146f20f01c5387b398d1e0e4/overlay/overrides.nix">overrides.nix</a>。</p>
 <p>根据 crate2nix 的文档，需要添加额外的 native 依赖：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span>{ pkgs <span style="color:#f92672">?</span> <span style="color:#f92672">import</span> <span style="color:#e6db74">&lt;nixpkgs&gt;</span> { } }:
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">let</span>
-</span></span><span style="display:flex;"><span>  generatedBuild <span style="color:#f92672">=</span> <span style="color:#f92672">import</span> <span style="color:#e6db74">./Cargo.nix</span> {
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">inherit</span> pkgs;
-</span></span><span style="display:flex;"><span>    defaultCrateOverrides <span style="color:#f92672">=</span> <span style="color:#66d9ef">with</span> pkgs; defaultCrateOverrides <span style="color:#f92672">//</span> {
-</span></span><span style="display:flex;"><span>      webhookd <span style="color:#f92672">=</span> attrs: {
-</span></span><span style="display:flex;"><span>        buildInputs <span style="color:#f92672">=</span>
-</span></span><span style="display:flex;"><span>          lib<span style="color:#f92672">.</span>optionals
-</span></span><span style="display:flex;"><span>            stdenv<span style="color:#f92672">.</span>isDarwin
-</span></span><span style="display:flex;"><span>            [ darwin<span style="color:#f92672">.</span>apple_sdk<span style="color:#f92672">.</span>frameworks<span style="color:#f92672">.</span>Security ];
-</span></span><span style="display:flex;"><span>      };
-</span></span><span style="display:flex;"><span>    };
-</span></span><span style="display:flex;"><span>  };
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">in</span>
-</span></span><span style="display:flex;"><span>generatedBuild<span style="color:#f92672">.</span>rootCrate<span style="color:#f92672">.</span>build
-</span></span></code></pre></div><p>然后构建：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ nix build -f default.nix
-</span></span><span style="display:flex;"><span>$ ./result/bin/webhookd --version
-</span></span><span style="display:flex;"><span>webhookd 0.2.1
-</span></span></code></pre></div><p>这样就可以正常运行了。</p>
-<h3 id="原理-2">原理</h3>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="p">{</span> pkgs <span class="o">?</span> <span class="nb">import</span> <span class="l">&lt;nixpkgs&gt;</span> <span class="p">{</span> <span class="p">}</span> <span class="p">}:</span>
+</span><span id="__span-10-2"><a href="#__codelineno-10-2" id="__codelineno-10-2" name="__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a href="#__codelineno-10-3" id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="k">let</span>
+</span><span id="__span-10-4"><a href="#__codelineno-10-4" id="__codelineno-10-4" name="__codelineno-10-4"></a>  <span class="ss">generatedBuild =</span> <span class="nb">import</span> <span class="o">.</span><span class="l">/Cargo.nix</span> <span class="p">{</span>
+</span><span id="__span-10-5"><a href="#__codelineno-10-5" id="__codelineno-10-5" name="__codelineno-10-5"></a>    <span class="k">inherit</span> pkgs<span class="p">;</span>
+</span><span id="__span-10-6"><a href="#__codelineno-10-6" id="__codelineno-10-6" name="__codelineno-10-6"></a>    <span class="ss">defaultCrateOverrides =</span> <span class="k">with</span> pkgs<span class="p">;</span> defaultCrateOverrides <span class="o">//</span> <span class="p">{</span>
+</span><span id="__span-10-7"><a href="#__codelineno-10-7" id="__codelineno-10-7" name="__codelineno-10-7"></a>      <span class="ss">webhookd =</span> attrs<span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-10-8"><a href="#__codelineno-10-8" id="__codelineno-10-8" name="__codelineno-10-8"></a>        <span class="ss">buildInputs =</span>
+</span><span id="__span-10-9"><a href="#__codelineno-10-9" id="__codelineno-10-9" name="__codelineno-10-9"></a>          lib<span class="o">.</span>optionals
+</span><span id="__span-10-10"><a href="#__codelineno-10-10" id="__codelineno-10-10" name="__codelineno-10-10"></a>            stdenv<span class="o">.</span>isDarwin
+</span><span id="__span-10-11"><a href="#__codelineno-10-11" id="__codelineno-10-11" name="__codelineno-10-11"></a>            <span class="p">[</span> darwin<span class="o">.</span>apple_sdk<span class="o">.</span>frameworks<span class="o">.</span>Security <span class="p">];</span>
+</span><span id="__span-10-12"><a href="#__codelineno-10-12" id="__codelineno-10-12" name="__codelineno-10-12"></a>      <span class="p">};</span>
+</span><span id="__span-10-13"><a href="#__codelineno-10-13" id="__codelineno-10-13" name="__codelineno-10-13"></a>    <span class="p">};</span>
+</span><span id="__span-10-14"><a href="#__codelineno-10-14" id="__codelineno-10-14" name="__codelineno-10-14"></a>  <span class="p">};</span>
+</span><span id="__span-10-15"><a href="#__codelineno-10-15" id="__codelineno-10-15" name="__codelineno-10-15"></a><span class="k">in</span>
+</span><span id="__span-10-16"><a href="#__codelineno-10-16" id="__codelineno-10-16" name="__codelineno-10-16"></a>generatedBuild<span class="o">.</span>rootCrate<span class="o">.</span>build
+</span></code></pre></div>
+<p>然后构建：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a>$<span class="w"> </span>nix<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>default.nix
+</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a>$<span class="w"> </span>./result/bin/webhookd<span class="w"> </span>--version
+</span><span id="__span-11-3"><a href="#__codelineno-11-3" id="__codelineno-11-3" name="__codelineno-11-3"></a>webhookd<span class="w"> </span><span class="m">0</span>.2.1
+</span></code></pre></div>
+<p>这样就可以正常运行了。</p>
+<h3 id="_13">原理</h3>
 <p>它的原理是使用 <code>cargo_metadata</code> 库从 Cargo.lock 中获取各个 crate 的信息，然后翻译成 <code>Cargo.nix</code>，之后就是由 nix 来编译各个 crate 的内容。所以一开始还是需要先用 Cargo 创建项目，添加依赖，生成 <code>Cargo.lock</code>；之后再用 <code>crate2nix generate</code> 同步依赖信息到 <code>Cargo.nix</code> 文件，构建的时候就不需要 Cargo 参与了，直接 rustc。</p>
 <h2 id="naersk">naersk</h2>
-<h3 id="安装-3">安装</h3>
+<h3 id="_14">安装</h3>
 <p>需要安装 <a href="https://github.com/nmattia/niv">niv</a>:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix-env -iA nixpkgs.niv
-</span></span></code></pre></div><h3 id="使用-3">使用</h3>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>nix-env<span class="w"> </span>-iA<span class="w"> </span>nixpkgs.niv
+</span></code></pre></div>
+<h3 id="_15">使用</h3>
 <p>在项目目录下，首先用 <code>niv</code> 导入 naersk：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>niv init
-</span></span><span style="display:flex;"><span>niv add nix-community/naersk
-</span></span></code></pre></div><p>然后编写一个 <code>default.nix</code>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span><span style="color:#66d9ef">let</span>
-</span></span><span style="display:flex;"><span>  pkgs <span style="color:#f92672">=</span> <span style="color:#f92672">import</span> <span style="color:#e6db74">&lt;nixpkgs&gt;</span> { };
-</span></span><span style="display:flex;"><span>  sources <span style="color:#f92672">=</span> <span style="color:#f92672">import</span> <span style="color:#e6db74">./nix/sources.nix</span>;
-</span></span><span style="display:flex;"><span>  naersk <span style="color:#f92672">=</span> pkgs<span style="color:#f92672">.</span>callPackage sources<span style="color:#f92672">.</span>naersk { };
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">in</span>
-</span></span><span style="display:flex;"><span>naersk<span style="color:#f92672">.</span>buildPackage <span style="color:#e6db74">./.</span>
-</span></span></code></pre></div><p>构建：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ nix build -f default.nix
-</span></span><span style="display:flex;"><span>$ ./result/bin/webhookd --version
-</span></span><span style="display:flex;"><span>webhookd 0.2.1
-</span></span></code></pre></div><h3 id="原理-3">原理</h3>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-13-1"><a href="#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a>niv<span class="w"> </span>init
+</span><span id="__span-13-2"><a href="#__codelineno-13-2" id="__codelineno-13-2" name="__codelineno-13-2"></a>niv<span class="w"> </span>add<span class="w"> </span>nix-community/naersk
+</span></code></pre></div>
+<p>然后编写一个 <code>default.nix</code>：</p>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-14-1"><a href="#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a><span class="k">let</span>
+</span><span id="__span-14-2"><a href="#__codelineno-14-2" id="__codelineno-14-2" name="__codelineno-14-2"></a>  <span class="ss">pkgs =</span> <span class="nb">import</span> <span class="l">&lt;nixpkgs&gt;</span> <span class="p">{</span> <span class="p">};</span>
+</span><span id="__span-14-3"><a href="#__codelineno-14-3" id="__codelineno-14-3" name="__codelineno-14-3"></a>  <span class="ss">sources =</span> <span class="nb">import</span> <span class="o">.</span><span class="l">/nix/sources.nix</span><span class="p">;</span>
+</span><span id="__span-14-4"><a href="#__codelineno-14-4" id="__codelineno-14-4" name="__codelineno-14-4"></a>  <span class="ss">naersk =</span> pkgs<span class="o">.</span>callPackage sources<span class="o">.</span>naersk <span class="p">{</span> <span class="p">};</span>
+</span><span id="__span-14-5"><a href="#__codelineno-14-5" id="__codelineno-14-5" name="__codelineno-14-5"></a><span class="k">in</span>
+</span><span id="__span-14-6"><a href="#__codelineno-14-6" id="__codelineno-14-6" name="__codelineno-14-6"></a>naersk<span class="o">.</span>buildPackage <span class="o">.</span><span class="l">/.</span>
+</span></code></pre></div>
+<p>构建：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-15-1"><a href="#__codelineno-15-1" id="__codelineno-15-1" name="__codelineno-15-1"></a>$<span class="w"> </span>nix<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>default.nix
+</span><span id="__span-15-2"><a href="#__codelineno-15-2" id="__codelineno-15-2" name="__codelineno-15-2"></a>$<span class="w"> </span>./result/bin/webhookd<span class="w"> </span>--version
+</span><span id="__span-15-3"><a href="#__codelineno-15-3" id="__codelineno-15-3" name="__codelineno-15-3"></a>webhookd<span class="w"> </span><span class="m">0</span>.2.1
+</span></code></pre></div>
+<h3 id="_16">原理</h3>
 <p>naersk 的原理和 crane 是类似的：把所有依赖下载下来，创建一个只有依赖的项目，然后用 cargo 预编译，编译完得到的 target 目录打成 <code>target.tar.zst</code>；然后基于预编译的结果再编译整个项目。</p>
 <h2 id="nocargo">nocargo</h2>
-<h3 id="卖点-3">卖点</h3>
+<h3 id="_17">卖点</h3>
 <p>nocargo 的 README 提到了以下卖点：</p>
 <ul>
 <li>No IFDs (import-from-derivation). See meme.</li>
@@ -300,289 +938,193 @@ Development Shell - knowing all the dependencies means easy creation of complete
 <li>nixpkgs integration for non-Rust dependencies.</li>
 </ul>
 <p>README 也提到了 nocargo, cargo2nix, naersk 和 buildRustPackage 的对比。</p>
-<h3 id="使用-4">使用</h3>
+<h3 id="_18">使用</h3>
 <p>nocargo 目前<a href="https://github.com/oxalica/nocargo/blob/90a6d0e8dcfc2205fa69423d42bff6fd1b997121/flake.nix#L13">仅支持 x86_64-linux 平台</a>。</p>
 <p>在一个 Cargo 项目中，运行：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>nix run github:oxalica/nocargo init
-</span></span></code></pre></div><p>它会生成 <code>flake.nix</code> 文件如下：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span><span style="color:#75715e"># See more usages of nocargo at https://github.com/oxalica/nocargo#readme</span>
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  description <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;Rust package webhookd&#34;</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  inputs <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>    nixpkgs<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:NixOS/nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:numtide/flake-utils&#34;</span>;
-</span></span><span style="display:flex;"><span>    nocargo <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>      url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:oxalica/nocargo&#34;</span>;
-</span></span><span style="display:flex;"><span>      inputs<span style="color:#f92672">.</span>nixpkgs<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e"># inputs.registry-crates-io.follows = &#34;registry-crates-io&#34;;</span>
-</span></span><span style="display:flex;"><span>    };
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Optionally, you can override crates.io index to get cutting-edge packages.</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># registry-crates-io = { url = &#34;github:rust-lang/crates.io-index&#34;; flake = false; };</span>
-</span></span><span style="display:flex;"><span>  };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  outputs <span style="color:#f92672">=</span> { nixpkgs<span style="color:#f92672">,</span> flake-utils<span style="color:#f92672">,</span> nocargo<span style="color:#f92672">,</span> <span style="color:#f92672">...</span> }<span style="color:#f92672">@</span>inputs:
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span>eachSystem [ <span style="color:#e6db74">&#34;x86_64-linux&#34;</span> ] (system:
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">let</span>
-</span></span><span style="display:flex;"><span>        ws <span style="color:#f92672">=</span> nocargo<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span><span style="color:#e6db74">${</span>system<span style="color:#e6db74">}</span><span style="color:#f92672">.</span>mkRustPackageOrWorkspace {
-</span></span><span style="display:flex;"><span>          src <span style="color:#f92672">=</span> <span style="color:#e6db74">./.</span>;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">in</span> <span style="color:#66d9ef">rec</span> {
-</span></span><span style="display:flex;"><span>        packages <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>          default <span style="color:#f92672">=</span> packages<span style="color:#f92672">.</span>webhookd;
-</span></span><span style="display:flex;"><span>          webhookd <span style="color:#f92672">=</span> ws<span style="color:#f92672">.</span>release<span style="color:#f92672">.</span>webhookd<span style="color:#f92672">.</span>bin;
-</span></span><span style="display:flex;"><span>          webhookd-dev <span style="color:#f92672">=</span> ws<span style="color:#f92672">.</span>dev<span style="color:#f92672">.</span>webhookd<span style="color:#f92672">.</span>bin;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      });
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>构建：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git add .
-</span></span><span style="display:flex;"><span>$ nix build
-</span></span></code></pre></div><p>出现了编译错误，说明 crates.io index 版本不是最新的：</p>
-<pre tabindex="0"><code>error: Package bytes doesn&#39;t have version 1.2.0 in index. Available versions: 0.0.1 0.1.0 0.1.1 0.1.2 0.2.0 0.2.1 0.2.10 0.2.11 0.2.2 0.2.3 0.2.4 0.2.5 0.2.6 0.2.7 0.2.8 0.2.9 0.3.0 0.4.0 0.4.1 0.4.10 0.4.11 0.4.12 0.4.2 0.4.3 0.4.4 0.4.5 0.4.6 0.4.7 0.4.8 0.4.9 0.5.0 0.5.1 0.5.2 0.5.3 0.5.4 0.5.5 0.5.6 0.6.0 1.0.0 1.0.1 1.1.0
-(use &#39;--show-trace&#39; to show detailed location information)
-</code></pre><p>按照 <code>flake.nix</code> 中的提示，使用最新的 crates.io index：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nix" data-lang="nix"><span style="display:flex;"><span><span style="color:#75715e"># See more usages of nocargo at https://github.com/oxalica/nocargo#readme</span>
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  description <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;Rust package webhookd&#34;</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  inputs <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>    nixpkgs<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:NixOS/nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:numtide/flake-utils&#34;</span>;
-</span></span><span style="display:flex;"><span>    nocargo <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>      url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:oxalica/nocargo&#34;</span>;
-</span></span><span style="display:flex;"><span>      inputs<span style="color:#f92672">.</span>nixpkgs<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nixpkgs&#34;</span>;
-</span></span><span style="display:flex;"><span>      inputs<span style="color:#f92672">.</span>registry-crates-io<span style="color:#f92672">.</span>follows <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;registry-crates-io&#34;</span>;
-</span></span><span style="display:flex;"><span>    };
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Optionally, you can override crates.io index to get cutting-edge packages.</span>
-</span></span><span style="display:flex;"><span>    registry-crates-io <span style="color:#f92672">=</span> { url <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;github:rust-lang/crates.io-index&#34;</span>; flake <span style="color:#f92672">=</span> <span style="color:#66d9ef">false</span>; };
-</span></span><span style="display:flex;"><span>  };
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  outputs <span style="color:#f92672">=</span> { nixpkgs<span style="color:#f92672">,</span> flake-utils<span style="color:#f92672">,</span> nocargo<span style="color:#f92672">,</span> <span style="color:#f92672">...</span> }<span style="color:#f92672">@</span>inputs:
-</span></span><span style="display:flex;"><span>    flake-utils<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span>eachSystem [ <span style="color:#e6db74">&#34;x86_64-linux&#34;</span> ] (system:
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">let</span>
-</span></span><span style="display:flex;"><span>        ws <span style="color:#f92672">=</span> nocargo<span style="color:#f92672">.</span>lib<span style="color:#f92672">.</span><span style="color:#e6db74">${</span>system<span style="color:#e6db74">}</span><span style="color:#f92672">.</span>mkRustPackageOrWorkspace {
-</span></span><span style="display:flex;"><span>          src <span style="color:#f92672">=</span> <span style="color:#e6db74">./.</span>;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">in</span> <span style="color:#66d9ef">rec</span> {
-</span></span><span style="display:flex;"><span>        packages <span style="color:#f92672">=</span> {
-</span></span><span style="display:flex;"><span>          default <span style="color:#f92672">=</span> packages<span style="color:#f92672">.</span>webhookd;
-</span></span><span style="display:flex;"><span>          webhookd <span style="color:#f92672">=</span> ws<span style="color:#f92672">.</span>release<span style="color:#f92672">.</span>webhookd<span style="color:#f92672">.</span>bin;
-</span></span><span style="display:flex;"><span>          webhookd-dev <span style="color:#f92672">=</span> ws<span style="color:#f92672">.</span>dev<span style="color:#f92672">.</span>webhookd<span style="color:#f92672">.</span>bin;
-</span></span><span style="display:flex;"><span>        };
-</span></span><span style="display:flex;"><span>      });
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>继续构建就成功了：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ nix build
-</span></span><span style="display:flex;"><span>• Updated input <span style="color:#e6db74">&#39;nocargo/registry-crates-io&#39;</span>:
-</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#39;github:rust-lang/crates.io-index/1ce12a7e3367a2a673f91f07ab7cc505a0b8f069&#39;</span> <span style="color:#f92672">(</span>2022-07-17<span style="color:#f92672">)</span>
-</span></span><span style="display:flex;"><span>  → follows <span style="color:#e6db74">&#39;registry-crates-io&#39;</span>
-</span></span><span style="display:flex;"><span>• Added input <span style="color:#e6db74">&#39;registry-crates-io&#39;</span>:
-</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#39;github:rust-lang/crates.io-index/627caba32f416e706bf3f2ceac55230ec79710c5&#39;</span> <span style="color:#f92672">(</span>2022-08-02<span style="color:#f92672">)</span>
-</span></span><span style="display:flex;"><span>$ ./result/bin/webhookd --version
-</span></span><span style="display:flex;"><span>webhookd 0.2.1
-</span></span></code></pre></div><h2 id="总结">总结</h2>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-16-1"><a href="#__codelineno-16-1" id="__codelineno-16-1" name="__codelineno-16-1"></a>nix<span class="w"> </span>run<span class="w"> </span>github:oxalica/nocargo<span class="w"> </span>init
+</span></code></pre></div>
+<p>它会生成 <code>flake.nix</code> 文件如下：</p>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-17-1"><a href="#__codelineno-17-1" id="__codelineno-17-1" name="__codelineno-17-1"></a><span class="c1"># See more usages of nocargo at https://github.com/oxalica/nocargo#readme</span>
+</span><span id="__span-17-2"><a href="#__codelineno-17-2" id="__codelineno-17-2" name="__codelineno-17-2"></a><span class="p">{</span>
+</span><span id="__span-17-3"><a href="#__codelineno-17-3" id="__codelineno-17-3" name="__codelineno-17-3"></a>  <span class="ss">description =</span> <span class="s2">"Rust package webhookd"</span><span class="p">;</span>
+</span><span id="__span-17-4"><a href="#__codelineno-17-4" id="__codelineno-17-4" name="__codelineno-17-4"></a>
+</span><span id="__span-17-5"><a href="#__codelineno-17-5" id="__codelineno-17-5" name="__codelineno-17-5"></a>  <span class="ss">inputs =</span> <span class="p">{</span>
+</span><span id="__span-17-6"><a href="#__codelineno-17-6" id="__codelineno-17-6" name="__codelineno-17-6"></a>    nixpkgs<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:NixOS/nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-17-7"><a href="#__codelineno-17-7" id="__codelineno-17-7" name="__codelineno-17-7"></a>    flake-utils<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:numtide/flake-utils"</span><span class="p">;</span>
+</span><span id="__span-17-8"><a href="#__codelineno-17-8" id="__codelineno-17-8" name="__codelineno-17-8"></a>    <span class="ss">nocargo =</span> <span class="p">{</span>
+</span><span id="__span-17-9"><a href="#__codelineno-17-9" id="__codelineno-17-9" name="__codelineno-17-9"></a>      <span class="ss">url =</span> <span class="s2">"github:oxalica/nocargo"</span><span class="p">;</span>
+</span><span id="__span-17-10"><a href="#__codelineno-17-10" id="__codelineno-17-10" name="__codelineno-17-10"></a>      inputs<span class="o">.</span>nixpkgs<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-17-11"><a href="#__codelineno-17-11" id="__codelineno-17-11" name="__codelineno-17-11"></a>      <span class="c1"># inputs.registry-crates-io.follows = "registry-crates-io";</span>
+</span><span id="__span-17-12"><a href="#__codelineno-17-12" id="__codelineno-17-12" name="__codelineno-17-12"></a>    <span class="p">};</span>
+</span><span id="__span-17-13"><a href="#__codelineno-17-13" id="__codelineno-17-13" name="__codelineno-17-13"></a>    <span class="c1"># Optionally, you can override crates.io index to get cutting-edge packages.</span>
+</span><span id="__span-17-14"><a href="#__codelineno-17-14" id="__codelineno-17-14" name="__codelineno-17-14"></a>    <span class="c1"># registry-crates-io = { url = "github:rust-lang/crates.io-index"; flake = false; };</span>
+</span><span id="__span-17-15"><a href="#__codelineno-17-15" id="__codelineno-17-15" name="__codelineno-17-15"></a>  <span class="p">};</span>
+</span><span id="__span-17-16"><a href="#__codelineno-17-16" id="__codelineno-17-16" name="__codelineno-17-16"></a>
+</span><span id="__span-17-17"><a href="#__codelineno-17-17" id="__codelineno-17-17" name="__codelineno-17-17"></a>  <span class="ss">outputs =</span> <span class="p">{</span> nixpkgs<span class="p">,</span> flake-utils<span class="p">,</span> nocargo<span class="p">,</span> <span class="o">...</span> <span class="p">}@</span>inputs<span class="p">:</span>
+</span><span id="__span-17-18"><a href="#__codelineno-17-18" id="__codelineno-17-18" name="__codelineno-17-18"></a>    flake-utils<span class="o">.</span>lib<span class="o">.</span>eachSystem <span class="p">[</span> <span class="s2">"x86_64-linux"</span> <span class="p">]</span> <span class="p">(</span>system<span class="p">:</span>
+</span><span id="__span-17-19"><a href="#__codelineno-17-19" id="__codelineno-17-19" name="__codelineno-17-19"></a>      <span class="k">let</span>
+</span><span id="__span-17-20"><a href="#__codelineno-17-20" id="__codelineno-17-20" name="__codelineno-17-20"></a>        <span class="ss">ws =</span> nocargo<span class="o">.</span>lib<span class="o">.</span><span class="err">$</span><span class="p">{</span>system<span class="p">}</span><span class="o">.</span>mkRustPackageOrWorkspace <span class="p">{</span>
+</span><span id="__span-17-21"><a href="#__codelineno-17-21" id="__codelineno-17-21" name="__codelineno-17-21"></a>          <span class="ss">src =</span> <span class="o">.</span><span class="l">/.</span><span class="p">;</span>
+</span><span id="__span-17-22"><a href="#__codelineno-17-22" id="__codelineno-17-22" name="__codelineno-17-22"></a>        <span class="p">};</span>
+</span><span id="__span-17-23"><a href="#__codelineno-17-23" id="__codelineno-17-23" name="__codelineno-17-23"></a>      <span class="k">in</span> <span class="k">rec</span> <span class="p">{</span>
+</span><span id="__span-17-24"><a href="#__codelineno-17-24" id="__codelineno-17-24" name="__codelineno-17-24"></a>        <span class="ss">packages =</span> <span class="p">{</span>
+</span><span id="__span-17-25"><a href="#__codelineno-17-25" id="__codelineno-17-25" name="__codelineno-17-25"></a>          <span class="ss">default =</span> packages<span class="o">.</span>webhookd<span class="p">;</span>
+</span><span id="__span-17-26"><a href="#__codelineno-17-26" id="__codelineno-17-26" name="__codelineno-17-26"></a>          <span class="ss">webhookd =</span> ws<span class="o">.</span>release<span class="o">.</span>webhookd<span class="o">.</span>bin<span class="p">;</span>
+</span><span id="__span-17-27"><a href="#__codelineno-17-27" id="__codelineno-17-27" name="__codelineno-17-27"></a>          <span class="ss">webhookd-dev =</span> ws<span class="o">.</span>dev<span class="o">.</span>webhookd<span class="o">.</span>bin<span class="p">;</span>
+</span><span id="__span-17-28"><a href="#__codelineno-17-28" id="__codelineno-17-28" name="__codelineno-17-28"></a>        <span class="p">};</span>
+</span><span id="__span-17-29"><a href="#__codelineno-17-29" id="__codelineno-17-29" name="__codelineno-17-29"></a>      <span class="p">});</span>
+</span><span id="__span-17-30"><a href="#__codelineno-17-30" id="__codelineno-17-30" name="__codelineno-17-30"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>构建：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-18-1"><a href="#__codelineno-18-1" id="__codelineno-18-1" name="__codelineno-18-1"></a>$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
+</span><span id="__span-18-2"><a href="#__codelineno-18-2" id="__codelineno-18-2" name="__codelineno-18-2"></a>$<span class="w"> </span>nix<span class="w"> </span>build
+</span></code></pre></div>
+<p>出现了编译错误，说明 crates.io index 版本不是最新的：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a href="#__codelineno-19-1" id="__codelineno-19-1" name="__codelineno-19-1"></a>error: Package bytes doesn't have version 1.2.0 in index. Available versions: 0.0.1 0.1.0 0.1.1 0.1.2 0.2.0 0.2.1 0.2.10 0.2.11 0.2.2 0.2.3 0.2.4 0.2.5 0.2.6 0.2.7 0.2.8 0.2.9 0.3.0 0.4.0 0.4.1 0.4.10 0.4.11 0.4.12 0.4.2 0.4.3 0.4.4 0.4.5 0.4.6 0.4.7 0.4.8 0.4.9 0.5.0 0.5.1 0.5.2 0.5.3 0.5.4 0.5.5 0.5.6 0.6.0 1.0.0 1.0.1 1.1.0
+</span><span id="__span-19-2"><a href="#__codelineno-19-2" id="__codelineno-19-2" name="__codelineno-19-2"></a>(use '--show-trace' to show detailed location information)
+</span></code></pre></div>
+<p>按照 <code>flake.nix</code> 中的提示，使用最新的 crates.io index：</p>
+<div class="language-nix highlight"><pre><span></span><code><span id="__span-20-1"><a href="#__codelineno-20-1" id="__codelineno-20-1" name="__codelineno-20-1"></a><span class="c1"># See more usages of nocargo at https://github.com/oxalica/nocargo#readme</span>
+</span><span id="__span-20-2"><a href="#__codelineno-20-2" id="__codelineno-20-2" name="__codelineno-20-2"></a><span class="p">{</span>
+</span><span id="__span-20-3"><a href="#__codelineno-20-3" id="__codelineno-20-3" name="__codelineno-20-3"></a>  <span class="ss">description =</span> <span class="s2">"Rust package webhookd"</span><span class="p">;</span>
+</span><span id="__span-20-4"><a href="#__codelineno-20-4" id="__codelineno-20-4" name="__codelineno-20-4"></a>
+</span><span id="__span-20-5"><a href="#__codelineno-20-5" id="__codelineno-20-5" name="__codelineno-20-5"></a>  <span class="ss">inputs =</span> <span class="p">{</span>
+</span><span id="__span-20-6"><a href="#__codelineno-20-6" id="__codelineno-20-6" name="__codelineno-20-6"></a>    nixpkgs<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:NixOS/nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-20-7"><a href="#__codelineno-20-7" id="__codelineno-20-7" name="__codelineno-20-7"></a>    flake-utils<span class="o">.</span><span class="ss">url =</span> <span class="s2">"github:numtide/flake-utils"</span><span class="p">;</span>
+</span><span id="__span-20-8"><a href="#__codelineno-20-8" id="__codelineno-20-8" name="__codelineno-20-8"></a>    <span class="ss">nocargo =</span> <span class="p">{</span>
+</span><span id="__span-20-9"><a href="#__codelineno-20-9" id="__codelineno-20-9" name="__codelineno-20-9"></a>      <span class="ss">url =</span> <span class="s2">"github:oxalica/nocargo"</span><span class="p">;</span>
+</span><span id="__span-20-10"><a href="#__codelineno-20-10" id="__codelineno-20-10" name="__codelineno-20-10"></a>      inputs<span class="o">.</span>nixpkgs<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"nixpkgs"</span><span class="p">;</span>
+</span><span id="__span-20-11"><a href="#__codelineno-20-11" id="__codelineno-20-11" name="__codelineno-20-11"></a>      inputs<span class="o">.</span>registry-crates-io<span class="o">.</span><span class="ss">follows =</span> <span class="s2">"registry-crates-io"</span><span class="p">;</span>
+</span><span id="__span-20-12"><a href="#__codelineno-20-12" id="__codelineno-20-12" name="__codelineno-20-12"></a>    <span class="p">};</span>
+</span><span id="__span-20-13"><a href="#__codelineno-20-13" id="__codelineno-20-13" name="__codelineno-20-13"></a>    <span class="c1"># Optionally, you can override crates.io index to get cutting-edge packages.</span>
+</span><span id="__span-20-14"><a href="#__codelineno-20-14" id="__codelineno-20-14" name="__codelineno-20-14"></a>    <span class="ss">registry-crates-io =</span> <span class="p">{</span> <span class="ss">url =</span> <span class="s2">"github:rust-lang/crates.io-index"</span><span class="p">;</span> <span class="ss">flake =</span> <span class="no">false</span><span class="p">;</span> <span class="p">};</span>
+</span><span id="__span-20-15"><a href="#__codelineno-20-15" id="__codelineno-20-15" name="__codelineno-20-15"></a>  <span class="p">};</span>
+</span><span id="__span-20-16"><a href="#__codelineno-20-16" id="__codelineno-20-16" name="__codelineno-20-16"></a>
+</span><span id="__span-20-17"><a href="#__codelineno-20-17" id="__codelineno-20-17" name="__codelineno-20-17"></a>  <span class="ss">outputs =</span> <span class="p">{</span> nixpkgs<span class="p">,</span> flake-utils<span class="p">,</span> nocargo<span class="p">,</span> <span class="o">...</span> <span class="p">}@</span>inputs<span class="p">:</span>
+</span><span id="__span-20-18"><a href="#__codelineno-20-18" id="__codelineno-20-18" name="__codelineno-20-18"></a>    flake-utils<span class="o">.</span>lib<span class="o">.</span>eachSystem <span class="p">[</span> <span class="s2">"x86_64-linux"</span> <span class="p">]</span> <span class="p">(</span>system<span class="p">:</span>
+</span><span id="__span-20-19"><a href="#__codelineno-20-19" id="__codelineno-20-19" name="__codelineno-20-19"></a>      <span class="k">let</span>
+</span><span id="__span-20-20"><a href="#__codelineno-20-20" id="__codelineno-20-20" name="__codelineno-20-20"></a>        <span class="ss">ws =</span> nocargo<span class="o">.</span>lib<span class="o">.</span><span class="err">$</span><span class="p">{</span>system<span class="p">}</span><span class="o">.</span>mkRustPackageOrWorkspace <span class="p">{</span>
+</span><span id="__span-20-21"><a href="#__codelineno-20-21" id="__codelineno-20-21" name="__codelineno-20-21"></a>          <span class="ss">src =</span> <span class="o">.</span><span class="l">/.</span><span class="p">;</span>
+</span><span id="__span-20-22"><a href="#__codelineno-20-22" id="__codelineno-20-22" name="__codelineno-20-22"></a>        <span class="p">};</span>
+</span><span id="__span-20-23"><a href="#__codelineno-20-23" id="__codelineno-20-23" name="__codelineno-20-23"></a>      <span class="k">in</span> <span class="k">rec</span> <span class="p">{</span>
+</span><span id="__span-20-24"><a href="#__codelineno-20-24" id="__codelineno-20-24" name="__codelineno-20-24"></a>        <span class="ss">packages =</span> <span class="p">{</span>
+</span><span id="__span-20-25"><a href="#__codelineno-20-25" id="__codelineno-20-25" name="__codelineno-20-25"></a>          <span class="ss">default =</span> packages<span class="o">.</span>webhookd<span class="p">;</span>
+</span><span id="__span-20-26"><a href="#__codelineno-20-26" id="__codelineno-20-26" name="__codelineno-20-26"></a>          <span class="ss">webhookd =</span> ws<span class="o">.</span>release<span class="o">.</span>webhookd<span class="o">.</span>bin<span class="p">;</span>
+</span><span id="__span-20-27"><a href="#__codelineno-20-27" id="__codelineno-20-27" name="__codelineno-20-27"></a>          <span class="ss">webhookd-dev =</span> ws<span class="o">.</span>dev<span class="o">.</span>webhookd<span class="o">.</span>bin<span class="p">;</span>
+</span><span id="__span-20-28"><a href="#__codelineno-20-28" id="__codelineno-20-28" name="__codelineno-20-28"></a>        <span class="p">};</span>
+</span><span id="__span-20-29"><a href="#__codelineno-20-29" id="__codelineno-20-29" name="__codelineno-20-29"></a>      <span class="p">});</span>
+</span><span id="__span-20-30"><a href="#__codelineno-20-30" id="__codelineno-20-30" name="__codelineno-20-30"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>继续构建就成功了：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-21-1"><a href="#__codelineno-21-1" id="__codelineno-21-1" name="__codelineno-21-1"></a>$<span class="w"> </span>nix<span class="w"> </span>build
+</span><span id="__span-21-2"><a href="#__codelineno-21-2" id="__codelineno-21-2" name="__codelineno-21-2"></a>•<span class="w"> </span>Updated<span class="w"> </span>input<span class="w"> </span><span class="s1">'nocargo/registry-crates-io'</span>:
+</span><span id="__span-21-3"><a href="#__codelineno-21-3" id="__codelineno-21-3" name="__codelineno-21-3"></a><span class="w">    </span><span class="s1">'github:rust-lang/crates.io-index/1ce12a7e3367a2a673f91f07ab7cc505a0b8f069'</span><span class="w"> </span><span class="o">(</span><span class="m">2022</span>-07-17<span class="o">)</span>
+</span><span id="__span-21-4"><a href="#__codelineno-21-4" id="__codelineno-21-4" name="__codelineno-21-4"></a><span class="w">  </span>→<span class="w"> </span>follows<span class="w"> </span><span class="s1">'registry-crates-io'</span>
+</span><span id="__span-21-5"><a href="#__codelineno-21-5" id="__codelineno-21-5" name="__codelineno-21-5"></a>•<span class="w"> </span>Added<span class="w"> </span>input<span class="w"> </span><span class="s1">'registry-crates-io'</span>:
+</span><span id="__span-21-6"><a href="#__codelineno-21-6" id="__codelineno-21-6" name="__codelineno-21-6"></a><span class="w">    </span><span class="s1">'github:rust-lang/crates.io-index/627caba32f416e706bf3f2ceac55230ec79710c5'</span><span class="w"> </span><span class="o">(</span><span class="m">2022</span>-08-02<span class="o">)</span>
+</span><span id="__span-21-7"><a href="#__codelineno-21-7" id="__codelineno-21-7" name="__codelineno-21-7"></a>$<span class="w"> </span>./result/bin/webhookd<span class="w"> </span>--version
+</span><span id="__span-21-8"><a href="#__codelineno-21-8" id="__codelineno-21-8" name="__codelineno-21-8"></a>webhookd<span class="w"> </span><span class="m">0</span>.2.1
+</span></code></pre></div>
+<h2 id="_19">总结</h2>
 <p>可以看到，上面的不同工具采用了不同的方法，如果要比较的话：</p>
 <ul>
 <li>Nix drv 粒度：每个依赖（cargo2nix，crate2nix，nocargo）、所有依赖（crane，naersk）。前者的好处是会跨项目共享依赖，进一步可以传到 binary cache。</li>
 <li>是否生成包括完整依赖信息的 nix 文件：是（cargo2nix，crate2nix）、否（crane，naersk，nocargo）。生成的话，仓库里的 Cargo.lock 和 Cargo.nix 的信息是重复的，如果修改了 Cargo.lock，需要重新同步 Cargo.nix。</li>
 </ul>
-
-        </div>
-
-        
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-  <ul>
-    <li><a href="#背景">背景</a></li>
-    <li><a href="#cargo2nix">cargo2nix</a>
-      <ul>
-        <li><a href="#卖点">卖点</a></li>
-        <li><a href="#安装">安装</a></li>
-        <li><a href="#使用">使用</a></li>
-        <li><a href="#原理">原理</a></li>
-      </ul>
-    </li>
-    <li><a href="#crane">crane</a>
-      <ul>
-        <li><a href="#卖点-1">卖点</a></li>
-        <li><a href="#安装-1">安装</a></li>
-        <li><a href="#使用-1">使用</a></li>
-        <li><a href="#原理-1">原理</a></li>
-      </ul>
-    </li>
-    <li><a href="#crate2nix">crate2nix</a>
-      <ul>
-        <li><a href="#卖点-2">卖点</a></li>
-        <li><a href="#安装-2">安装</a></li>
-        <li><a href="#使用-2">使用</a></li>
-        <li><a href="#原理-2">原理</a></li>
-      </ul>
-    </li>
-    <li><a href="#naersk">naersk</a>
-      <ul>
-        <li><a href="#安装-3">安装</a></li>
-        <li><a href="#使用-3">使用</a></li>
-        <li><a href="#原理-3">原理</a></li>
-      </ul>
-    </li>
-    <li><a href="#nocargo">nocargo</a>
-      <ul>
-        <li><a href="#卖点-3">卖点</a></li>
-        <li><a href="#使用-4">使用</a></li>
-      </ul>
-    </li>
-    <li><a href="#总结">总结</a></li>
-  </ul>
-</nav>
-        </div>
-        
-        
-
-        
-
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-        <script>
-            (function() {
-                var $toc = $('#TableOfContents');
-                if ($toc.length > 0) {
-                    var $window = $(window);
-
-                    function onScroll(){
-                        var currentScroll = $window.scrollTop();
-                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
-                        var id = "";
-                        h.each(function (i, e) {
-                            e = $(e);
-                            if (e.offset().top - 10 <= currentScroll) {
-                                id = e.attr('id');
-                            }
-                        });
-                        var active = $toc.find('a.active');
-                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
-
-                        active.each(function (i, e) {
-                            $(e).removeClass('active').siblings('ul').hide();
-                        });
-                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
-                            $(e).children('a').addClass('active').siblings('ul').show();
-                        });
-                    }
-
-                    $window.on('scroll', onScroll);
-                    $(document).ready(function() {
-                        $toc.find('a').parent('li').find('ul').hide();
-                        onScroll();
-                        document.getElementsByClassName('article-toc')[0].style.display = '';
-                    });
-                }
-            })();
-        </script>
-        
-
-
-        
-        <footer class="article-footer">
-            <ul class="article-tag-list">
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/nix">nix
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/rust">rust
-                    </a>
-                </li>
-                
-            </ul>
-        </footer>
-        
-    </div>
+<hr/>
+<div class="md-source-file">
+<small>
     
-<nav id="article-nav">
-    
-    <a href="/software/2022/08/05/from-tex-to-pdf/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            从 TeX 到 PDF 的过程
-        </div>
-    </a>
-    
-    
-    <a href="/software/2022/07/26/invalid-date-timezone/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">invalid date 报错与时区的关系&nbsp;<span>&gt;</span></div>
-    </a>
-    
-</nav>
-
-
-</article>
-
-        
-            <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+<br/>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 2, 2022</span>
+</small>
+</div>
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
     };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-        
-    </section>
-    <footer id="footer">
-    <div class="outer">
-        <div id="footer-info" class="inner">
-            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
-            <br />
-            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
-        </div>
-    </div>
-    
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
-}
-</script>
-
-
-    
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
-            onload="renderMathInElement(document.body);"></script>
-    
-    <script>
-        document.getElementById('main-nav-toggle').addEventListener('click', function () {
-            var header = document.getElementById('header');
-            if (header.classList.contains('mobile-on')) {
-                header.classList.remove('mobile-on');
-            } else {
-                header.classList.add('mobile-on');
-            }
-        });
-    </script>
-</footer>
-
+</article>
 </div>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="页脚" class="md-footer__inner md-grid">
+<a aria-label="上一页: invalid date 报错与时区的关系" class="md-footer__link md-footer__link--prev" href="../../../07/26/invalid-date-timezone/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</div>
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                上一页
+              </span>
+<div class="md-ellipsis">
+                invalid date 报错与时区的关系
+              </div>
+</div>
+</a>
+<a aria-label="下一页: 从 TeX 到 PDF 的过程" class="md-footer__link md-footer__link--next" href="../../05/from-tex-to-pdf/" rel="next">
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                下一页
+              </span>
+<div class="md-ellipsis">
+                从 TeX 到 PDF 的过程
+              </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+<script src="../../../../../javascripts/mathjax.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
 </body>
 </html>

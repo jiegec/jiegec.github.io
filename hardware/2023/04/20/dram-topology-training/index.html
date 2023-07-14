@@ -1,108 +1,634 @@
+
 <!DOCTYPE html>
-<html>
+
+<html class="no-js" lang="zh">
 <head>
-    <title>DRAM 的拓扑和训练 // 杰哥的{运维,编程,调板子}小笔记</title>
-
-    <meta charset="utf-8">
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-    
-    
-    
-
-        <meta property="og:title" content="DRAM 的拓扑和训练" />
-    <meta property="og:description" content="本文的内容已经整合到知识库中。
-DRAM Training DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其中很重要的一步就是计算出各个数据线相对于时钟的偏移（skew）。这个偏移是怎么来的呢？
-我们知道，对于 SRAM，如果想要更多的位宽，只需要把地址线和控制信号连接到多个 SRAM 上，然后把 SRAM 的数据信号并行连接到 FPGA 上就可以了，但是前提是要尽量保证等长，否则一样有偏移的问题。DRAM 也是采用类似的方法进行扩展的，但是 DRAM 通常需要并行连接很多个芯片，例如 8 个 x8 的芯片的合并成一个 64 位的 DDR SDRAM。此时数据线依然是并行连接，但是地址线和控制信号就出现了走线困难：很难在那么小的空间里，等长地把地址和控制信号分布到各个芯片上，而且还有信号完整性的问题。
-Fly-by topology 因此，实际上地址和控制信号是采用了串联的方式连接，也就是下图的右边的连接方式：
-图源 Versal ACAP PCB Design User Guide (UG863)。
-但是数据信号（DQ 和 DQS）依然是并行点对点连接到 DRAM 上的（上图左侧）。这就出现了问题：不同的 DRAM 芯片，数据和时钟的偏差不同，数据可能差不多时间到，但是时钟的延迟越来越大：
-注：这里简化了，当成 SDR 来画。
-不做任何处理的话，DRAM 采样得到的数据就不正确了。为了解决这个问题，就需要人为地在数据信号上也加上可变的延迟，保证时钟和数据同步，这样 DRAM 才可以实现正确的写入：
-Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需要采用 Write Leveling 方法来解决。具体思路是这样的：如果 DRAM 以时钟信号去采样数据信号可以得到正确的结果，那反过来，如果认为数据信号是时钟信号，在数据信号的上升沿去采样时钟，应该也可以观测到稳定的结果。
-所以 Write Leveling 的工作方式就是：
-设置 DRAM 进入 Write Leveling 模式，此时 DRAM 会使用 DQS 信号来采样 CK 信号，把结果输出到 DQ 上 DDR 控制器不断地修改 DQS 的输出延迟，然后统计 DQ 上的输出 示意图如下：" />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/hardware/2023/04/20/dram-topology-training/" />
-    
-
-    <link rel="shortcut icon" href="/favicon.ico">
-
-    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
-    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
-
-    <link rel="stylesheet" href="/css/style.css">
-    
-    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
-    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
-
-    <meta name="generator" content="Hugo 0.115.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
+<link href="https://jia.je/hardware/2023/04/20/dram-topology-training/" rel="canonical"/>
+<link href="../../19/litex-digilent-arty-a7/" rel="prev"/>
+<link href="../../24/litex-uart-over-jtag/" rel="next"/>
+<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
+<title>DRAM 的拓扑和训练 - 杰哥的{运维,编程,调板子}小笔记</title>
+<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
+<body dir="ltr">
+<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#dram">
+          跳转至
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="页眉" class="md-header__inner md-grid">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            杰哥的{运维,编程,调板子}小笔记
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              DRAM 的拓扑和训练
+            
+          </span>
+</div>
+</div>
+</div>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</label>
+<nav aria-label="查找" class="md-search__options">
+<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../../../../..">
+        
+  
+    
+  
+  博客
 
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../about/">
+        
+  
+    
+  
+  关于
 
-<body onload="WaveDrom.ProcessAll()">
-<div id="container">
-    <header id="header">
-    <div id="header-outer" class="outer">
-        <div id="header-inner" class="inner">
-            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
-            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
-            <nav id="main-nav">
-                
-                <a class="main-nav-link" href="/about/">关于</a>
-                
-                <a class="main-nav-link" href="/category/">分类</a>
-                
-                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
-                
-                <a class="main-nav-link" href="/tags/">标签</a>
-                
-                <a class="main-nav-link" href="/kb/">知识库</a>
-                
-                <a class="main-nav-link" href="/series/">系列</a>
-                
-                <a class="main-nav-link" href="/feed.xml">订阅</a>
-                
-                <a class="main-nav-link" href="/projects/readme/">项目</a>
-                
-            </nav>
-            <nav id="sub-nav">
-                <div id="search-form-wrap">
-                </div>
-            </nav>
-        </div>
-    </div>
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+        
+  
+    
+  
+  开源
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tags/">
+        
+  
+    
+  
+  标签
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/kb/">
+        
+  
+    
+  
+  知识库
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../series/">
+        
+  
+    
+  
+  系列
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../projects/">
+        
+  
+    
+  
+  项目
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tools/">
+        
+  
+    
+  
+  工具
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/feed.xml">
+        
+  
+    
+  
+  订阅
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../archive/2023/">
+          
+  
+  归档
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../category/crypto/">
+          
+  
+  分类
+
+        </a>
+</li>
+</ul>
+</div>
+</nav>
 </header>
-
-    <section id="main" class="outer">
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        <header class="article-header">
-            <h1 class="article-title" itemprop="name">DRAM 的拓扑和训练</h1>
-        </header>
-        
-        <div class="article-meta">
-            <a href="/hardware/2023/04/20/dram-topology-training/" class="article-date">
-                <time datetime='2023-04-20T09:11:00.000&#43;08:00' itemprop="datePublished">2023-04-20</time>
-            </a>
-            
-            
-            
-            <div class="article-comment-link-wrap">
-                <a href="/hardware/2023/04/20/dram-topology-training/#disqus_thread" class="article-comment-link">Comments</a>
-            </div>
-            
-        </div>
-        <div class="article-entry" itemprop="articleBody">
-            <p>本文的内容已经整合到<a href="/kb/hardware/sdram.html">知识库</a>中。</p>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+    杰哥的{运维,编程,调板子}小笔记
+  </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<a class="md-nav__link" href="../../../../..">
+<span class="md-ellipsis">
+    博客
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../about/">
+<span class="md-ellipsis">
+    关于
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../open-source-contributions/">
+<span class="md-ellipsis">
+    开源
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tags/">
+<span class="md-ellipsis">
+    标签
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/kb/">
+<span class="md-ellipsis">
+    知识库
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../series/">
+<span class="md-ellipsis">
+    系列
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../projects/">
+<span class="md-ellipsis">
+    项目
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tools/">
+<span class="md-ellipsis">
+    工具
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/feed.xml">
+<span class="md-ellipsis">
+    订阅
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
+<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+<span class="md-ellipsis">
+    归档
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_10">
+<span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2023/">
+<span class="md-ellipsis">
+    2023
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2022/">
+<span class="md-ellipsis">
+    2022
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2021/">
+<span class="md-ellipsis">
+    2021
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2020/">
+<span class="md-ellipsis">
+    2020
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2019/">
+<span class="md-ellipsis">
+    2019
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2018/">
+<span class="md-ellipsis">
+    2018
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2017/">
+<span class="md-ellipsis">
+    2017
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2016/">
+<span class="md-ellipsis">
+    2016
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2014/">
+<span class="md-ellipsis">
+    2014
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
+<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+<span class="md-ellipsis">
+    分类
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_11">
+<span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/crypto/">
+<span class="md-ellipsis">
+    crypto
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/csdn/">
+<span class="md-ellipsis">
+    csdn
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/ctf/">
+<span class="md-ellipsis">
+    ctf
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/devops/">
+<span class="md-ellipsis">
+    devops
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/hardware/">
+<span class="md-ellipsis">
+    hardware
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/life/">
+<span class="md-ellipsis">
+    life
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/logo/">
+<span class="md-ellipsis">
+    logo
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/meta/">
+<span class="md-ellipsis">
+    meta
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/misc/">
+<span class="md-ellipsis">
+    misc
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/networking/">
+<span class="md-ellipsis">
+    networking
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/news/">
+<span class="md-ellipsis">
+    news
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/os/">
+<span class="md-ellipsis">
+    os
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/others/">
+<span class="md-ellipsis">
+    others
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/programming/">
+<span class="md-ellipsis">
+    programming
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/software/">
+<span class="md-ellipsis">
+    software
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/speech/">
+<span class="md-ellipsis">
+    speech
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/system/">
+<span class="md-ellipsis">
+    system
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/unboxing/">
+<span class="md-ellipsis">
+    unboxing
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content md-content--post" data-md-component="content">
+<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner md-post">
+<nav class="md-nav">
+<div class="md-post__back">
+<div class="md-nav__title md-nav__container">
+<a class="md-nav__link" href="../../../../..">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+<span class="md-ellipsis">
+                    回到主页
+                  </span>
+</a>
+</div>
+</div>
+<ul class="md-post__meta md-nav__list">
+<li class="md-nav__item md-nav__title">
+<div class="md-nav__link">
+<span class="md-ellipsis">
+                    元数据
+                  </span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
+<time class="md-ellipsis" datetime="2023-04-20 00:00:00">2023年4月20日</time>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
+<span class="md-ellipsis">
+                      分类于
+                      
+                        <a href="../../../../../category/hardware/">hardware</a></span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
+<span class="md-ellipsis">
+                      
+                        需要 13 分钟阅读时间
+                      
+                    </span>
+</div>
+</li>
+</ul>
+</nav>
+<nav aria-label="目录" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#dram-training">
+    DRAM Training
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#fly-by-topology">
+    Fly-by topology
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#write-leveling">
+    Write Leveling
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#read-leveling">
+    Read Leveling
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#clam-shell-topology">
+    Clam Shell Topology
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_1">
+    背景
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_2">
+    训练代码
+  </a>
+<nav aria-label="训练代码" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#write-leveling_1">
+    Write Leveling
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_3">
+    参考文档
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<article class="md-content__inner md-typeset">
+<nav class="md-tags">
+<a class="md-tag" href="../../../../../tags/#ddr">ddr</a>
+<a class="md-tag" href="../../../../../tags/#sdram">sdram</a>
+<a class="md-tag" href="../../../../../tags/#dram">dram</a>
+</nav>
+<h1 id="dram">DRAM 的拓扑和训练</h1>
+<p>本文的内容已经整合到<a href="/kb/hardware/sdram.html">知识库</a>中。</p>
 <h2 id="dram-training">DRAM Training</h2>
 <p>DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其中很重要的一步就是计算出各个数据线相对于时钟的偏移（skew）。这个偏移是怎么来的呢？</p>
 <p>我们知道，对于 SRAM，如果想要更多的位宽，只需要把地址线和控制信号连接到多个 SRAM 上，然后把 SRAM 的数据信号并行连接到 FPGA 上就可以了，但是前提是要尽量保证等长，否则一样有偏移的问题。DRAM 也是采用类似的方法进行扩展的，但是 DRAM 通常需要并行连接很多个芯片，例如 8 个 x8 的芯片的合并成一个 64 位的 DDR SDRAM。此时数据线依然是并行连接，但是地址线和控制信号就出现了走线困难：很难在那么小的空间里，等长地把地址和控制信号分布到各个芯片上，而且还有信号完整性的问题。</p>
 <h2 id="fly-by-topology">Fly-by topology</h2>
 <p>因此，实际上地址和控制信号是采用了串联的方式连接，也就是下图的右边的连接方式：</p>
-<p><img src="/images/ddr_fly_by.png" alt=""></p>
+<p><img alt="" src="/images/ddr_fly_by.png"/></p>
 <p>图源 <a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces">Versal ACAP PCB Design User Guide (UG863)</a>。</p>
 <p>但是数据信号（DQ 和 DQS）依然是并行点对点连接到 DRAM 上的（上图左侧）。这就出现了问题：不同的 DRAM 芯片，数据和时钟的偏差不同，数据可能差不多时间到，但是时钟的延迟越来越大：</p>
 <script type="WaveDrom">{
@@ -119,8 +645,8 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
       { name: "clock_dram6", wave: "p....", phase: -0.7},
       { name: "clock_dram7", wave: "p....", phase: -0.8},
     ]
-}
-</script><p>注：这里简化了，当成 SDR 来画。</p>
+}</script>
+<p>注：这里简化了，当成 SDR 来画。</p>
 <p>不做任何处理的话，DRAM 采样得到的数据就不正确了。为了解决这个问题，就需要人为地在数据信号上也加上可变的延迟，保证时钟和数据同步，这样 DRAM 才可以实现正确的写入：</p>
 <script type="WaveDrom">{
   signal:
@@ -136,8 +662,8 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
       { name: "clock_dram3", wave: "p.p..", phase: -0.4},
       { name: "data_dram3", wave: "01010", phase: -0.4},
     ]
-}
-</script><h2 id="write-leveling">Write Leveling</h2>
+}</script>
+<h2 id="write-leveling">Write Leveling</h2>
 <p>为了解决写入时，时钟和数据有偏移的问题，需要采用 Write Leveling 方法来解决。具体思路是这样的：如果 DRAM 以时钟信号去采样数据信号可以得到正确的结果，那反过来，如果认为数据信号是时钟信号，在数据信号的上升沿去采样时钟，应该也可以观测到稳定的结果。</p>
 <p>所以 Write Leveling 的工作方式就是：</p>
 <ol>
@@ -158,109 +684,113 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
       { name: "dqs_3", wave: "010..", phase: -1.1},
       { name: "dq_3", wave: "01...", phase: -1.15},
     ]
-}
-</script><p>上图中，用不断增大的四种延迟的 <code>dqs</code> 对 <code>ck</code> 进行采样：用 <code>dqs_0</code> 和 <code>dqs_1</code> 采样得到了 0，用 <code>dqs_2</code> 和 <code>dqs_3</code> 采样得到了 1。把这些结果列出来，可能会得到类似下面的结果：</p>
-<pre tabindex="0"><code>001111111111111111110000
-</code></pre><p>也就是说，随着延迟增大，采样的数据从 0 变成 1，再从 1 变成 0。我们的目标是，让 <code>dqs</code> 和 <code>ck</code> 同步。在上图中，<code>dqs_2</code> 的上升沿和 <code>ck</code> 上升沿是最接近的，而刚好 <code>dqs_2</code> 也正好出现在采样 0 变成采样 1 的位置。这意味着，只要找到采样数据从 0 变成 1 的位置，就知道如何让 DQS 与 CK 同步了。</p>
+}</script>
+<p>上图中，用不断增大的四种延迟的 <code>dqs</code> 对 <code>ck</code> 进行采样：用 <code>dqs_0</code> 和 <code>dqs_1</code> 采样得到了 0，用 <code>dqs_2</code> 和 <code>dqs_3</code> 采样得到了 1。把这些结果列出来，可能会得到类似下面的结果：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>001111111111111111110000
+</span></code></pre></div>
+<p>也就是说，随着延迟增大，采样的数据从 0 变成 1，再从 1 变成 0。我们的目标是，让 <code>dqs</code> 和 <code>ck</code> 同步。在上图中，<code>dqs_2</code> 的上升沿和 <code>ck</code> 上升沿是最接近的，而刚好 <code>dqs_2</code> 也正好出现在采样 0 变成采样 1 的位置。这意味着，只要找到采样数据从 0 变成 1 的位置，就知道如何让 DQS 与 CK 同步了。</p>
 <p>这样就完成了 Write Leveling 的步骤，实现了 DQS 与 CK 同步的目标，那么在写入数据的时候，DRAM 就可以得到正确的 DQS 信号了。</p>
 <h2 id="read-leveling">Read Leveling</h2>
 <p>在上一步的 Write Leveling 当中，通过修改内存控制器的输出延迟，保证了 DRAM 可以得到同步的 DQS 和 CK 信号，解决了 Fly by topology 引入的延迟不一致的问题。但是，对于读操作，数据从 DRAM 输出，输入到内存控制器，又会引入一定的延迟。所以对读操作，也需要进行校准。</p>
 <p>回顾 SRAM，当想要测试读取功能的时候，会首先写入一些数据，再读出来，判断读取的数据和之前写入的数据是否一致。DRAM 也是类似的：先向 MPR 写入一些伪随机数据，然后要求 DRAM 从 MPR 中读取数据，而不是从 memory cell 中读取数据；然后内存控制器一侧不断进行读取操作，在不同的延迟下，比较读取的数据与预期的随机数据是否一致。最后也会得到一个延迟的区间，在这个区间内可以读取出正确的结果。最后，把延迟设定在区间的中央位置。</p>
 <h2 id="clam-shell-topology">Clam Shell Topology</h2>
 <p>再回到拓扑的问题上来，实际上除了 Fly by topology，还有一种拓扑是 Clam shell topology：把 DRAM 分布在 PCB 的上面和下面，这样可以节省 PCB 的面积，但是走线就会比较困难：</p>
-<p><img src="/images/ddr_clam_shell.png" alt=""></p>
+<p><img alt="" src="/images/ddr_clam_shell.png"/></p>
 <p>图源 <a href="https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology">Versal ACAP Programmable Network on Chip and Integrated Memory Controller LogiCORE IP Product Guide (PG313) </a>.</p>
 <p>直观地讲，两个芯片都放在 PCB 的正面，如果要连线的话，如果保证引脚顺序接近一致，就可以比较容易地连接，不会有很多交叉的地方。但如果一个在正面，另一个在背面，引脚的顺序就倒转过来了，连线的时候就比较困难。解决的办法是，修改引脚的顺序，把一些引脚的功能进行对调，使得走线更加简单：</p>
-<p><img src="/images/ddr_mirror.png" alt=""></p>
+<p><img alt="" src="/images/ddr_mirror.png"/></p>
 <p>图源 <a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing">Versal ACAP PCB Design User Guide (UG863)</a></p>
 <p>这里特意挑选了一些不影响特殊功能的引脚来交换，使得大部分功能，即使交换了引脚，也可以正常工作。但是，对于 Mode Register Set 操作，必须要内存控制器自己先内部交换位的顺序，才能保证在 DRAM 一侧得到正确的结果。</p>
 <p>此外，Clam Shell Topology 的正面和背面各有一个 cs_n 片选信号，但是这和 Dual Rank 不同：Dual Rank 是正面和背面都有同样数量的 DRAM 芯片，共享地址信号、数据信号和控制信号，总线上同一时间只有一侧的 DRAM 芯片在使用，好处是内存容量翻倍，并且两个 rank 可以互相掩盖延迟；而 Clam Shell Topology 的两个 cs_n 是为了给 Mode Register Set 操作指定正面或背面，而其余的大部分操作，可以正面和背面同时使用，因为它们的数据信号并没有共享。</p>
-<p><img src="/images/ddr_rank.png" alt=""></p>
+<p><img alt="" src="/images/ddr_rank.png"/></p>
 <p>图源 <a href="https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/">DIFFERENCE BETWEEN DUAL RANK AND SINGLE RANK RAM</a></p>
-<h2 id="背景">背景</h2>
+<h2 id="_1">背景</h2>
 <p>实际上，前面的整个研究过程，来自于我对 VCU128 LiteX 移植的观察：<a href="https://github.com/litex-hub/litex-boards/issues/496">VCU128 DDR4 memory calibration failure</a>。我在配置 litedram 的时候，发现总是有一半的 DRAM 芯片无法使用，和 Datasheet 对照了以后，发现正好是 PCB 背面的那一半。接着，发现它是 Clam Shell Topology 方式来分布的，然后 Top 和 Bottom 各有一个 cs_n 信号，这一点在 UG1302 里是没有写的，在 xdc 里才可以找到：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-tcl" data-lang="tcl"><span style="display:flex;"><span>set_property PACKAGE_PIN BK48       <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_BOT_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property IOSTANDARD  SSTL12_DCI <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_BOT_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property PACKAGE_PIN BP49     <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>set_property IOSTANDARD  SSTL12   <span style="color:#66d9ef">[</span>get_ports <span style="color:#e6db74">&#34;PL_DDR4_CS_B&#34;</span><span style="color:#66d9ef">]</span> <span style="color:#66d9ef">;</span><span style="color:#75715e"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66
-</span></span></span></code></pre></div><p>所以 Xilinx 文档也是可能出错的，需要结合多个信息源来判断。这里有 xdc 和 schematic 可以参考，都可以发现这个结论。</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="nv">set_property</span><span class="w"> </span>PACKAGE_PIN<span class="w"> </span>BK48<span class="w">       </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span><span class="s2">"PL_DDR4_BOT_CS_B"</span><span class="k">]</span><span class="w"> </span><span class="k">;</span><span class="c"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66</span>
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="nv">set_property</span><span class="w"> </span>IOSTANDARD<span class="w">  </span>SSTL12_DCI<span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span><span class="s2">"PL_DDR4_BOT_CS_B"</span><span class="k">]</span><span class="w"> </span><span class="k">;</span><span class="c"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66</span>
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="nv">set_property</span><span class="w"> </span>PACKAGE_PIN<span class="w"> </span>BP49<span class="w">     </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span><span class="s2">"PL_DDR4_CS_B"</span><span class="k">]</span><span class="w"> </span><span class="k">;</span><span class="c"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66</span>
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="nv">set_property</span><span class="w"> </span>IOSTANDARD<span class="w">  </span>SSTL12<span class="w">   </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span><span class="s2">"PL_DDR4_CS_B"</span><span class="k">]</span><span class="w"> </span><span class="k">;</span><span class="c"># Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L1N_T0L_N1_DBC_66</span>
+</span></code></pre></div>
+<p>所以 Xilinx 文档也是可能出错的，需要结合多个信息源来判断。这里有 xdc 和 schematic 可以参考，都可以发现这个结论。</p>
 <p>沿着这个思路，我给 litedram 添加了 clam shell topology 的支持：<a href="https://github.com/enjoy-digital/litedram/pull/332">https://github.com/enjoy-digital/litedram/pull/332</a> 和 <a href="https://github.com/enjoy-digital/litex/pull/1673">https://github.com/enjoy-digital/litex/pull/1673</a>，实现方法：</p>
 <ol>
 <li>在校准阶段，把 Top 和 Bottom 两个 cs_n 暴露给软件，软件在 MRS 的时候，分两次写入，第一次原样写到 Top，第二次交换地址顺序，再写入 Bottom。</li>
 <li>正常工作阶段，把 Top 和 Bottom 的两个 cs_n 当成一个用，也就是当成 single rank dram。</li>
 </ol>
-<h2 id="训练代码">训练代码</h2>
+<h2 id="_2">训练代码</h2>
 <p>下面结合 litex 和 litedram 的代码，以及 DDR4 标准，来验证上面的观察。</p>
-<h3 id="write-leveling-1">Write Leveling</h3>
+<h3 id="write-leveling_1">Write Leveling</h3>
 <p>Write Leveling 的核心函数是 <code>sdram_write_leveling_scan</code>，它的核心思路是：</p>
 <p>第一步调用 <code>sdram_write_leveling_on</code> 打开 DRAM 的 Write Leveling 模式：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>  <span style="color:#a6e22e">sdram_write_leveling_on</span>();
-</span></span></code></pre></div><p>循环每个 DRAM 芯片的每个 DQS 信号：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">for</span>(i<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;i<span style="color:#f92672">&lt;</span>SDRAM_PHY_MODULES;i<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (dq_line <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; dq_line <span style="color:#f92672">&lt;</span> DQ_COUNT; dq_line<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* 设置 DQS 初始延迟为 0 */</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sdram_leveling_action</span>(i, dq_line, write_rst_delay);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* 循环 DQS 延迟 */</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span>(j<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;j<span style="color:#f92672">&lt;</span>err_ddrphy_wdly;j<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">int</span> zero_count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">int</span> one_count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">for</span> (k<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>; k<span style="color:#f92672">&lt;</span>loops; k<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">/* 发送 DQS 序列：00000001 */</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">ddrphy_wlevel_strobe_write</span>(<span style="color:#ae81ff">1</span>);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">/* 统计 1 和 0 的个数 */</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (buf[SDRAM_PHY_MODULES<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span><span style="color:#f92672">-</span>i] <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>)
-</span></span><span style="display:flex;"><span>          one_count<span style="color:#f92672">++</span>;
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>
-</span></span><span style="display:flex;"><span>          zero_count<span style="color:#f92672">++</span>;
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (one_count <span style="color:#f92672">&gt;</span> zero_count)
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">/* DQS 采样到了 CK 的正半周期 */</span>
-</span></span><span style="display:flex;"><span>        taps_scan[j] <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">else</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">/* DQS 采样到了 CK 的负半周期 */</span>
-</span></span><span style="display:flex;"><span>        taps_scan[j] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">/* 每次循环增加一次 DQS 延迟 */</span>
-</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">sdram_leveling_action</span>(i, dq_line, write_inc_delay);
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* 找到一个最长的连续 1 的序列 */</span>
-</span></span><span style="display:flex;"><span>    one_window_active <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>    one_window_start <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>    one_window_count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>    one_window_best_start <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>    one_window_best_count <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span>(j<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;j<span style="color:#f92672">&lt;</span>err_ddrphy_wdly<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>;j<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (one_window_active) {
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> ((j <span style="color:#f92672">==</span> err_ddrphy_wdly) <span style="color:#f92672">||</span> (taps_scan[j] <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)) {
-</span></span><span style="display:flex;"><span>          <span style="color:#75715e">/* 结束了一段连续的 1 */</span>
-</span></span><span style="display:flex;"><span>          one_window_active <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>          one_window_count <span style="color:#f92672">=</span> j <span style="color:#f92672">-</span> one_window_start;
-</span></span><span style="display:flex;"><span>          <span style="color:#75715e">/* 记录最长的连续 1 的长度和位置 */</span>
-</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">if</span> (one_window_count <span style="color:#f92672">&gt;</span> one_window_best_count) {
-</span></span><span style="display:flex;"><span>            one_window_best_start <span style="color:#f92672">=</span> one_window_start;
-</span></span><span style="display:flex;"><span>            one_window_best_count <span style="color:#f92672">=</span> one_window_count;
-</span></span><span style="display:flex;"><span>          }
-</span></span><span style="display:flex;"><span>        }
-</span></span><span style="display:flex;"><span>      } <span style="color:#66d9ef">else</span> {
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">/* 找到连续的 1 的开头 */</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (j <span style="color:#f92672">!=</span> err_ddrphy_wdly <span style="color:#f92672">&amp;&amp;</span> taps_scan[j]) {
-</span></span><span style="display:flex;"><span>          one_window_active <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
-</span></span><span style="display:flex;"><span>          one_window_start <span style="color:#f92672">=</span> j;
-</span></span><span style="display:flex;"><span>        }
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* 要找的延迟就是连续的 1 序列的开始位置 */</span>
-</span></span><span style="display:flex;"><span>    delays[i] <span style="color:#f92672">=</span> one_window_best_start;
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a6e22e">sdram_write_leveling_off</span>();
-</span></span></code></pre></div><p>这样就实现了 Write Leveling 的全流程：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="w">  </span><span class="n">sdram_write_leveling_on</span><span class="p">();</span>
+</span></code></pre></div>
+<p>循环每个 DRAM 芯片的每个 DQS 信号：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="k">for</span><span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">&lt;</span><span class="n">SDRAM_PHY_MODULES</span><span class="p">;</span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">dq_line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">dq_line</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">DQ_COUNT</span><span class="p">;</span><span class="w"> </span><span class="n">dq_line</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a><span class="w">    </span><span class="cm">/* 设置 DQS 初始延迟为 0 */</span>
+</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a><span class="w">    </span><span class="n">sdram_leveling_action</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">dq_line</span><span class="p">,</span><span class="w"> </span><span class="n">write_rst_delay</span><span class="p">);</span>
+</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a><span class="w">    </span><span class="cm">/* 循环 DQS 延迟 */</span>
+</span><span id="__span-3-7"><a href="#__codelineno-3-7" id="__codelineno-3-7" name="__codelineno-3-7"></a><span class="w">    </span><span class="k">for</span><span class="p">(</span><span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">j</span><span class="o">&lt;</span><span class="n">err_ddrphy_wdly</span><span class="p">;</span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-8"><a href="#__codelineno-3-8" id="__codelineno-3-8" name="__codelineno-3-8"></a><span class="w">      </span><span class="kt">int</span><span class="w"> </span><span class="n">zero_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-9"><a href="#__codelineno-3-9" id="__codelineno-3-9" name="__codelineno-3-9"></a><span class="w">      </span><span class="kt">int</span><span class="w"> </span><span class="n">one_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-10"><a href="#__codelineno-3-10" id="__codelineno-3-10" name="__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a href="#__codelineno-3-11" id="__codelineno-3-11" name="__codelineno-3-11"></a><span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="o">&lt;</span><span class="n">loops</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-12"><a href="#__codelineno-3-12" id="__codelineno-3-12" name="__codelineno-3-12"></a><span class="w">        </span><span class="cm">/* 发送 DQS 序列：00000001 */</span>
+</span><span id="__span-3-13"><a href="#__codelineno-3-13" id="__codelineno-3-13" name="__codelineno-3-13"></a><span class="w">        </span><span class="n">ddrphy_wlevel_strobe_write</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+</span><span id="__span-3-14"><a href="#__codelineno-3-14" id="__codelineno-3-14" name="__codelineno-3-14"></a>
+</span><span id="__span-3-15"><a href="#__codelineno-3-15" id="__codelineno-3-15" name="__codelineno-3-15"></a><span class="w">        </span><span class="cm">/* 统计 1 和 0 的个数 */</span>
+</span><span id="__span-3-16"><a href="#__codelineno-3-16" id="__codelineno-3-16" name="__codelineno-3-16"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">buf</span><span class="p">[</span><span class="n">SDRAM_PHY_MODULES</span><span class="mi">-1</span><span class="o">-</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-3-17"><a href="#__codelineno-3-17" id="__codelineno-3-17" name="__codelineno-3-17"></a><span class="w">          </span><span class="n">one_count</span><span class="o">++</span><span class="p">;</span>
+</span><span id="__span-3-18"><a href="#__codelineno-3-18" id="__codelineno-3-18" name="__codelineno-3-18"></a><span class="w">        </span><span class="k">else</span>
+</span><span id="__span-3-19"><a href="#__codelineno-3-19" id="__codelineno-3-19" name="__codelineno-3-19"></a><span class="w">          </span><span class="n">zero_count</span><span class="o">++</span><span class="p">;</span>
+</span><span id="__span-3-20"><a href="#__codelineno-3-20" id="__codelineno-3-20" name="__codelineno-3-20"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-3-21"><a href="#__codelineno-3-21" id="__codelineno-3-21" name="__codelineno-3-21"></a><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">one_count</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">zero_count</span><span class="p">)</span>
+</span><span id="__span-3-22"><a href="#__codelineno-3-22" id="__codelineno-3-22" name="__codelineno-3-22"></a><span class="w">        </span><span class="cm">/* DQS 采样到了 CK 的正半周期 */</span>
+</span><span id="__span-3-23"><a href="#__codelineno-3-23" id="__codelineno-3-23" name="__codelineno-3-23"></a><span class="w">        </span><span class="n">taps_scan</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span><span id="__span-3-24"><a href="#__codelineno-3-24" id="__codelineno-3-24" name="__codelineno-3-24"></a><span class="w">      </span><span class="k">else</span>
+</span><span id="__span-3-25"><a href="#__codelineno-3-25" id="__codelineno-3-25" name="__codelineno-3-25"></a><span class="w">        </span><span class="cm">/* DQS 采样到了 CK 的负半周期 */</span>
+</span><span id="__span-3-26"><a href="#__codelineno-3-26" id="__codelineno-3-26" name="__codelineno-3-26"></a><span class="w">        </span><span class="n">taps_scan</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-27"><a href="#__codelineno-3-27" id="__codelineno-3-27" name="__codelineno-3-27"></a>
+</span><span id="__span-3-28"><a href="#__codelineno-3-28" id="__codelineno-3-28" name="__codelineno-3-28"></a><span class="w">      </span><span class="cm">/* 每次循环增加一次 DQS 延迟 */</span>
+</span><span id="__span-3-29"><a href="#__codelineno-3-29" id="__codelineno-3-29" name="__codelineno-3-29"></a><span class="w">      </span><span class="n">sdram_leveling_action</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">dq_line</span><span class="p">,</span><span class="w"> </span><span class="n">write_inc_delay</span><span class="p">);</span>
+</span><span id="__span-3-30"><a href="#__codelineno-3-30" id="__codelineno-3-30" name="__codelineno-3-30"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-31"><a href="#__codelineno-3-31" id="__codelineno-3-31" name="__codelineno-3-31"></a>
+</span><span id="__span-3-32"><a href="#__codelineno-3-32" id="__codelineno-3-32" name="__codelineno-3-32"></a><span class="w">    </span><span class="cm">/* 找到一个最长的连续 1 的序列 */</span>
+</span><span id="__span-3-33"><a href="#__codelineno-3-33" id="__codelineno-3-33" name="__codelineno-3-33"></a><span class="w">    </span><span class="n">one_window_active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-34"><a href="#__codelineno-3-34" id="__codelineno-3-34" name="__codelineno-3-34"></a><span class="w">    </span><span class="n">one_window_start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-35"><a href="#__codelineno-3-35" id="__codelineno-3-35" name="__codelineno-3-35"></a><span class="w">    </span><span class="n">one_window_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-36"><a href="#__codelineno-3-36" id="__codelineno-3-36" name="__codelineno-3-36"></a><span class="w">    </span><span class="n">one_window_best_start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-37"><a href="#__codelineno-3-37" id="__codelineno-3-37" name="__codelineno-3-37"></a><span class="w">    </span><span class="n">one_window_best_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+</span><span id="__span-3-38"><a href="#__codelineno-3-38" id="__codelineno-3-38" name="__codelineno-3-38"></a><span class="w">    </span><span class="k">for</span><span class="p">(</span><span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">j</span><span class="o">&lt;</span><span class="n">err_ddrphy_wdly</span><span class="o">+</span><span class="mi">1</span><span class="p">;</span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-39"><a href="#__codelineno-3-39" id="__codelineno-3-39" name="__codelineno-3-39"></a><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">one_window_active</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-40"><a href="#__codelineno-3-40" id="__codelineno-3-40" name="__codelineno-3-40"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">j</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">err_ddrphy_wdly</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">taps_scan</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-41"><a href="#__codelineno-3-41" id="__codelineno-3-41" name="__codelineno-3-41"></a><span class="w">          </span><span class="cm">/* 结束了一段连续的 1 */</span>
+</span><span id="__span-3-42"><a href="#__codelineno-3-42" id="__codelineno-3-42" name="__codelineno-3-42"></a><span class="w">          </span><span class="n">one_window_active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-43"><a href="#__codelineno-3-43" id="__codelineno-3-43" name="__codelineno-3-43"></a><span class="w">          </span><span class="n">one_window_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">one_window_start</span><span class="p">;</span>
+</span><span id="__span-3-44"><a href="#__codelineno-3-44" id="__codelineno-3-44" name="__codelineno-3-44"></a><span class="w">          </span><span class="cm">/* 记录最长的连续 1 的长度和位置 */</span>
+</span><span id="__span-3-45"><a href="#__codelineno-3-45" id="__codelineno-3-45" name="__codelineno-3-45"></a><span class="w">          </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">one_window_count</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">one_window_best_count</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-46"><a href="#__codelineno-3-46" id="__codelineno-3-46" name="__codelineno-3-46"></a><span class="w">            </span><span class="n">one_window_best_start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">one_window_start</span><span class="p">;</span>
+</span><span id="__span-3-47"><a href="#__codelineno-3-47" id="__codelineno-3-47" name="__codelineno-3-47"></a><span class="w">            </span><span class="n">one_window_best_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">one_window_count</span><span class="p">;</span>
+</span><span id="__span-3-48"><a href="#__codelineno-3-48" id="__codelineno-3-48" name="__codelineno-3-48"></a><span class="w">          </span><span class="p">}</span>
+</span><span id="__span-3-49"><a href="#__codelineno-3-49" id="__codelineno-3-49" name="__codelineno-3-49"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-3-50"><a href="#__codelineno-3-50" id="__codelineno-3-50" name="__codelineno-3-50"></a><span class="w">      </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-51"><a href="#__codelineno-3-51" id="__codelineno-3-51" name="__codelineno-3-51"></a><span class="w">        </span><span class="cm">/* 找到连续的 1 的开头 */</span>
+</span><span id="__span-3-52"><a href="#__codelineno-3-52" id="__codelineno-3-52" name="__codelineno-3-52"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">err_ddrphy_wdly</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">taps_scan</span><span class="p">[</span><span class="n">j</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-53"><a href="#__codelineno-3-53" id="__codelineno-3-53" name="__codelineno-3-53"></a><span class="w">          </span><span class="n">one_window_active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span><span id="__span-3-54"><a href="#__codelineno-3-54" id="__codelineno-3-54" name="__codelineno-3-54"></a><span class="w">          </span><span class="n">one_window_start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">j</span><span class="p">;</span>
+</span><span id="__span-3-55"><a href="#__codelineno-3-55" id="__codelineno-3-55" name="__codelineno-3-55"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-3-56"><a href="#__codelineno-3-56" id="__codelineno-3-56" name="__codelineno-3-56"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-3-57"><a href="#__codelineno-3-57" id="__codelineno-3-57" name="__codelineno-3-57"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-58"><a href="#__codelineno-3-58" id="__codelineno-3-58" name="__codelineno-3-58"></a>
+</span><span id="__span-3-59"><a href="#__codelineno-3-59" id="__codelineno-3-59" name="__codelineno-3-59"></a><span class="w">    </span><span class="cm">/* 要找的延迟就是连续的 1 序列的开始位置 */</span>
+</span><span id="__span-3-60"><a href="#__codelineno-3-60" id="__codelineno-3-60" name="__codelineno-3-60"></a><span class="w">    </span><span class="n">delays</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">one_window_best_start</span><span class="p">;</span>
+</span><span id="__span-3-61"><a href="#__codelineno-3-61" id="__codelineno-3-61" name="__codelineno-3-61"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-3-62"><a href="#__codelineno-3-62" id="__codelineno-3-62" name="__codelineno-3-62"></a><span class="p">}</span>
+</span><span id="__span-3-63"><a href="#__codelineno-3-63" id="__codelineno-3-63" name="__codelineno-3-63"></a>
+</span><span id="__span-3-64"><a href="#__codelineno-3-64" id="__codelineno-3-64" name="__codelineno-3-64"></a><span class="n">sdram_write_leveling_off</span><span class="p">();</span>
+</span></code></pre></div>
+<p>这样就实现了 Write Leveling 的全流程：</p>
 <ol>
 <li>设置 DRAM 进入 Write Leveling 模式，DRAM 用 DQS 对 CK 采样，结果输出到 DQ</li>
 <li>在不同的 DQS 延迟下，发送同样的 00000001 DQS 模式，观察 DQ 上的数据</li>
@@ -268,7 +798,7 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
 <li>在第三步的结果中，找到最长的连续的 1 序列，那么这个序列的开始，就对应了采样值从 0 到 1 的变化，此时 DQS 与 CK 基本同步</li>
 <li>最后设置 DRAM 退出 Write Leveling 模式</li>
 </ol>
-<h2 id="参考文档">参考文档</h2>
+<h2 id="_3">参考文档</h2>
 <ul>
 <li><a href="https://www.systemverilog.io/design/ddr4-initialization-and-calibration/">https://www.systemverilog.io/design/ddr4-initialization-and-calibration/</a></li>
 <li><a href="https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces">https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces</a></li>
@@ -278,180 +808,100 @@ Write Leveling 为了解决写入时，时钟和数据有偏移的问题，需�
 <li><a href="https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/">https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/</a></li>
 <li><a href="https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/">https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/</a></li>
 </ul>
-
-        </div>
-
-        
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-  <ul>
-    <li><a href="#dram-training">DRAM Training</a></li>
-    <li><a href="#fly-by-topology">Fly-by topology</a></li>
-    <li><a href="#write-leveling">Write Leveling</a></li>
-    <li><a href="#read-leveling">Read Leveling</a></li>
-    <li><a href="#clam-shell-topology">Clam Shell Topology</a></li>
-    <li><a href="#背景">背景</a></li>
-    <li><a href="#训练代码">训练代码</a>
-      <ul>
-        <li><a href="#write-leveling-1">Write Leveling</a></li>
-      </ul>
-    </li>
-    <li><a href="#参考文档">参考文档</a></li>
-  </ul>
-</nav>
-        </div>
-        
-        
-
-        
-
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-        <script>
-            (function() {
-                var $toc = $('#TableOfContents');
-                if ($toc.length > 0) {
-                    var $window = $(window);
-
-                    function onScroll(){
-                        var currentScroll = $window.scrollTop();
-                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
-                        var id = "";
-                        h.each(function (i, e) {
-                            e = $(e);
-                            if (e.offset().top - 10 <= currentScroll) {
-                                id = e.attr('id');
-                            }
-                        });
-                        var active = $toc.find('a.active');
-                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
-
-                        active.each(function (i, e) {
-                            $(e).removeClass('active').siblings('ul').hide();
-                        });
-                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
-                            $(e).children('a').addClass('active').siblings('ul').show();
-                        });
-                    }
-
-                    $window.on('scroll', onScroll);
-                    $(document).ready(function() {
-                        $toc.find('a').parent('li').find('ul').hide();
-                        onScroll();
-                        document.getElementsByClassName('article-toc')[0].style.display = '';
-                    });
-                }
-            })();
-        </script>
-        
-
-
-        
-        <footer class="article-footer">
-            <ul class="article-tag-list">
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/ddr">ddr
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/sdram">sdram
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/dram">dram
-                    </a>
-                </li>
-                
-            </ul>
-        </footer>
-        
-    </div>
+<hr/>
+<div class="md-source-file">
+<small>
     
-<nav id="article-nav">
-    
-    <a href="/hardware/2023/04/24/litex-uart-over-jtag/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            在 LiteX 中使用 UART over JTAG
-        </div>
-    </a>
-    
-    
-    <a href="/hardware/2023/04/19/litex-digilent-arty-a7/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">在 Arty A7 上用 LiteX 和 VexRiscv 跑 Linux&nbsp;<span>&gt;</span></div>
-    </a>
-    
-</nav>
-
-
-</article>
-
-        
-            <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+<br/>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 20, 2023</span>
+</small>
+</div>
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
     };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-        
-    </section>
-    <footer id="footer">
-    <div class="outer">
-        <div id="footer-info" class="inner">
-            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
-            <br />
-            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
-        </div>
-    </div>
-    
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
-}
-</script>
-
-
-    
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
-            onload="renderMathInElement(document.body);"></script>
-    
-    <script>
-        document.getElementById('main-nav-toggle').addEventListener('click', function () {
-            var header = document.getElementById('header');
-            if (header.classList.contains('mobile-on')) {
-                header.classList.remove('mobile-on');
-            } else {
-                header.classList.add('mobile-on');
-            }
-        });
-    </script>
-</footer>
-
+</article>
 </div>
-</body>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="页脚" class="md-footer__inner md-grid">
+<a aria-label="上一页: 在 Arty A7 上用 LiteX 和 VexRiscv 跑 Linux" class="md-footer__link md-footer__link--prev" href="../../19/litex-digilent-arty-a7/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</div>
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                上一页
+              </span>
+<div class="md-ellipsis">
+                在 Arty A7 上用 LiteX 和 VexRiscv 跑 Linux
+              </div>
+</div>
+</a>
+<a aria-label="下一页: 在 LiteX 中使用 UART over JTAG" class="md-footer__link md-footer__link--next" href="../../24/litex-uart-over-jtag/" rel="next">
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                下一页
+              </span>
+<div class="md-ellipsis">
+                在 LiteX 中使用 UART over JTAG
+              </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+<script src="../../../../../javascripts/mathjax.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
+<script>window.addEventListener('load', function() {WaveDrom.ProcessAll();});</script></body>
 </html>

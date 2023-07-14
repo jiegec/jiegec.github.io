@@ -1,98 +1,616 @@
+
 <!DOCTYPE html>
-<html>
+
+<html class="no-js" lang="zh">
 <head>
-    <title>RAM 读写冲突 // 杰哥的{运维,编程,调板子}小笔记</title>
-
-    <meta charset="utf-8">
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-    
-    
-    
-
-        <meta property="og:title" content="RAM 读写冲突" />
-    <meta property="og:description" content="背景 在 FPGA 或者 ASIC 中，通常都需要使用 RAM，通过读口、写口或者读写口来进行访问。常见的配置有单读写口（1RW），一读一写（1R1W）等等，读口通常有 1 个周期的延时。那么，如果在同一个周期内，读口和写口访问了同一个地址，会发生什么呢？可能会想到几种情况：
-读和写都失败，读出的数据未定义，数据没写进去 数据写进去了，读出的数据未定义 数据写进去了，读出了写之前的旧数据 数据写进去了，读出了同一个周期写入的新数据 下面以具体的例子来看看，实际情况是什么样子。
-Xilinx FPGA 首先测试的是 Xilinx FPGA 上的 RAM，测试的对象是 XPM，统一设置读延迟为一个周期，使用 Vivado 仿真。
-一读一写 首先测试一读一写，也就是 xpm_memory_sdpram 模块。模块支持三种模式：NO_CHANGE（默认值）、READ_FIRST 和 WRITE_FIRST，因此我例化了三份，输入一样的信号，设置为三种不同的模式，然后比较输出结果。为了简化，读写使用一个时钟。下面是测试的波形：
-图中第一个周期向地址 0 写入了 1111，然后第三个周期同时读写地址 0 的数据，此时 NO_CHANGE 和 WRITE_FIRST 两种模式中，写入成功，读取失败；READ_FIRST 模式读取成功，并且读取的是写入之前的数据。第四个周期时，读写没有出现冲突，三种模式都可以读出写入的新数据。
-这有些出乎我的意料：之前在很多地方用过 XPM，但是都没考虑过读写地址相同的情况，而且默认设置（NO_CHANGE）下，输出结果是不确定的。实际上这个行为在 PG058 Block Memory Generator 里面提到了：
-Synchronous Write-Read Collisions: A synchronous Write-Read collision might occur if a port attempts to Write a memory location and the other port reads the same location." />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/hardware/2023/04/07/ram-read-write-collision/" />
-    
-
-    <link rel="shortcut icon" href="/favicon.ico">
-
-    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
-    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
-
-    <link rel="stylesheet" href="/css/style.css">
-    
-    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
-    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
-
-    <meta name="generator" content="Hugo 0.115.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
+<link href="https://jia.je/hardware/2023/04/07/ram-read-write-collision/" rel="canonical"/>
+<link href="../../04/firtool/" rel="prev"/>
+<link href="../../../../../system/2023/04/09/sco5/" rel="next"/>
+<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
+<title>RAM 读写冲突 - 杰哥的{运维,编程,调板子}小笔记</title>
+<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
+<body dir="ltr">
+<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#ram">
+          跳转至
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="页眉" class="md-header__inner md-grid">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            杰哥的{运维,编程,调板子}小笔记
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              RAM 读写冲突
+            
+          </span>
+</div>
+</div>
+</div>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</label>
+<nav aria-label="查找" class="md-search__options">
+<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../../../../..">
+        
+  
+    
+  
+  博客
 
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../about/">
+        
+  
+    
+  
+  关于
 
-<body onload="WaveDrom.ProcessAll()">
-<div id="container">
-    <header id="header">
-    <div id="header-outer" class="outer">
-        <div id="header-inner" class="inner">
-            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
-            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
-            <nav id="main-nav">
-                
-                <a class="main-nav-link" href="/about/">关于</a>
-                
-                <a class="main-nav-link" href="/category/">分类</a>
-                
-                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
-                
-                <a class="main-nav-link" href="/tags/">标签</a>
-                
-                <a class="main-nav-link" href="/kb/">知识库</a>
-                
-                <a class="main-nav-link" href="/series/">系列</a>
-                
-                <a class="main-nav-link" href="/feed.xml">订阅</a>
-                
-                <a class="main-nav-link" href="/projects/readme/">项目</a>
-                
-            </nav>
-            <nav id="sub-nav">
-                <div id="search-form-wrap">
-                </div>
-            </nav>
-        </div>
-    </div>
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+        
+  
+    
+  
+  开源
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tags/">
+        
+  
+    
+  
+  标签
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/kb/">
+        
+  
+    
+  
+  知识库
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../series/">
+        
+  
+    
+  
+  系列
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../projects/">
+        
+  
+    
+  
+  项目
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tools/">
+        
+  
+    
+  
+  工具
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/feed.xml">
+        
+  
+    
+  
+  订阅
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../archive/2023/">
+          
+  
+  归档
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../category/crypto/">
+          
+  
+  分类
+
+        </a>
+</li>
+</ul>
+</div>
+</nav>
 </header>
-
-    <section id="main" class="outer">
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        <header class="article-header">
-            <h1 class="article-title" itemprop="name">RAM 读写冲突</h1>
-        </header>
-        
-        <div class="article-meta">
-            <a href="/hardware/2023/04/07/ram-read-write-collision/" class="article-date">
-                <time datetime='2023-04-07T00:48:00.000&#43;08:00' itemprop="datePublished">2023-04-07</time>
-            </a>
-            
-            
-            
-            <div class="article-comment-link-wrap">
-                <a href="/hardware/2023/04/07/ram-read-write-collision/#disqus_thread" class="article-comment-link">Comments</a>
-            </div>
-            
-        </div>
-        <div class="article-entry" itemprop="articleBody">
-            <h2 id="背景">背景</h2>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+    杰哥的{运维,编程,调板子}小笔记
+  </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<a class="md-nav__link" href="../../../../..">
+<span class="md-ellipsis">
+    博客
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../about/">
+<span class="md-ellipsis">
+    关于
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../open-source-contributions/">
+<span class="md-ellipsis">
+    开源
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tags/">
+<span class="md-ellipsis">
+    标签
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/kb/">
+<span class="md-ellipsis">
+    知识库
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../series/">
+<span class="md-ellipsis">
+    系列
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../projects/">
+<span class="md-ellipsis">
+    项目
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tools/">
+<span class="md-ellipsis">
+    工具
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/feed.xml">
+<span class="md-ellipsis">
+    订阅
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
+<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+<span class="md-ellipsis">
+    归档
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_10">
+<span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2023/">
+<span class="md-ellipsis">
+    2023
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2022/">
+<span class="md-ellipsis">
+    2022
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2021/">
+<span class="md-ellipsis">
+    2021
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2020/">
+<span class="md-ellipsis">
+    2020
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2019/">
+<span class="md-ellipsis">
+    2019
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2018/">
+<span class="md-ellipsis">
+    2018
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2017/">
+<span class="md-ellipsis">
+    2017
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2016/">
+<span class="md-ellipsis">
+    2016
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2014/">
+<span class="md-ellipsis">
+    2014
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
+<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+<span class="md-ellipsis">
+    分类
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_11">
+<span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/crypto/">
+<span class="md-ellipsis">
+    crypto
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/csdn/">
+<span class="md-ellipsis">
+    csdn
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/ctf/">
+<span class="md-ellipsis">
+    ctf
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/devops/">
+<span class="md-ellipsis">
+    devops
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/hardware/">
+<span class="md-ellipsis">
+    hardware
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/life/">
+<span class="md-ellipsis">
+    life
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/logo/">
+<span class="md-ellipsis">
+    logo
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/meta/">
+<span class="md-ellipsis">
+    meta
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/misc/">
+<span class="md-ellipsis">
+    misc
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/networking/">
+<span class="md-ellipsis">
+    networking
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/news/">
+<span class="md-ellipsis">
+    news
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/os/">
+<span class="md-ellipsis">
+    os
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/others/">
+<span class="md-ellipsis">
+    others
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/programming/">
+<span class="md-ellipsis">
+    programming
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/software/">
+<span class="md-ellipsis">
+    software
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/speech/">
+<span class="md-ellipsis">
+    speech
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/system/">
+<span class="md-ellipsis">
+    system
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/unboxing/">
+<span class="md-ellipsis">
+    unboxing
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content md-content--post" data-md-component="content">
+<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner md-post">
+<nav class="md-nav">
+<div class="md-post__back">
+<div class="md-nav__title md-nav__container">
+<a class="md-nav__link" href="../../../../..">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+<span class="md-ellipsis">
+                    回到主页
+                  </span>
+</a>
+</div>
+</div>
+<ul class="md-post__meta md-nav__list">
+<li class="md-nav__item md-nav__title">
+<div class="md-nav__link">
+<span class="md-ellipsis">
+                    元数据
+                  </span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
+<time class="md-ellipsis" datetime="2023-04-07 00:00:00">2023年4月7日</time>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
+<span class="md-ellipsis">
+                      分类于
+                      
+                        <a href="../../../../../category/hardware/">hardware</a></span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
+<span class="md-ellipsis">
+                      
+                        需要 11 分钟阅读时间
+                      
+                    </span>
+</div>
+</li>
+</ul>
+</nav>
+<nav aria-label="目录" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_1">
+    背景
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#xilinx-fpga">
+    Xilinx FPGA
+  </a>
+<nav aria-label="Xilinx FPGA" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_2">
+    一读一写
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_3">
+    一读写
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sram-ip">
+    SRAM IP
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#chisel">
+    Chisel
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<article class="md-content__inner md-typeset">
+<nav class="md-tags">
+<a class="md-tag" href="../../../../../tags/#sram">sram</a>
+<a class="md-tag" href="../../../../../tags/#collision">collision</a>
+<a class="md-tag" href="../../../../../tags/#readunderwrite">readunderwrite</a>
+<a class="md-tag" href="../../../../../tags/#xpm">xpm</a>
+<a class="md-tag" href="../../../../../tags/#xilinx">xilinx</a>
+<a class="md-tag" href="../../../../../tags/#bram">bram</a>
+</nav>
+<h1 id="ram">RAM 读写冲突</h1>
+<h2 id="_1">背景</h2>
 <p>在 FPGA 或者 ASIC 中，通常都需要使用 RAM，通过读口、写口或者读写口来进行访问。常见的配置有单读写口（1RW），一读一写（1R1W）等等，读口通常有 1 个周期的延时。那么，如果在同一个周期内，读口和写口访问了同一个地址，会发生什么呢？可能会想到几种情况：</p>
 <ol>
 <li>读和写都失败，读出的数据未定义，数据没写进去</li>
@@ -103,7 +621,7 @@ Synchronous Write-Read Collisions: A synchronous Write-Read collision might occu
 <p>下面以具体的例子来看看，实际情况是什么样子。</p>
 <h2 id="xilinx-fpga">Xilinx FPGA</h2>
 <p>首先测试的是 Xilinx FPGA 上的 RAM，测试的对象是 XPM，统一设置读延迟为一个周期，使用 Vivado 仿真。</p>
-<h3 id="一读一写">一读一写</h3>
+<h3 id="_2">一读一写</h3>
 <p>首先测试一读一写，也就是 xpm_memory_sdpram 模块。模块支持三种模式：NO_CHANGE（默认值）、READ_FIRST 和 WRITE_FIRST，因此我例化了三份，输入一样的信号，设置为三种不同的模式，然后比较输出结果。为了简化，读写使用一个时钟。下面是测试的波形：</p>
 <script type="WaveDrom">{
   signal:
@@ -118,103 +636,102 @@ Synchronous Write-Read Collisions: A synchronous Write-Read collision might occu
       { name: "r_data_read_first", wave: "xxx22", data: ["1111", "2222"]},
       { name: "r_data_write_first", wave: "xxx22", data: ["xxxx", "2222"]},
     ]
-}
-</script><p>图中第一个周期向地址 0 写入了 1111，然后第三个周期同时读写地址 0 的数据，此时 NO_CHANGE 和 WRITE_FIRST 两种模式中，写入成功，读取失败；READ_FIRST 模式读取成功，并且读取的是写入之前的数据。第四个周期时，读写没有出现冲突，三种模式都可以读出写入的新数据。</p>
+}</script>
+<p>图中第一个周期向地址 0 写入了 1111，然后第三个周期同时读写地址 0 的数据，此时 NO_CHANGE 和 WRITE_FIRST 两种模式中，写入成功，读取失败；READ_FIRST 模式读取成功，并且读取的是写入之前的数据。第四个周期时，读写没有出现冲突，三种模式都可以读出写入的新数据。</p>
 <p>这有些出乎我的意料：之前在很多地方用过 XPM，但是都没考虑过读写地址相同的情况，而且默认设置（NO_CHANGE）下，输出结果是不确定的。实际上这个行为在 PG058 Block Memory Generator 里面提到了：</p>
 <ul>
-<li>Synchronous Write-Read Collisions: A synchronous Write-Read collision might occur if a port attempts to Write a memory location and the other port reads the same location. While memory contents are not corrupted in Write-Read collisions, the validity of the output data depends on the Write port operating mode.
-<ul>
+<li>Synchronous Write-Read Collisions: A synchronous Write-Read collision might occur if a port attempts to Write a memory location and the other port reads the same location. While memory contents are not corrupted in Write-Read collisions, the validity of the output data depends on the Write port operating mode.</li>
 <li>If the Write port is in READ_FIRST mode, the other port can reliably read the old memory contents.</li>
 <li>If the Write port is in WRITE_FIRST or NO_CHANGE mode, data on the output of the Read port is invalid.</li>
 <li>In the case of byte-writes, only updated bytes are invalid on the Read port output.</li>
 </ul>
-</li>
-</ul>
 <p>与上面观察到的结果基本吻合，另外这里提到了带 Mask 的情况：即使是 WRITE_FIRST 或者 NO_CHANGE，也可以读出没写入的那部分（即 WEA[i] = 0）旧的数据。</p>
 <p>对此，Xilinx 的建议是：</p>
-<pre><code>For Synchronous Clocking and during a collision, the Write mode of port A
+<div class="language-text highlight"><pre><span></span><code>For Synchronous Clocking and during a collision, the Write mode of port A
 can be configured so that a Read operation on port B either produces data
 (acting like READ_FIRST), or produces undefined data (Xs). For this reason,
 it is always advised to use READ_FIRST when configured as a Simple Dual-port
 RAM. For asynchronous clocking, Xilinx recommends setting the Write mode of
 Port A to WRITE_FIRST for collision safety.
-</code></pre>
+</code></pre></div>
 <p>也就是说同步时钟用 READ_FIRST，异步时钟用 WRITE_FIRST。甚至 Vivado 还可以贴心地帮你设置：</p>
-<pre><code>For 7 series devices, the selected operating mode is passed to the block RAM
+<div class="language-text highlight"><pre><span></span><code>For 7 series devices, the selected operating mode is passed to the block RAM
 when the RAM_MODE is set to TDP. For the primitives with RAM_MODE set to
 SDP, the write mode is READ_FIRST for synchronous clocking and WRITE_FIRST
 for asynchronous clocking.
-</code></pre>
+</code></pre></div>
 <p>但是 XPM 似乎就没有这个设定了，而是由用户来传入。</p>
 <p>而对于异步时钟，文档直接说不要让冲突发生：</p>
-<pre><code>Using asynchronous clocks, when one port writes data to a memory location,
+<div class="language-text highlight"><pre><span></span><code>Using asynchronous clocks, when one port writes data to a memory location,
 the other port must not Read or Write that location for a specified amount
 of time.
-</code></pre>
+</code></pre></div>
 <p>这点似乎经常被我们忽略。</p>
 <p>那么，如果在 Verilog 中实现一个语义上 WRITE_FIRST 的 RAM，会发生什么呢：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-verilog" data-lang="verilog"><span style="display:flex;"><span><span style="color:#66d9ef">`timescale</span> <span style="color:#ae81ff">1</span>ns<span style="color:#f92672">/</span><span style="color:#ae81ff">1</span>ps
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">module</span> mem_1r1w (
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> clk,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_addr,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> R0_en,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">output</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_data,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_addr,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> W0_en,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_data
-</span></span><span style="display:flex;"><span>);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] reg_R0_addr;
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>];
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (W0_en) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>      mem[W0_addr] <span style="color:#f92672">&lt;=</span> W0_data;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (R0_en) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>      reg_R0_addr <span style="color:#f92672">&lt;=</span> R0_addr;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">assign</span> R0_data <span style="color:#f92672">=</span> mem[reg_R0_addr];
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">endmodule</span>
-</span></span></code></pre></div><p>奇怪的是，综合出来会使用 BRAM 实现，并且采用 READ_FIRST 作为 RAMB36E1 的 WRITE_MODE_A 和 WRITE_MODE_B。如果写成语义 READ_FIRST：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-verilog" data-lang="verilog"><span style="display:flex;"><span><span style="color:#66d9ef">`timescale</span> <span style="color:#ae81ff">1</span>ns<span style="color:#f92672">/</span><span style="color:#ae81ff">1</span>ps
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">module</span> mem_1r1w (
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> clk,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_addr,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> R0_en,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">output</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] R0_data,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">5</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_addr,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> W0_en,
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">input</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] W0_data
-</span></span><span style="display:flex;"><span>);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] reg_R0_data;
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">reg</span> [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>] mem [<span style="color:#ae81ff">63</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>];
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (W0_en) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>      mem[W0_addr] <span style="color:#f92672">&lt;=</span> W0_data;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">always</span> @(<span style="color:#66d9ef">posedge</span> clk) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (R0_en) <span style="color:#66d9ef">begin</span>
-</span></span><span style="display:flex;"><span>      reg_R0_data <span style="color:#f92672">&lt;=</span> mem[R0_addr];
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">assign</span> R0_data <span style="color:#f92672">=</span> reg_R0_data;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">endmodule</span>
-</span></span></code></pre></div><p>会发现生成的 RAMB36E1 原语的 WRITE_MODE 依然是 READ_FIRST。经过测试发现，如果综合的时候用两个时钟信号，就会用 WRITE_FIRST；如果用了一个，就会用 READ_FIRST，与语义无关。所以如果依赖 Vivado 的 infer RAM，得到的结果和预期可能不一致，和前面的文档一致：<code>For the primitives with RAM_MODE set to SDP, the write mode is READ_FIRST for synchronous clocking and WRITE_FIRST for asynchronous clocking.</code>。</p>
-<p>又额外测试了一下 yosys：<code>yosys mem_1r1w.v -p &quot;synth_xilinx&quot;</code>，结果发现 yosys 会忠实地按照语义为 WRITE_FIRST 生成 bypass 逻辑。虽然 yosys 可以做的更好：把识别出来的 READ_FIRST 或 WRITE_FIRST 传给 RAMB36E1，但 yosys 至少尊重了代码。</p>
-<h3 id="一读写">一读写</h3>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="no">`timescale</span><span class="w"> </span><span class="mh">1</span><span class="n">ns</span><span class="o">/</span><span class="mh">1</span><span class="n">ps</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="k">module</span><span class="w"> </span><span class="n">mem_1r1w</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="n">clk</span><span class="p">,</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="p">[</span><span class="mh">5</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">R0_addr</span><span class="p">,</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="n">R0_en</span><span class="p">,</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="w">  </span><span class="k">output</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">R0_data</span><span class="p">,</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="p">[</span><span class="mh">5</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">W0_addr</span><span class="p">,</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="n">W0_en</span><span class="p">,</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">W0_data</span>
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="p">);</span>
+</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="w">  </span><span class="kt">reg</span><span class="w"> </span><span class="p">[</span><span class="mh">5</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">reg_R0_addr</span><span class="p">;</span>
+</span><span id="__span-0-13"><a href="#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="w">  </span><span class="kt">reg</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">mem</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">];</span>
+</span><span id="__span-0-14"><a href="#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a>
+</span><span id="__span-0-15"><a href="#__codelineno-0-15" id="__codelineno-0-15" name="__codelineno-0-15"></a><span class="w">  </span><span class="k">always</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-0-16"><a href="#__codelineno-0-16" id="__codelineno-0-16" name="__codelineno-0-16"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">W0_en</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-0-17"><a href="#__codelineno-0-17" id="__codelineno-0-17" name="__codelineno-0-17"></a><span class="w">      </span><span class="n">mem</span><span class="p">[</span><span class="n">W0_addr</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">W0_data</span><span class="p">;</span>
+</span><span id="__span-0-18"><a href="#__codelineno-0-18" id="__codelineno-0-18" name="__codelineno-0-18"></a><span class="w">    </span><span class="k">end</span>
+</span><span id="__span-0-19"><a href="#__codelineno-0-19" id="__codelineno-0-19" name="__codelineno-0-19"></a><span class="w">  </span><span class="k">end</span>
+</span><span id="__span-0-20"><a href="#__codelineno-0-20" id="__codelineno-0-20" name="__codelineno-0-20"></a>
+</span><span id="__span-0-21"><a href="#__codelineno-0-21" id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="w">  </span><span class="k">always</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-0-22"><a href="#__codelineno-0-22" id="__codelineno-0-22" name="__codelineno-0-22"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">R0_en</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-0-23"><a href="#__codelineno-0-23" id="__codelineno-0-23" name="__codelineno-0-23"></a><span class="w">      </span><span class="n">reg_R0_addr</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">R0_addr</span><span class="p">;</span>
+</span><span id="__span-0-24"><a href="#__codelineno-0-24" id="__codelineno-0-24" name="__codelineno-0-24"></a><span class="w">    </span><span class="k">end</span>
+</span><span id="__span-0-25"><a href="#__codelineno-0-25" id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="w">  </span><span class="k">end</span>
+</span><span id="__span-0-26"><a href="#__codelineno-0-26" id="__codelineno-0-26" name="__codelineno-0-26"></a>
+</span><span id="__span-0-27"><a href="#__codelineno-0-27" id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">  </span><span class="k">assign</span><span class="w"> </span><span class="n">R0_data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mem</span><span class="p">[</span><span class="n">reg_R0_addr</span><span class="p">];</span>
+</span><span id="__span-0-28"><a href="#__codelineno-0-28" id="__codelineno-0-28" name="__codelineno-0-28"></a>
+</span><span id="__span-0-29"><a href="#__codelineno-0-29" id="__codelineno-0-29" name="__codelineno-0-29"></a><span class="k">endmodule</span>
+</span></code></pre></div>
+<p>奇怪的是，综合出来会使用 BRAM 实现，并且采用 READ_FIRST 作为 RAMB36E1 的 WRITE_MODE_A 和 WRITE_MODE_B。如果写成语义 READ_FIRST：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="no">`timescale</span><span class="w"> </span><span class="mh">1</span><span class="n">ns</span><span class="o">/</span><span class="mh">1</span><span class="n">ps</span>
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="k">module</span><span class="w"> </span><span class="n">mem_1r1w</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="n">clk</span><span class="p">,</span>
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="p">[</span><span class="mh">5</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">R0_addr</span><span class="p">,</span>
+</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="n">R0_en</span><span class="p">,</span>
+</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="w">  </span><span class="k">output</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">R0_data</span><span class="p">,</span>
+</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="p">[</span><span class="mh">5</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">W0_addr</span><span class="p">,</span>
+</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="n">W0_en</span><span class="p">,</span>
+</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a><span class="w">  </span><span class="k">input</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">W0_data</span>
+</span><span id="__span-1-10"><a href="#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a><span class="p">);</span>
+</span><span id="__span-1-11"><a href="#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a>
+</span><span id="__span-1-12"><a href="#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="w">  </span><span class="kt">reg</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">reg_R0_data</span><span class="p">;</span>
+</span><span id="__span-1-13"><a href="#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="w">  </span><span class="kt">reg</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">mem</span><span class="w"> </span><span class="p">[</span><span class="mh">63</span><span class="o">:</span><span class="mh">0</span><span class="p">];</span>
+</span><span id="__span-1-14"><a href="#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a>
+</span><span id="__span-1-15"><a href="#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="w">  </span><span class="k">always</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-1-16"><a href="#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">W0_en</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-1-17"><a href="#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a><span class="w">      </span><span class="n">mem</span><span class="p">[</span><span class="n">W0_addr</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">W0_data</span><span class="p">;</span>
+</span><span id="__span-1-18"><a href="#__codelineno-1-18" id="__codelineno-1-18" name="__codelineno-1-18"></a><span class="w">    </span><span class="k">end</span>
+</span><span id="__span-1-19"><a href="#__codelineno-1-19" id="__codelineno-1-19" name="__codelineno-1-19"></a><span class="w">  </span><span class="k">end</span>
+</span><span id="__span-1-20"><a href="#__codelineno-1-20" id="__codelineno-1-20" name="__codelineno-1-20"></a>
+</span><span id="__span-1-21"><a href="#__codelineno-1-21" id="__codelineno-1-21" name="__codelineno-1-21"></a><span class="w">  </span><span class="k">always</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-1-22"><a href="#__codelineno-1-22" id="__codelineno-1-22" name="__codelineno-1-22"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">R0_en</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+</span><span id="__span-1-23"><a href="#__codelineno-1-23" id="__codelineno-1-23" name="__codelineno-1-23"></a><span class="w">      </span><span class="n">reg_R0_data</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">mem</span><span class="p">[</span><span class="n">R0_addr</span><span class="p">];</span>
+</span><span id="__span-1-24"><a href="#__codelineno-1-24" id="__codelineno-1-24" name="__codelineno-1-24"></a><span class="w">    </span><span class="k">end</span>
+</span><span id="__span-1-25"><a href="#__codelineno-1-25" id="__codelineno-1-25" name="__codelineno-1-25"></a><span class="w">  </span><span class="k">end</span>
+</span><span id="__span-1-26"><a href="#__codelineno-1-26" id="__codelineno-1-26" name="__codelineno-1-26"></a>
+</span><span id="__span-1-27"><a href="#__codelineno-1-27" id="__codelineno-1-27" name="__codelineno-1-27"></a><span class="w">  </span><span class="k">assign</span><span class="w"> </span><span class="n">R0_data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">reg_R0_data</span><span class="p">;</span>
+</span><span id="__span-1-28"><a href="#__codelineno-1-28" id="__codelineno-1-28" name="__codelineno-1-28"></a>
+</span><span id="__span-1-29"><a href="#__codelineno-1-29" id="__codelineno-1-29" name="__codelineno-1-29"></a><span class="k">endmodule</span>
+</span></code></pre></div>
+<p>会发现生成的 RAMB36E1 原语的 WRITE_MODE 依然是 READ_FIRST。经过测试发现，如果综合的时候用两个时钟信号，就会用 WRITE_FIRST；如果用了一个，就会用 READ_FIRST，与语义无关。所以如果依赖 Vivado 的 infer RAM，得到的结果和预期可能不一致，和前面的文档一致：<code>For the primitives with RAM_MODE set to SDP, the write mode is READ_FIRST for synchronous clocking and WRITE_FIRST for asynchronous clocking.</code>。</p>
+<p>又额外测试了一下 yosys：<code>yosys mem_1r1w.v -p "synth_xilinx"</code>，结果发现 yosys 会忠实地按照语义为 WRITE_FIRST 生成 bypass 逻辑。虽然 yosys 可以做的更好：把识别出来的 READ_FIRST 或 WRITE_FIRST 传给 RAMB36E1，但 yosys 至少尊重了代码。</p>
+<h3 id="_3">一读写</h3>
 <p>接下来测试单读写口的场景。单读写口和上面不同，它的冲突点在于，写入的时候，读取的数据如何变化。下面用同样的方法，测试三种模式下 xpm_memory_spram 的行为，得到如下波形：</p>
 <script type="WaveDrom">{
   signal:
@@ -230,8 +747,8 @@ of time.
       { name: "rw_rdata_read_first", wave: "xxx2.22", data: ["1111", "0000", "3333"]},
       { name: "rw_rdata_write_first", wave: "x2..22.", data: ["1111", "2222", "3333"]},
     ]
-}
-</script><p>这个结果就比较有意思了，三种模式得到了三种不同的结果。第一个周期依然是写入 1111 到地址 0，然后 WRITE_FIRST 模式的输出结果第二个周期跟着变，就好像在写的时候同时也在读，只不过读取的结果就是最后一次写入的结果。第三个周期读取地址 0 的数据，然后第四个周期写入 2222 到地址 0，此时三种情况的读取都得到了写入前的值（也就是 1111）。第五个周期 WRITE_FIRST 模式的输出跟着变成了 2222，和预期一致。同时第五个周期写入 3333 到地址 1，接着第六个周期的时候，READ_FIRST 出现了 0000，实际上是读取了地址 1 的旧数据，也就是写入前的数据，而 WRITE_FIRST 更新为了 3333，也就是新写入的数据；NO_CHANGE 则是保持了最后一次读取的结果。</p>
+}</script>
+<p>这个结果就比较有意思了，三种模式得到了三种不同的结果。第一个周期依然是写入 1111 到地址 0，然后 WRITE_FIRST 模式的输出结果第二个周期跟着变，就好像在写的时候同时也在读，只不过读取的结果就是最后一次写入的结果。第三个周期读取地址 0 的数据，然后第四个周期写入 2222 到地址 0，此时三种情况的读取都得到了写入前的值（也就是 1111）。第五个周期 WRITE_FIRST 模式的输出跟着变成了 2222，和预期一致。同时第五个周期写入 3333 到地址 1，接着第六个周期的时候，READ_FIRST 出现了 0000，实际上是读取了地址 1 的旧数据，也就是写入前的数据，而 WRITE_FIRST 更新为了 3333，也就是新写入的数据；NO_CHANGE 则是保持了最后一次读取的结果。</p>
 <p>简单总结一下上面的现象，就是：</p>
 <ul>
 <li>NO_CHANGE：顾名思义，写的时候 rdata 不变，只有在读的下一个周期才会变</li>
@@ -260,8 +777,8 @@ of time.
       { name: "mem_colldisn_1[0]", wave: "x2....2.", data: ["1111", "2222"]},
       { name: "r_data_colldisn_1", wave: "xxx2..22", data: ["1111", "xxxx", "2222"]},
     ]
-}
-</script><p>第一个周期没有读写冲突，所以成功写入，第三个周期也可以正确地都出来。第六个周期读写冲突，此时如果 COLLDISN 等于 0，那么读写都失败，下一个周期读取结果是 xxxx，并且之后继续读取依然是 xxxx，因为内存中的数据被破坏了；而如果 COLLDISN 等于 1，那么写入成功，内存中的值变为 2222，但读取失败，下一个周期读取结果是 xxxx，但是再下一个周期就可以正常读取，得到 2222。</p>
+}</script>
+<p>第一个周期没有读写冲突，所以成功写入，第三个周期也可以正确地都出来。第六个周期读写冲突，此时如果 COLLDISN 等于 0，那么读写都失败，下一个周期读取结果是 xxxx，并且之后继续读取依然是 xxxx，因为内存中的数据被破坏了；而如果 COLLDISN 等于 1，那么写入成功，内存中的值变为 2222，但读取失败，下一个周期读取结果是 xxxx，但是再下一个周期就可以正常读取，得到 2222。</p>
 <p>这就与 Xilinx FPGA 不一样：这里如果 COLLDISN 等于 0，读写冲突的时候，可能写入会失效，内存中的值变为不确定的内容。所以为了保证正确性，要么在 SRAM IP 外部进行读写冲突检查，如果要冲突了，就关掉读口，然后从写口 bypass 数据到读口；要么在 SRAM IP 内部进行读写冲突检查（设置 COLLDISN 等于 1），然后不要使用冲突时读取的数据。</p>
 <h2 id="chisel">Chisel</h2>
 <p>Chisel 中 RAM 对应的是 SyncReadMem，它可以指定 Read under Write behavior：</p>
@@ -273,192 +790,100 @@ of time.
 </ul>
 <p>也就是说，在行为级模型中，只有 WriteFirst 和 ReadFirst 两种行为，并且默认是 <code>WriteFirst</code>。但是，前面也提到，实际上 XPM 只支持 <code>Undefined</code>（生成 <code>x</code>）和 <code>ReadFirst</code>（READ_FIRST）两种；上面的 SRAM IP 更是只支持 <code>Undefined</code>（生成 <code>x</code>）。</p>
 <p>这就导致写 Chisel 代码的时候，如果不小心用了 1R1W，并且代码依赖了 Read Under Write 在行为级模型下的行为，那么在使用 XPM 或者 SRAM IP 进行替换的时候，就需要额外的逻辑来处理这个不同。例如，如果要模拟 <code>WriteFirst</code>，就比较地址，然后进行 bypass；但是 <code>ReadFirst</code> 就没办法模拟了。最好的解决方法还是，不要出现冲突，即使要冲突，也要在上层进行处理。</p>
-
-        </div>
-
-        
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-  <ul>
-    <li><a href="#背景">背景</a></li>
-    <li><a href="#xilinx-fpga">Xilinx FPGA</a>
-      <ul>
-        <li><a href="#一读一写">一读一写</a></li>
-        <li><a href="#一读写">一读写</a></li>
-      </ul>
-    </li>
-    <li><a href="#sram-ip">SRAM IP</a></li>
-    <li><a href="#chisel">Chisel</a></li>
-  </ul>
-</nav>
-        </div>
-        
-        
-
-        
-
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-        <script>
-            (function() {
-                var $toc = $('#TableOfContents');
-                if ($toc.length > 0) {
-                    var $window = $(window);
-
-                    function onScroll(){
-                        var currentScroll = $window.scrollTop();
-                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
-                        var id = "";
-                        h.each(function (i, e) {
-                            e = $(e);
-                            if (e.offset().top - 10 <= currentScroll) {
-                                id = e.attr('id');
-                            }
-                        });
-                        var active = $toc.find('a.active');
-                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
-
-                        active.each(function (i, e) {
-                            $(e).removeClass('active').siblings('ul').hide();
-                        });
-                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
-                            $(e).children('a').addClass('active').siblings('ul').show();
-                        });
-                    }
-
-                    $window.on('scroll', onScroll);
-                    $(document).ready(function() {
-                        $toc.find('a').parent('li').find('ul').hide();
-                        onScroll();
-                        document.getElementsByClassName('article-toc')[0].style.display = '';
-                    });
-                }
-            })();
-        </script>
-        
-
-
-        
-        <footer class="article-footer">
-            <ul class="article-tag-list">
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/sram">sram
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/collision">collision
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/readunderwrite">readunderwrite
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/xpm">xpm
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/xilinx">xilinx
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/bram">bram
-                    </a>
-                </li>
-                
-            </ul>
-        </footer>
-        
-    </div>
+<hr/>
+<div class="md-source-file">
+<small>
     
-<nav id="article-nav">
-    
-    <a href="/system/2023/04/09/aix/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            AIX 7.2 虚拟机安装
-        </div>
-    </a>
-    
-    
-    <a href="/hardware/2023/04/04/firtool/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">firtool 尝试&nbsp;<span>&gt;</span></div>
-    </a>
-    
-</nav>
-
-
-</article>
-
-        
-            <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+<br/>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 7, 2023</span>
+</small>
+</div>
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
     };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-        
-    </section>
-    <footer id="footer">
-    <div class="outer">
-        <div id="footer-info" class="inner">
-            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
-            <br />
-            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
-        </div>
-    </div>
-    
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
-}
-</script>
-
-
-    
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
-            onload="renderMathInElement(document.body);"></script>
-    
-    <script>
-        document.getElementById('main-nav-toggle').addEventListener('click', function () {
-            var header = document.getElementById('header');
-            if (header.classList.contains('mobile-on')) {
-                header.classList.remove('mobile-on');
-            } else {
-                header.classList.add('mobile-on');
-            }
-        });
-    </script>
-</footer>
-
+</article>
 </div>
-</body>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="页脚" class="md-footer__inner md-grid">
+<a aria-label="上一页: firtool 尝试" class="md-footer__link md-footer__link--prev" href="../../04/firtool/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</div>
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                上一页
+              </span>
+<div class="md-ellipsis">
+                firtool 尝试
+              </div>
+</div>
+</a>
+<a aria-label="下一页: SCO OpenServer 5.0.7 虚拟机安装" class="md-footer__link md-footer__link--next" href="../../../../../system/2023/04/09/sco5/" rel="next">
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                下一页
+              </span>
+<div class="md-ellipsis">
+                SCO OpenServer 5.0.7 虚拟机安装
+              </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+<script src="../../../../../javascripts/mathjax.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
+<script>window.addEventListener('load', function() {WaveDrom.ProcessAll();});</script></body>
 </html>

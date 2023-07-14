@@ -1,135 +1,669 @@
+
 <!DOCTYPE html>
-<html>
+
+<html class="no-js" lang="zh">
 <head>
-    <title>PCIe 学习笔记 // 杰哥的{运维,编程,调板子}小笔记</title>
-
-    <meta charset="utf-8">
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-    
-    
-    
-
-        <meta property="og:title" content="PCIe 学习笔记" />
-    <meta property="og:description" content="本文的内容已经整合到知识库中。
-背景 最近在知乎上看到 LogicJitterGibbs 的 资料整理：可以学习 1W 小时的 PCIe，我跟着资料学习了一下，然后在这里记录一些我学习 PCIe 的笔记。
-下面的图片主要来自 PCIe 3.0 标准以及 MindShare 的 PCIe 3.0 书本。
-分层 PCIe 定义了三个层：Transaction Layer，Data Link Layer，Physical Layer，和 TCP/IP 四层模型很像。PCIe 也是基于 Packet 传输的。
-Transaction Layer Transaction Layer 的核心是 Transaction Layer Packet(TLP)。TLP 格式：
-即可选的若干个 Prefix，一个 Header，可选的 Data Payload，可选的 Digest。
-Prefix 和 Header 开头的一个字节是 Fmt[2:0] 和 Type[4:0] 字段。Fmt 决定了 header 的长度，有无数据，或者这是一个 Prefix。
-它支持几类 Packet：
-Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有 Request，没有 Completion AtomicOp Request(FetchAdd/Swap/CAS)/Completion(CplD) Locked Memory Read(MRdLk)/Completion(CplDLk): Legacy IO: Legacy Read Request(IORd)/Completion(CplD) Write Request(IOWr)/Completion(Cpl) Configuration: 访问配置空间 Read Request(CfgRd0/CfgRd1)/Completion(CplD) Write Request(CfgWr0/CfgWr1)/Completion(Cpl) Message: 传输 event Request(Msg/MsgD) 括号里的是 TLP Type，对应了它 Fmt 和 Type 字段的取值。如果 Completion 失败了，原来应该是 CplD/CplDLk 的 Completion 会变成不带数据的 Cpl/CplLk。" />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/hardware/2022/11/12/pcie-notes/" />
-    
-
-    <link rel="shortcut icon" href="/favicon.ico">
-
-    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
-    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
-
-    <link rel="stylesheet" href="/css/style.css">
-    
-    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
-    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
-
-    <meta name="generator" content="Hugo 0.115.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
+<link href="https://jia.je/hardware/2022/11/12/pcie-notes/" rel="canonical"/>
+<link href="../../../../../software/2022/10/29/nix-on-ppc64le/" rel="prev"/>
+<link href="../../20/cxl-notes/" rel="next"/>
+<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
+<title>PCIe 学习笔记 - 杰哥的{运维,编程,调板子}小笔记</title>
+<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
+<body dir="ltr">
+<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#pcie">
+          跳转至
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="页眉" class="md-header__inner md-grid">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            杰哥的{运维,编程,调板子}小笔记
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              PCIe 学习笔记
+            
+          </span>
+</div>
+</div>
+</div>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</label>
+<nav aria-label="查找" class="md-search__options">
+<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../../../../..">
+        
+  
+    
+  
+  博客
 
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../about/">
+        
+  
+    
+  
+  关于
 
-<body onload="WaveDrom.ProcessAll()">
-<div id="container">
-    <header id="header">
-    <div id="header-outer" class="outer">
-        <div id="header-inner" class="inner">
-            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
-            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
-            <nav id="main-nav">
-                
-                <a class="main-nav-link" href="/about/">关于</a>
-                
-                <a class="main-nav-link" href="/category/">分类</a>
-                
-                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
-                
-                <a class="main-nav-link" href="/tags/">标签</a>
-                
-                <a class="main-nav-link" href="/kb/">知识库</a>
-                
-                <a class="main-nav-link" href="/series/">系列</a>
-                
-                <a class="main-nav-link" href="/feed.xml">订阅</a>
-                
-                <a class="main-nav-link" href="/projects/readme/">项目</a>
-                
-            </nav>
-            <nav id="sub-nav">
-                <div id="search-form-wrap">
-                </div>
-            </nav>
-        </div>
-    </div>
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+        
+  
+    
+  
+  开源
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tags/">
+        
+  
+    
+  
+  标签
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/kb/">
+        
+  
+    
+  
+  知识库
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../series/">
+        
+  
+    
+  
+  系列
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../projects/">
+        
+  
+    
+  
+  项目
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tools/">
+        
+  
+    
+  
+  工具
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/feed.xml">
+        
+  
+    
+  
+  订阅
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../archive/2023/">
+          
+  
+  归档
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../category/crypto/">
+          
+  
+  分类
+
+        </a>
+</li>
+</ul>
+</div>
+</nav>
 </header>
-
-    <section id="main" class="outer">
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        <header class="article-header">
-            <h1 class="article-title" itemprop="name">PCIe 学习笔记</h1>
-        </header>
-        
-        <div class="article-meta">
-            <a href="/hardware/2022/11/12/pcie-notes/" class="article-date">
-                <time datetime='2022-11-12T14:56:00.000&#43;08:00' itemprop="datePublished">2022-11-12</time>
-            </a>
-            
-            
-            
-            <div class="article-comment-link-wrap">
-                <a href="/hardware/2022/11/12/pcie-notes/#disqus_thread" class="article-comment-link">Comments</a>
-            </div>
-            
-        </div>
-        <div class="article-entry" itemprop="articleBody">
-            <p>本文的内容已经整合到<a href="/kb/hardware/pcie.html">知识库</a>中。</p>
-<h2 id="背景">背景</h2>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+    杰哥的{运维,编程,调板子}小笔记
+  </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<a class="md-nav__link" href="../../../../..">
+<span class="md-ellipsis">
+    博客
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../about/">
+<span class="md-ellipsis">
+    关于
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../open-source-contributions/">
+<span class="md-ellipsis">
+    开源
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tags/">
+<span class="md-ellipsis">
+    标签
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/kb/">
+<span class="md-ellipsis">
+    知识库
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../series/">
+<span class="md-ellipsis">
+    系列
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../projects/">
+<span class="md-ellipsis">
+    项目
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tools/">
+<span class="md-ellipsis">
+    工具
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/feed.xml">
+<span class="md-ellipsis">
+    订阅
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
+<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+<span class="md-ellipsis">
+    归档
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_10">
+<span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2023/">
+<span class="md-ellipsis">
+    2023
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2022/">
+<span class="md-ellipsis">
+    2022
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2021/">
+<span class="md-ellipsis">
+    2021
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2020/">
+<span class="md-ellipsis">
+    2020
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2019/">
+<span class="md-ellipsis">
+    2019
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2018/">
+<span class="md-ellipsis">
+    2018
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2017/">
+<span class="md-ellipsis">
+    2017
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2016/">
+<span class="md-ellipsis">
+    2016
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2014/">
+<span class="md-ellipsis">
+    2014
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
+<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+<span class="md-ellipsis">
+    分类
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_11">
+<span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/crypto/">
+<span class="md-ellipsis">
+    crypto
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/csdn/">
+<span class="md-ellipsis">
+    csdn
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/ctf/">
+<span class="md-ellipsis">
+    ctf
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/devops/">
+<span class="md-ellipsis">
+    devops
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/hardware/">
+<span class="md-ellipsis">
+    hardware
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/life/">
+<span class="md-ellipsis">
+    life
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/logo/">
+<span class="md-ellipsis">
+    logo
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/meta/">
+<span class="md-ellipsis">
+    meta
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/misc/">
+<span class="md-ellipsis">
+    misc
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/networking/">
+<span class="md-ellipsis">
+    networking
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/news/">
+<span class="md-ellipsis">
+    news
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/os/">
+<span class="md-ellipsis">
+    os
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/others/">
+<span class="md-ellipsis">
+    others
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/programming/">
+<span class="md-ellipsis">
+    programming
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/software/">
+<span class="md-ellipsis">
+    software
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/speech/">
+<span class="md-ellipsis">
+    speech
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/system/">
+<span class="md-ellipsis">
+    system
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/unboxing/">
+<span class="md-ellipsis">
+    unboxing
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content md-content--post" data-md-component="content">
+<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner md-post">
+<nav class="md-nav">
+<div class="md-post__back">
+<div class="md-nav__title md-nav__container">
+<a class="md-nav__link" href="../../../../..">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+<span class="md-ellipsis">
+                    回到主页
+                  </span>
+</a>
+</div>
+</div>
+<ul class="md-post__meta md-nav__list">
+<li class="md-nav__item md-nav__title">
+<div class="md-nav__link">
+<span class="md-ellipsis">
+                    元数据
+                  </span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
+<time class="md-ellipsis" datetime="2022-11-12 00:00:00">2022年11月12日</time>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
+<span class="md-ellipsis">
+                      分类于
+                      
+                        <a href="../../../../../category/hardware/">hardware</a></span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
+<span class="md-ellipsis">
+                      
+                        需要 20 分钟阅读时间
+                      
+                    </span>
+</div>
+</li>
+</ul>
+</nav>
+<nav aria-label="目录" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_1">
+    背景
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_2">
+    分层
+  </a>
+<nav aria-label="分层" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#transaction-layer">
+    Transaction Layer
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-link-layer">
+    Data Link Layer
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_3">
+    配置
+  </a>
+<nav aria-label="配置" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_4">
+    路由
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_5">
+    分配
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_6">
+    物理层
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pcie-60">
+    PCIe 6.0
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#ats">
+    ATS
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<article class="md-content__inner md-typeset">
+<nav class="md-tags">
+<a class="md-tag" href="../../../../../tags/#pcie">pcie</a>
+<a class="md-tag" href="../../../../../tags/#bus">bus</a>
+<a class="md-tag" href="../../../../../tags/#notes">notes</a>
+<a class="md-tag" href="../../../../../tags/#learn">learn</a>
+</nav>
+<h1 id="pcie">PCIe 学习笔记</h1>
+<p>本文的内容已经整合到<a href="/kb/hardware/pcie.html">知识库</a>中。</p>
+<h2 id="_1">背景</h2>
 <p>最近在知乎上看到 <a href="https://www.zhihu.com/people/ljgibbs">LogicJitterGibbs</a> 的 <a href="https://zhuanlan.zhihu.com/p/447134701">资料整理：可以学习 1W 小时的 PCIe</a>，我跟着资料学习了一下，然后在这里记录一些我学习 PCIe 的笔记。</p>
 <p>下面的图片主要来自 PCIe 3.0 标准以及 MindShare 的 PCIe 3.0 书本。</p>
-<h2 id="分层">分层</h2>
+<h2 id="_2">分层</h2>
 <p>PCIe 定义了三个层：Transaction Layer，Data Link Layer，Physical Layer，和 TCP/IP 四层模型很像。PCIe 也是基于 Packet 传输的。</p>
-<p><img src="/images/pcie_layer.png" alt=""></p>
+<p><img alt="" src="/images/pcie_layer.png"/></p>
 <h3 id="transaction-layer">Transaction Layer</h3>
 <p>Transaction Layer 的核心是 Transaction Layer Packet(TLP)。TLP 格式：</p>
-<p><img src="/images/pcie_tlp.png" alt=""></p>
+<p><img alt="" src="/images/pcie_tlp.png"/></p>
 <p>即可选的若干个 Prefix，一个 Header，可选的 Data Payload，可选的 Digest。</p>
 <p>Prefix 和 Header 开头的一个字节是 <code>Fmt[2:0]</code> 和 <code>Type[4:0]</code> 字段。Fmt 决定了 header 的长度，有无数据，或者这是一个 Prefix。</p>
 <p>它支持几类 Packet：</p>
 <ul>
-<li>Memory: MMIO
-<ul>
+<li>Memory: MMIO<ul>
 <li>Read Request(MRd)/Completion(CplD)</li>
 <li>Write Request(MWr): 注意只有 Request，没有 Completion</li>
 <li>AtomicOp Request(FetchAdd/Swap/CAS)/Completion(CplD)</li>
 <li>Locked Memory Read(MRdLk)/Completion(CplDLk): Legacy</li>
 </ul>
 </li>
-<li>IO: Legacy
-<ul>
+<li>IO: Legacy<ul>
 <li>Read Request(IORd)/Completion(CplD)</li>
 <li>Write Request(IOWr)/Completion(Cpl)</li>
 </ul>
 </li>
-<li>Configuration: 访问配置空间
-<ul>
+<li>Configuration: 访问配置空间<ul>
 <li>Read Request(CfgRd0/CfgRd1)/Completion(CplD)</li>
 <li>Write Request(CfgWr0/CfgWr1)/Completion(Cpl)</li>
 </ul>
 </li>
-<li>Message: 传输 event
-<ul>
+<li>Message: 传输 event<ul>
 <li>Request(Msg/MsgD)</li>
 </ul>
 </li>
@@ -140,8 +674,7 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 <ul>
 <li>Address-based: 32 位或 64 位地址，用于 Memory 和 IO 请求</li>
 <li>ID-based：lspci 看到的地址，也就是 Bus Device Function，用于 Configuration 请求</li>
-<li>Implicit：用于 Message 请求，路由方法：
-<ul>
+<li>Implicit：用于 Message 请求，路由方法：<ul>
 <li>Routed to Root Complex</li>
 <li>Routed by Address: PCIe 3.0 标准中没有用这个路由方法的 Message</li>
 <li>Routed by ID</li>
@@ -153,7 +686,7 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 </ul>
 <h3 id="data-link-layer">Data Link Layer</h3>
 <p>Data Link Layer 的主要功能是进行 TLP 的可靠传输。它在传输 TLP 的时候，会在开头加上一个两字节的 Sequence Number，最后加上一个四字节的 LCRC（Link CRC）。</p>
-<p><img src="/images/pcie_tlp_link.png" alt=""></p>
+<p><img alt="" src="/images/pcie_tlp_link.png"/></p>
 <p>除了传输 TLP，Data Link Layer 还会传输 Data Link Layer Packet(DLLP)，类型包括：</p>
 <ul>
 <li>Ack DLLP: 告诉对方自己已经成功收到了 TLP</li>
@@ -164,16 +697,15 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 <p>Data Link Layer 收到上层要发送 TLP 时候，首先拼接 Sequence Number 和 LCRC，然后会保存在 retry buffer 中，通过 Physical Layer 发送。从 Physical Layer 收到新的 TLP/DLLP 时，会检查它的完整性（CRC），如果正确，就向发送方发送一个 Ack DLLP，并把 TLP 提交给 Transaction Layer；如果不正确，就向发送方发送一个 Nak DLLP。如果收到了 Ack DLLP，就可以把相应的 TLP 从 retry buffer 中删掉；如果收到了 Nak DLLP，则要重传。这样就实现了 TLP 的可靠传输。</p>
 <p>需要注意的是，TLP 和 DLLP 的区别：TLP 就像 IP，目的地址可能会跨越多跳；而 DLLP 是点对点地工作，所以一个 TLP 在转发的每一跳中，接受方都会发送一次 Ack DLLP。</p>
 <p>Data Link Layer 的流量是 Credit-based 的：接受方会告诉发送方自己的 Buffer 还有多少空间（Credit），然后发送方根据 Credit 来控制是否继续发送 TLP。</p>
-<h2 id="配置">配置</h2>
+<h2 id="_3">配置</h2>
 <p>接触 PCIe 的时候可能会有一个疑惑，就是这些 Bus Device Function 都是怎么分配的，分配完之后，访问请求又是怎么路由的。</p>
-<h3 id="路由">路由</h3>
+<h3 id="_4">路由</h3>
 <p>首先回顾一下，上面提到了 TLP 的 Memory 和 IO 是根据地址路由，Configuration 是根据 Bus Device Function 路由，而 PCIe 大概是一个树形的结构，叶子结点就是 PCIe 设备，非叶子结点是桥或者交换机。回想一下，IP 的路由是按照最长前缀匹配，如果在 PCIe 中还这样做的话，又太过于复杂了，毕竟 PCIe 可以人为地设定每个设备的地址，让地址满足一定的连续性和局部性，这样路由选择就非常简单了。</p>
 <p>观察 PCIe 标准中 7.3.3 Configuration Request Routing Rules，结合 MindShare 的书，看 Root Ports，Switches 和 Bridges 的要求，就知道 Configuration 请求是如何路由的：</p>
 <ul>
 <li>Configuration 请求只能由 Host Bridge 发起</li>
 <li>如果 Configuration 请求是 Type0，那么这个请求的目的设备就是当前设备</li>
-<li>如果 Configuration 请求是 Type1，
-<ul>
+<li>如果 Configuration 请求是 Type1，<ul>
 <li>如果请求的 Bus Number 等于某一个 Downstream Port 的 Secondary Bus Number，则把 Configuration 请求转换为 Type0，然后发给该 Downstream Port</li>
 <li>如果不等于，但是 Bus Number 属于某一个 Downstream Port 的 Secondary Bus Number 和 Subordinate Bus Number 之间，则不修改 Configuration 请求，发送给该 Downstream Port。</li>
 </ul>
@@ -181,17 +713,16 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 </ul>
 <p>如果类比一下 IP，那么分组在中途路由器转发的时候就是 Type1，Type0 就是最后一跳。路由就是直接按照几个不重合的 Bus Number 区间进行判断，没有复杂的最长前缀匹配。但是又有一个问题，如果按照 Bus 路由，那同一个 Bus 下不同的 Device 咋办？这就像是以太网，最后一跳的时候，如果同一个链路上有多个设备，那么多个设备都能收到，每个设备根据自己的 Device 号判断是否是发给自己的。PCI（注意不是 PCIe）总线也类似。随着速度越来越高，通过交换机，以太网已经变成了点对点，所以很少见到一个链路上同时有多个设备的情况了。PCIe 也一样，所以根据 Bus 路由就足够了。至于 lspci 看到的那些 Device 不等于 0 的设备，要么是兼容 PCI 设备的，要么是虚拟的，在设备内部进行路由的，并不是真的有一个 PCIe link 连了多个物理设备。</p>
 <p>所以简单理解一下，PCI 总线确实是一条总线，一条总线上很多设备。而 PCIe 实际上是一个网络，可以看作是很多个 PCI 总线连接在一起，可以把 Root Complex 或者 Switch 内部看成一个虚拟的有很多设备的 PCI 总线，而 PCIe Link 可以看成是只有一个设备的 PCI 总线。这样 PCIe 交换机可以看成若干个 PCI-PCI Bridge：</p>
-<p><img src="/images/pcie_bridge.png" alt=""></p>
+<p><img alt="" src="/images/pcie_bridge.png"/></p>
 <p>还有 MindShare 书中的图 3-5:</p>
-<p><img src="/images/pcie_system.png" alt=""></p>
+<p><img alt="" src="/images/pcie_system.png"/></p>
 <p>可以看到，这里的每一个 Bus 就是一个 PCI 总线，既有内部的虚拟 PCI 总线（Bus 0/2/6），也有 PCIe Link 充当的 PCI 总线（Bus 1/3/4/5/7/8/9）。在虚拟的 PCI 总线里，比如 PCIe Switch，一个 Device 对应一个 Downstream Port；而 PCIe Link 对应的 PCI 总线上就只有一个 Device。然后 PCIe Switch 的每个 Upstream Port 和 Downstream Port 里会记录三个 Bus Number：Primary(Pri)，Secondary(Sec) 和 Subordinate(Sub)。Primary 指的就是它上游直接连接的 PCI 总线编号，Sec 指的是下游直接连接的 PCI 总线编号，Sub 指的是它下游的最大 PCI 总线编号。</p>
 <p>这样，收到 Type1 的时候，Switch 按照各个 Downstream Port 的 Sec 和 Sub 进行判断，如果目标 Bus Number 等于 Sec，就转换为 Type0 发出去；如果大于 Sec，但是小于或等于 Sub，就原样发出去。可以看到，从 Host Bridge 到每个设备都可以通过这样的方式一路转发。</p>
 <p>既然 BDF 是把 Bus 划分为多个区间来路由的，那么 Memory 和 IO 请求也类似地可以对地址进行划分，变成多个区间，然后用类似的方法进行路由。</p>
 <p>这些用于路由的区间上下界，可以在各个端口的 Type1 Configuration Space 中找到：</p>
-<p><img src="/images/pcie_type1.png" alt=""></p>
+<p><img alt="" src="/images/pcie_type1.png"/></p>
 <ul>
-<li>路由 Type1 Configuration Request：Primary Bus Number, Secondary Bus Number, Subordinate Bus Number
-<ul>
+<li>路由 Type1 Configuration Request：Primary Bus Number, Secondary Bus Number, Subordinate Bus Number<ul>
 <li><code>Request Bus Number == Secondary Bus Number</code>: Type1 -&gt; Type0</li>
 <li><code>Secondary Bus Number &lt; Request Bus Number &lt;= Subordinate Bus Number</code>: Type1 -&gt; Type1</li>
 </ul>
@@ -201,135 +732,136 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 <li>路由 Non-Prefetchable Memory Request：<code>Memory Base &lt;= Memory Address &lt;= Memory Limit</code></li>
 </ul>
 <p>而具体到每一个设备上，设备会提供若干个 BAR（Base Address Register），在枚举设备的时候，会给 BAR 分配地址，然后把设备的地址进行合并，记录到 Switch 上的 Base 和 Limit，然后一直递归，一路更新到 Root Complex。这样，就完成了地址分配，以及请求的路由。</p>
-<h3 id="分配">分配</h3>
+<h3 id="_5">分配</h3>
 <p>既然知道了 BDF 是如何路由的，那么接下来的问题是，怎么枚举设备和交换机，分配 Bus Number。这个事情在系统启动的时候会做（例如 UEFI），Linux 中也有相关的代码。下面就来对着 <a href="https://github.com/tianocore/edk2">edk2</a> 的源代码来看看它是怎么做的。</p>
 <p>在 edk2 中，分配 Bus Number 的核心代码是 <code>PciScanBus</code> 函数：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">/**
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  Scan pci bus and assign bus number to the given PCI bus system.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  Bridge           Bridge device instance.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  StartBusNumber   start point.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  SubBusNumber     Point to sub bus number.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @param  PaddedBusRange   Customized bus number.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @retval EFI_SUCCESS      Successfully scanned and assigned bus number.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @retval other            Some error occurred when scanning pci bus.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">  @note   Feature flag PcdPciBusHotplugDeviceSupport determine whether need support hotplug.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">**/</span>
-</span></span><span style="display:flex;"><span>EFI_STATUS
-</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PciScanBus</span> (
-</span></span><span style="display:flex;"><span>  IN PCI_IO_DEVICE  <span style="color:#f92672">*</span>Bridge,
-</span></span><span style="display:flex;"><span>  IN UINT8          StartBusNumber,
-</span></span><span style="display:flex;"><span>  OUT UINT8         <span style="color:#f92672">*</span>SubBusNumber,
-</span></span><span style="display:flex;"><span>  OUT UINT8         <span style="color:#f92672">*</span>PaddedBusRange
-</span></span><span style="display:flex;"><span>  );
-</span></span></code></pre></div><p>输入一个桥设备和初始的 Bus Number，输出 Subordinate Bus Number，也就是分配的最大的 Bus Number，以及 Padded Bus Range，例如如果要考虑热插拔的话，就需要预留一些 Bus Number。它在 <code>PciRootBridgeEnumerator</code> 函数中被调用，传入的是 RootBridgeDev。你可能也猜到了，这个函数可以递归调用，从 Root Bridge 开始往下，遇到新的桥设备的时候，就继续递归，然后根据下一层分配的 Bus Number 来计算上一层的 Subordinate Bus Number。</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="cm">/**</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="cm">  Scan pci bus and assign bus number to the given PCI bus system.</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="cm">  @param  Bridge           Bridge device instance.</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="cm">  @param  StartBusNumber   start point.</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="cm">  @param  SubBusNumber     Point to sub bus number.</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="cm">  @param  PaddedBusRange   Customized bus number.</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="cm">  @retval EFI_SUCCESS      Successfully scanned and assigned bus number.</span>
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="cm">  @retval other            Some error occurred when scanning pci bus.</span>
+</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="cm">  @note   Feature flag PcdPciBusHotplugDeviceSupport determine whether need support hotplug.</span>
+</span><span id="__span-0-13"><a href="#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a>
+</span><span id="__span-0-14"><a href="#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="cm">**/</span>
+</span><span id="__span-0-15"><a href="#__codelineno-0-15" id="__codelineno-0-15" name="__codelineno-0-15"></a><span class="n">EFI_STATUS</span>
+</span><span id="__span-0-16"><a href="#__codelineno-0-16" id="__codelineno-0-16" name="__codelineno-0-16"></a><span class="nf">PciScanBus</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-0-17"><a href="#__codelineno-0-17" id="__codelineno-0-17" name="__codelineno-0-17"></a><span class="w">  </span><span class="n">IN</span><span class="w"> </span><span class="n">PCI_IO_DEVICE</span><span class="w">  </span><span class="o">*</span><span class="n">Bridge</span><span class="p">,</span>
+</span><span id="__span-0-18"><a href="#__codelineno-0-18" id="__codelineno-0-18" name="__codelineno-0-18"></a><span class="w">  </span><span class="n">IN</span><span class="w"> </span><span class="n">UINT8</span><span class="w">          </span><span class="n">StartBusNumber</span><span class="p">,</span>
+</span><span id="__span-0-19"><a href="#__codelineno-0-19" id="__codelineno-0-19" name="__codelineno-0-19"></a><span class="w">  </span><span class="n">OUT</span><span class="w"> </span><span class="n">UINT8</span><span class="w">         </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">,</span>
+</span><span id="__span-0-20"><a href="#__codelineno-0-20" id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="w">  </span><span class="n">OUT</span><span class="w"> </span><span class="n">UINT8</span><span class="w">         </span><span class="o">*</span><span class="n">PaddedBusRange</span>
+</span><span id="__span-0-21"><a href="#__codelineno-0-21" id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="w">  </span><span class="p">);</span>
+</span></code></pre></div>
+<p>输入一个桥设备和初始的 Bus Number，输出 Subordinate Bus Number，也就是分配的最大的 Bus Number，以及 Padded Bus Range，例如如果要考虑热插拔的话，就需要预留一些 Bus Number。它在 <code>PciRootBridgeEnumerator</code> 函数中被调用，传入的是 RootBridgeDev。你可能也猜到了，这个函数可以递归调用，从 Root Bridge 开始往下，遇到新的桥设备的时候，就继续递归，然后根据下一层分配的 Bus Number 来计算上一层的 Subordinate Bus Number。</p>
 <p><code>PciScanBus</code> 首先枚举当前桥设备下的所有 Device 和 Function，因为当前的桥设备已经被分配了 Bus Number，所以是可以访问它下面的 Device 和 Function 的。</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (Device <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; Device <span style="color:#f92672">&lt;=</span> PCI_MAX_DEVICE; Device<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>  TempReservedBusNum <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> (Func <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; Func <span style="color:#f92672">&lt;=</span> PCI_MAX_FUNC; Func<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Check to see whether a pci device is present
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    Status <span style="color:#f92672">=</span>
-</span></span><span style="display:flex;"><span>        PciDevicePresent(PciRootBridgeIo, <span style="color:#f92672">&amp;</span>Pci, StartBusNumber, Device, Func);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status) <span style="color:#f92672">&amp;&amp;</span> (Func <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// go to next device if there is no Function 0
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">break</span>;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">continue</span>;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Get the PCI device information
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    Status <span style="color:#f92672">=</span>
-</span></span><span style="display:flex;"><span>        PciSearchDevice(Bridge, <span style="color:#f92672">&amp;</span>Pci, StartBusNumber, Device, Func, <span style="color:#f92672">&amp;</span>PciDevice);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">continue</span>;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    PciAddress <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func, <span style="color:#ae81ff">0</span>);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (IS_PCI_BRIDGE(<span style="color:#f92672">&amp;</span>Pci) <span style="color:#f92672">||</span> IS_CARDBUS_BRIDGE(<span style="color:#f92672">&amp;</span>Pci)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// For PPB
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
-</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciAllocateBusNumber(Bridge, <span style="color:#f92672">*</span>SubBusNumber, <span style="color:#ae81ff">1</span>, SubBusNumber);
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Status;
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      SecondBus <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>SubBusNumber;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      Register <span style="color:#f92672">=</span> (UINT16)((SecondBus <span style="color:#f92672">&lt;&lt;</span> <span style="color:#ae81ff">8</span>) <span style="color:#f92672">|</span> (UINT16)StartBusNumber);
-</span></span><span style="display:flex;"><span>      Address <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func,
-</span></span><span style="display:flex;"><span>                                PCI_BRIDGE_PRIMARY_BUS_REGISTER_OFFSET);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciRootBridgeIo<span style="color:#f92672">-&gt;</span>Pci.Write(PciRootBridgeIo, EfiPciWidthUint16,
-</span></span><span style="display:flex;"><span>                                          Address, <span style="color:#ae81ff">1</span>, <span style="color:#f92672">&amp;</span>Register);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// If it is PPB, recursively search down this bridge
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (IS_PCI_BRIDGE(<span style="color:#f92672">&amp;</span>Pci)) {
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// Temporarily initialize SubBusNumber to maximum bus number to ensure
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// the PCI configuration transaction to go through any PPB
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        Register <span style="color:#f92672">=</span> PciGetMaxBusNumber(Bridge);
-</span></span><span style="display:flex;"><span>        Address <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func,
-</span></span><span style="display:flex;"><span>                                  PCI_BRIDGE_SUBORDINATE_BUS_REGISTER_OFFSET);
-</span></span><span style="display:flex;"><span>        Status <span style="color:#f92672">=</span> PciRootBridgeIo<span style="color:#f92672">-&gt;</span>Pci.Write(PciRootBridgeIo, EfiPciWidthUint8,
-</span></span><span style="display:flex;"><span>                                            Address, <span style="color:#ae81ff">1</span>, <span style="color:#f92672">&amp;</span>Register);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>        Status <span style="color:#f92672">=</span> PciScanBus(PciDevice, SecondBus, SubBusNumber, PaddedBusRange);
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">return</span> Status;
-</span></span><span style="display:flex;"><span>        }
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// Set the current maximum bus number under the PPB
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      Address <span style="color:#f92672">=</span> EFI_PCI_ADDRESS(StartBusNumber, Device, Func,
-</span></span><span style="display:flex;"><span>                                PCI_BRIDGE_SUBORDINATE_BUS_REGISTER_OFFSET);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciRootBridgeIo<span style="color:#f92672">-&gt;</span>Pci.Write(PciRootBridgeIo, EfiPciWidthUint8,
-</span></span><span style="display:flex;"><span>                                          Address, <span style="color:#ae81ff">1</span>, SubBusNumber);
-</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// It is device. Check PCI IOV for Bus reservation
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// Go through each function, just reserve the MAX ReservedBusNum for one
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// device
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">// OMITTED
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((Func <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>IS_PCI_MULTI_FUNC(<span style="color:#f92672">&amp;</span>Pci)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// Skip sub functions, this is not a multi function device
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
-</span></span><span style="display:flex;"><span>      Func <span style="color:#f92672">=</span> PCI_MAX_FUNC;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>从代码中去掉了一些热插拔相关的代码，简单来说，它的思路如下：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">Device</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">PCI_MAX_DEVICE</span><span class="p">;</span><span class="w"> </span><span class="n">Device</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="w">  </span><span class="n">TempReservedBusNum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Func</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">Func</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">PCI_MAX_FUNC</span><span class="p">;</span><span class="w"> </span><span class="n">Func</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="w">    </span><span class="c1">//</span>
+</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="w">    </span><span class="c1">// Check to see whether a pci device is present</span>
+</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="w">    </span><span class="c1">//</span>
+</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="w">    </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="w">        </span><span class="n">PciDevicePresent</span><span class="p">(</span><span class="n">PciRootBridgeIo</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Pci</span><span class="p">,</span><span class="w"> </span><span class="n">StartBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">Device</span><span class="p">,</span><span class="w"> </span><span class="n">Func</span><span class="p">);</span>
+</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a>
+</span><span id="__span-1-10"><a href="#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">Func</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-11"><a href="#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-12"><a href="#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="w">      </span><span class="c1">// go to next device if there is no Function 0</span>
+</span><span id="__span-1-13"><a href="#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-14"><a href="#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="w">      </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-1-15"><a href="#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-16"><a href="#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a>
+</span><span id="__span-1-17"><a href="#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-18"><a href="#__codelineno-1-18" id="__codelineno-1-18" name="__codelineno-1-18"></a><span class="w">      </span><span class="k">continue</span><span class="p">;</span>
+</span><span id="__span-1-19"><a href="#__codelineno-1-19" id="__codelineno-1-19" name="__codelineno-1-19"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-20"><a href="#__codelineno-1-20" id="__codelineno-1-20" name="__codelineno-1-20"></a>
+</span><span id="__span-1-21"><a href="#__codelineno-1-21" id="__codelineno-1-21" name="__codelineno-1-21"></a><span class="w">    </span><span class="c1">//</span>
+</span><span id="__span-1-22"><a href="#__codelineno-1-22" id="__codelineno-1-22" name="__codelineno-1-22"></a><span class="w">    </span><span class="c1">// Get the PCI device information</span>
+</span><span id="__span-1-23"><a href="#__codelineno-1-23" id="__codelineno-1-23" name="__codelineno-1-23"></a><span class="w">    </span><span class="c1">//</span>
+</span><span id="__span-1-24"><a href="#__codelineno-1-24" id="__codelineno-1-24" name="__codelineno-1-24"></a><span class="w">    </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-1-25"><a href="#__codelineno-1-25" id="__codelineno-1-25" name="__codelineno-1-25"></a><span class="w">        </span><span class="n">PciSearchDevice</span><span class="p">(</span><span class="n">Bridge</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Pci</span><span class="p">,</span><span class="w"> </span><span class="n">StartBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">Device</span><span class="p">,</span><span class="w"> </span><span class="n">Func</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">PciDevice</span><span class="p">);</span>
+</span><span id="__span-1-26"><a href="#__codelineno-1-26" id="__codelineno-1-26" name="__codelineno-1-26"></a>
+</span><span id="__span-1-27"><a href="#__codelineno-1-27" id="__codelineno-1-27" name="__codelineno-1-27"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-28"><a href="#__codelineno-1-28" id="__codelineno-1-28" name="__codelineno-1-28"></a><span class="w">      </span><span class="k">continue</span><span class="p">;</span>
+</span><span id="__span-1-29"><a href="#__codelineno-1-29" id="__codelineno-1-29" name="__codelineno-1-29"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-30"><a href="#__codelineno-1-30" id="__codelineno-1-30" name="__codelineno-1-30"></a>
+</span><span id="__span-1-31"><a href="#__codelineno-1-31" id="__codelineno-1-31" name="__codelineno-1-31"></a><span class="w">    </span><span class="n">PciAddress</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EFI_PCI_ADDRESS</span><span class="p">(</span><span class="n">StartBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">Device</span><span class="p">,</span><span class="w"> </span><span class="n">Func</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+</span><span id="__span-1-32"><a href="#__codelineno-1-32" id="__codelineno-1-32" name="__codelineno-1-32"></a>
+</span><span id="__span-1-33"><a href="#__codelineno-1-33" id="__codelineno-1-33" name="__codelineno-1-33"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">IS_PCI_BRIDGE</span><span class="p">(</span><span class="o">&amp;</span><span class="n">Pci</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">IS_CARDBUS_BRIDGE</span><span class="p">(</span><span class="o">&amp;</span><span class="n">Pci</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-34"><a href="#__codelineno-1-34" id="__codelineno-1-34" name="__codelineno-1-34"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-35"><a href="#__codelineno-1-35" id="__codelineno-1-35" name="__codelineno-1-35"></a><span class="w">      </span><span class="c1">// For PPB</span>
+</span><span id="__span-1-36"><a href="#__codelineno-1-36" id="__codelineno-1-36" name="__codelineno-1-36"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-37"><a href="#__codelineno-1-37" id="__codelineno-1-37" name="__codelineno-1-37"></a>
+</span><span id="__span-1-38"><a href="#__codelineno-1-38" id="__codelineno-1-38" name="__codelineno-1-38"></a><span class="w">      </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciAllocateBusNumber</span><span class="p">(</span><span class="n">Bridge</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">SubBusNumber</span><span class="p">);</span>
+</span><span id="__span-1-39"><a href="#__codelineno-1-39" id="__codelineno-1-39" name="__codelineno-1-39"></a><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-40"><a href="#__codelineno-1-40" id="__codelineno-1-40" name="__codelineno-1-40"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="p">;</span>
+</span><span id="__span-1-41"><a href="#__codelineno-1-41" id="__codelineno-1-41" name="__codelineno-1-41"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-1-42"><a href="#__codelineno-1-42" id="__codelineno-1-42" name="__codelineno-1-42"></a>
+</span><span id="__span-1-43"><a href="#__codelineno-1-43" id="__codelineno-1-43" name="__codelineno-1-43"></a><span class="w">      </span><span class="n">SecondBus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">;</span>
+</span><span id="__span-1-44"><a href="#__codelineno-1-44" id="__codelineno-1-44" name="__codelineno-1-44"></a>
+</span><span id="__span-1-45"><a href="#__codelineno-1-45" id="__codelineno-1-45" name="__codelineno-1-45"></a><span class="w">      </span><span class="n">Register</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">UINT16</span><span class="p">)((</span><span class="n">SecondBus</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">UINT16</span><span class="p">)</span><span class="n">StartBusNumber</span><span class="p">);</span>
+</span><span id="__span-1-46"><a href="#__codelineno-1-46" id="__codelineno-1-46" name="__codelineno-1-46"></a><span class="w">      </span><span class="n">Address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EFI_PCI_ADDRESS</span><span class="p">(</span><span class="n">StartBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">Device</span><span class="p">,</span><span class="w"> </span><span class="n">Func</span><span class="p">,</span>
+</span><span id="__span-1-47"><a href="#__codelineno-1-47" id="__codelineno-1-47" name="__codelineno-1-47"></a><span class="w">                                </span><span class="n">PCI_BRIDGE_PRIMARY_BUS_REGISTER_OFFSET</span><span class="p">);</span>
+</span><span id="__span-1-48"><a href="#__codelineno-1-48" id="__codelineno-1-48" name="__codelineno-1-48"></a>
+</span><span id="__span-1-49"><a href="#__codelineno-1-49" id="__codelineno-1-49" name="__codelineno-1-49"></a><span class="w">      </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciRootBridgeIo</span><span class="o">-&gt;</span><span class="n">Pci</span><span class="p">.</span><span class="n">Write</span><span class="p">(</span><span class="n">PciRootBridgeIo</span><span class="p">,</span><span class="w"> </span><span class="n">EfiPciWidthUint16</span><span class="p">,</span>
+</span><span id="__span-1-50"><a href="#__codelineno-1-50" id="__codelineno-1-50" name="__codelineno-1-50"></a><span class="w">                                          </span><span class="n">Address</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Register</span><span class="p">);</span>
+</span><span id="__span-1-51"><a href="#__codelineno-1-51" id="__codelineno-1-51" name="__codelineno-1-51"></a>
+</span><span id="__span-1-52"><a href="#__codelineno-1-52" id="__codelineno-1-52" name="__codelineno-1-52"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-53"><a href="#__codelineno-1-53" id="__codelineno-1-53" name="__codelineno-1-53"></a><span class="w">      </span><span class="c1">// If it is PPB, recursively search down this bridge</span>
+</span><span id="__span-1-54"><a href="#__codelineno-1-54" id="__codelineno-1-54" name="__codelineno-1-54"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-55"><a href="#__codelineno-1-55" id="__codelineno-1-55" name="__codelineno-1-55"></a><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">IS_PCI_BRIDGE</span><span class="p">(</span><span class="o">&amp;</span><span class="n">Pci</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-56"><a href="#__codelineno-1-56" id="__codelineno-1-56" name="__codelineno-1-56"></a><span class="w">        </span><span class="c1">//</span>
+</span><span id="__span-1-57"><a href="#__codelineno-1-57" id="__codelineno-1-57" name="__codelineno-1-57"></a><span class="w">        </span><span class="c1">// Temporarily initialize SubBusNumber to maximum bus number to ensure</span>
+</span><span id="__span-1-58"><a href="#__codelineno-1-58" id="__codelineno-1-58" name="__codelineno-1-58"></a><span class="w">        </span><span class="c1">// the PCI configuration transaction to go through any PPB</span>
+</span><span id="__span-1-59"><a href="#__codelineno-1-59" id="__codelineno-1-59" name="__codelineno-1-59"></a><span class="w">        </span><span class="c1">//</span>
+</span><span id="__span-1-60"><a href="#__codelineno-1-60" id="__codelineno-1-60" name="__codelineno-1-60"></a><span class="w">        </span><span class="n">Register</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciGetMaxBusNumber</span><span class="p">(</span><span class="n">Bridge</span><span class="p">);</span>
+</span><span id="__span-1-61"><a href="#__codelineno-1-61" id="__codelineno-1-61" name="__codelineno-1-61"></a><span class="w">        </span><span class="n">Address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EFI_PCI_ADDRESS</span><span class="p">(</span><span class="n">StartBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">Device</span><span class="p">,</span><span class="w"> </span><span class="n">Func</span><span class="p">,</span>
+</span><span id="__span-1-62"><a href="#__codelineno-1-62" id="__codelineno-1-62" name="__codelineno-1-62"></a><span class="w">                                  </span><span class="n">PCI_BRIDGE_SUBORDINATE_BUS_REGISTER_OFFSET</span><span class="p">);</span>
+</span><span id="__span-1-63"><a href="#__codelineno-1-63" id="__codelineno-1-63" name="__codelineno-1-63"></a><span class="w">        </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciRootBridgeIo</span><span class="o">-&gt;</span><span class="n">Pci</span><span class="p">.</span><span class="n">Write</span><span class="p">(</span><span class="n">PciRootBridgeIo</span><span class="p">,</span><span class="w"> </span><span class="n">EfiPciWidthUint8</span><span class="p">,</span>
+</span><span id="__span-1-64"><a href="#__codelineno-1-64" id="__codelineno-1-64" name="__codelineno-1-64"></a><span class="w">                                            </span><span class="n">Address</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Register</span><span class="p">);</span>
+</span><span id="__span-1-65"><a href="#__codelineno-1-65" id="__codelineno-1-65" name="__codelineno-1-65"></a>
+</span><span id="__span-1-66"><a href="#__codelineno-1-66" id="__codelineno-1-66" name="__codelineno-1-66"></a><span class="w">        </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciScanBus</span><span class="p">(</span><span class="n">PciDevice</span><span class="p">,</span><span class="w"> </span><span class="n">SecondBus</span><span class="p">,</span><span class="w"> </span><span class="n">SubBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">PaddedBusRange</span><span class="p">);</span>
+</span><span id="__span-1-67"><a href="#__codelineno-1-67" id="__codelineno-1-67" name="__codelineno-1-67"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-68"><a href="#__codelineno-1-68" id="__codelineno-1-68" name="__codelineno-1-68"></a><span class="w">          </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="p">;</span>
+</span><span id="__span-1-69"><a href="#__codelineno-1-69" id="__codelineno-1-69" name="__codelineno-1-69"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-1-70"><a href="#__codelineno-1-70" id="__codelineno-1-70" name="__codelineno-1-70"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-1-71"><a href="#__codelineno-1-71" id="__codelineno-1-71" name="__codelineno-1-71"></a>
+</span><span id="__span-1-72"><a href="#__codelineno-1-72" id="__codelineno-1-72" name="__codelineno-1-72"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-73"><a href="#__codelineno-1-73" id="__codelineno-1-73" name="__codelineno-1-73"></a><span class="w">      </span><span class="c1">// Set the current maximum bus number under the PPB</span>
+</span><span id="__span-1-74"><a href="#__codelineno-1-74" id="__codelineno-1-74" name="__codelineno-1-74"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-75"><a href="#__codelineno-1-75" id="__codelineno-1-75" name="__codelineno-1-75"></a><span class="w">      </span><span class="n">Address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EFI_PCI_ADDRESS</span><span class="p">(</span><span class="n">StartBusNumber</span><span class="p">,</span><span class="w"> </span><span class="n">Device</span><span class="p">,</span><span class="w"> </span><span class="n">Func</span><span class="p">,</span>
+</span><span id="__span-1-76"><a href="#__codelineno-1-76" id="__codelineno-1-76" name="__codelineno-1-76"></a><span class="w">                                </span><span class="n">PCI_BRIDGE_SUBORDINATE_BUS_REGISTER_OFFSET</span><span class="p">);</span>
+</span><span id="__span-1-77"><a href="#__codelineno-1-77" id="__codelineno-1-77" name="__codelineno-1-77"></a>
+</span><span id="__span-1-78"><a href="#__codelineno-1-78" id="__codelineno-1-78" name="__codelineno-1-78"></a><span class="w">      </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciRootBridgeIo</span><span class="o">-&gt;</span><span class="n">Pci</span><span class="p">.</span><span class="n">Write</span><span class="p">(</span><span class="n">PciRootBridgeIo</span><span class="p">,</span><span class="w"> </span><span class="n">EfiPciWidthUint8</span><span class="p">,</span>
+</span><span id="__span-1-79"><a href="#__codelineno-1-79" id="__codelineno-1-79" name="__codelineno-1-79"></a><span class="w">                                          </span><span class="n">Address</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">SubBusNumber</span><span class="p">);</span>
+</span><span id="__span-1-80"><a href="#__codelineno-1-80" id="__codelineno-1-80" name="__codelineno-1-80"></a><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-81"><a href="#__codelineno-1-81" id="__codelineno-1-81" name="__codelineno-1-81"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-82"><a href="#__codelineno-1-82" id="__codelineno-1-82" name="__codelineno-1-82"></a><span class="w">      </span><span class="c1">// It is device. Check PCI IOV for Bus reservation</span>
+</span><span id="__span-1-83"><a href="#__codelineno-1-83" id="__codelineno-1-83" name="__codelineno-1-83"></a><span class="w">      </span><span class="c1">// Go through each function, just reserve the MAX ReservedBusNum for one</span>
+</span><span id="__span-1-84"><a href="#__codelineno-1-84" id="__codelineno-1-84" name="__codelineno-1-84"></a><span class="w">      </span><span class="c1">// device</span>
+</span><span id="__span-1-85"><a href="#__codelineno-1-85" id="__codelineno-1-85" name="__codelineno-1-85"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-86"><a href="#__codelineno-1-86" id="__codelineno-1-86" name="__codelineno-1-86"></a>
+</span><span id="__span-1-87"><a href="#__codelineno-1-87" id="__codelineno-1-87" name="__codelineno-1-87"></a><span class="w">      </span><span class="c1">// OMITTED</span>
+</span><span id="__span-1-88"><a href="#__codelineno-1-88" id="__codelineno-1-88" name="__codelineno-1-88"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-89"><a href="#__codelineno-1-89" id="__codelineno-1-89" name="__codelineno-1-89"></a>
+</span><span id="__span-1-90"><a href="#__codelineno-1-90" id="__codelineno-1-90" name="__codelineno-1-90"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">Func</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">IS_PCI_MULTI_FUNC</span><span class="p">(</span><span class="o">&amp;</span><span class="n">Pci</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-91"><a href="#__codelineno-1-91" id="__codelineno-1-91" name="__codelineno-1-91"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-92"><a href="#__codelineno-1-92" id="__codelineno-1-92" name="__codelineno-1-92"></a><span class="w">      </span><span class="c1">// Skip sub functions, this is not a multi function device</span>
+</span><span id="__span-1-93"><a href="#__codelineno-1-93" id="__codelineno-1-93" name="__codelineno-1-93"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-1-94"><a href="#__codelineno-1-94" id="__codelineno-1-94" name="__codelineno-1-94"></a>
+</span><span id="__span-1-95"><a href="#__codelineno-1-95" id="__codelineno-1-95" name="__codelineno-1-95"></a><span class="w">      </span><span class="n">Func</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PCI_MAX_FUNC</span><span class="p">;</span>
+</span><span id="__span-1-96"><a href="#__codelineno-1-96" id="__codelineno-1-96" name="__codelineno-1-96"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-97"><a href="#__codelineno-1-97" id="__codelineno-1-97" name="__codelineno-1-97"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-1-98"><a href="#__codelineno-1-98" id="__codelineno-1-98" name="__codelineno-1-98"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>从代码中去掉了一些热插拔相关的代码，简单来说，它的思路如下：</p>
 <ol>
 <li>枚举当前设备下的 Device 和 Function</li>
-<li>如果找到了一个桥设备，为它分配一个新的 Bus Number
-<ol>
+<li>如果找到了一个桥设备，为它分配一个新的 Bus Number<ol>
 <li>设置这个新的桥设备的 Primary Bus Number 为 Start Bus Number（也就是上一级的 Secondary Bus Number），Secondary Bus 是新分配的 Bus Number，Subordinate Bus Number 是最大值</li>
 <li>这样设置完成后，相当于所有的在 <code>[Secondary Bus Number, Max Bus Number]</code> 范围中的 Bus 请求都会路由到新的桥设备上</li>
 <li>递归调用 PciScanBus，参数是新的桥设备，Start Bus Number 为新的 Secondary Bus Number</li>
@@ -340,95 +872,97 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 </ol>
 <p>这样整理出来一看，其实很清楚，这就是一个 DFS 算法，在搜索过程中，为了保证当前的结点可达，保证从 Root Bridge 到当前的结点路径上的 Bus Number 范围都是 <code>[Secondary Bus Number, Max Bus Number]</code>；当结点搜索完以后，再回溯，回溯的时候就知道了实际分配到多大的 Bus Number，这时候再填回 Subordinate Bus Number，最后保证这个树上每一层的 <code>[Secondary Bus Number, Subordinate Bus Number]</code> 区间不重合，且每个子结点的区间都包含于父结点的区间。</p>
 <p>最后的结果，类似 MindShare 书中的这个图：</p>
-<p><img src="/images/pcie_enum.png" alt=""></p>
+<p><img alt="" src="/images/pcie_enum.png"/></p>
 <p>为了支持 PCIe 热插拔，或者可能会动态产生新设备的 SR-IOV，代码中做了相应的预留：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (FeaturePcdGet(PcdPciBusHotplugDeviceSupport)) {
-</span></span><span style="display:flex;"><span>  <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">// If Hot Plug is supported,
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">// Get the bridge information
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  BusPadding <span style="color:#f92672">=</span> FALSE;
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (gPciHotPlugInit <span style="color:#f92672">!=</span> NULL) {
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (IsPciHotPlugBus(PciDevice)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">// If it is initialized, get the padded bus range
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      Status <span style="color:#f92672">=</span> gPciHotPlugInit<span style="color:#f92672">-&gt;</span>GetResourcePadding(
-</span></span><span style="display:flex;"><span>          gPciHotPlugInit, PciDevice<span style="color:#f92672">-&gt;</span>DevicePath, PciAddress, <span style="color:#f92672">&amp;</span>State,
-</span></span><span style="display:flex;"><span>          (VOID <span style="color:#f92672">**</span>)<span style="color:#f92672">&amp;</span>Descriptors, <span style="color:#f92672">&amp;</span>Attributes);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Status;
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      BusRange <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>      NextDescriptors <span style="color:#f92672">=</span> Descriptors;
-</span></span><span style="display:flex;"><span>      Status <span style="color:#f92672">=</span> PciGetBusRange(<span style="color:#f92672">&amp;</span>NextDescriptors, NULL, NULL, <span style="color:#f92672">&amp;</span>BusRange);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      FreePool(Descriptors);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>        BusPadding <span style="color:#f92672">=</span> TRUE;
-</span></span><span style="display:flex;"><span>      } <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">if</span> (Status <span style="color:#f92672">!=</span> EFI_NOT_FOUND) {
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// EFI_NOT_FOUND is not a real error. It indicates no bus number padding
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// requested.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">return</span> Status;
-</span></span><span style="display:flex;"><span>      }
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (FeaturePcdGet(PcdPciBusHotplugDeviceSupport) <span style="color:#f92672">&amp;&amp;</span> BusPadding) {
-</span></span><span style="display:flex;"><span>  <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">// Ensure the device is enabled and initialized
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">if</span> ((Attributes <span style="color:#f92672">==</span> EfiPaddingPciRootBridge) <span style="color:#f92672">&amp;&amp;</span>
-</span></span><span style="display:flex;"><span>      ((State <span style="color:#f92672">&amp;</span> EFI_HPC_STATE_ENABLED) <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span>
-</span></span><span style="display:flex;"><span>      ((State <span style="color:#f92672">&amp;</span> EFI_HPC_STATE_INITIALIZED) <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>)) {
-</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>PaddedBusRange <span style="color:#f92672">=</span> (UINT8)((UINT8)(BusRange) <span style="color:#f92672">+</span> <span style="color:#f92672">*</span>PaddedBusRange);
-</span></span><span style="display:flex;"><span>  } <span style="color:#66d9ef">else</span> {
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Reserve the larger one between the actual occupied bus number and padded
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// bus number
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    Status <span style="color:#f92672">=</span> PciAllocateBusNumber(PciDevice, SecondBus, (UINT8)(BusRange),
-</span></span><span style="display:flex;"><span>                                  <span style="color:#f92672">&amp;</span>PaddedSubBus);
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> Status;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>SubBusNumber <span style="color:#f92672">=</span> MAX(PaddedSubBus, <span style="color:#f92672">*</span>SubBusNumber);
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>SR-IOV:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// It is device. Check PCI IOV for Bus reservation
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Go through each function, just reserve the MAX ReservedBusNum for one device
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">if</span> (PcdGetBool(PcdSrIovSupport) <span style="color:#f92672">&amp;&amp;</span> (PciDevice<span style="color:#f92672">-&gt;</span>SrIovCapabilityOffset <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>)) {
-</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (TempReservedBusNum <span style="color:#f92672">&lt;</span> PciDevice<span style="color:#f92672">-&gt;</span>ReservedBusNum) {
-</span></span><span style="display:flex;"><span>    Status <span style="color:#f92672">=</span> PciAllocateBusNumber(
-</span></span><span style="display:flex;"><span>        PciDevice, <span style="color:#f92672">*</span>SubBusNumber,
-</span></span><span style="display:flex;"><span>        (UINT8)(PciDevice<span style="color:#f92672">-&gt;</span>ReservedBusNum <span style="color:#f92672">-</span> TempReservedBusNum), SubBusNumber);
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (EFI_ERROR(Status)) {
-</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> Status;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    TempReservedBusNum <span style="color:#f92672">=</span> PciDevice<span style="color:#f92672">-&gt;</span>ReservedBusNum;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (Func <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
-</span></span><span style="display:flex;"><span>      DEBUG((DEBUG_INFO, <span style="color:#e6db74">&#34;PCI-IOV ScanBus - SubBusNumber - 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
-</span></span><span style="display:flex;"><span>             <span style="color:#f92672">*</span>SubBusNumber));
-</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
-</span></span><span style="display:flex;"><span>      DEBUG((DEBUG_INFO, <span style="color:#e6db74">&#34;PCI-IOV ScanBus - SubBusNumber - 0x%x (Update)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
-</span></span><span style="display:flex;"><span>             <span style="color:#f92672">*</span>SubBusNumber));
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>分配好 Bus 以后，就可以对所有设备进行 Configuration Request 了，后续的 Memory 和 IO 地址的分配和路由，也是类似地递归地进行分配，然后回溯的时候合并地址区间即可。</p>
-<h2 id="物理层">物理层</h2>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">FeaturePcdGet</span><span class="p">(</span><span class="n">PcdPciBusHotplugDeviceSupport</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="w">  </span><span class="c1">//</span>
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="w">  </span><span class="c1">// If Hot Plug is supported,</span>
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">  </span><span class="c1">// Get the bridge information</span>
+</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">  </span><span class="c1">//</span>
+</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a><span class="w">  </span><span class="n">BusPadding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">FALSE</span><span class="p">;</span>
+</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">gPciHotPlugInit</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">IsPciHotPlugBus</span><span class="p">(</span><span class="n">PciDevice</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-2-10"><a href="#__codelineno-2-10" id="__codelineno-2-10" name="__codelineno-2-10"></a><span class="w">      </span><span class="c1">// If it is initialized, get the padded bus range</span>
+</span><span id="__span-2-11"><a href="#__codelineno-2-11" id="__codelineno-2-11" name="__codelineno-2-11"></a><span class="w">      </span><span class="c1">//</span>
+</span><span id="__span-2-12"><a href="#__codelineno-2-12" id="__codelineno-2-12" name="__codelineno-2-12"></a><span class="w">      </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">gPciHotPlugInit</span><span class="o">-&gt;</span><span class="n">GetResourcePadding</span><span class="p">(</span>
+</span><span id="__span-2-13"><a href="#__codelineno-2-13" id="__codelineno-2-13" name="__codelineno-2-13"></a><span class="w">          </span><span class="n">gPciHotPlugInit</span><span class="p">,</span><span class="w"> </span><span class="n">PciDevice</span><span class="o">-&gt;</span><span class="n">DevicePath</span><span class="p">,</span><span class="w"> </span><span class="n">PciAddress</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">State</span><span class="p">,</span>
+</span><span id="__span-2-14"><a href="#__codelineno-2-14" id="__codelineno-2-14" name="__codelineno-2-14"></a><span class="w">          </span><span class="p">(</span><span class="n">VOID</span><span class="w"> </span><span class="o">**</span><span class="p">)</span><span class="o">&amp;</span><span class="n">Descriptors</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Attributes</span><span class="p">);</span>
+</span><span id="__span-2-15"><a href="#__codelineno-2-15" id="__codelineno-2-15" name="__codelineno-2-15"></a>
+</span><span id="__span-2-16"><a href="#__codelineno-2-16" id="__codelineno-2-16" name="__codelineno-2-16"></a><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-17"><a href="#__codelineno-2-17" id="__codelineno-2-17" name="__codelineno-2-17"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="p">;</span>
+</span><span id="__span-2-18"><a href="#__codelineno-2-18" id="__codelineno-2-18" name="__codelineno-2-18"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-2-19"><a href="#__codelineno-2-19" id="__codelineno-2-19" name="__codelineno-2-19"></a>
+</span><span id="__span-2-20"><a href="#__codelineno-2-20" id="__codelineno-2-20" name="__codelineno-2-20"></a><span class="w">      </span><span class="n">BusRange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-2-21"><a href="#__codelineno-2-21" id="__codelineno-2-21" name="__codelineno-2-21"></a><span class="w">      </span><span class="n">NextDescriptors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Descriptors</span><span class="p">;</span>
+</span><span id="__span-2-22"><a href="#__codelineno-2-22" id="__codelineno-2-22" name="__codelineno-2-22"></a><span class="w">      </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciGetBusRange</span><span class="p">(</span><span class="o">&amp;</span><span class="n">NextDescriptors</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">BusRange</span><span class="p">);</span>
+</span><span id="__span-2-23"><a href="#__codelineno-2-23" id="__codelineno-2-23" name="__codelineno-2-23"></a>
+</span><span id="__span-2-24"><a href="#__codelineno-2-24" id="__codelineno-2-24" name="__codelineno-2-24"></a><span class="w">      </span><span class="n">FreePool</span><span class="p">(</span><span class="n">Descriptors</span><span class="p">);</span>
+</span><span id="__span-2-25"><a href="#__codelineno-2-25" id="__codelineno-2-25" name="__codelineno-2-25"></a>
+</span><span id="__span-2-26"><a href="#__codelineno-2-26" id="__codelineno-2-26" name="__codelineno-2-26"></a><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-27"><a href="#__codelineno-2-27" id="__codelineno-2-27" name="__codelineno-2-27"></a><span class="w">        </span><span class="n">BusPadding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TRUE</span><span class="p">;</span>
+</span><span id="__span-2-28"><a href="#__codelineno-2-28" id="__codelineno-2-28" name="__codelineno-2-28"></a><span class="w">      </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Status</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">EFI_NOT_FOUND</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-29"><a href="#__codelineno-2-29" id="__codelineno-2-29" name="__codelineno-2-29"></a><span class="w">        </span><span class="c1">//</span>
+</span><span id="__span-2-30"><a href="#__codelineno-2-30" id="__codelineno-2-30" name="__codelineno-2-30"></a><span class="w">        </span><span class="c1">// EFI_NOT_FOUND is not a real error. It indicates no bus number padding</span>
+</span><span id="__span-2-31"><a href="#__codelineno-2-31" id="__codelineno-2-31" name="__codelineno-2-31"></a><span class="w">        </span><span class="c1">// requested.</span>
+</span><span id="__span-2-32"><a href="#__codelineno-2-32" id="__codelineno-2-32" name="__codelineno-2-32"></a><span class="w">        </span><span class="c1">//</span>
+</span><span id="__span-2-33"><a href="#__codelineno-2-33" id="__codelineno-2-33" name="__codelineno-2-33"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="p">;</span>
+</span><span id="__span-2-34"><a href="#__codelineno-2-34" id="__codelineno-2-34" name="__codelineno-2-34"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-2-35"><a href="#__codelineno-2-35" id="__codelineno-2-35" name="__codelineno-2-35"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-2-36"><a href="#__codelineno-2-36" id="__codelineno-2-36" name="__codelineno-2-36"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-2-37"><a href="#__codelineno-2-37" id="__codelineno-2-37" name="__codelineno-2-37"></a><span class="p">}</span>
+</span><span id="__span-2-38"><a href="#__codelineno-2-38" id="__codelineno-2-38" name="__codelineno-2-38"></a>
+</span><span id="__span-2-39"><a href="#__codelineno-2-39" id="__codelineno-2-39" name="__codelineno-2-39"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">FeaturePcdGet</span><span class="p">(</span><span class="n">PcdPciBusHotplugDeviceSupport</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">BusPadding</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-40"><a href="#__codelineno-2-40" id="__codelineno-2-40" name="__codelineno-2-40"></a><span class="w">  </span><span class="c1">//</span>
+</span><span id="__span-2-41"><a href="#__codelineno-2-41" id="__codelineno-2-41" name="__codelineno-2-41"></a><span class="w">  </span><span class="c1">// Ensure the device is enabled and initialized</span>
+</span><span id="__span-2-42"><a href="#__codelineno-2-42" id="__codelineno-2-42" name="__codelineno-2-42"></a><span class="w">  </span><span class="c1">//</span>
+</span><span id="__span-2-43"><a href="#__codelineno-2-43" id="__codelineno-2-43" name="__codelineno-2-43"></a><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">Attributes</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">EfiPaddingPciRootBridge</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+</span><span id="__span-2-44"><a href="#__codelineno-2-44" id="__codelineno-2-44" name="__codelineno-2-44"></a><span class="w">      </span><span class="p">((</span><span class="n">State</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">EFI_HPC_STATE_ENABLED</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+</span><span id="__span-2-45"><a href="#__codelineno-2-45" id="__codelineno-2-45" name="__codelineno-2-45"></a><span class="w">      </span><span class="p">((</span><span class="n">State</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">EFI_HPC_STATE_INITIALIZED</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-46"><a href="#__codelineno-2-46" id="__codelineno-2-46" name="__codelineno-2-46"></a><span class="w">    </span><span class="o">*</span><span class="n">PaddedBusRange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">UINT8</span><span class="p">)((</span><span class="n">UINT8</span><span class="p">)(</span><span class="n">BusRange</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">*</span><span class="n">PaddedBusRange</span><span class="p">);</span>
+</span><span id="__span-2-47"><a href="#__codelineno-2-47" id="__codelineno-2-47" name="__codelineno-2-47"></a><span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-48"><a href="#__codelineno-2-48" id="__codelineno-2-48" name="__codelineno-2-48"></a><span class="w">    </span><span class="c1">//</span>
+</span><span id="__span-2-49"><a href="#__codelineno-2-49" id="__codelineno-2-49" name="__codelineno-2-49"></a><span class="w">    </span><span class="c1">// Reserve the larger one between the actual occupied bus number and padded</span>
+</span><span id="__span-2-50"><a href="#__codelineno-2-50" id="__codelineno-2-50" name="__codelineno-2-50"></a><span class="w">    </span><span class="c1">// bus number</span>
+</span><span id="__span-2-51"><a href="#__codelineno-2-51" id="__codelineno-2-51" name="__codelineno-2-51"></a><span class="w">    </span><span class="c1">//</span>
+</span><span id="__span-2-52"><a href="#__codelineno-2-52" id="__codelineno-2-52" name="__codelineno-2-52"></a><span class="w">    </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciAllocateBusNumber</span><span class="p">(</span><span class="n">PciDevice</span><span class="p">,</span><span class="w"> </span><span class="n">SecondBus</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">UINT8</span><span class="p">)(</span><span class="n">BusRange</span><span class="p">),</span>
+</span><span id="__span-2-53"><a href="#__codelineno-2-53" id="__codelineno-2-53" name="__codelineno-2-53"></a><span class="w">                                  </span><span class="o">&amp;</span><span class="n">PaddedSubBus</span><span class="p">);</span>
+</span><span id="__span-2-54"><a href="#__codelineno-2-54" id="__codelineno-2-54" name="__codelineno-2-54"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-55"><a href="#__codelineno-2-55" id="__codelineno-2-55" name="__codelineno-2-55"></a><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="p">;</span>
+</span><span id="__span-2-56"><a href="#__codelineno-2-56" id="__codelineno-2-56" name="__codelineno-2-56"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-2-57"><a href="#__codelineno-2-57" id="__codelineno-2-57" name="__codelineno-2-57"></a>
+</span><span id="__span-2-58"><a href="#__codelineno-2-58" id="__codelineno-2-58" name="__codelineno-2-58"></a><span class="w">    </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MAX</span><span class="p">(</span><span class="n">PaddedSubBus</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">);</span>
+</span><span id="__span-2-59"><a href="#__codelineno-2-59" id="__codelineno-2-59" name="__codelineno-2-59"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-2-60"><a href="#__codelineno-2-60" id="__codelineno-2-60" name="__codelineno-2-60"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>SR-IOV:</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="c1">//</span>
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="c1">// It is device. Check PCI IOV for Bus reservation</span>
+</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a><span class="c1">// Go through each function, just reserve the MAX ReservedBusNum for one device</span>
+</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a><span class="c1">//</span>
+</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">PcdGetBool</span><span class="p">(</span><span class="n">PcdSrIovSupport</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">PciDevice</span><span class="o">-&gt;</span><span class="n">SrIovCapabilityOffset</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">TempReservedBusNum</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">PciDevice</span><span class="o">-&gt;</span><span class="n">ReservedBusNum</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-7"><a href="#__codelineno-3-7" id="__codelineno-3-7" name="__codelineno-3-7"></a><span class="w">    </span><span class="n">Status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciAllocateBusNumber</span><span class="p">(</span>
+</span><span id="__span-3-8"><a href="#__codelineno-3-8" id="__codelineno-3-8" name="__codelineno-3-8"></a><span class="w">        </span><span class="n">PciDevice</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">,</span>
+</span><span id="__span-3-9"><a href="#__codelineno-3-9" id="__codelineno-3-9" name="__codelineno-3-9"></a><span class="w">        </span><span class="p">(</span><span class="n">UINT8</span><span class="p">)(</span><span class="n">PciDevice</span><span class="o">-&gt;</span><span class="n">ReservedBusNum</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">TempReservedBusNum</span><span class="p">),</span><span class="w"> </span><span class="n">SubBusNumber</span><span class="p">);</span>
+</span><span id="__span-3-10"><a href="#__codelineno-3-10" id="__codelineno-3-10" name="__codelineno-3-10"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">EFI_ERROR</span><span class="p">(</span><span class="n">Status</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-11"><a href="#__codelineno-3-11" id="__codelineno-3-11" name="__codelineno-3-11"></a><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="n">Status</span><span class="p">;</span>
+</span><span id="__span-3-12"><a href="#__codelineno-3-12" id="__codelineno-3-12" name="__codelineno-3-12"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-13"><a href="#__codelineno-3-13" id="__codelineno-3-13" name="__codelineno-3-13"></a>
+</span><span id="__span-3-14"><a href="#__codelineno-3-14" id="__codelineno-3-14" name="__codelineno-3-14"></a><span class="w">    </span><span class="n">TempReservedBusNum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PciDevice</span><span class="o">-&gt;</span><span class="n">ReservedBusNum</span><span class="p">;</span>
+</span><span id="__span-3-15"><a href="#__codelineno-3-15" id="__codelineno-3-15" name="__codelineno-3-15"></a>
+</span><span id="__span-3-16"><a href="#__codelineno-3-16" id="__codelineno-3-16" name="__codelineno-3-16"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Func</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-17"><a href="#__codelineno-3-17" id="__codelineno-3-17" name="__codelineno-3-17"></a><span class="w">      </span><span class="n">DEBUG</span><span class="p">((</span><span class="n">DEBUG_INFO</span><span class="p">,</span><span class="w"> </span><span class="s">"PCI-IOV ScanBus - SubBusNumber - 0x%x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+</span><span id="__span-3-18"><a href="#__codelineno-3-18" id="__codelineno-3-18" name="__codelineno-3-18"></a><span class="w">             </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">));</span>
+</span><span id="__span-3-19"><a href="#__codelineno-3-19" id="__codelineno-3-19" name="__codelineno-3-19"></a><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-20"><a href="#__codelineno-3-20" id="__codelineno-3-20" name="__codelineno-3-20"></a><span class="w">      </span><span class="n">DEBUG</span><span class="p">((</span><span class="n">DEBUG_INFO</span><span class="p">,</span><span class="w"> </span><span class="s">"PCI-IOV ScanBus - SubBusNumber - 0x%x (Update)</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+</span><span id="__span-3-21"><a href="#__codelineno-3-21" id="__codelineno-3-21" name="__codelineno-3-21"></a><span class="w">             </span><span class="o">*</span><span class="n">SubBusNumber</span><span class="p">));</span>
+</span><span id="__span-3-22"><a href="#__codelineno-3-22" id="__codelineno-3-22" name="__codelineno-3-22"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-23"><a href="#__codelineno-3-23" id="__codelineno-3-23" name="__codelineno-3-23"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-3-24"><a href="#__codelineno-3-24" id="__codelineno-3-24" name="__codelineno-3-24"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>分配好 Bus 以后，就可以对所有设备进行 Configuration Request 了，后续的 Memory 和 IO 地址的分配和路由，也是类似地递归地进行分配，然后回溯的时候合并地址区间即可。</p>
+<h2 id="_6">物理层</h2>
 <p>物理层编码上，PCIe 1.0 和 2.0 采用的是 NRZ 8b/10b，PCIe 3.0 到 5.0 用的是 NRZ 128b/130b，最新的 PCIe 6.0 和 7.0 则换成了 PAM4 FLIT。可以计算出每一代 x16 Lane 情况下的最大数据带宽：</p>
 <ul>
 <li>PCIe 1.0: <code>2.5 * 8 / 10 * 16 = 32 Gb/s</code></li>
@@ -441,7 +975,7 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 </ul>
 <h2 id="pcie-60">PCIe 6.0</h2>
 <p>PCIe 6.0 引入了 PAM4 来替代原来的 NRZ，实现了波特率不变的情况下速度翻倍，并且不再使用 128b/130b，为了解决 PAM4 带来的更高的错误率，引入了 FEC，CRC 还有格雷码，以及新的 FLIT。</p>
-<p>网上可以搜到关于 PCIe 的 PPT：https://pcisig.com/sites/default/files/files/PCIe%206.0%20Webinar_Final_.pdf 和 <a href="https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206_DDasSharma.pdf">https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206_DDasSharma.pdf</a>，以及关于 FLIT 的博客：https://pcisig.com/blog/pcie%C2%AE-60-specification-webinar-qa-deeper-dive-flit-mode-pam4-and-forward-error-correction-fec</p>
+<p>网上可以搜到关于 PCIe 的 PPT：https://pcisig.com/sites/default/files/files/PCIe%206.0%20Webinar_Final_.pdf 和 https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206_DDasSharma.pdf，以及关于 FLIT 的博客：https://pcisig.com/blog/pcie%C2%AE-60-specification-webinar-qa-deeper-dive-flit-mode-pam4-and-forward-error-correction-fec</p>
 <p>总结 FLIT 的要点：</p>
 <ol>
 <li>每个 FLIT 固定长度 256 字节，其中 236 字节传输 TLP，6 字节传输 DLLP，8 字节传输 CRC，6 字节传输 FEC。</li>
@@ -450,9 +984,9 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 </ol>
 <p>可以发现，FLIT 的 CRC 用了 8 个字节，不再需要原来 TLP 和 DLLP 中的 ECRC 和 LCRC。在之前的 PCIe 版本，TLP 的可选 Digest 是 4 个字节的 ECRC，TLP+DLLP 的 LCRC 是 4 字节。具体采用多少字节的 CRC，和目标的错误率，以及传输的字节数相关。</p>
 <h2 id="ats">ATS</h2>
-<p>ATS（Address Translation Service）是在 PCIe 上给外设提供查询页表的方式，从而可以使用虚拟地址。标准可以在 <a href="https://composter.com.ua/documents/ats_r1.1_26Jan09.pdf">https://composter.com.ua/documents/ats_r1.1_26Jan09.pdf</a> 处下载，以及关于 ATS 的 PPT：https://composter.com.ua/documents/Address_Translation_Services.pdf。</p>
+<p>ATS（Address Translation Service）是在 PCIe 上给外设提供查询页表的方式，从而可以使用虚拟地址。标准可以在 https://composter.com.ua/documents/ats_r1.1_26Jan09.pdf 处下载，以及关于 ATS 的 PPT：https://composter.com.ua/documents/Address_Translation_Services.pdf。</p>
 <p>它的整体工作方式如图：</p>
-<p><img src="/images/pcie_ats.png" alt=""></p>
+<p><img alt="" src="/images/pcie_ats.png"/></p>
 <p>就是在 Root Complex 和 Memory 之间设置一个 Translation Agent，负责查表，也就是 Page Table Walker。它会接收来自 PCIe 设备的地址翻译请求，然后它获取到页表地址后，根据虚拟地址去查内存中的页表。TLB（在标准中叫做 Address Translation Cache，ATC）是实现在 PCIe 设备侧的，而不是统一的 TLB，也不是 CPU 核心的 TLB。</p>
 <p>为了支持 ATS，需要支持如下的操作：</p>
 <ol>
@@ -460,189 +994,100 @@ Memory: MMIO Read Request(MRd)/Completion(CplD) Write Request(MWr): 注意只有
 <li>当页表出现变化的时候，需要通知 PCIe 设备端的 TLB，因此需要向 PCIe 设备发送 Invalidate Request Message；PCIe 设备完成 TLB 刷新后，回复一个 Invalidate Complete Message。</li>
 </ol>
 <p>ATS 标准还定义了一个可选功能，就是 Page Request Interface（PRI），其实就是缺页的时候，设备可以去发送 Page Request，要求操作系统去分配一个物理页。这就像用户程序里 mmap 一个匿名的页，一开始是没有分配的，直到第一次访问的时候，出现缺页异常，然后 OS 分配一个物理页，再更新页表。这样的好处是用于 DMA 的物理页也可以 Swap 或者延迟分配。</p>
-
-        </div>
-
-        
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-  <ul>
-    <li><a href="#背景">背景</a></li>
-    <li><a href="#分层">分层</a>
-      <ul>
-        <li><a href="#transaction-layer">Transaction Layer</a></li>
-        <li><a href="#data-link-layer">Data Link Layer</a></li>
-      </ul>
-    </li>
-    <li><a href="#配置">配置</a>
-      <ul>
-        <li><a href="#路由">路由</a></li>
-        <li><a href="#分配">分配</a></li>
-      </ul>
-    </li>
-    <li><a href="#物理层">物理层</a></li>
-    <li><a href="#pcie-60">PCIe 6.0</a></li>
-    <li><a href="#ats">ATS</a></li>
-  </ul>
-</nav>
-        </div>
-        
-        
-
-        
-
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-        <script>
-            (function() {
-                var $toc = $('#TableOfContents');
-                if ($toc.length > 0) {
-                    var $window = $(window);
-
-                    function onScroll(){
-                        var currentScroll = $window.scrollTop();
-                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
-                        var id = "";
-                        h.each(function (i, e) {
-                            e = $(e);
-                            if (e.offset().top - 10 <= currentScroll) {
-                                id = e.attr('id');
-                            }
-                        });
-                        var active = $toc.find('a.active');
-                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
-
-                        active.each(function (i, e) {
-                            $(e).removeClass('active').siblings('ul').hide();
-                        });
-                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
-                            $(e).children('a').addClass('active').siblings('ul').show();
-                        });
-                    }
-
-                    $window.on('scroll', onScroll);
-                    $(document).ready(function() {
-                        $toc.find('a').parent('li').find('ul').hide();
-                        onScroll();
-                        document.getElementsByClassName('article-toc')[0].style.display = '';
-                    });
-                }
-            })();
-        </script>
-        
-
-
-        
-        <footer class="article-footer">
-            <ul class="article-tag-list">
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/pcie">pcie
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/bus">bus
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/notes">notes
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/learn">learn
-                    </a>
-                </li>
-                
-            </ul>
-        </footer>
-        
-    </div>
+<hr/>
+<div class="md-source-file">
+<small>
     
-<nav id="article-nav">
-    
-    <a href="/hardware/2022/11/20/cxl-notes/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            CXL 学习笔记
-        </div>
-    </a>
-    
-    
-    <a href="/software/2022/10/29/nix-on-ppc64le/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">在 ppc64le Linux 上运行 Nix&nbsp;<span>&gt;</span></div>
-    </a>
-    
-</nav>
-
-
-</article>
-
-        
-            <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+<br/>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">November 13, 2022</span>
+</small>
+</div>
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
     };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-        
-    </section>
-    <footer id="footer">
-    <div class="outer">
-        <div id="footer-info" class="inner">
-            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
-            <br />
-            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
-        </div>
-    </div>
-    
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
-}
-</script>
-
-
-    
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
-            onload="renderMathInElement(document.body);"></script>
-    
-    <script>
-        document.getElementById('main-nav-toggle').addEventListener('click', function () {
-            var header = document.getElementById('header');
-            if (header.classList.contains('mobile-on')) {
-                header.classList.remove('mobile-on');
-            } else {
-                header.classList.add('mobile-on');
-            }
-        });
-    </script>
-</footer>
-
+</article>
 </div>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="页脚" class="md-footer__inner md-grid">
+<a aria-label="上一页: 在 ppc64le Linux 上运行 Nix" class="md-footer__link md-footer__link--prev" href="../../../../../software/2022/10/29/nix-on-ppc64le/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</div>
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                上一页
+              </span>
+<div class="md-ellipsis">
+                在 ppc64le Linux 上运行 Nix
+              </div>
+</div>
+</a>
+<a aria-label="下一页: CXL 学习笔记" class="md-footer__link md-footer__link--next" href="../../20/cxl-notes/" rel="next">
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                下一页
+              </span>
+<div class="md-ellipsis">
+                CXL 学习笔记
+              </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+<script src="../../../../../javascripts/mathjax.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
 </body>
 </html>

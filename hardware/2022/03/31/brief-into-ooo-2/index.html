@@ -1,104 +1,619 @@
+
 <!DOCTYPE html>
-<html>
+
+<html class="no-js" lang="zh">
 <head>
-    <title>浅谈乱序执行 CPU（二） // 杰哥的{运维,编程,调板子}小笔记</title>
-
-    <meta charset="utf-8">
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-    
-    
-    
-
-        <meta property="og:title" content="浅谈乱序执行 CPU（二）" />
-    <meta property="og:description" content="本文的内容已经整合到知识库中。
-背景 之前写过一个浅谈乱序执行 CPU，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。之后也许会有（三）（四）等等。
-内存访问 内存访问是一个比较复杂的操作，它涉及到缓存、页表、内存序等问题。在乱序执行中，要尽量优化内存访问对其他指令的延迟的影响，同时也要保证正确性。这里参考的是 BOOM 的 LSU 设计。
-首先是正确性。一般来说可以认为，Load 是没有副作用的（实际上，Load 会导致 Cache 加载数据，这也引发了以 Meltdown 为首的一系列漏洞），因此可以很激进地预测执行 Load。但是，Store 是有副作用的，写出去的数据就没法还原了。因此，Store 指令只有在 ROB Head 被 Commit 的时候，才会写入到 Cache 中。
-其次是性能，我们希望 Load 指令可以尽快地完成，这样可以使得后续的计算指令可以尽快地开始进行。当 Load 指令的地址已经计算好的时候，就可以去取数据，这时候，首先要去 Store Queue 里面找，如果有 Store 指令要写入的地址等于 Load 的地址，说明后面的 Load 依赖于前面的 Store，如果 Store 的数据已经准备好了，就可以直接把数据转发过来，就不需要从 Cache 中获取，如果数据还没准备好，就需要等待这一条 Store 完成；如果没有找到匹配的 Store 指令，再从内存中取。不过，有一种情况就是，当 Store 指令的地址迟迟没有计算出来，而后面的 Load 已经提前从 Cache 中获取数据了，这时候就会出现错误，所以当 Store 计算出地址的时候，需要检查后面的 Load 指令是否出现地址重合，如果出现了，就要把这条 Load 以及依赖这条 Load 指令的其余指令重新执行。POWER8 处理器微架构论文中对此也有类似的表述：
-The POWER8 IFU also implements mechanisms to mitigate performance degradation associated with pipeline hazards." />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/hardware/2022/03/31/brief-into-ooo-2/" />
-    
-
-    <link rel="shortcut icon" href="/favicon.ico">
-
-    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
-    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
-
-    <link rel="stylesheet" href="/css/style.css">
-    
-    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
-    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
-
-    <meta name="generator" content="Hugo 0.115.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
+<link href="https://jia.je/hardware/2022/03/31/brief-into-ooo-2/" rel="canonical"/>
+<link href="../../30/sv2v-fpnew/" rel="prev"/>
+<link href="../../../04/10/vivado-program-bitstream-svf/" rel="next"/>
+<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
+<title>浅谈乱序执行 CPU（二） - 杰哥的{运维,编程,调板子}小笔记</title>
+<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
+<body dir="ltr">
+<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#cpu">
+          跳转至
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="页眉" class="md-header__inner md-grid">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            杰哥的{运维,编程,调板子}小笔记
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              浅谈乱序执行 CPU（二）
+            
+          </span>
+</div>
+</div>
+</div>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</label>
+<nav aria-label="查找" class="md-search__options">
+<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../../../../..">
+        
+  
+    
+  
+  博客
 
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../about/">
+        
+  
+    
+  
+  关于
 
-<body onload="WaveDrom.ProcessAll()">
-<div id="container">
-    <header id="header">
-    <div id="header-outer" class="outer">
-        <div id="header-inner" class="inner">
-            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
-            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
-            <nav id="main-nav">
-                
-                <a class="main-nav-link" href="/about/">关于</a>
-                
-                <a class="main-nav-link" href="/category/">分类</a>
-                
-                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
-                
-                <a class="main-nav-link" href="/tags/">标签</a>
-                
-                <a class="main-nav-link" href="/kb/">知识库</a>
-                
-                <a class="main-nav-link" href="/series/">系列</a>
-                
-                <a class="main-nav-link" href="/feed.xml">订阅</a>
-                
-                <a class="main-nav-link" href="/projects/readme/">项目</a>
-                
-            </nav>
-            <nav id="sub-nav">
-                <div id="search-form-wrap">
-                </div>
-            </nav>
-        </div>
-    </div>
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+        
+  
+    
+  
+  开源
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tags/">
+        
+  
+    
+  
+  标签
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/kb/">
+        
+  
+    
+  
+  知识库
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../series/">
+        
+  
+    
+  
+  系列
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../projects/">
+        
+  
+    
+  
+  项目
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tools/">
+        
+  
+    
+  
+  工具
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/feed.xml">
+        
+  
+    
+  
+  订阅
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../archive/2023/">
+          
+  
+  归档
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../category/crypto/">
+          
+  
+  分类
+
+        </a>
+</li>
+</ul>
+</div>
+</nav>
 </header>
-
-    <section id="main" class="outer">
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        <header class="article-header">
-            <h1 class="article-title" itemprop="name">浅谈乱序执行 CPU（二）</h1>
-        </header>
-        
-        <div class="article-meta">
-            <a href="/hardware/2022/03/31/brief-into-ooo-2/" class="article-date">
-                <time datetime='2022-03-31T01:18:00.000&#43;08:00' itemprop="datePublished">2022-03-31</time>
-            </a>
-            
-            
-            
-            <div class="article-comment-link-wrap">
-                <a href="/hardware/2022/03/31/brief-into-ooo-2/#disqus_thread" class="article-comment-link">Comments</a>
-            </div>
-            
-        </div>
-        <div class="article-entry" itemprop="articleBody">
-            <p>本文的内容已经整合到<a href="/kb/hardware/ooo_cpu.html">知识库</a>中。</p>
-<h2 id="背景">背景</h2>
-<p>之前写过一个<a href="/hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a>，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。之后也许会有（三）（四）等等。</p>
-<h2 id="内存访问">内存访问</h2>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+    杰哥的{运维,编程,调板子}小笔记
+  </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<a class="md-nav__link" href="../../../../..">
+<span class="md-ellipsis">
+    博客
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../about/">
+<span class="md-ellipsis">
+    关于
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../open-source-contributions/">
+<span class="md-ellipsis">
+    开源
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tags/">
+<span class="md-ellipsis">
+    标签
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/kb/">
+<span class="md-ellipsis">
+    知识库
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../series/">
+<span class="md-ellipsis">
+    系列
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../projects/">
+<span class="md-ellipsis">
+    项目
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tools/">
+<span class="md-ellipsis">
+    工具
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/feed.xml">
+<span class="md-ellipsis">
+    订阅
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
+<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+<span class="md-ellipsis">
+    归档
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_10">
+<span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2023/">
+<span class="md-ellipsis">
+    2023
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2022/">
+<span class="md-ellipsis">
+    2022
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2021/">
+<span class="md-ellipsis">
+    2021
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2020/">
+<span class="md-ellipsis">
+    2020
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2019/">
+<span class="md-ellipsis">
+    2019
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2018/">
+<span class="md-ellipsis">
+    2018
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2017/">
+<span class="md-ellipsis">
+    2017
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2016/">
+<span class="md-ellipsis">
+    2016
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2014/">
+<span class="md-ellipsis">
+    2014
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
+<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+<span class="md-ellipsis">
+    分类
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_11">
+<span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/crypto/">
+<span class="md-ellipsis">
+    crypto
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/csdn/">
+<span class="md-ellipsis">
+    csdn
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/ctf/">
+<span class="md-ellipsis">
+    ctf
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/devops/">
+<span class="md-ellipsis">
+    devops
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/hardware/">
+<span class="md-ellipsis">
+    hardware
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/life/">
+<span class="md-ellipsis">
+    life
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/logo/">
+<span class="md-ellipsis">
+    logo
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/meta/">
+<span class="md-ellipsis">
+    meta
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/misc/">
+<span class="md-ellipsis">
+    misc
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/networking/">
+<span class="md-ellipsis">
+    networking
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/news/">
+<span class="md-ellipsis">
+    news
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/os/">
+<span class="md-ellipsis">
+    os
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/others/">
+<span class="md-ellipsis">
+    others
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/programming/">
+<span class="md-ellipsis">
+    programming
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/software/">
+<span class="md-ellipsis">
+    software
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/speech/">
+<span class="md-ellipsis">
+    speech
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/system/">
+<span class="md-ellipsis">
+    system
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/unboxing/">
+<span class="md-ellipsis">
+    unboxing
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content md-content--post" data-md-component="content">
+<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner md-post">
+<nav class="md-nav">
+<div class="md-post__back">
+<div class="md-nav__title md-nav__container">
+<a class="md-nav__link" href="../../../../..">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+<span class="md-ellipsis">
+                    回到主页
+                  </span>
+</a>
+</div>
+</div>
+<ul class="md-post__meta md-nav__list">
+<li class="md-nav__item md-nav__title">
+<div class="md-nav__link">
+<span class="md-ellipsis">
+                    元数据
+                  </span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
+<time class="md-ellipsis" datetime="2022-03-31 00:00:00">2022年3月31日</time>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
+<span class="md-ellipsis">
+                      分类于
+                      
+                        <a href="../../../../../category/hardware/">hardware</a></span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
+<span class="md-ellipsis">
+                      
+                        需要 21 分钟阅读时间
+                      
+                    </span>
+</div>
+</li>
+</ul>
+</nav>
+<nav aria-label="目录" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_1">
+    背景
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_2">
+    内存访问
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#load-store-unit">
+    Load Store Unit
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#vs">
+    精确异常 vs 非精确异常
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_3">
+    处理器前端
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_4">
+    处理器/内存仿真模型
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<article class="md-content__inner md-typeset">
+<nav class="md-tags">
+<a class="md-tag" href="../../../../../tags/#ooo">ooo</a>
+<a class="md-tag" href="../../../../../tags/#cpu">cpu</a>
+<a class="md-tag" href="../../../../../tags/#tomasulo">tomasulo</a>
+<a class="md-tag" href="../../../../../tags/#outoforder">outoforder</a>
+<a class="md-tag" href="../../../../../tags/#renaming">renaming</a>
+<a class="md-tag" href="../../../../../tags/#brief-into-ooo">brief-into-ooo</a>
+</nav>
+<h1 id="cpu">浅谈乱序执行 CPU（二）</h1>
+<p>本文的内容已经整合到<a href="/kb/hardware/ooo_cpu.html">知识库</a>中。</p>
+<h2 id="_1">背景</h2>
+<p>之前写过一个<a href="../../../../2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a>，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。之后也许会有（三）（四）等等。</p>
+<h2 id="_2">内存访问</h2>
 <p>内存访问是一个比较复杂的操作，它涉及到缓存、页表、内存序等问题。在乱序执行中，要尽量优化内存访问对其他指令的延迟的影响，同时也要保证正确性。这里参考的是 <a href="https://docs.boom-core.org/en/latest/sections/load-store-unit.html">BOOM 的 LSU 设计</a>。</p>
 <p>首先是正确性。一般来说可以认为，Load 是没有副作用的（实际上，Load 会导致 Cache 加载数据，这也引发了以 Meltdown 为首的一系列漏洞），因此可以很激进地预测执行 Load。但是，Store 是有副作用的，写出去的数据就没法还原了。因此，Store 指令只有在 ROB Head 被 Commit 的时候，才会写入到 Cache 中。</p>
 <p>其次是性能，我们希望 Load 指令可以尽快地完成，这样可以使得后续的计算指令可以尽快地开始进行。当 Load 指令的地址已经计算好的时候，就可以去取数据，这时候，首先要去 Store Queue 里面找，如果有 Store 指令要写入的地址等于 Load 的地址，说明后面的 Load 依赖于前面的 Store，如果 Store 的数据已经准备好了，就可以直接把数据转发过来，就不需要从 Cache 中获取，如果数据还没准备好，就需要等待这一条 Store 完成；如果没有找到匹配的 Store 指令，再从内存中取。不过，有一种情况就是，当 Store 指令的地址迟迟没有计算出来，而后面的 Load 已经提前从 Cache 中获取数据了，这时候就会出现错误，所以当 Store 计算出地址的时候，需要检查后面的 Load 指令是否出现地址重合，如果出现了，就要把这条 Load 以及依赖这条 Load 指令的其余指令重新执行。<a href="http://ieeexplore.ieee.org/abstract/document/7029183/">POWER8 处理器微架构论文</a>中对此也有类似的表述：</p>
-<pre><code>The POWER8 IFU also implements mechanisms to mitigate performance
+<div class="language-text highlight"><pre><span></span><code>The POWER8 IFU also implements mechanisms to mitigate performance
 degradation associated with pipeline hazards. A Store-Hit-Load (SHL) is
 an out-of-order pipeline hazard condition, where an older store executes
 after a younger overlapping load, thus signaling that the load received
@@ -111,7 +626,7 @@ the downstream logic to prevent the hazard. When a marked load
 instruction is observed, the downstream logic introduces an explicit
 register dependency for the load to ensure that it is issued after the
 store operation.
-</code></pre>
+</code></pre></div>
 <p>下面再详细讨论一下 LSU 的设计。</p>
 <h2 id="load-store-unit">Load Store Unit</h2>
 <p>LSU 是很重要的一个执行单元，负责 Load/Store/Atomic 等指令的实现。最简单的实现方法是按顺序执行，但由于 pipeline 会被清空，Store/Atomic/Uncached Load 这类有副作用（当然了，如果考虑 Meltdown 类攻击的话，Cached Load 也有副作用，这里就忽略了），需要等到 commit 的时候再执行。这样 LSU 很容易成为瓶颈，特别是在访存指令比较多的时候。</p>
@@ -120,16 +635,16 @@ store operation.
 <p>仔细想想，这里还有一个问题：Load 在执行前，更早的 Store 的地址可能还没有就绪，这时候去搜索 Store Queue 得到的结果可能是错的，这时候要么等待所有的 Store 地址都就绪，要么就先执行，再用一些机制来修复这个问题，显然后者 IPC 要更好。</p>
 <p>修复 Load Store 指令相关性问题，一个方法是当一个 Store 提交的时候，检查是否有地址冲突的 Load 指令（那么 Load Queue 也要做成相连搜索的），是否转发了错误的 Store 数据，这也是 <a href="https://docs.boom-core.org/en/latest/sections/load-store-unit.html#memory-ordering-failures">Boom LSU</a> 采用的方法。另一个办法是 Commit 的时候（或者按顺序）重新执行 Load 指令，如果 Load 结果和之前不同，要把后面依赖的刷新掉，这种方式的缺点是每条 Load 指令都要至少访问两次 Cache。<a href="https://repository.upenn.edu/cgi/viewcontent.cgi?article=1228&amp;context=cis_papers">Store Vulnerability Window (SVW): Re-Execution Filtering for Enhanced Load Optimization</a> 属于重新执行 Load 指令的方法，通过 Bloom filter 来减少一些没有必要重复执行的 Load。还有一种办法，就是预测 Load 指令和哪一条 Store 指令有依赖关系，然后直接去访问那一项，如果不匹配，就认为没有依赖。<a href="https://ieeexplore.ieee.org/document/1540957">Scalable Store-Load Forwarding via Store Queue Index Prediction</a> 把 Load 指令分为三类，一类是不确定依赖哪条 Store 指令（Difficult Loads），一类是基本确定依赖哪一条 Store 指令，一类是不依赖 Store 指令。这个有点像 Cache 里面的 Way Prediction 机制。</p>
 <p>分析完了上述一些优化方法，我们也来看一些 CPU 设计采用了哪种方案。首先来分析一下 <a href="https://ieeexplore.ieee.org/abstract/document/7029183">IBM POWER8</a> 的 LSU，首先，可以看到它设计了比较多项目的 virtual STAG/LTAG，然后再转换成比较少项目的 physical STAG/LTAG，这样 LSQ 可以做的比较小，原文：</p>
-<pre><code>A virtual STAG/LTAG scheme is used to minimize dispatch holds due to
+<div class="language-text highlight"><pre><span></span><code>A virtual STAG/LTAG scheme is used to minimize dispatch holds due to
 running out of physical SRQ/LRQ entries. When a physical entry in the
 LRQ is freed up, a virtual LTAG will be converted to a real LTAG. When a
 physical entry in the SRQ is freed up, a virtual STAG will be converted
 to a real STAG. Virtual STAG/LTAGs are not issued to the LSU until they
 are subsequently marked as being real in the UniQueue. The ISU can
 assign up to 128 virtual LTAGs and 128 virtual STAGs to each thread.
-</code></pre>
+</code></pre></div>
 <p>这个思路在 2007 年的论文 <a href="https://people.csail.mit.edu/emer/papers/2007.06.isca.late_binding.pdf">Late-Binding: Enabling Unordered Load-Store Queues</a> 里也可以看到，也许 POWER8 参考了这篇论文的设计。可以看到，POWER8 没有采用那些免除 CAM 的方案：</p>
-<pre><code>The SRQ is a 40-entry, real address based CAM structure. Similar to the
+<div class="language-text highlight"><pre><span></span><code>The SRQ is a 40-entry, real address based CAM structure. Similar to the
 SRQ, the LRQ is a 44-entry, real address based, CAM structure. The LRQ
 keeps track of out-of-order loads, watching for hazards. Hazards
 generally exist when a younger load instruction executes out-of-order
@@ -139,16 +654,16 @@ of the younger load instruction and all its subsequent instructions from
 the thread, without impacting the instructions from other threads. The
 load is then re-fetched from the I-cache and re-executed, ensuring
 proper load/store ordering.
-</code></pre>
+</code></pre></div>
 <p>而是在传统的两个 CAM 设计的基础上，做了减少物理 LSQ 项目的优化。比较有意思的是，POWER7 和 POWER8 的 L1 Cache 都是 8 路组相连，并且采用了 set-prediction 的方式（应该是通常说的 way-prediction）。</p>
 <p>此外还有一个实现上的小细节，就是在判断 Load 和 Store 指令是否有相关性的时候，由于地址位数比较多，完整比较的延迟比较大，可以牺牲精度的前提下，选取地址的一部分进行比较。<a href="https://ieeexplore.ieee.org/document/8409955">POWER9 论文</a> 提到了这一点：</p>
-<pre><code>POWER8 and prior designs matched the effective address (EA) bits 48:63
+<div class="language-text highlight"><pre><span></span><code>POWER8 and prior designs matched the effective address (EA) bits 48:63
 between the younger load and the older store queue entry. In POWER9,
 through a combination of outright matches for EA bits 32:63 and hashed
 EA matches for bits 0:31, false positive avoidance is greatly improved.
 This reduces the number of flushes, which are compulsory for false
 positives.
-</code></pre>
+</code></pre></div>
 <p>这里又是一个精确度和时序上的一个 tradeoff。</p>
 <p>具体到 Load/Store Queue 的大小，其实都不大：</p>
 <ol>
@@ -157,10 +672,10 @@ positives.
 <li><a href="https://ieeexplore.ieee.org/document/7029183?arnumber=7029183">POWER 8</a> Store Queue 40 Load Queue 44 (Virtual 128+128)</li>
 <li><a href="http://ieeexplore.ieee.org/document/755465/">Alpha 21264</a> Store Queue 32 Load Queue 32</li>
 </ol>
-<h2 id="精确异常-vs-非精确异常">精确异常 vs 非精确异常</h2>
+<h2 id="vs">精确异常 vs 非精确异常</h2>
 <p>精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，<a href="http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf">网上资料</a> 说，这种情况下硬件实现更简单，但是软件上处理比较困难。</p>
 <p>一个非精确异常的例子是 <a href="https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf">Alpha</a>，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：<code>In general, it is not feasible to fix up the result value or to continue from the trap.</code>。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：</p>
-<pre><code>Alpha lets the software implementor determine the precision of
+<div class="language-text highlight"><pre><span></span><code>Alpha lets the software implementor determine the precision of
 arithmetic traps.  With the Alpha architecture, arithmetic traps (such
 as overflow and underflow) are imprecise—they can be delivered an
 arbitrary number of instructions after the instruction that triggered
@@ -170,76 +685,77 @@ issue substantially easier to build.  However, if precise arithmetic
 exceptions are desired, trap barrier instructions can be explicitly
 inserted in the program to force traps to be delivered at specific
 points.
-</code></pre>
+</code></pre></div>
 <p>具体来说，在 <a href="http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf">Reference Manual</a> 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64 位，低 32 位对应整数寄存器，高 32 位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。</p>
 <p>Linux 处理代码在 <code>arch/alpha/kernel/traps.c</code> 的 <code>do_entArith</code> 函数中。首先判断，如果是 software completion，那就要进行处理；否则直接 SIGFPE 让程序自己处理或者退出。如果是精确异常，那就对 PC-4 进行浮点模拟；如果是非精确异常，就从 trap shadow 的最后一条指令开始往前搜索，并同时记录遇到的指令写入的寄存器，如果发现指令的写入的寄存器已经覆盖了 register write mask，就说明找到了 trap shadow 的开头，则模拟这条指令，然后从下一条开始重新执行。具体代码如下：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">long</span>
-</span></span><span style="display:flex;"><span><span style="color:#a6e22e">alpha_fp_emul_imprecise</span> (<span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">pt_regs</span> <span style="color:#f92672">*</span>regs, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> write_mask)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> trigger_pc <span style="color:#f92672">=</span> regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">-</span> <span style="color:#ae81ff">4</span>;
-</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> insn, opcode, rc, si_code <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/*
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Turn off the bits corresponding to registers that are the
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * target of instructions that set bits in the exception
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * summary register.  We have some slack doing this because a
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * register that is the target of a trapping instruction can
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * be written at most once in the trap shadow.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 *
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * Branches, jumps, TRAPBs, EXCBs and calls to PALcode all
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * bound the trap shadow, so we need not look any further than
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 * up to the first occurrence of such an instruction.
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	 */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">while</span> (write_mask) {
-</span></span><span style="display:flex;"><span>		get_user(insn, (__u32 __user <span style="color:#f92672">*</span>)(trigger_pc));
-</span></span><span style="display:flex;"><span>		opcode <span style="color:#f92672">=</span> insn <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">26</span>;
-</span></span><span style="display:flex;"><span>		rc <span style="color:#f92672">=</span> insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x1f</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">switch</span> (opcode) {
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_PAL:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_JSR:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> <span style="color:#ae81ff">0x30</span> ... <span style="color:#ae81ff">0x3f</span><span style="color:#f92672">:</span>	<span style="color:#75715e">/* branches */</span>
-</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> egress;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_MISC:
-</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">switch</span> (insn <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffff</span>) {
-</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">case</span> MISC_TRAPB:
-</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">case</span> MISC_EXCB:
-</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">goto</span> egress;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">default</span><span style="color:#f92672">:</span>
-</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
-</span></span><span style="display:flex;"><span>			}
-</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTA:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTL:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTS:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_INTM:
-</span></span><span style="display:flex;"><span>			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> rc);
-</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTC:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTV:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTI:
-</span></span><span style="display:flex;"><span>		      <span style="color:#66d9ef">case</span> OPC_FLTL:
-</span></span><span style="display:flex;"><span>			write_mask <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>(<span style="color:#ae81ff">1UL</span> <span style="color:#f92672">&lt;&lt;</span> (rc <span style="color:#f92672">+</span> <span style="color:#ae81ff">32</span>));
-</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
-</span></span><span style="display:flex;"><span>		}
-</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>write_mask) {
-</span></span><span style="display:flex;"><span>			<span style="color:#75715e">/* Re-execute insns in the trap-shadow.  */</span>
-</span></span><span style="display:flex;"><span>			regs<span style="color:#f92672">-&gt;</span>pc <span style="color:#f92672">=</span> trigger_pc <span style="color:#f92672">+</span> <span style="color:#ae81ff">4</span>;
-</span></span><span style="display:flex;"><span>			si_code <span style="color:#f92672">=</span> alpha_fp_emul(trigger_pc);
-</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> egress;
-</span></span><span style="display:flex;"><span>		}
-</span></span><span style="display:flex;"><span>		trigger_pc <span style="color:#f92672">-=</span> <span style="color:#ae81ff">4</span>;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>egress:
-</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> si_code;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>ARM 架构也有 imprecise asynchronous external abort：</p>
-<pre><code>Normally, external aborts are rare. An imprecise asynchronous external
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="kt">long</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="nf">alpha_fp_emul_imprecise</span><span class="w"> </span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">pt_regs</span><span class="w"> </span><span class="o">*</span><span class="n">regs</span><span class="p">,</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">write_mask</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="p">{</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="w">    </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">trigger_pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">pc</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="w">    </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">insn</span><span class="p">,</span><span class="w"> </span><span class="n">opcode</span><span class="p">,</span><span class="w"> </span><span class="n">rc</span><span class="p">,</span><span class="w"> </span><span class="n">si_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="w">    </span><span class="cm">/*</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="cm">     * Turn off the bits corresponding to registers that are the</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="cm">     * target of instructions that set bits in the exception</span>
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="cm">     * summary register.  We have some slack doing this because a</span>
+</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="cm">     * register that is the target of a trapping instruction can</span>
+</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="cm">     * be written at most once in the trap shadow.</span>
+</span><span id="__span-0-13"><a href="#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="cm">     *</span>
+</span><span id="__span-0-14"><a href="#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="cm">     * Branches, jumps, TRAPBs, EXCBs and calls to PALcode all</span>
+</span><span id="__span-0-15"><a href="#__codelineno-0-15" id="__codelineno-0-15" name="__codelineno-0-15"></a><span class="cm">     * bound the trap shadow, so we need not look any further than</span>
+</span><span id="__span-0-16"><a href="#__codelineno-0-16" id="__codelineno-0-16" name="__codelineno-0-16"></a><span class="cm">     * up to the first occurrence of such an instruction.</span>
+</span><span id="__span-0-17"><a href="#__codelineno-0-17" id="__codelineno-0-17" name="__codelineno-0-17"></a><span class="cm">     */</span>
+</span><span id="__span-0-18"><a href="#__codelineno-0-18" id="__codelineno-0-18" name="__codelineno-0-18"></a><span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">write_mask</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-19"><a href="#__codelineno-0-19" id="__codelineno-0-19" name="__codelineno-0-19"></a><span class="w">        </span><span class="n">get_user</span><span class="p">(</span><span class="n">insn</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">__u32</span><span class="w"> </span><span class="n">__user</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">trigger_pc</span><span class="p">));</span>
+</span><span id="__span-0-20"><a href="#__codelineno-0-20" id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="w">        </span><span class="n">opcode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insn</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">26</span><span class="p">;</span>
+</span><span id="__span-0-21"><a href="#__codelineno-0-21" id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insn</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0x1f</span><span class="p">;</span>
+</span><span id="__span-0-22"><a href="#__codelineno-0-22" id="__codelineno-0-22" name="__codelineno-0-22"></a>
+</span><span id="__span-0-23"><a href="#__codelineno-0-23" id="__codelineno-0-23" name="__codelineno-0-23"></a><span class="w">        </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">opcode</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-24"><a href="#__codelineno-0-24" id="__codelineno-0-24" name="__codelineno-0-24"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_PAL</span><span class="p">:</span>
+</span><span id="__span-0-25"><a href="#__codelineno-0-25" id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_JSR</span><span class="p">:</span>
+</span><span id="__span-0-26"><a href="#__codelineno-0-26" id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="mh">0x30</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="mh">0x3f</span><span class="p">:</span><span class="w">   </span><span class="cm">/* branches */</span>
+</span><span id="__span-0-27"><a href="#__codelineno-0-27" id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="w">            </span><span class="k">goto</span><span class="w"> </span><span class="n">egress</span><span class="p">;</span>
+</span><span id="__span-0-28"><a href="#__codelineno-0-28" id="__codelineno-0-28" name="__codelineno-0-28"></a>
+</span><span id="__span-0-29"><a href="#__codelineno-0-29" id="__codelineno-0-29" name="__codelineno-0-29"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_MISC</span><span class="p">:</span>
+</span><span id="__span-0-30"><a href="#__codelineno-0-30" id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="w">            </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">insn</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xffff</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-31"><a href="#__codelineno-0-31" id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="w">                  </span><span class="k">case</span><span class="w"> </span><span class="no">MISC_TRAPB</span><span class="p">:</span>
+</span><span id="__span-0-32"><a href="#__codelineno-0-32" id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="w">                  </span><span class="k">case</span><span class="w"> </span><span class="no">MISC_EXCB</span><span class="p">:</span>
+</span><span id="__span-0-33"><a href="#__codelineno-0-33" id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="w">                </span><span class="k">goto</span><span class="w"> </span><span class="n">egress</span><span class="p">;</span>
+</span><span id="__span-0-34"><a href="#__codelineno-0-34" id="__codelineno-0-34" name="__codelineno-0-34"></a>
+</span><span id="__span-0-35"><a href="#__codelineno-0-35" id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="w">                  </span><span class="k">default</span><span class="o">:</span>
+</span><span id="__span-0-36"><a href="#__codelineno-0-36" id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="w">                </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-0-37"><a href="#__codelineno-0-37" id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="w">            </span><span class="p">}</span>
+</span><span id="__span-0-38"><a href="#__codelineno-0-38" id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-0-39"><a href="#__codelineno-0-39" id="__codelineno-0-39" name="__codelineno-0-39"></a>
+</span><span id="__span-0-40"><a href="#__codelineno-0-40" id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTA</span><span class="p">:</span>
+</span><span id="__span-0-41"><a href="#__codelineno-0-41" id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTL</span><span class="p">:</span>
+</span><span id="__span-0-42"><a href="#__codelineno-0-42" id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTS</span><span class="p">:</span>
+</span><span id="__span-0-43"><a href="#__codelineno-0-43" id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTM</span><span class="p">:</span>
+</span><span id="__span-0-44"><a href="#__codelineno-0-44" id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="w">            </span><span class="n">write_mask</span><span class="w"> </span><span class="o">&amp;=</span><span class="w"> </span><span class="o">~</span><span class="p">(</span><span class="mi">1UL</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">rc</span><span class="p">);</span>
+</span><span id="__span-0-45"><a href="#__codelineno-0-45" id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-0-46"><a href="#__codelineno-0-46" id="__codelineno-0-46" name="__codelineno-0-46"></a>
+</span><span id="__span-0-47"><a href="#__codelineno-0-47" id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTC</span><span class="p">:</span>
+</span><span id="__span-0-48"><a href="#__codelineno-0-48" id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTV</span><span class="p">:</span>
+</span><span id="__span-0-49"><a href="#__codelineno-0-49" id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTI</span><span class="p">:</span>
+</span><span id="__span-0-50"><a href="#__codelineno-0-50" id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTL</span><span class="p">:</span>
+</span><span id="__span-0-51"><a href="#__codelineno-0-51" id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="w">            </span><span class="n">write_mask</span><span class="w"> </span><span class="o">&amp;=</span><span class="w"> </span><span class="o">~</span><span class="p">(</span><span class="mi">1UL</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">rc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">32</span><span class="p">));</span>
+</span><span id="__span-0-52"><a href="#__codelineno-0-52" id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-0-53"><a href="#__codelineno-0-53" id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-0-54"><a href="#__codelineno-0-54" id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">write_mask</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-55"><a href="#__codelineno-0-55" id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="w">            </span><span class="cm">/* Re-execute insns in the trap-shadow.  */</span>
+</span><span id="__span-0-56"><a href="#__codelineno-0-56" id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="w">            </span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trigger_pc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</span><span id="__span-0-57"><a href="#__codelineno-0-57" id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="w">            </span><span class="n">si_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alpha_fp_emul</span><span class="p">(</span><span class="n">trigger_pc</span><span class="p">);</span>
+</span><span id="__span-0-58"><a href="#__codelineno-0-58" id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="w">            </span><span class="k">goto</span><span class="w"> </span><span class="n">egress</span><span class="p">;</span>
+</span><span id="__span-0-59"><a href="#__codelineno-0-59" id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-0-60"><a href="#__codelineno-0-60" id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="w">        </span><span class="n">trigger_pc</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+</span><span id="__span-0-61"><a href="#__codelineno-0-61" id="__codelineno-0-61" name="__codelineno-0-61"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-62"><a href="#__codelineno-0-62" id="__codelineno-0-62" name="__codelineno-0-62"></a>
+</span><span id="__span-0-63"><a href="#__codelineno-0-63" id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="nl">egress</span><span class="p">:</span>
+</span><span id="__span-0-64"><a href="#__codelineno-0-64" id="__codelineno-0-64" name="__codelineno-0-64"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">si_code</span><span class="p">;</span>
+</span><span id="__span-0-65"><a href="#__codelineno-0-65" id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>ARM 架构也有 imprecise asynchronous external abort：</p>
+<div class="language-text highlight"><pre><span></span><code>Normally, external aborts are rare. An imprecise asynchronous external
 abort is likely to be fatal to the process that is running. An example
 of an event that might cause an external abort is an uncorrectable
 parity or ECC failure on a Level 2 Memory structure.
@@ -247,20 +763,20 @@ parity or ECC failure on a Level 2 Memory structure.
 Because imprecise asynchronous external aborts are normally fatal to the
 process that caused them, ARM recommends that implementations make
 external aborts precise wherever possible.
-</code></pre>
+</code></pre></div>
 <p>不过这更多是因为内存的无法预知的错误，这种时候机器直接可以拿去维修了。</p>
 <p><a href="https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/5056/can-anyone-provide-an-example-of-asynchronous-exceptions">文章</a> 提到了两个 precise/imprecise async/sync的例子：</p>
 <ol>
 <li>外部中断是异步的，同时也是 precise 的。</li>
 <li>对于一个 Write-allocate 的缓存，如果程序写入一个不存在的物理地址，那么写入缓存的时候不会出现错误，但当这个 cache line 被写入到总线上的时候，就会触发异常，这个异常是异步并且非精确的，因为之前触发这个异常的指令可能已经完成很久了。这种时候这个进程也大概率没救了，直接 SIGBUS 退出。</li>
 </ol>
-<h2 id="处理器前端">处理器前端</h2>
+<h2 id="_3">处理器前端</h2>
 <p>再来分析一下乱序执行 CPU 的前端部分。以 RISC-V 为例，指令长度有 4 字节或者 2 字节两种，其中 2 字节属于压缩指令集。如何正确并高效地进行取指令译码？</p>
 <p>首先，我们希望前端能够尽可能快地取指令，前端的取指能力要和后端匹配，比如对于一个四发射的 CPU，前端对应地需要一个周期取 <code>4*4=16</code> 字节的指令。但是，这 16 字节可能是 4 条非压缩指令，也可能是 8 条压缩指令，也可能是混合的情况。所以，这里会出现一个可能出现指令条数不匹配的情况，所以中间可以添加一个 Fetch Buffer，比如 <a href="https://github.com/riscv-boom/riscv-boom">BOOM</a> 的实现中，L1 ICache 每周期读取 16 字节，然后进行预译码，出来 8 条指令，保存到 Fetch Buffer 中。这里需要考虑以下几点：首先从 ICache 读取的数据是对齐的，但是 PC 可能不是，比如中间的地址。其次，可能一个 4 字节的非压缩指令跨越了两次 Fetch，比如前 2 个字节在前一个 Fetch Bundle，后 2 个字节在后一个 Fetch Bundle；此外，每个 2 字节的边界都需要判断一下是压缩指令还是非压缩指令。一个非常特殊的情况就是，一个 4 字节的指令跨越了两个页，所以两个页都需要查询页表；如果恰好在第二个页处发生了页缺失，此时 epc 是指令的起始地址，但 tval 是第二个页的地址，这样内核才知道是哪个页发生了缺失。</p>
 <p>其次，需要配合分支预测。如果需要保证分支预测正确的情况下，能够在循环中达到接近 100% 的性能，那么，在 Fetch 分支结尾的分支指令的同时，需要保证下一次 Fetch 已经得到了分支预测的目的地址。这个就是 BOOM 里面的 L0 BTB (1-cycle redirect)。但是，一个周期内完成的分支预测，它的面积肯定不能大，否则时序无法满足，所以 BOOM 里面还设计了 2-cycle 和 3-cycle 的比较高级的分支预测器，还有针对函数调用的 RAS（Return Address Stack）。</p>
 <p>分支预测也有很多方法。比较简单的方法是实现一个 BHT，每个项是一个 2 位的饱和计数器，超过一半的时候增加，少于一半时减少。但是，如果遇到了跳转/不跳转/跳转/不跳转这种来回切换的情况，准确率就很低。一个复杂一些的设计，就是用 BHR，记录这个分支指令最近几次的历史，对于每种可能的历史，都对应一个 2 位的饱和计数器。这样，遇到刚才所说的情况就会很好地预测。但实践中会遇到问题：如果在写回之前，又进行了一次预测，因为预测是在取指的时候做的，但是更新 BPU 是在写回的时候完成的，这时候预测就是基于旧的状态进行预测，这时候 BHR 就会出现不准确的问题；而且写回 BPU 的时候，会按照原来的状态进行更新，这个状态可能也是错误的，导致丢失一次更新，识别的模式从跳转/不跳转/跳转/不跳转变成了跳转/跳转/跳转/不跳转，这样又会预测错误。一个解决办法是，在取指阶段，BPU 预测完就立即按照预测的结果更新 BHR，之后写回阶段会恢复到实际的 BHR 取值。论文 <a href="https://dl.acm.org/doi/10.1145/192724.192756">The effect of speculatively updating branch history on branch prediction accuracy, revisited</a> 和 <a href="https://jilp.org/vol2/v2paper1.pdf">Speculative Updates of Local and Global Branch History: A Quantitative Analysis</a> 讨论了这个实现方式对性能的影响。</p>
 <p>比较容易做预测更新和恢复的是全局分支历史，可以维护两个 GHR（Global History Register），一个是目前取指令最新的，一个是提交的最新的。在预测的时候，用 GHR 去找对应的 2-bit 状态，然后把预测结果更新到 GHR 上。在预测失败的时候，把 GHR 恢复为提交的状态。如果要支持一个 Fetch Packet 中有多个分支，可以让 GHR 对应若干个 2-bit 状态，分别对应相应位置上的分支的状态，当然这样面积也会增加很多。</p>
-<h2 id="处理器内存仿真模型">处理器/内存仿真模型</h2>
+<h2 id="_4">处理器/内存仿真模型</h2>
 <p>最后列举一下科研里常用的一些处理器/内存仿真模型：</p>
 <ul>
 <li>gem5: <a href="https://arxiv.org/abs/2007.03152">论文 The gem5 Simulator: Version 20.0+</a> <a href="https://gem5.googlesource.com/public/gem5">代码</a></li>
@@ -276,189 +792,100 @@ external aborts precise wherever possible.
 <li>ZSim: <a href="https://people.csail.mit.edu/sanchez/papers/2013.zsim.isca.pdf">论文 ZSim: fast and accurate microarchitectural simulation of thousand-core systems</a> <a href="https://github.com/s5z/zsim">代码</a></li>
 <li>PTLsim: <a href="https://ieeexplore.ieee.org/document/4211019">论文 PTLsim: A Cycle Accurate Full System x86-64 Microarchitectural Simulator</a></li>
 </ul>
-
-        </div>
-
-        
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-  <ul>
-    <li><a href="#背景">背景</a></li>
-    <li><a href="#内存访问">内存访问</a></li>
-    <li><a href="#load-store-unit">Load Store Unit</a></li>
-    <li><a href="#精确异常-vs-非精确异常">精确异常 vs 非精确异常</a></li>
-    <li><a href="#处理器前端">处理器前端</a></li>
-    <li><a href="#处理器内存仿真模型">处理器/内存仿真模型</a></li>
-  </ul>
-</nav>
-        </div>
-        
-        
-
-        
-
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-        <script>
-            (function() {
-                var $toc = $('#TableOfContents');
-                if ($toc.length > 0) {
-                    var $window = $(window);
-
-                    function onScroll(){
-                        var currentScroll = $window.scrollTop();
-                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
-                        var id = "";
-                        h.each(function (i, e) {
-                            e = $(e);
-                            if (e.offset().top - 10 <= currentScroll) {
-                                id = e.attr('id');
-                            }
-                        });
-                        var active = $toc.find('a.active');
-                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
-
-                        active.each(function (i, e) {
-                            $(e).removeClass('active').siblings('ul').hide();
-                        });
-                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
-                            $(e).children('a').addClass('active').siblings('ul').show();
-                        });
-                    }
-
-                    $window.on('scroll', onScroll);
-                    $(document).ready(function() {
-                        $toc.find('a').parent('li').find('ul').hide();
-                        onScroll();
-                        document.getElementsByClassName('article-toc')[0].style.display = '';
-                    });
-                }
-            })();
-        </script>
-        
-
-
-        
-        <footer class="article-footer">
-            <ul class="article-tag-list">
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/ooo">ooo
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/cpu">cpu
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/tomasulo">tomasulo
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/outoforder">outoforder
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/renaming">renaming
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/brief-into-ooo">brief-into-ooo
-                    </a>
-                </li>
-                
-            </ul>
-        </footer>
-        
-    </div>
+<hr/>
+<div class="md-source-file">
+<small>
     
-<nav id="article-nav">
-    
-    <a href="/hardware/2022/04/10/vivado-program-bitstream-svf/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            导出 Vivado 下载 Bitstream 的 SVF 文件
-        </div>
-    </a>
-    
-    
-    <a href="/hardware/2022/03/30/sv2v-fpnew/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">用 sv2v&#43;yosys 把 fpnew 转为 verilog 网表&nbsp;<span>&gt;</span></div>
-    </a>
-    
-</nav>
-
-
-</article>
-
-        
-            <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+<br/>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">September 14, 2021</span>
+</small>
+</div>
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
     };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-        
-    </section>
-    <footer id="footer">
-    <div class="outer">
-        <div id="footer-info" class="inner">
-            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
-            <br />
-            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
-        </div>
-    </div>
-    
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
-}
-</script>
-
-
-    
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
-            onload="renderMathInElement(document.body);"></script>
-    
-    <script>
-        document.getElementById('main-nav-toggle').addEventListener('click', function () {
-            var header = document.getElementById('header');
-            if (header.classList.contains('mobile-on')) {
-                header.classList.remove('mobile-on');
-            } else {
-                header.classList.add('mobile-on');
-            }
-        });
-    </script>
-</footer>
-
+</article>
 </div>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="页脚" class="md-footer__inner md-grid">
+<a aria-label="上一页: 用 sv2v+yosys 把 fpnew 转为 verilog 网表" class="md-footer__link md-footer__link--prev" href="../../30/sv2v-fpnew/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</div>
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                上一页
+              </span>
+<div class="md-ellipsis">
+                用 sv2v+yosys 把 fpnew 转为 verilog 网表
+              </div>
+</div>
+</a>
+<a aria-label="下一页: 导出 Vivado 下载 Bitstream 的 SVF 文件" class="md-footer__link md-footer__link--next" href="../../../04/10/vivado-program-bitstream-svf/" rel="next">
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                下一页
+              </span>
+<div class="md-ellipsis">
+                导出 Vivado 下载 Bitstream 的 SVF 文件
+              </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+<script src="../../../../../javascripts/mathjax.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
 </body>
 </html>

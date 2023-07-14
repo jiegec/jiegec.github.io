@@ -1,104 +1,627 @@
+
 <!DOCTYPE html>
-<html>
+
+<html class="no-js" lang="zh">
 <head>
-    <title>「教学」异步 SRAM 时序 // 杰哥的{运维,编程,调板子}小笔记</title>
-
-    <meta charset="utf-8">
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-    
-    
-    
-
-        <meta property="og:title" content="「教学」异步 SRAM 时序" />
-    <meta property="og:description" content="背景 在一些场合里，我们会使用异步的（即没有时钟信号的）外部 SRAM 来存储数据，而我们经常使用的很多外部接口都是同步接口（即有时钟信号的接口），比如 SPI 和 I2C 等等，UART 虽然是异步，但是它速度很低，不怎么需要考虑时序的问题。所以在 FPGA 上编写一个正确的异步 SRAM 控制器是具有一定的挑战的。
-寄存器时序 考虑到读者可能已经不记得寄存器的时序了，这里首先来复习一下 setup 和 hold 的概念。如果你已经比较熟悉了，可以直接阅读下一节。
-寄存器在时钟的上升沿（下图的 a）进行采样，为了保证采样的稳定性，输入引脚 D 需要在时钟上升沿之前 \(t_{su}\) 的时刻（下图的 b）到时钟上升沿之后 \(t_h\) 的时刻（下图的 c）保持稳定，输出引脚 Q 会在时钟上升沿之后 \(t_{cko}\) 的时刻（下图的 d）变化：
-接口 首先我们来看看异步 SRAM 的接口。下文中，采用 IS61WV102416BLL-10TLI 和 AS7C34098A-10TCN 作为例子：
-可以看到，它有 20 位的地址，16 位的数据，若干个控制信号，同时只能进行读或者写（简称 1RW）。它没有时钟信号，所以是异步 SRAM。
-时序 对于一个同步接口，我们通常只需要给一个满足时钟周期的时钟，然后通过约束文件保证 setup 和 hold 条件满足即可。但是对于异步接口，由于输出的时候没有时钟，我们需要更小心地完成这件事情。
-读时序 首先来看一下比较简单的读时序：
-可以看到地址和数据的关系：首先是地址需要稳定 \(t_{RC}\) 的时间，那么数据合法的范围是地址稳定的初始时刻加上 \(t_{AA}\)，到地址稳定的结束时刻加上 \(t_{OH}\)。我们再来看一下这几个时间的范围：
-首先可以看到读周期时间 \(t_{RC}\) 至少是 10ns，这对应了型号中最后的数字，这表示了这个 SRAM 最快的读写速度。比较有意思的是 \(t_{AA}\) 最多是 10ns，刚好和 \(t_{RC}\) 的最小值相等。" />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:url" content="https://jia.je/hardware/2022/05/19/async-sram-timing/" />
-    
-
-    <link rel="shortcut icon" href="/favicon.ico">
-
-    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
-    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
-
-    <link rel="stylesheet" href="/css/style.css">
-    
-    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
-    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
-
-    <meta name="generator" content="Hugo 0.115.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
+<link href="https://jia.je/hardware/2022/05/19/async-sram-timing/" rel="canonical"/>
+<link href="../../16/ace/" rel="prev"/>
+<link href="../../../../../software/2022/05/31/qemu-rv64-in-libvirt/" rel="next"/>
+<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
+<link href="../../../../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
+<title>「教学」异步 SRAM 时序 - 杰哥的{运维,编程,调板子}小笔记</title>
+<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
+<body dir="ltr">
+<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#sram">
+          跳转至
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="页眉" class="md-header__inner md-grid">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            杰哥的{运维,编程,调板子}小笔记
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              「教学」异步 SRAM 时序
+            
+          </span>
+</div>
+</div>
+</div>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</label>
+<nav aria-label="查找" class="md-search__options">
+<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../../../../..">
+        
+  
+    
+  
+  博客
 
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../about/">
+        
+  
+    
+  
+  关于
 
-<body onload="WaveDrom.ProcessAll()">
-<div id="container">
-    <header id="header">
-    <div id="header-outer" class="outer">
-        <div id="header-inner" class="inner">
-            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
-            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
-            <nav id="main-nav">
-                
-                <a class="main-nav-link" href="/about/">关于</a>
-                
-                <a class="main-nav-link" href="/category/">分类</a>
-                
-                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
-                
-                <a class="main-nav-link" href="/tags/">标签</a>
-                
-                <a class="main-nav-link" href="/kb/">知识库</a>
-                
-                <a class="main-nav-link" href="/series/">系列</a>
-                
-                <a class="main-nav-link" href="/feed.xml">订阅</a>
-                
-                <a class="main-nav-link" href="/projects/readme/">项目</a>
-                
-            </nav>
-            <nav id="sub-nav">
-                <div id="search-form-wrap">
-                </div>
-            </nav>
-        </div>
-    </div>
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+        
+  
+    
+  
+  开源
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tags/">
+        
+  
+    
+  
+  标签
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/kb/">
+        
+  
+    
+  
+  知识库
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../series/">
+        
+  
+    
+  
+  系列
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../projects/">
+        
+  
+    
+  
+  项目
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../tools/">
+        
+  
+    
+  
+  工具
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="/feed.xml">
+        
+  
+    
+  
+  订阅
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../archive/2023/">
+          
+  
+  归档
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../../../../category/crypto/">
+          
+  
+  分类
+
+        </a>
+</li>
+</ul>
+</div>
+</nav>
 </header>
-
-    <section id="main" class="outer">
-        <article class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        <header class="article-header">
-            <h1 class="article-title" itemprop="name">「教学」异步 SRAM 时序</h1>
-        </header>
-        
-        <div class="article-meta">
-            <a href="/hardware/2022/05/19/async-sram-timing/" class="article-date">
-                <time datetime='2022-05-19T08:40:00.000&#43;08:00' itemprop="datePublished">2022-05-19</time>
-            </a>
-            
-            
-            
-            <div class="article-comment-link-wrap">
-                <a href="/hardware/2022/05/19/async-sram-timing/#disqus_thread" class="article-comment-link">Comments</a>
-            </div>
-            
-        </div>
-        <div class="article-entry" itemprop="articleBody">
-            <h2 id="背景">背景</h2>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
+</a>
+    杰哥的{运维,编程,调板子}小笔记
+  </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<a class="md-nav__link" href="../../../../..">
+<span class="md-ellipsis">
+    博客
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../about/">
+<span class="md-ellipsis">
+    关于
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../open-source-contributions/">
+<span class="md-ellipsis">
+    开源
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tags/">
+<span class="md-ellipsis">
+    标签
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/kb/">
+<span class="md-ellipsis">
+    知识库
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../series/">
+<span class="md-ellipsis">
+    系列
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../projects/">
+<span class="md-ellipsis">
+    项目
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../tools/">
+<span class="md-ellipsis">
+    工具
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="/feed.xml">
+<span class="md-ellipsis">
+    订阅
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
+<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+<span class="md-ellipsis">
+    归档
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_10">
+<span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2023/">
+<span class="md-ellipsis">
+    2023
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2022/">
+<span class="md-ellipsis">
+    2022
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2021/">
+<span class="md-ellipsis">
+    2021
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2020/">
+<span class="md-ellipsis">
+    2020
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2019/">
+<span class="md-ellipsis">
+    2019
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2018/">
+<span class="md-ellipsis">
+    2018
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2017/">
+<span class="md-ellipsis">
+    2017
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2016/">
+<span class="md-ellipsis">
+    2016
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../archive/2014/">
+<span class="md-ellipsis">
+    2014
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
+<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+<span class="md-ellipsis">
+    分类
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_11">
+<span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/crypto/">
+<span class="md-ellipsis">
+    crypto
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/csdn/">
+<span class="md-ellipsis">
+    csdn
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/ctf/">
+<span class="md-ellipsis">
+    ctf
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/devops/">
+<span class="md-ellipsis">
+    devops
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/hardware/">
+<span class="md-ellipsis">
+    hardware
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/life/">
+<span class="md-ellipsis">
+    life
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/logo/">
+<span class="md-ellipsis">
+    logo
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/meta/">
+<span class="md-ellipsis">
+    meta
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/misc/">
+<span class="md-ellipsis">
+    misc
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/networking/">
+<span class="md-ellipsis">
+    networking
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/news/">
+<span class="md-ellipsis">
+    news
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/os/">
+<span class="md-ellipsis">
+    os
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/others/">
+<span class="md-ellipsis">
+    others
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/programming/">
+<span class="md-ellipsis">
+    programming
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/software/">
+<span class="md-ellipsis">
+    software
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/speech/">
+<span class="md-ellipsis">
+    speech
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/system/">
+<span class="md-ellipsis">
+    system
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../../../../category/unboxing/">
+<span class="md-ellipsis">
+    unboxing
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content md-content--post" data-md-component="content">
+<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner md-post">
+<nav class="md-nav">
+<div class="md-post__back">
+<div class="md-nav__title md-nav__container">
+<a class="md-nav__link" href="../../../../..">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+<span class="md-ellipsis">
+                    回到主页
+                  </span>
+</a>
+</div>
+</div>
+<ul class="md-post__meta md-nav__list">
+<li class="md-nav__item md-nav__title">
+<div class="md-nav__link">
+<span class="md-ellipsis">
+                    元数据
+                  </span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
+<time class="md-ellipsis" datetime="2022-05-19 00:00:00">2022年5月19日</time>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
+<span class="md-ellipsis">
+                      分类于
+                      
+                        <a href="../../../../../category/hardware/">hardware</a></span>
+</div>
+</li>
+<li class="md-nav__item">
+<div class="md-nav__link">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
+<span class="md-ellipsis">
+                      
+                        需要 16 分钟阅读时间
+                      
+                    </span>
+</div>
+</li>
+</ul>
+</nav>
+<nav aria-label="目录" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_1">
+    背景
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_2">
+    寄存器时序
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_3">
+    接口
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_4">
+    时序
+  </a>
+<nav aria-label="时序" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_5">
+    读时序
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_6">
+    写时序
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pl241-sram">
+    PL241 SRAM 控制器
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#_7">
+    参考文档
+  </a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<article class="md-content__inner md-typeset">
+<nav class="md-tags">
+<a class="md-tag" href="../../../../../tags/#sram">sram</a>
+<a class="md-tag" href="../../../../../tags/#timing">timing</a>
+<a class="md-tag" href="../../../../../tags/#teaching">teaching</a>
+</nav>
+<h1 id="sram">「教学」异步 SRAM 时序</h1>
+<h2 id="_1">背景</h2>
 <p>在一些场合里，我们会使用异步的（即没有时钟信号的）外部 SRAM 来存储数据，而我们经常使用的很多外部接口都是同步接口（即有时钟信号的接口），比如 SPI 和 I2C 等等，UART 虽然是异步，但是它速度很低，不怎么需要考虑时序的问题。所以在 FPGA 上编写一个正确的异步 SRAM 控制器是具有一定的挑战的。</p>
-<h2 id="寄存器时序">寄存器时序</h2>
+<h2 id="_2">寄存器时序</h2>
 <p>考虑到读者可能已经不记得寄存器的时序了，这里首先来复习一下 setup 和 hold 的概念。如果你已经比较熟悉了，可以直接阅读下一节。</p>
-<p>寄存器在时钟的上升沿（下图的 <code>a</code>）进行采样，为了保证采样的稳定性，输入引脚 <code>D</code> 需要在时钟上升沿之前 \(t_{su}\) 的时刻（下图的 <code>b</code>）到时钟上升沿之后 \(t_h\) 的时刻（下图的 <code>c</code>）保持稳定，输出引脚 <code>Q</code> 会在时钟上升沿之后 \(t_{cko}\) 的时刻（下图的 <code>d</code>）变化：</p>
+<p>寄存器在时钟的上升沿（下图的 <code>a</code>）进行采样，为了保证采样的稳定性，输入引脚 <code>D</code> 需要在时钟上升沿之前 <span class="arithmatex">\(t_{su}\)</span> 的时刻（下图的 <code>b</code>）到时钟上升沿之后 <span class="arithmatex">\(t_h\)</span> 的时刻（下图的 <code>c</code>）保持稳定，输出引脚 <code>Q</code> 会在时钟上升沿之后 <span class="arithmatex">\(t_{cko}\)</span> 的时刻（下图的 <code>d</code>）变化：</p>
 <script type="WaveDrom">{
   signal:
     [
@@ -106,25 +629,25 @@
       { name: "D", wave: "x..3.x", phase: 0.2, node: "...b.c"},
       { name: "Q", wave: "x...3.", node: "....d"}
     ]
-}
-</script><h2 id="接口">接口</h2>
+}</script>
+<h2 id="_3">接口</h2>
 <p>首先我们来看看异步 SRAM 的接口。下文中，采用 <a href="https://www.issi.com/WW/pdf/61WV102416ALL.pdf">IS61WV102416BLL-10TLI</a> 和 <a href="https://www.alliancememory.com/wp-content/uploads/pdf/sram/fa/Alliance%C2%A0Memory_4M%C2%A0Fast_SRAM_AS7C34098A_Sep2021_v2.3.pdf">AS7C34098A-10TCN</a> 作为例子：</p>
-<p><img src="/images/sram.png" alt=""></p>
+<p><img alt="" src="/images/sram.png"/></p>
 <p>可以看到，它有 20 位的地址，16 位的数据，若干个控制信号，同时只能进行读或者写（简称 <code>1RW</code>）。它没有时钟信号，所以是异步 SRAM。</p>
-<h2 id="时序">时序</h2>
+<h2 id="_4">时序</h2>
 <p>对于一个同步接口，我们通常只需要给一个满足时钟周期的时钟，然后通过约束文件保证 setup 和 hold 条件满足即可。但是对于异步接口，由于输出的时候没有时钟，我们需要更小心地完成这件事情。</p>
-<h3 id="读时序">读时序</h3>
+<h3 id="_5">读时序</h3>
 <p>首先来看一下比较简单的读时序：</p>
-<p><img src="/images/sram_read.png" alt=""></p>
-<p>可以看到地址和数据的关系：首先是地址需要稳定 \(t_{RC}\) 的时间，那么数据合法的范围是地址稳定的初始时刻加上 \(t_{AA}\)，到地址稳定的结束时刻加上 \(t_{OH}\)。我们再来看一下这几个时间的范围：</p>
-<p><img src="/images/sram_read_param.png" alt=""></p>
-<p>首先可以看到读周期时间 \(t_{RC}\) 至少是 10ns，这对应了型号中最后的数字，这表示了这个 SRAM 最快的读写速度。比较有意思的是 \(t_{AA}\) 最多是 10ns，刚好和 \(t_{RC}\) 的最小值相等。</p>
+<p><img alt="" src="/images/sram_read.png"/></p>
+<p>可以看到地址和数据的关系：首先是地址需要稳定 <span class="arithmatex">\(t_{RC}\)</span> 的时间，那么数据合法的范围是地址稳定的初始时刻加上 <span class="arithmatex">\(t_{AA}\)</span>，到地址稳定的结束时刻加上 <span class="arithmatex">\(t_{OH}\)</span>。我们再来看一下这几个时间的范围：</p>
+<p><img alt="" src="/images/sram_read_param.png"/></p>
+<p>首先可以看到读周期时间 <span class="arithmatex">\(t_{RC}\)</span> 至少是 10ns，这对应了型号中最后的数字，这表示了这个 SRAM 最快的读写速度。比较有意思的是 <span class="arithmatex">\(t_{AA}\)</span> 最多是 10ns，刚好和 <span class="arithmatex">\(t_{RC}\)</span> 的最小值相等。</p>
 <p>接下来我们考虑一下如何为 SRAM 控制器时序读取的功能。看到上面的波形图，大概可以想到几条设计思路：</p>
 <ol>
-<li>首先输出要读取的地址，为了让它稳定（\(t_{RC}\) 的时间内不能变化），要直接从 FPGA 内部寄存器的输出端口输出</li>
+<li>首先输出要读取的地址，为了让它稳定（<span class="arithmatex">\(t_{RC}\)</span> 的时间内不能变化），要直接从 FPGA 内部寄存器的输出端口输出</li>
 <li>等待若干个周期，确保数据已经稳定，在满足 FPGA 内部寄存器的 setup 和 hold 约束的情况下，把结果保存在内部寄存器中。</li>
 </ol>
-<p>简单起见，先设置一个非常快的 SRAM 控制器频率：500MHz，每个周期 2ns，假如在 <code>a</code> 时刻地址寄存器输出了当前要读取的地址，那么数据会在一段时间后变为合法。这里 <code>a-&gt;b</code> 是读取周期时间 \(t_{RC}\)，<code>a-&gt;c</code> 是地址到数据的延迟 \(t_{AA}\)，<code>b-&gt;d</code> 是地址改变后数据的保持时间 \(t_{OH}\)。</p>
+<p>简单起见，先设置一个非常快的 SRAM 控制器频率：500MHz，每个周期 2ns，假如在 <code>a</code> 时刻地址寄存器输出了当前要读取的地址，那么数据会在一段时间后变为合法。这里 <code>a-&gt;b</code> 是读取周期时间 <span class="arithmatex">\(t_{RC}\)</span>，<code>a-&gt;c</code> 是地址到数据的延迟 <span class="arithmatex">\(t_{AA}\)</span>，<code>b-&gt;d</code> 是地址改变后数据的保持时间 <span class="arithmatex">\(t_{OH}\)</span>。</p>
 <script type="WaveDrom">{
   signal:
     [
@@ -132,8 +655,8 @@
       { name: "addr", wave: "x3....xxx", node: ".a....b"},
       { name: "data", wave: "xxx4....x", node: "...c....d"},
     ]
-}
-</script><p>那么根据这个图，很自然的想法是，我先给出地址，然后数周期，数了五个周期后，此时 \(t_{RC}=10\mathrm{ns}\)，然后我就在 <code>e</code> 的上升沿上把输入数据锁存到寄存器中，例如下面的波形：</p>
+}</script>
+<p>那么根据这个图，很自然的想法是，我先给出地址，然后数周期，数了五个周期后，此时 <span class="arithmatex">\(t_{RC}=10\mathrm{ns}\)</span>，然后我就在 <code>e</code> 的上升沿上把输入数据锁存到寄存器中，例如下面的波形：</p>
 <script type="WaveDrom">{
   signal:
     [
@@ -142,8 +665,8 @@
       { name: "data", wave: "xxx4....x", node: "...c....d"},
       { name: "data_reg", wave: "x.....4..", node: "......f"},
     ]
-}
-</script><p>这个时候 <code>data_reg</code> 的 setup 时间是 <code>c-&gt;e</code>，hold 时间是 <code>e-&gt;d</code>。从图中看起来还有很多的余量，但如果考虑最坏情况，\(t_{AA}=10\mathrm{ns}\)，就会变成下面的波形：</p>
+}</script>
+<p>这个时候 <code>data_reg</code> 的 setup 时间是 <code>c-&gt;e</code>，hold 时间是 <code>e-&gt;d</code>。从图中看起来还有很多的余量，但如果考虑最坏情况，<span class="arithmatex">\(t_{AA}=10\mathrm{ns}\)</span>，就会变成下面的波形：</p>
 <script type="WaveDrom">{
   signal:
     [
@@ -152,20 +675,20 @@
       { name: "data", wave: "x.....4.x", node: "......c.d"},
       { name: "data_reg", wave: "x.....x4.", node: "......."},
     ]
-}
-</script><p>这个时候在 <code>e</code> 时刻不再满足 setup 约束。这个问题在仿真中，可能会“极限操作”表现为没有问题，但实际上，地址从 FPGA 到 SRAM 的延迟有：</p>
+}</script>
+<p>这个时候在 <code>e</code> 时刻不再满足 setup 约束。这个问题在仿真中，可能会“极限操作”表现为没有问题，但实际上，地址从 FPGA 到 SRAM 的延迟有：</p>
 <ol>
-<li>地址寄存器从时钟上升沿到输出变化的延迟：\(T_{CKO}=0.40\mathrm{ns}\)</li>
-<li>寄存器输出到 FPGA 输出引脚的延迟：\(T_{IOOP} \in (2.56, 3.80)\mathrm{ns}\)</li>
-<li>FPGA 输出的地址信号通过信号线到 SRAM 的延迟：\(T_{PD}\)</li>
+<li>地址寄存器从时钟上升沿到输出变化的延迟：<span class="arithmatex">\(T_{CKO}=0.40\mathrm{ns}\)</span></li>
+<li>寄存器输出到 FPGA 输出引脚的延迟：<span class="arithmatex">\(T_{IOOP} \in (2.56, 3.80)\mathrm{ns}\)</span></li>
+<li>FPGA 输出的地址信号通过信号线到 SRAM 的延迟：<span class="arithmatex">\(T_{PD}\)</span></li>
 </ol>
 <p>数据从 SRAM 到 FPGA 的延迟有：</p>
-<ol start="4">
-<li>SRAM 数据信号通过信号线到 FPGA 的延迟：\(T_{PD}\)</li>
-<li>FPGA 的输入引脚到内部寄存器输入端的延迟：\(T_{IOPI}=1.26ns\)</li>
-<li>FPGA 内部寄存器的 setup 时间：\(T_{AS}=0.07\mathrm{ns}\)</li>
+<ol>
+<li>SRAM 数据信号通过信号线到 FPGA 的延迟：<span class="arithmatex">\(T_{PD}\)</span></li>
+<li>FPGA 的输入引脚到内部寄存器输入端的延迟：<span class="arithmatex">\(T_{IOPI}=1.26ns\)</span></li>
+<li>FPGA 内部寄存器的 setup 时间：<span class="arithmatex">\(T_{AS}=0.07\mathrm{ns}\)</span></li>
 </ol>
-<p><img src="/images/sram_read_diagram.drawio.png" alt=""></p>
+<p><img alt="" src="/images/sram_read_diagram.drawio.png"/></p>
 <p>上面的一些数据可以从 <a href="https://docs.xilinx.com/v/u/en-US/ds181_Artix_7_Data_Sheet">Artix-7 FPGA Datasheet</a> 里查到，取的是速度等级 <code>-3</code> 的数据，IO 标准是 <code>LVCMOS33</code>。其中寄存器到 FPGA 输入输出引脚的延迟，实际上由两部分组成：从寄存器到 IOB（IO Block）的延迟，以及 IOB 到 FPGA 输入输出引脚的延迟。我们把地址寄存器的输出作为地址输出，这样 Vivado 就会把寄存器放到 IOB，于是可以忽略寄存器到 IOB 的延迟，详情可以阅读文档 <a href="https://support.xilinx.com/s/article/66668?language=en_US">Successfully packing a register into an IOB with Vivado</a>。</p>
 <p>把上面一串加起来，已经有大概 4 到 5ns 了。考虑了延迟以后，上面的图可能实际上是这个样子：</p>
 <script type="WaveDrom">{
@@ -177,8 +700,8 @@
       { name: "data_sram", wave: "x......4.x..", phase: 0.3},
       { name: "data_fpga", wave: "x.......4.x"},
     ]
-}
-</script><p>考虑了这么多实际的延迟因素以后，会发现这个事情并不简单，需要预先估计出数据在大概什么时候稳定，这时候才能保证数据寄存器上保存的数据是正确的。</p>
+}</script>
+<p>考虑了这么多实际的延迟因素以后，会发现这个事情并不简单，需要预先估计出数据在大概什么时候稳定，这时候才能保证数据寄存器上保存的数据是正确的。</p>
 <p>转念一想，我们的 SRAM Controller 肯定不会跑在 500MHz 这么高的频率下。假如采用 100MHz，可以每两个周期进行一次读操作：</p>
 <script type="WaveDrom">{
   signal:
@@ -189,9 +712,9 @@
       { name: "data_sram", wave: "x......4.....x..", phase: 0.3},
       { name: "data_fpga", wave: "x.......4.....x."},
     ]
-}
-</script><p>此时在 <code>b</code> 时钟上边沿对 <code>data_fpga</code> 采样就可以保证满足时序的要求。注意这里第二个周期（上图的 <code>a</code>）不能给出第二次读取的地址，否则稳定时间太短，不满足 hold 约束。</p>
-<p>如果频率继续降低，使得一个时钟周期大于 \(t_{AA}\) 加上各种延迟和 setup 时间，那就可以每个周期进行一次读操作：</p>
+}</script>
+<p>此时在 <code>b</code> 时钟上边沿对 <code>data_fpga</code> 采样就可以保证满足时序的要求。注意这里第二个周期（上图的 <code>a</code>）不能给出第二次读取的地址，否则稳定时间太短，不满足 hold 约束。</p>
+<p>如果频率继续降低，使得一个时钟周期大于 <span class="arithmatex">\(t_{AA}\)</span> 加上各种延迟和 setup 时间，那就可以每个周期进行一次读操作：</p>
 <script type="WaveDrom">{
   signal:
     [
@@ -201,26 +724,26 @@
       { name: "data_sram", wave: "x......4....x..6...x.", phase: 0.3},
       { name: "data_fpga", wave: "x.......4....x..6...x"},
     ]
-}
-</script><p>此时在 <code>a</code> 时钟上升沿上，对 <code>data_fpga</code> 进行采样，并且输出下一次读请求的地址。</p>
-<h3 id="写时序">写时序</h3>
+}</script>
+<p>此时在 <code>a</code> 时钟上升沿上，对 <code>data_fpga</code> 进行采样，并且输出下一次读请求的地址。</p>
+<h3 id="_6">写时序</h3>
 <p>接下来再看看写时序。写时序涉及的信号更多，更加复杂一些，但好处是信号都是从 FPGA 到 SRAM，因此考虑延迟的时候会比较简单，比如上面读时序中需要考虑从 FPGA 到 SRAM 的地址，再从 SRAM 到 FPGA 的数据的路径。时序图如下：</p>
-<p><img src="/images/sram_write.png" alt=""></p>
+<p><img alt="" src="/images/sram_write.png"/></p>
 <p>这个写的时序图，从时间顺序来看有这么几件事情按顺序发生：</p>
 <ol>
 <li>地址保持稳定</li>
-<li>经过 \(t_{AS}\) 时间后，写使能信号 \(\overline{WE}\) 变为低电平，表示“开始写入操作”，此时地址是稳定的</li>
-<li>经过 \(t_{WP}\) 时间后，写使能信号\(\overline{WE}\) 变为高电平，表示“结束写入操作”，此时地址和数据都是稳定的，并且数据满足 setup（\(t_{DW}\)）和 hold（\(t_{DH}\)）约束</li>
-<li>继续保持地址稳定，直到已经稳定了 \(t_{WC}\) 时间</li>
+<li>经过 <span class="arithmatex">\(t_{AS}\)</span> 时间后，写使能信号 <span class="arithmatex">\(\overline{WE}\)</span> 变为低电平，表示“开始写入操作”，此时地址是稳定的</li>
+<li>经过 <span class="arithmatex">\(t_{WP}\)</span> 时间后，写使能信号<span class="arithmatex">\(\overline{WE}\)</span> 变为高电平，表示“结束写入操作”，此时地址和数据都是稳定的，并且数据满足 setup（<span class="arithmatex">\(t_{DW}\)</span>）和 hold（<span class="arithmatex">\(t_{DH}\)</span>）约束</li>
+<li>继续保持地址稳定，直到已经稳定了 <span class="arithmatex">\(t_{WC}\)</span> 时间</li>
 </ol>
 <p>这些数据的范围如下：</p>
-<p><img src="/images/sram_write_timing.png" alt=""></p>
+<p><img alt="" src="/images/sram_write_timing.png"/></p>
 <p>根据上面的分析，还是先考虑一个 500MHz 的 SRAM 控制器。控制器要写入的话，可以按照如下的顺序操作：</p>
 <ol>
 <li>第一个周期（下图的 <code>a</code>）先输出要写入的地址和数据，并且设置好 <code>ce_n</code>, <code>oe_n</code>, <code>we_n</code>, <code>ub_n</code> 和 <code>lb_n</code>。</li>
-<li>第二个周期（下图的 <code>c</code>）设置 \(\overline{WE}\) 为低电平，这是为了满足 \(t_{AS}\) （下图的 <code>a -&gt; c</code>）的条件</li>
-<li>等待若干个周期（下图的 <code>c -&gt; d</code>），直到 \(t_{WP}\) （下图的 <code>c -&gt; d</code>）和 \(t_{AW}\) （下图的 <code>a -&gt; d</code>）时间满足条件</li>
-<li>设置 \(\overline{WE}\) 为高电平（下图的 <code>d</code>），等待若干个周期（下图的 <code>d -&gt; b</code>），直到满足图中的 \(t_{WC}\) （下图的 <code>a -&gt; b</code>）时间满足条件</li>
+<li>第二个周期（下图的 <code>c</code>）设置 <span class="arithmatex">\(\overline{WE}\)</span> 为低电平，这是为了满足 <span class="arithmatex">\(t_{AS}\)</span> （下图的 <code>a -&gt; c</code>）的条件</li>
+<li>等待若干个周期（下图的 <code>c -&gt; d</code>），直到 <span class="arithmatex">\(t_{WP}\)</span> （下图的 <code>c -&gt; d</code>）和 <span class="arithmatex">\(t_{AW}\)</span> （下图的 <code>a -&gt; d</code>）时间满足条件</li>
+<li>设置 <span class="arithmatex">\(\overline{WE}\)</span> 为高电平（下图的 <code>d</code>），等待若干个周期（下图的 <code>d -&gt; b</code>），直到满足图中的 <span class="arithmatex">\(t_{WC}\)</span> （下图的 <code>a -&gt; b</code>）时间满足条件</li>
 </ol>
 <script type="WaveDrom">{
   signal:
@@ -232,9 +755,9 @@
       { name: "oe_n", wave: "x1......."},
       { name: "ce_n", wave: "x0......."},
     ]
-}
-</script><p>这时候你可能有点疑惑，之前分析读时序的时候，考虑了那么多延迟，为什么写的时候不考虑了？这是因为，写的时候所有的信号都是从 FPGA 输出到 SRAM 的，只要这些信号都是从寄存器直接输出，它们的延迟基本是一样的，所以在 FPGA 侧是什么波形，在 SRAM 侧也是什么波形（准确来说，数据信号因为输出是三态门，所以延迟会稍微高一点，但是由于数据信号的时序余量很大，这个额外的延迟可以忽略不计）。</p>
-<p>这时候你可能又有一个疑惑了，在阅读 Datasheet 后发现，\(t_{AS}\) 最小是 0ns，那能不能在上图的 <code>a</code> 时刻就输出 <code>we_n=0</code>？答案是不行，虽然从波形上来看，是在同一个时钟上升沿更新，但实际上会有一微小的延迟差距，可能导致 <code>we_n</code> 在 <code>addr</code> 之前变化，这时候就可能导致 SRAM 观察到的地址是不稳定的。</p>
+}</script>
+<p>这时候你可能有点疑惑，之前分析读时序的时候，考虑了那么多延迟，为什么写的时候不考虑了？这是因为，写的时候所有的信号都是从 FPGA 输出到 SRAM 的，只要这些信号都是从寄存器直接输出，它们的延迟基本是一样的，所以在 FPGA 侧是什么波形，在 SRAM 侧也是什么波形（准确来说，数据信号因为输出是三态门，所以延迟会稍微高一点，但是由于数据信号的时序余量很大，这个额外的延迟可以忽略不计）。</p>
+<p>这时候你可能又有一个疑惑了，在阅读 Datasheet 后发现，<span class="arithmatex">\(t_{AS}\)</span> 最小是 0ns，那能不能在上图的 <code>a</code> 时刻就输出 <code>we_n=0</code>？答案是不行，虽然从波形上来看，是在同一个时钟上升沿更新，但实际上会有一微小的延迟差距，可能导致 <code>we_n</code> 在 <code>addr</code> 之前变化，这时候就可能导致 SRAM 观察到的地址是不稳定的。</p>
 <p>再考虑一个比较实际的 100MHz 主频 SRAM 控制器，按照如下的波形，则是每三个周期进行一次写操作：</p>
 <script type="WaveDrom">{
   signal:
@@ -246,14 +769,14 @@
       { name: "oe_n", wave: "x1..............."},
       { name: "ce_n", wave: "x0..............."},
     ]
-}
-</script><p>如果觉得这样做太过保守，想要提升性能，有如下几个可能的思路：</p>
+}</script>
+<p>如果觉得这样做太过保守，想要提升性能，有如下几个可能的思路：</p>
 <ol>
 <li>让 <code>we_n=0</code> 在时钟下降沿输出，但是编写的时候需要比较谨慎，比如先设置一个上升沿触发的寄存器，然后用另一个寄存器在下降沿对这个寄存器进行采样，再输出。</li>
 <li>用一个更高频率的时钟驱动 <code>we_n</code> 的寄存器。</li>
 <li>用 FPGA 提供的 <code>ODELAY</code> 自定义输出延迟原语，设置一个固定的输出延迟，比如 1ns。</li>
 <li>用 <code>ODDR</code> 原语，人为地添加一个大约 0.50ns 的延迟。</li>
-<li>对 <code>we_n</code> 设置一个最小的输出延迟（设置了一个很大的 hold），并且不允许输出 <code>we_n</code> 的寄存器放在 IOB 中（否则无法人为增加信号传播的路径长度）。约束：<code>set_output_delay -clock [get_clocks sram_clk] -min -5.00 [get_ports sram_we_n]</code> 和 <code>set_property IOB FALSE [get_cells top/sram_controller/we_n_reg]</code>。这里的信号和寄存器名称需要按照实际情况修改，第二个不允许放置在 IOB 的约束也可以在 Verilog 代码中用 <code>(* IOB = &quot;FALSE&quot; *)</code> 来实现。</li>
+<li>对 <code>we_n</code> 设置一个最小的输出延迟（设置了一个很大的 hold），并且不允许输出 <code>we_n</code> 的寄存器放在 IOB 中（否则无法人为增加信号传播的路径长度）。约束：<code>set_output_delay -clock [get_clocks sram_clk] -min -5.00 [get_ports sram_we_n]</code> 和 <code>set_property IOB FALSE [get_cells top/sram_controller/we_n_reg]</code>。这里的信号和寄存器名称需要按照实际情况修改，第二个不允许放置在 IOB 的约束也可以在 Verilog 代码中用 <code>(* IOB = "FALSE" *)</code> 来实现。</li>
 </ol>
 <p>按照上面的思路实现，下面是可能达到的效果：</p>
 <p>单周期：</p>
@@ -267,8 +790,8 @@
       { name: "oe_n", wave: "x1.............."},
       { name: "ce_n", wave: "x0.............."},
     ]
-}
-</script><p>双周期：</p>
+}</script>
+<p>双周期：</p>
 <script type="WaveDrom">{
   signal:
     [
@@ -279,23 +802,23 @@
       { name: "oe_n", wave: "x1.............."},
       { name: "ce_n", wave: "x0.............."},
     ]
-}
-</script><h2 id="pl241-sram-控制器">PL241 SRAM 控制器</h2>
+}</script>
+<h2 id="pl241-sram">PL241 SRAM 控制器</h2>
 <p>刚刚我们已经设计好了我们的 SRAM 控制器，再让我们来看看 ARM 提供的 SRAM 控制器时序是怎么样的：ARM 文档提供了 <a href="https://developer.arm.com/documentation/ddi0389/b/functional-overview/smc-functional-operation/memory-interface-operation?lang=en">PrimeCell AHB SRAM/NOR Memory Controller (PL241)</a> 的时序图。</p>
 <p>读时序：</p>
-<p><img src="/images/pl241_async_read.svg" alt=""></p>
+<p><img alt="" src="/images/pl241_async_read.svg"/></p>
 <p>它第一个周期设置了 <code>ce_n=0</code> 和 <code>addr</code>，等待一个周期后，设置 <code>oe_n=0</code>，再等待两个周期，得到数据。</p>
 <p>写时序：</p>
-<p><img src="/images/pl241_async_write.svg" alt=""></p>
+<p><img alt="" src="/images/pl241_async_write.svg"/></p>
 <p>它第一个周期设置了 <code>ce_n=0</code> <code>addr</code> 和 <code>data</code>，等待一个周期后，设置 <code>we_n=0</code>，等待两个周期，再设置 <code>we_n=1</code>，这样就完成了写入。这和我们的实现是类似的：等待一个额外的周期，保证满足 <code>we_n</code> 下降时地址已经是稳定的。ARM 的文档里也写了如下的备注：</p>
-<pre><code>The timing parameter tWC is controlling the deassertion of smc_we_n_0. You can
+<div class="language-text highlight"><pre><span></span><code>The timing parameter tWC is controlling the deassertion of smc_we_n_0. You can
 use it to vary the hold time of smc_cs_n_0[3:0], smc_add_0[31:0] and
 smc_data_out_0[31:0]. This differs from the read case where the timing
 parameter tCEOE controls the delay in the assertion of smc_oe_n_0.
 Additionally, smc_we_n_0 is always asserted one cycle after smc_cs_n_0[3:0] to
 ensure the address bus is valid.
-</code></pre>
-<h2 id="参考文档">参考文档</h2>
+</code></pre></div>
+<h2 id="_7">参考文档</h2>
 <ul>
 <li><a href="https://www.issi.com/WW/pdf/61WV102416ALL.pdf">1M x 16 HIGH-SPEED ASYNCHRONOUS CMOS STATIC RAM WITH 3.3V SUPPLY</a></li>
 <li><a href="https://docs.xilinx.com/v/u/en-US/ds181_Artix_7_Data_Sheet">Artix-7 FPGAs Data Sheet: DC and AC Switching Characteristics</a></li>
@@ -304,179 +827,100 @@ ensure the address bus is valid.
 <li><a href="https://support.xilinx.com/s/article/62661?language=en_US">How to verify whether an I/O register is packed into IOB</a></li>
 <li><a href="https://developer.arm.com/documentation/ddi0389/b/functional-overview/smc-functional-operation/memory-interface-operation?lang=en">PrimeCell AHB SRAM/NOR Memory Controller (PL241) - Memory interface operation</a></li>
 </ul>
-
-        </div>
-
-        
-        
-        <div class="article-toc" style="display:none;">
-            <h3>Contents</h3>
-            <nav id="TableOfContents">
-  <ul>
-    <li><a href="#背景">背景</a></li>
-    <li><a href="#寄存器时序">寄存器时序</a></li>
-    <li><a href="#接口">接口</a></li>
-    <li><a href="#时序">时序</a>
-      <ul>
-        <li><a href="#读时序">读时序</a></li>
-        <li><a href="#写时序">写时序</a></li>
-      </ul>
-    </li>
-    <li><a href="#pl241-sram-控制器">PL241 SRAM 控制器</a></li>
-    <li><a href="#参考文档">参考文档</a></li>
-  </ul>
-</nav>
-        </div>
-        
-        
-
-        
-
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
-        <script>
-            (function() {
-                var $toc = $('#TableOfContents');
-                if ($toc.length > 0) {
-                    var $window = $(window);
-
-                    function onScroll(){
-                        var currentScroll = $window.scrollTop();
-                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
-                        var id = "";
-                        h.each(function (i, e) {
-                            e = $(e);
-                            if (e.offset().top - 10 <= currentScroll) {
-                                id = e.attr('id');
-                            }
-                        });
-                        var active = $toc.find('a.active');
-                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
-
-                        active.each(function (i, e) {
-                            $(e).removeClass('active').siblings('ul').hide();
-                        });
-                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
-                            $(e).children('a').addClass('active').siblings('ul').show();
-                        });
-                    }
-
-                    $window.on('scroll', onScroll);
-                    $(document).ready(function() {
-                        $toc.find('a').parent('li').find('ul').hide();
-                        onScroll();
-                        document.getElementsByClassName('article-toc')[0].style.display = '';
-                    });
-                }
-            })();
-        </script>
-        
-
-
-        
-        <footer class="article-footer">
-            <ul class="article-tag-list">
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/sram">sram
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/timing">timing
-                    </a>
-                </li>
-                
-                <li class="article-tag-list-item">
-                    <a class="article-tag-list-link" href="/tags/teaching">teaching
-                    </a>
-                </li>
-                
-            </ul>
-        </footer>
-        
-    </div>
+<hr/>
+<div class="md-source-file">
+<small>
     
-<nav id="article-nav">
-    
-    <a href="/software/2022/05/31/qemu-rv64-in-libvirt/" id="article-nav-newer" class="article-nav-link-wrap">
-        <div class="article-nav-title"><span>&lt;</span>&nbsp;
-            在 libvirt 中运行 RISC-V 虚拟机
-        </div>
-    </a>
-    
-    
-    <a href="/hardware/2022/05/16/ace/" id="article-nav-older" class="article-nav-link-wrap">
-        <div class="article-nav-title">「教学」ACE 缓存一致性协议&nbsp;<span>&gt;</span></div>
-    </a>
-    
-</nav>
-
-
-</article>
-
-        
-            <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+<br/>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 19, 2022</span>
+</small>
+</div>
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
     };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-        
-    </section>
-    <footer id="footer">
-    <div class="outer">
-        <div id="footer-info" class="inner">
-            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
-            <br />
-            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
-        </div>
-    </div>
-    
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
-}
-</script>
-
-
-    
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
-            onload="renderMathInElement(document.body);"></script>
-    
-    <script>
-        document.getElementById('main-nav-toggle').addEventListener('click', function () {
-            var header = document.getElementById('header');
-            if (header.classList.contains('mobile-on')) {
-                header.classList.remove('mobile-on');
-            } else {
-                header.classList.add('mobile-on');
-            }
-        });
-    </script>
-</footer>
-
+</article>
 </div>
-</body>
+</div>
+</main>
+<footer class="md-footer">
+<nav aria-label="页脚" class="md-footer__inner md-grid">
+<a aria-label="上一页: 「教学」ACE 缓存一致性协议" class="md-footer__link md-footer__link--prev" href="../../16/ace/" rel="prev">
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
+</div>
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                上一页
+              </span>
+<div class="md-ellipsis">
+                「教学」ACE 缓存一致性协议
+              </div>
+</div>
+</a>
+<a aria-label="下一页: 在 libvirt 中运行 RISC-V 虚拟机" class="md-footer__link md-footer__link--next" href="../../../../../software/2022/05/31/qemu-rv64-in-libvirt/" rel="next">
+<div class="md-footer__title">
+<span class="md-footer__direction">
+                下一页
+              </span>
+<div class="md-ellipsis">
+                在 libvirt 中运行 RISC-V 虚拟机
+              </div>
+</div>
+<div class="md-footer__button md-icon">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
+</div>
+</a>
+</nav>
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
+</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+<script src="../../../../../javascripts/mathjax.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
+<script>window.addEventListener('load', function() {WaveDrom.ProcessAll();});</script></body>
 </html>
