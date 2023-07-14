@@ -6,7 +6,81 @@
     <description>Recent content on 杰哥的{运维,编程,调板子}小笔记</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sat, 08 Jul 2023 22:36:00 +0800</lastBuildDate><atom:link href="https://jia.je/feed.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 14 Jul 2023 17:26:00 +0800</lastBuildDate><atom:link href="https://jia.je/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>ECDSA</title>
+      <link>https://jia.je/crypto/2023/07/14/ecdsa/</link>
+      <pubDate>Fri, 14 Jul 2023 17:26:00 +0800</pubDate>
+      
+      <guid>https://jia.je/crypto/2023/07/14/ecdsa/</guid>
+      <description>&lt;p&gt;本文参考 &lt;a href=&#34;https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm&#34;&gt;ECDSA - Wikipedia&lt;/a&gt;。&lt;/p&gt;
+&lt;p&gt;ECDSA 是一个基于椭圆曲线的签名算法，使用时需要确定一个椭圆曲线，以及它的 base point \( G \)，且 \( G \) 的阶是素数 \( n \)。&lt;/p&gt;
+&lt;h2 id=&#34;生成-key-pair&#34;&gt;生成 key pair&lt;/h2&gt;
+&lt;p&gt;生成 key pair 的时候，私钥是整数 \( d_A \in [1, n-1] \)，那么公钥就是圆锥曲线上一点 \( Q_A = d_A \times G \)，这里 \( \times \) 表示整数与圆锥曲线上一点的乘法。&lt;/p&gt;
+&lt;h2 id=&#34;签名&#34;&gt;签名&lt;/h2&gt;
+&lt;p&gt;签名的时候，对于给定的消息 \( m \)，签名流程如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;计算哈希：\( e = \mathrm{HASH}(m) \)，例如用 SHA 系列的哈希算法&lt;/li&gt;
+&lt;li&gt;考虑到 \( e \) 的位数可能比 \( n \) 的位数更多，取 \( e \) 的高位，使得位数和 \( n \) 一致，得到的结果记为 \( z \)&lt;/li&gt;
+&lt;li&gt;生成一个密码学安全的随机数 \( k \in [1, n-1] \)&lt;/li&gt;
+&lt;li&gt;计算 \( k \times G \)，取它的 X 坐标为 \( x_1 \)&lt;/li&gt;
+&lt;li&gt;计算 \( r = x_1 \bmod n \)&lt;/li&gt;
+&lt;li&gt;计算 \( s = k^{-1}(z + r d_A) \bmod n \)&lt;/li&gt;
+&lt;li&gt;如果 \( r \) 或者 \( s \) 等于 0，取新的 \( k \) 再重试&lt;/li&gt;
+&lt;li&gt;得到的 ECDSA 签名就是 \( (r, s) \) 两个数&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;验证&#34;&gt;验证&lt;/h2&gt;
+&lt;p&gt;验证签名的时候，已知 \( r, s, m, Q_A \)，按照下面的流程进行：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;前两步和计算签名的算法一致，求哈希和截断后得到 \( z \)&lt;/li&gt;
+&lt;li&gt;计算 \( u_1 = zs^{-1} \bmod n, u_2 = rs^{-1} \bmod n \)&lt;/li&gt;
+&lt;li&gt;计算 \( u_1 \times G + u_2 \times Q_A \)，取它的 X 坐标为 \( x_2 \)&lt;/li&gt;
+&lt;li&gt;如果 \( r \equiv x_2 \pmod n \)，则签名合法&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;上面的过程忽略了一些边界情况的检查，详细版本见 Wikipedia。&lt;/p&gt;
+&lt;p&gt;下面进行验算：&lt;/p&gt;
+&lt;p&gt;\begin{align}
+&amp;amp; u_1 \times G + u_2 \times Q_A \\
+&amp;amp;= zs^{-1} \times G + rs^{-1} \times Q_A \\
+&amp;amp;= zs^{-1} \times G + rs^{-1}d_A \times G \\
+&amp;amp;= (zs^{-1} + rs^{-1}d_A) \times G \\
+&amp;amp;= (z+rd_A)s^{-1} \times G \\
+&amp;amp;= (z+rd_A)k(z+rd_A)^{-1} \times G \\
+&amp;amp;= k \times G
+\end{align}&lt;/p&gt;
+&lt;p&gt;等式左边的 X 坐标等于等式右边的 X 坐标，等价于 \( r \equiv x_2 \pmod n \)，验算没问题。&lt;/p&gt;
+&lt;h2 id=&#34;公钥恢复&#34;&gt;公钥恢复&lt;/h2&gt;
+&lt;p&gt;ECDSA 支持公钥恢复算法，已知 \( r, s, m \)，恢复 \( Q_A \)。首先进行推导：&lt;/p&gt;
+&lt;p&gt;\begin{align}
+Q_A &amp;amp;= d_A \times G \\
+s &amp;amp;= k^{-1}(z + rd_A) \bmod n \\
+sk &amp;amp;= z + rd_A \bmod n \\
+sk \times G &amp;amp;= (z + rd_A) \times G \\
+rd_A \times G &amp;amp;= (z - sk) \times G \\
+Q_A &amp;amp;= d_A \times G = r^{-1}(z-sk) \times G \\
+Q_A &amp;amp;= r^{-1}(z \times G - s(k \times G))
+\end{align}&lt;/p&gt;
+&lt;p&gt;上式中 \( r, s \) 已知，\( z \) 可以从 \( m \) 通过哈希计算得出，\( k \times G \) 的 X 坐标 \( x_1 \) 满足 \( r = x_1 \bmod n \)，因此恢复过程就是：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;在椭圆曲线上找到 X 坐标模 \( n \) 等于 \( r \) 的点，这个点就是 \( k \times G \)&lt;/li&gt;
+&lt;li&gt;按照计算哈希的前两步，从 \( m \) 计算出 \( z \)&lt;/li&gt;
+&lt;li&gt;按照上述公式，计算出 \( Q_A \)&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;但是实际上第一步没有这么简单：首先同一个 X 坐标对应椭圆曲线上的两个点，其次 \( r \) 和 \( x_1 \) 只是同余关系，可能二者之间差了一个倍数。因此实际在 BTC 或者 ETH 里使用的时候，还额外附加了一个参数 recid，范围是 0 到 3，对应 Y 坐标是正还是负，\( r \) 和 \( x_1 \) 之间差 0 还是 \( n \)：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// Source: https://github.com/ethereum/go-ethereum/blob/e1fe6bc8469c626afaa86b1dfb819737e980a574/crypto/secp256k1/libsecp256k1/src/modules/recovery/main_impl.h#L104-L112
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; (recid &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;2&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#a6e22e&#34;&gt;secp256k1_fe_cmp_var&lt;/span&gt;(&lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;fx, &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;secp256k1_ecdsa_const_p_minus_order) &lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a6e22e&#34;&gt;secp256k1_fe_add&lt;/span&gt;(&lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;fx, &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;secp256k1_ecdsa_const_order_as_fe);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#f92672&#34;&gt;!&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;secp256k1_ge_set_xo_var&lt;/span&gt;(&lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;x, &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;fx, recid &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;)) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;参考：&lt;a href=&#34;https://medium.com/asecuritysite-when-bob-met-alice/crypto-magic-recovering-alices-public-key-from-an-ecdsa-signature-e7193df8df6e&#34;&gt;Crypto Magic: Recovering Alice’s Public Key From An ECDSA Signature&lt;/a&gt; 和 &lt;a href=&#34;https://medium.com/asecuritysite-when-bob-met-alice/can-we-recover-the-public-key-from-an-ecdsa-signature-7af4b56a8a0f&#34;&gt;Can We Recover The Public Key from an ECDSA Signature?&lt;/a&gt;&lt;/p&gt;
+</description>
+    </item>
+    
     <item>
       <title>在 Apple M1 上试用 Gentoo/Prefix</title>
       <link>https://jia.je/devops/2023/07/08/gentoo-prefix-m1/</link>
@@ -8519,374 +8593,6 @@ ceph fs new xxx xxx_metadata xxx_data0
 &lt;li&gt;&lt;a href=&#34;https://llussy.github.io/2019/08/17/ceph-architecture/&#34;&gt;ceph 架构和概念&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw&#34;&gt;RedHat Object Gateway Guide&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>编程作业中的学术诚信</title>
-      <link>https://jia.je/programming/2022/07/12/writing-code-cn/</link>
-      <pubDate>Tue, 12 Jul 2022 10:49:00 +0800</pubDate>
-      
-      <guid>https://jia.je/programming/2022/07/12/writing-code-cn/</guid>
-      <description>&lt;p&gt;本文是我自己对 &lt;a href=&#34;https://integrity.mit.edu/handbook/writing-code&#34;&gt;Academic Integrity at MIT: Writing Code&lt;/a&gt; 的非官方中文翻译。本文已经得到了官方的邮件授权。&lt;/p&gt;
-&lt;h2 id=&#34;编写代码-writing-code&#34;&gt;编写代码 Writing Code&lt;/h2&gt;
-&lt;p&gt;与学术写作类似，当你在做课程项目的时候，如果使用了或者改编了其他人开发的代码，你必须要引用代码的来源。你可以在代码注释中引用代码来源。这些注释不仅保护了他人的劳动成果，也会帮助你理解代码和调试。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;Writing code is similar to academic writing in that when you use or
-adapt code developed by someone else as part of your project, you must
-cite your source. However, instead of quoting or paraphrasing a source,
-you include an inline comment in the code. These comments not only
-ensure you are giving proper credit, but help with code understanding
-and debugging.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&#34;什么时候应该在代码中引用来源when-should-i-cite-a-source-in-my-code&#34;&gt;什么时候应该在代码中引用来源？When should I cite a source in my code?&lt;/h2&gt;
-&lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;当你从外部来源复制了代码。无论你是复制了代码片段，还是一整个模块，你都需要引用来源。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; When you copy code from an external source. Whether you are copying a
- snippet of code or an entire module, you should credit the source.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;当你复制了代码并做了改动，你依然要引用来源。你并不是代码的原作者。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; When you copy the code and adapt it, you should still credit the source.
- You were not the original developer of the code.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2 id=&#34;我应该如何引用代码how-should-i-cite-the-code&#34;&gt;我应该如何引用代码？How should I cite the code?&lt;/h2&gt;
-&lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;通常来说，代码的网址和下载时间就足够了。如果可以让读者更加清晰地了解到代码来源，可以增加更多的细节。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; Generally, the URL and the date of retrieval are sufficient. Add
- more details if it will help the reader get a clearer
- understanding of the source.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;如果你修改了代码，你需要注明：“Adapted from:”（修改自）或者“Based on”（基于）。这样读者就知道你修改了代码。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; If you adapted the code, you should indicate “Adapted from:” or
- “Based on” so it is understood that you modified the code.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;你的老师可能会对你如何引用代码有具体的要求。如果你不能确认什么是可行的，请询问你的老师。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; Your instructor may have specific instructions on how you should
- or should not cite your sources. If you are not clear on what is
- acceptable, ask your instructor.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2 id=&#34;开源软件的使用-use-of-open-source-software&#34;&gt;开源软件的使用 Use of Open Source Software&lt;/h2&gt;
-&lt;p&gt;当你使用开源软件项目的代码的时候，你不仅要注明代码的来源，还需要遵循代码的开源软件许可证。请记住：&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;When you use code from an open source project, you need both to
-attribute the source and follow the terms of any open source license
-that applies to the code you are using. Keep in mind:
-&lt;/code&gt;&lt;/pre&gt;
-&lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;当你下载源码的时候，它的开源软件许可证通常也在源码中。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; When you download the source, the license is typically part of the
- download.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;同时，代码里也通常会包括它的版权和使用条款。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; Also, the source code itself will typically contain the
- copyright and terms of use.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;当你引入了开源代码，并且它附带了开源软件许可证，你应该把它的版权声明复制到你的代码中，和/或把许可证复制到代码目录中的文件。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; When you incorporate open-source-licensed code into a program,
- it is good practice to duplicate the copyright in your code,
- and/or store the license in a file with the code.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;如果在下载的文件里没有找到开源软件许可证，你可以在开源项目的网站上找到全文，如 &lt;a href=&#34;https://httpd.apache.org/&#34;&gt;Apache HTTP Server 网站&lt;/a&gt; 或者 &lt;a href=&#34;https://opensource.org/&#34;&gt;Open Source Initiative (OSI) 网站&lt;/a&gt;。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt; If you don’t obtain the license with the download, you should be
- able to find it on the site of the open source project, such as
- Apache HTTP Server site, or on the Open Source Initiative (OSI)
- site.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2 id=&#34;老师决定具体的代码复用程度-instructors-determine-the-specific-expectations-around-re-use-of-code-in-each-class&#34;&gt;老师决定具体的代码复用程度 Instructors determine the specific expectations around re-use of code in each class.&lt;/h2&gt;
-&lt;p&gt;通常，老师会确定课程的协作规则。如果这个规则没有明确地给出来，或者你不确认什么是可行的，请询问你的老师。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;Often, the requirements are described in the collaboration policy for
-the class. If policy is not clearly described in the course materials
-and you are not sure what is acceptable, ask your instructor.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h3 id=&#34;例子&#34;&gt;例子&lt;/h3&gt;
-&lt;p&gt;下面给出一个例子，是课程（Spring 2012 6.005 Elements of Software Construction）的协作规则：&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;Collaboration policy from Spring 2012 6.005 Elements of Software
-Construction: (used with the permission of Professor Rob Miller, Dept of
-Electrical Engineering &amp;amp; Computer Science)
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;我们鼓励同学们互相帮助，但是为了保证每个人都有良好的独立学习体验，我们对你们做了如下的限制：&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;We encourage you to help each other with work in this class, but there
-are limits to what you can do, to ensure that everybody has a good
-individual learning experience.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h4 id=&#34;单人作业-individual-work&#34;&gt;单人作业 Individual work&lt;/h4&gt;
-&lt;p&gt;课程里的习题都要单人完成。我们鼓励同学们讨论实现方法，但是你的代码和报告都需要自己完成。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;Problem sets in this class are intended to be primarily individual
-efforts. You are encouraged to discuss approaches with other students
-but your code and your write-up must be your own.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;你不能使用其他同学编写的资料，无论是这个学期还是以往学期的同学。你也不可以把你的成果提供给其他同学。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;You may not use materials produced as course work by other students,
-whether in this term or previous terms, nor may you provide work for
-other students to use.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;帮助其他同学是应该的。但要保证一个原则，当你在帮助其他同学的时候，你自己的答案或代码不应该可以看到，无论是自己还是其他同学。可以养成一个习惯，帮助他人的时候把笔记本电脑合上。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;It’s good to help other students. But as a general rule, during the time
-that you are helping another student, your own solution should not be
-visible, either to you or to them. Make a habit of closing your laptop
-while you’re helping.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;在帮助其他同学，阅读同学的代码的时候，你会看到同学的解答。你可以从同学的方法里获得灵感，但是不能复制他们的成果。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;During code review, you will see classmates’ solutions to a problem set.
-While it is fine to take inspiration from their approach, do not copy
-their work.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;你可以用外部网站上的资料，比如 StackOverflow，但前提是加上引用，并且作业要求里允许这么做。特别地，如果作业要求里写了“实现 X 功能”，那么你必须自己实现 X 功能，而不能复用外部的代码。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;It’s fine to use material from external sources like StackOverflow, but
-only with proper attribution, and only if the assignment allows it. In
-particular, if the assignment says “implement X,” then you must create
-your own X, not reuse one from an external source.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;你也可以用课程组提供的代码，不需要引用。老师提供的代码在未经允许的情况下，不能公开分享，我们后面会讨论这个问题。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;It’s also fine to use any code provided by this semester’s 6.031 staff
-(in class, readings, or problem sets), without need for attribution.
-Staff-provided code may not be publicly shared without permission,
-however, as discussed later in this document.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;例子一 Example 1：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;A 和 B 做作业的时候坐在一起。他们简略地讨论实现的不同方法。他们在白板上画流程图。当 A 发现 Java 标准库中一个有用的类，她把这个发现告诉了 B。当 B 发现了 StackOverflow 上的一个回答，他给 A 发送了 URL。可以。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  Alyssa and Ben sit next to each other with their laptops while
-  working on a problem set. They talk in general terms about
-  different approaches to doing the problem set. They draw
-  diagrams on the whiteboard. When Alyssa discovers a useful class
-  in the Java library, she mentions it to Ben. When Ben finds a
-  StackOverflow answer that helps, he sends the URL to Alyssa. OK.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;在他们编写代码的时候，他们把代码大声念出来，好让双方都可以编写正确的代码。错误！&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  As they type lines of code, they speak the code aloud to the
-  other person, to make sure both people have the right code.
-  INAPPROPRIATE.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;在作业最困难的部分，A 和 B 互相看电脑屏幕，并对比代码，确认他们代码实现都是正确的。错误！&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  In a tricky part of the problem set, Alyssa and Ben look at each
-  other’s screens and compare them so that they can get their code
-  right. INAPPROPRIATE.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;例子二 Example 2：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;J 已经完成了作业，但是他的朋友 B 正在努力解决一个 bug。J 坐在 B 旁边，看他的代码，帮他调试出了问题。可以。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  Jerry already finished the problem set, but his friend Ben is
-  now struggling with a nasty bug. Jerry sits next to Ben, looks
-  at his code, and helps him debug. OK.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;J 打开了自己的笔记本，找到自己的答案，然后指着自己的代码给 B 纠正错误。错误！&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  Jerry opens his own laptop, finds his solution to the problem
-  set, and refers to it while he’s helping Ben correct his code.
-  INAPPROPRIATE.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;例子三 Example 3：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;L 这周有很多作业，但是因为时间和身体原因来不及做。他已经错过截止时间两天了，但基本没有什么进度。B 觉得 L 可怜，想要帮助 L。在 L 写作业的时候，B 告诉 L 他是怎么做作业的。B 已经提交了自己的答案，并且在帮助 L 的时候，不打开自己的笔记本电脑。可以。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  Louis had three problem sets and two quizzes this week, was away
-  from campus for several days for a track meet, and then got
-  sick. He’s already taken two slack days on the deadline and has
-  made almost no progress on the problem set. Ben feels sorry for
-  Louis and wants to help, so he sits down with Louis and talks
-  with him about how to do the problem set while Louis is working
-  on it. Ben already handed in his own solution, but he doesn’t
-  open his own laptop to look at it while he’s helping Louis. OK.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;B 打开了自己的笔记本电脑，并且在帮助 L 的时候阅读自己的代码。错误！&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  Ben opens his laptop and reads his own code while he’s helping
-  Louis. INAPPROPRIATE.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;B 花了几个小时帮助 L，但是 L 还是没有完成。但是 B 需要去做自己的事情了。在 L 承诺只有在必要的时候才会看 B 的代码之后，B 把自己的代码上传到 Dropbox 并且分享给了 L。错误！&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  Ben has by now spent a couple hours with Louis, and Louis still
-  needs help, but Ben really needs to get back to his own work. He
-  puts his code in a Dropbox and shares it with Louis, after Louis
-  promises only to look at it when he really has to.
-  INAPPROPRIATE.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;例子四 Example 4：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;J 和 E 独立完成作业。他们交换了自己的测例来检查作业。错误！测例是题目的一部分，也是学习体验的一部分。如果你使用了其他人的测例，就是在抄袭，即使只是临时的。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  John and Ellen both worked on their problem sets separately.
-  They exchange their test cases with each other to check their
-  work. INAPPROPRIATE. Test cases are part of the material for the
-  problem set, and part of the learning experience of the course.
-  You are copying if you use somebody else’s test cases, even if
-  temporarily.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;注意，在上面的例子中，双方都负有学术不端的责任。抄袭作业，或者把自己的作业提供给他人，是一个很严重的事情，可能导致分数扣减，课程不及格甚至处分。抄袭作业，或者帮助他人抄袭，可能会给你的成绩单上添加一个不能消除的 F。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;Note that in the examples marked inappropriate above, both people are
-held responsible for the violation in academic honesty. Copying work, or
-knowingly making work available for copying, in contravention of this
-policy is a serious offense that may incur reduced grades, failing the
-course, and disciplinary action. Copying, or helping somebody copy, may
-result in an F on your transcript that you will not be able to drop.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;上述的要求对课程所有的单人作业都使用。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;This policy applies to all coursework that is handed in by an
-individual: problem sets, reading exercises, nanoquiz makeups, etc.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h4 id=&#34;组队作业-group-work&#34;&gt;组队作业 Group work&lt;/h4&gt;
-&lt;p&gt;你应该和你的队友合作完成组队作业，并且每个人都应该有接近的任务量。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;You should collaborate with your partners on all aspects of group
-project work and in-class collaborative exercises, and each of you is
-expected to contribute a roughly equal share to design and
-implementation.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;你可以复用自己在学期内早些时候编写的代码等（包括之前自己和其他队友完成的）。你也可以用课程提供的任何代码。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;You may reuse designs, ideas and code from your own work earlier in the
-semester (even if it was done with a different partner). You may also
-use any code provided by this semester’s 6.031 staff.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;你可以使用外部代码，只要：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;所有同学都可以访问这个资料&lt;/li&gt;
-&lt;li&gt;进行了合理的引用&lt;/li&gt;
-&lt;li&gt;作业允许你这么做&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;特别地，如果作业要求你“实现 X 功能”，你就必须自己实现 X 功能，不能复用他人的。&lt;/p&gt;
-&lt;p&gt;你们组不能复用其他组的代码和思路，无论是其他组是当前学期还是以往学期的同学。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;You may also use material from external sources, so long as: (1) the
-material is available to all students in the class; (2) you give proper
-attribution; and (3) the assignment itself allows it. In particular, if
-the assignment says “implement X,” then you must create your own X, not
-reuse someone else’s. Finally, your group may not reuse designs, ideas,
-or code created by another group, in this semester or previous
-semesters.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&#34;即使修改网络上的代码很常见-although-it-is-common-practice-to-adapt-code-examples-found-on-the-web&#34;&gt;即使修改网络上的代码很常见 Although it is common practice to adapt code examples found on the web,&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;你不能抄袭其他同学的代码。你的同学不是一个合法的代码来源。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  You should never copy code from other students. Your peers are
-  not considered an authorized source.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;你不能简单地复用网上的代码。就像学术写作，你可以采用别人的思路，但是你也要把自己的理解加进去。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;  You should not simply re-use code as the solution to an
-  assignment. Like academic writing, your code can incorporate the
-  ideas of others but should reflect your original approach to the
-  problem.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;引用代码的例子-examples-of-citing-code-sources&#34;&gt;引用代码的例子 Examples of citing code sources&lt;/h2&gt;
-&lt;p&gt;例子一 Example 1：&lt;/p&gt;
-&lt;p&gt;在 Apache 项目的源码的 PluginProxyUtil 类中，开发者引用了论坛的 URL，作者和时间：&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;In describing the class PluginProxyUtil in the Apache Project source
-code, the developer cites the source as a post in a forum and includes
-the URL, author and date:
-&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-java&#34; data-lang=&#34;java&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;/**
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;* A utility class that gives applets the ability to detect proxy host settings.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;* This was adapted from a post from Chris Forster on 20030227 to a Sun Java
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;* forum here:
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;* http://forum.java.sun.com/thread.jspa?threadID=364342&amp;amp;tstart=120
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;[…]
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;*/&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;（来源：Apache Project 源代码 &lt;a href=&#34;http://svn.apache.org&#34;&gt;http://svn.apache.org&lt;/a&gt; 于 2019 年 7 月获取）&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;(Source: Apache Project source code http://svn.apache.org retrieved in
-July 2019.)
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;例子二 Example 2：&lt;/p&gt;
-&lt;p&gt;在 Google Chrome &lt;code&gt;stack_trace_win&lt;/code&gt; 的 &lt;code&gt;OutputTraceToStream&lt;/code&gt; 函数中，开发者引用了 Microsoft Developer Network 并且附带了 URL：&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;In the function OutputTraceToStream in the Google Chrome stack_trace_win
-source code, the developer cites the source code as the Microsoft
-Developer Network and includes a URL:
-&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// Code adapted from MSDN example:
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// http://msdn.microsoft.com/en-us/library/ms680578(VS.85).aspx 
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;（来源：https://github.com/adobe/chromium/blob/master/base/debug/stack_trace_win.cc 于 2019 年 7 月获取）&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;(Source:
-https://github.com/adobe/chromium/blob/master/base/debug/stack_trace_win.cc
-retrieved in July 2019.)
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&#34;引用附有开源许可证的代码的例子-example-of-open-source-licensed-code&#34;&gt;引用附有开源许可证的代码的例子 Example of open-source-licensed code:&lt;/h2&gt;
-&lt;p&gt;在 Google Chrome &lt;code&gt;stack_trace_win&lt;/code&gt; 代码的开头，可以看到版权声明和开源许可证的引用：&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;At the top of the Google Chrome stack_trace_win source file, note the
-copyright and reference to the open source license:
-&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// Copyright (c) 2011 The Chromium Authors. All rights reserved.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// Use of this source code is governed by a BSD-style license that can be
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// found in the LICENSE file.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;如果你把这个代码加入到你的程序中，你需要遵守 Chromium 作者的开源许可证协议中的条款。虽然这个开源许可证只要求你在重分发的时候复制一份版权声明和许可证，一个好习惯是无论是否要求，你都要复制它的版权声明到代码中，和/或把它的许可证放到代码目录的文件中。这样的话，如果你在将来想要重分发你的代码，就很容易检查知识产权相关的问题。&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;If you incorporate this code into a program, you should follow the terms
-outlined in The Chromium Authors&#39; open source license file, which is
-shown below. While this license only requires that you duplicate the
-copyright and license if you are redistributing the code, it is good
-practice to always duplicate the copyright in your code, and/or store
-the license in a file with the code. This way, if you want to
-redistribute the code later, intellectual property reviewing becomes
-much easier.
-&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// Copyright (c) 2014 The Chromium Authors. All rights reserved.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// Redistribution and use in source and binary forms, with or without
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// modification, are permitted provided that the following conditions are
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// met:
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//* Redistributions of source code must retain the above copyright
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// notice, this list of conditions and the following disclaimer.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//* Redistributions in binary form must reproduce the above
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// copyright notice, this list of conditions and the following disclaimer
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// in the documentation and/or other materials provided with the
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// distribution.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//* Neither the name of Google Inc. nor the names of its
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// contributors may be used to endorse or promote products derived from
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// this software without specific prior written permission.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// &amp;#34;AS IS&amp;#34; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;（来源：The Chromium Authors license file &lt;a href=&#34;https://src.chromium.org/viewvc/chrome/trunk/src/LICENSE&#34;&gt;https://src.chromium.org/viewvc/chrome/trunk/src/LICENSE&lt;/a&gt; 于 2019 年 7 月获取）&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;(Source: The Chromium Authors license file
-https://src.chromium.org/viewvc/chrome/trunk/src/LICENSE retrieved in
-July 2019.)&lt;/code&gt;&lt;/pre&gt;
 </description>
     </item>
     

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ECDSA // 杰哥的{运维,编程,调板子}小笔记</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    
+    
+    
+
+        <meta property="og:title" content="ECDSA" />
+    <meta property="og:description" content="本文参考 ECDSA - Wikipedia。
+ECDSA 是一个基于椭圆曲线的签名算法，使用时需要确定一个椭圆曲线，以及它的 base point \( G \)，且 \( G \) 的阶是素数 \( n \)。
+生成 key pair 生成 key pair 的时候，私钥是整数 \( d_A \in [1, n-1] \)，那么公钥就是圆锥曲线上一点 \( Q_A = d_A \times G \)，这里 \( \times \) 表示整数与圆锥曲线上一点的乘法。
+签名 签名的时候，对于给定的消息 \( m \)，签名流程如下：
+计算哈希：\( e = \mathrm{HASH}(m) \)，例如用 SHA 系列的哈希算法 考虑到 \( e \) 的位数可能比 \( n \) 的位数更多，取 \( e \) 的高位，使得位数和 \( n \) 一致，得到的结果记为 \( z \) 生成一个密码学安全的随机数 \( k \in [1, n-1] \) 计算 \( k \times G \)，取它的 X 坐标为 \( x_1 \) 计算 \( r = x_1 \bmod n \) 计算 \( s = k^{-1}(z &#43; r d_A) \bmod n \) 如果 \( r \) 或者 \( s \) 等于 0，取新的 \( k \) 再重试 得到的 ECDSA 签名就是 \( (r, s) \) 两个数 验证 验证签名的时候，已知 \( r, s, m, Q_A \)，按照下面的流程进行：" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://jia.je/crypto/2023/07/14/ecdsa/" />
+    
+
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link href="/webfonts/ptserif/main.css" rel='stylesheet' type='text/css'>
+    <link href="/webfonts/source-code-pro/main.css" rel="stylesheet" type="text/css">
+
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <script src="/js/wavedrom/default.js" type="text/javascript"></script>
+    <script src="/js/wavedrom/wavedrom.min.js" type="text/javascript" /></script>
+
+    <meta name="generator" content="Hugo 0.115.0">
+</head>
+
+
+<body onload="WaveDrom.ProcessAll()">
+<div id="container">
+    <header id="header">
+    <div id="header-outer" class="outer">
+        <div id="header-inner" class="inner">
+            <a id="main-nav-toggle" class="nav-icon" href="javascript:;"></a>
+            <a id="logo" class="logo-text" href="/">杰哥的{运维,编程,调板子}小笔记</a>
+            <nav id="main-nav">
+                
+                <a class="main-nav-link" href="/about/">关于</a>
+                
+                <a class="main-nav-link" href="/category/">分类</a>
+                
+                <a class="main-nav-link" href="/open-source-contributions/">开源</a>
+                
+                <a class="main-nav-link" href="/tags/">标签</a>
+                
+                <a class="main-nav-link" href="/kb/">知识库</a>
+                
+                <a class="main-nav-link" href="/series/">系列</a>
+                
+                <a class="main-nav-link" href="/feed.xml">订阅</a>
+                
+                <a class="main-nav-link" href="/projects/readme/">项目</a>
+                
+            </nav>
+            <nav id="sub-nav">
+                <div id="search-form-wrap">
+                </div>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <section id="main" class="outer">
+        <article class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        <header class="article-header">
+            <h1 class="article-title" itemprop="name">ECDSA</h1>
+        </header>
+        
+        <div class="article-meta">
+            <a href="/crypto/2023/07/14/ecdsa/" class="article-date">
+                <time datetime='2023-07-14T17:26:00.000&#43;08:00' itemprop="datePublished">2023-07-14</time>
+            </a>
+            
+            
+            
+            <div class="article-comment-link-wrap">
+                <a href="/crypto/2023/07/14/ecdsa/#disqus_thread" class="article-comment-link">Comments</a>
+            </div>
+            
+        </div>
+        <div class="article-entry" itemprop="articleBody">
+            <p>本文参考 <a href="https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm">ECDSA - Wikipedia</a>。</p>
+<p>ECDSA 是一个基于椭圆曲线的签名算法，使用时需要确定一个椭圆曲线，以及它的 base point \( G \)，且 \( G \) 的阶是素数 \( n \)。</p>
+<h2 id="生成-key-pair">生成 key pair</h2>
+<p>生成 key pair 的时候，私钥是整数 \( d_A \in [1, n-1] \)，那么公钥就是圆锥曲线上一点 \( Q_A = d_A \times G \)，这里 \( \times \) 表示整数与圆锥曲线上一点的乘法。</p>
+<h2 id="签名">签名</h2>
+<p>签名的时候，对于给定的消息 \( m \)，签名流程如下：</p>
+<ol>
+<li>计算哈希：\( e = \mathrm{HASH}(m) \)，例如用 SHA 系列的哈希算法</li>
+<li>考虑到 \( e \) 的位数可能比 \( n \) 的位数更多，取 \( e \) 的高位，使得位数和 \( n \) 一致，得到的结果记为 \( z \)</li>
+<li>生成一个密码学安全的随机数 \( k \in [1, n-1] \)</li>
+<li>计算 \( k \times G \)，取它的 X 坐标为 \( x_1 \)</li>
+<li>计算 \( r = x_1 \bmod n \)</li>
+<li>计算 \( s = k^{-1}(z + r d_A) \bmod n \)</li>
+<li>如果 \( r \) 或者 \( s \) 等于 0，取新的 \( k \) 再重试</li>
+<li>得到的 ECDSA 签名就是 \( (r, s) \) 两个数</li>
+</ol>
+<h2 id="验证">验证</h2>
+<p>验证签名的时候，已知 \( r, s, m, Q_A \)，按照下面的流程进行：</p>
+<ol>
+<li>前两步和计算签名的算法一致，求哈希和截断后得到 \( z \)</li>
+<li>计算 \( u_1 = zs^{-1} \bmod n, u_2 = rs^{-1} \bmod n \)</li>
+<li>计算 \( u_1 \times G + u_2 \times Q_A \)，取它的 X 坐标为 \( x_2 \)</li>
+<li>如果 \( r \equiv x_2 \pmod n \)，则签名合法</li>
+</ol>
+<p>上面的过程忽略了一些边界情况的检查，详细版本见 Wikipedia。</p>
+<p>下面进行验算：</p>
+<p>\begin{align}
+&amp; u_1 \times G + u_2 \times Q_A \\
+&amp;= zs^{-1} \times G + rs^{-1} \times Q_A \\
+&amp;= zs^{-1} \times G + rs^{-1}d_A \times G \\
+&amp;= (zs^{-1} + rs^{-1}d_A) \times G \\
+&amp;= (z+rd_A)s^{-1} \times G \\
+&amp;= (z+rd_A)k(z+rd_A)^{-1} \times G \\
+&amp;= k \times G
+\end{align}</p>
+<p>等式左边的 X 坐标等于等式右边的 X 坐标，等价于 \( r \equiv x_2 \pmod n \)，验算没问题。</p>
+<h2 id="公钥恢复">公钥恢复</h2>
+<p>ECDSA 支持公钥恢复算法，已知 \( r, s, m \)，恢复 \( Q_A \)。首先进行推导：</p>
+<p>\begin{align}
+Q_A &amp;= d_A \times G \\
+s &amp;= k^{-1}(z + rd_A) \bmod n \\
+sk &amp;= z + rd_A \bmod n \\
+sk \times G &amp;= (z + rd_A) \times G \\
+rd_A \times G &amp;= (z - sk) \times G \\
+Q_A &amp;= d_A \times G = r^{-1}(z-sk) \times G \\
+Q_A &amp;= r^{-1}(z \times G - s(k \times G))
+\end{align}</p>
+<p>上式中 \( r, s \) 已知，\( z \) 可以从 \( m \) 通过哈希计算得出，\( k \times G \) 的 X 坐标 \( x_1 \) 满足 \( r = x_1 \bmod n \)，因此恢复过程就是：</p>
+<ol>
+<li>在椭圆曲线上找到 X 坐标模 \( n \) 等于 \( r \) 的点，这个点就是 \( k \times G \)</li>
+<li>按照计算哈希的前两步，从 \( m \) 计算出 \( z \)</li>
+<li>按照上述公式，计算出 \( Q_A \)</li>
+</ol>
+<p>但是实际上第一步没有这么简单：首先同一个 X 坐标对应椭圆曲线上的两个点，其次 \( r \) 和 \( x_1 \) 只是同余关系，可能二者之间差了一个倍数。因此实际在 BTC 或者 ETH 里使用的时候，还额外附加了一个参数 recid，范围是 0 到 3，对应 Y 坐标是正还是负，\( r \) 和 \( x_1 \) 之间差 0 还是 \( n \)：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">// Source: https://github.com/ethereum/go-ethereum/blob/e1fe6bc8469c626afaa86b1dfb819737e980a574/crypto/secp256k1/libsecp256k1/src/modules/recovery/main_impl.h#L104-L112
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">if</span> (recid <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">2</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">secp256k1_fe_cmp_var</span>(<span style="color:#f92672">&amp;</span>fx, <span style="color:#f92672">&amp;</span>secp256k1_ecdsa_const_p_minus_order) <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">secp256k1_fe_add</span>(<span style="color:#f92672">&amp;</span>fx, <span style="color:#f92672">&amp;</span>secp256k1_ecdsa_const_order_as_fe);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">secp256k1_ge_set_xo_var</span>(<span style="color:#f92672">&amp;</span>x, <span style="color:#f92672">&amp;</span>fx, recid <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">1</span>)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>参考：<a href="https://medium.com/asecuritysite-when-bob-met-alice/crypto-magic-recovering-alices-public-key-from-an-ecdsa-signature-e7193df8df6e">Crypto Magic: Recovering Alice’s Public Key From An ECDSA Signature</a> 和 <a href="https://medium.com/asecuritysite-when-bob-met-alice/can-we-recover-the-public-key-from-an-ecdsa-signature-7af4b56a8a0f">Can We Recover The Public Key from an ECDSA Signature?</a></p>
+
+        </div>
+
+        
+        
+        <div class="article-toc" style="display:none;">
+            <h3>Contents</h3>
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#生成-key-pair">生成 key pair</a></li>
+    <li><a href="#签名">签名</a></li>
+    <li><a href="#验证">验证</a></li>
+    <li><a href="#公钥恢复">公钥恢复</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        
+
+        
+
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+        <script>
+            (function() {
+                var $toc = $('#TableOfContents');
+                if ($toc.length > 0) {
+                    var $window = $(window);
+
+                    function onScroll(){
+                        var currentScroll = $window.scrollTop();
+                        var h = $('.article-entry h1, .article-entry h2, .article-entry h3, .article-entry h4, .article-entry h5, .article-entry h6');
+                        var id = "";
+                        h.each(function (i, e) {
+                            e = $(e);
+                            if (e.offset().top - 10 <= currentScroll) {
+                                id = e.attr('id');
+                            }
+                        });
+                        var active = $toc.find('a.active');
+                        if (active.length == 1 && active.eq(0).attr('href') == '#' + id) return true;
+
+                        active.each(function (i, e) {
+                            $(e).removeClass('active').siblings('ul').hide();
+                        });
+                        $toc.find('a[href="#' + id + '"]').parentsUntil('#TableOfContents').each(function (i, e) {
+                            $(e).children('a').addClass('active').siblings('ul').show();
+                        });
+                    }
+
+                    $window.on('scroll', onScroll);
+                    $(document).ready(function() {
+                        $toc.find('a').parent('li').find('ul').hide();
+                        onScroll();
+                        document.getElementsByClassName('article-toc')[0].style.display = '';
+                    });
+                }
+            })();
+        </script>
+        
+
+
+        
+        <footer class="article-footer">
+            <ul class="article-tag-list">
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ecdsa">ecdsa
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/ecc">ecc
+                    </a>
+                </li>
+                
+                <li class="article-tag-list-item">
+                    <a class="article-tag-list-link" href="/tags/crypto">crypto
+                    </a>
+                </li>
+                
+            </ul>
+        </footer>
+        
+    </div>
+    
+<nav id="article-nav">
+    
+    
+    <a href="/devops/2023/07/08/gentoo-prefix-m1/" id="article-nav-older" class="article-nav-link-wrap">
+        <div class="article-nav-title">在 Apple M1 上试用 Gentoo/Prefix&nbsp;<span>&gt;</span></div>
+    </a>
+    
+</nav>
+
+
+</article>
+
+        
+            <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "jiegec" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        
+    </section>
+    <footer id="footer">
+    <div class="outer">
+        <div id="footer-info" class="inner">
+            &copy; 2023 杰哥的{运维,编程,调板子}小笔记
+            <br />
+            Powered by <a href="https://gohugo.io" target="_blank">Hugo</a> with theme <a href="https://github.com/carsonip/hugo-theme-minos" target="_blank">Minos</a>
+        </div>
+    </div>
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-3109FRSVTT', { 'anonymize_ip': false });
+}
+</script>
+
+
+    
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
+        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script>
+    
+    <script>
+        document.getElementById('main-nav-toggle').addEventListener('click', function () {
+            var header = document.getElementById('header');
+            if (header.classList.contains('mobile-on')) {
+                header.classList.remove('mobile-on');
+            } else {
+                header.classList.add('mobile-on');
+            }
+        });
+    </script>
+</footer>
+
+</div>
+</body>
+</html>
