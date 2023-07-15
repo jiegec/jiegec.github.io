@@ -1,97 +1,175 @@
 
-<!DOCTYPE html>
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="杰哥的{运维,编程,调板子}小笔记">
+      
+      
+      
+        <link rel="canonical" href="https://jia.je/programming/2017/12/02/on-nginx-memory-pool/">
+      
+      
+        <link rel="prev" href="../../../11/30/run-cpp-in-jupyter-notebook/">
+      
+      
+        <link rel="next" href="../../12/lsp-and-cpp/">
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0">
+    
+    
+      
+        <title>Nginx 的内存池实现 - 杰哥的{运维,编程,调板子}小笔记</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.0c456da8.min.css">
+      
+      
 
-<html class="no-js" lang="zh">
-<head>
-<meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<meta content="杰哥的{运维,编程,调板子}小笔记" name="description"/>
-<link href="https://jia.je/programming/2017/12/02/on-nginx-memory-pool/" rel="canonical"/>
-<link href="../../../11/30/run-cpp-in-jupyter-notebook/" rel="prev"/>
-<link href="../../12/lsp-and-cpp/" rel="next"/>
-<link href="../../../../../feed_rss_created.xml" rel="alternate" title="RSS 订阅" type="application/rss+xml"/>
-<link href="../../../../../feed_rss_updated.xml" rel="alternate" title="已更新内容的 RSS 订阅" type="application/rss+xml"/>
-<link href="../../../../../assets/images/favicon.png" rel="icon"/>
-<meta content="mkdocs-1.4.3, mkdocs-material-9.2.0-b0" name="generator"/>
-<title>Nginx 的内存池实现 - 杰哥的{运维,编程,调板子}小笔记</title>
-<link href="../../../../../assets/stylesheets/main.0c456da8.min.css" rel="stylesheet"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
-<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-<script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-</head>
-<body dir="ltr">
-<script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
-<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
-<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
-<label class="md-overlay" for="__drawer"></label>
-<div data-md-component="skip">
-<a class="md-skip" href="#nginx">
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#nginx" class="md-skip">
           跳转至
         </a>
-</div>
-<div data-md-component="announce">
-</div>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-<nav aria-label="页眉" class="md-header__inner md-grid">
-<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
-</a>
-<label class="md-header__button md-icon" for="__drawer">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"></path></svg>
-</label>
-<div class="md-header__title" data-md-component="header-title">
-<div class="md-header__ellipsis">
-<div class="md-header__topic">
-<span class="md-ellipsis">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记" class="md-header__button md-logo" aria-label="杰哥的{运维,编程,调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
             杰哥的{运维,编程,调板子}小笔记
           </span>
-</div>
-<div class="md-header__topic" data-md-component="header-topic">
-<span class="md-ellipsis">
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
             
               Nginx 的内存池实现
             
           </span>
-</div>
-</div>
-</div>
-<label class="md-header__button md-icon" for="__search">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
-</label>
-<div class="md-search" data-md-component="search" role="dialog">
-<label class="md-search__overlay" for="__search"></label>
-<div class="md-search__inner" role="search">
-<form class="md-search__form" name="search">
-<input aria-label="搜索" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="搜索" required="" spellcheck="false" type="text"/>
-<label class="md-search__icon md-icon" for="__search">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"></path></svg>
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
-</label>
-<nav aria-label="查找" class="md-search__options">
-<button aria-label="清空当前内容" class="md-search__icon md-icon" tabindex="-1" title="清空当前内容" type="reset">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"></path></svg>
-</button>
-</nav>
-</form>
-<div class="md-search__output">
-<div class="md-search__scrollwrap" data-md-scrollfix="">
-<div class="md-search-result" data-md-component="search-result">
-<div class="md-search-result__meta">
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
             正在初始化搜索引擎
           </div>
-<ol class="md-search-result__list" role="presentation"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-</div>
-</div>
-</div>
-</div>
-</nav>
-<nav aria-label="标签" class="md-tabs" data-md-component="tabs">
-<div class="md-grid">
-<ul class="md-tabs__list">
-<li class="md-tabs__item md-tabs__item--active">
-<a class="md-tabs__link" href="../../../../..">
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../../../../.." class="md-tabs__link">
         
   
     
@@ -99,9 +177,16 @@
   博客
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../about/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
         
   
     
@@ -109,9 +194,16 @@
   关于
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../open-source-contributions/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../open-source-contributions/" class="md-tabs__link">
         
   
     
@@ -119,9 +211,16 @@
   开源
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../tags/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tags/" class="md-tabs__link">
         
   
     
@@ -129,9 +228,16 @@
   标签
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="/kb/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/kb/" class="md-tabs__link">
         
   
     
@@ -139,9 +245,16 @@
   知识库
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../series/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../series/" class="md-tabs__link">
         
   
     
@@ -149,9 +262,16 @@
   系列
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../projects/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../projects/" class="md-tabs__link">
         
   
     
@@ -159,9 +279,16 @@
   项目
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../tools/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tools/" class="md-tabs__link">
         
   
     
@@ -169,9 +296,16 @@
   工具
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="/feed.xml">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/feed.xml" class="md-tabs__link">
         
   
     
@@ -179,649 +313,1246 @@
   订阅
 
       </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../archive/2023/">
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../archive/2023/" class="md-tabs__link">
           
   
   归档
 
         </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../../../../../category/crypto/">
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../category/crypto/" class="md-tabs__link">
           
   
   分类
 
         </a>
-</li>
-</ul>
-</div>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
 </nav>
+    
+  
 </header>
-<div class="md-container" data-md-component="container">
-<main class="md-main" data-md-component="main">
-<div class="md-main__inner md-grid">
-<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden="">
-<div class="md-sidebar__scrollwrap">
-<div class="md-sidebar__inner">
-<nav aria-label="导航栏" class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" data-md-level="0">
-<label class="md-nav__title" for="__drawer">
-<a aria-label="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" data-md-component="logo" href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"></path></svg>
-</a>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="杰哥的{运维,编程,调板子}小笔记" class="md-nav__button md-logo" aria-label="杰哥的{运维,编程,调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
     杰哥的{运维,编程,调板子}小笔记
   </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item md-nav__item--active">
-<a class="md-nav__link" href="../../../../..">
-<span class="md-ellipsis">
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     博客
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../about/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     关于
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../open-source-contributions/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../open-source-contributions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     开源
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../tags/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tags/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     标签
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="/kb/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/kb/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     知识库
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../series/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../series/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     系列
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../projects/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../projects/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     项目
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../tools/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     工具
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="/feed.xml">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/feed.xml" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     订阅
   </span>
-</a>
-</li>
-<li class="md-nav__item md-nav__item--nested">
-<input class="md-nav__toggle md-toggle" id="__nav_10" type="checkbox"/>
-<label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
     归档
   </span>
-<span class="md-nav__icon md-icon"></span>
-</label>
-<nav aria-expanded="false" aria-labelledby="__nav_10_label" class="md-nav" data-md-level="1">
-<label class="md-nav__title" for="__nav_10">
-<span class="md-nav__icon md-icon"></span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
             归档
           </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2023/">
-<span class="md-ellipsis">
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2023/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2023
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2022/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2022/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2022
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2021/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2021/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2021
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2020/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2020/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2020
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2019/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2019/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2019
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2018/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2018/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2018
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2017/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2017/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2017
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2016/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2016/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2016
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../archive/2014/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2014/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     2014
   </span>
-</a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item md-nav__item--nested">
-<input class="md-nav__toggle md-toggle" id="__nav_11" type="checkbox"/>
-<label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
     分类
   </span>
-<span class="md-nav__icon md-icon"></span>
-</label>
-<nav aria-expanded="false" aria-labelledby="__nav_11_label" class="md-nav" data-md-level="1">
-<label class="md-nav__title" for="__nav_11">
-<span class="md-nav__icon md-icon"></span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
             分类
           </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/crypto/">
-<span class="md-ellipsis">
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/crypto/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     crypto
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/csdn/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/csdn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     csdn
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/ctf/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/ctf/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     ctf
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/devops/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/devops/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     devops
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/hardware/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/hardware/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     hardware
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/life/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/life/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     life
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/logo/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/logo/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     logo
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/meta/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/meta/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     meta
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/misc/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/misc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     misc
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/networking/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/networking/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     networking
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/news/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/news/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     news
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/os/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/os/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     os
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/others/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/others/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     others
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/programming/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/programming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     programming
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/software/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/software/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     software
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/speech/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/speech/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     speech
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/system/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/system/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     system
   </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../../../../../category/unboxing/">
-<span class="md-ellipsis">
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/unboxing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
     unboxing
   </span>
-</a>
-</li>
-</ul>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
 </nav>
-</li>
-</ul>
-</nav>
-</div>
-</div>
-</div>
-<div class="md-content md-content--post" data-md-component="content">
-<div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
-<div class="md-sidebar__scrollwrap">
-<div class="md-sidebar__inner md-post">
-<nav class="md-nav">
-<div class="md-post__back">
-<div class="md-nav__title md-nav__container">
-<a class="md-nav__link" href="../../../../..">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
-<span class="md-ellipsis">
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+                  <span class="md-ellipsis">
                     回到主页
                   </span>
-</a>
-</div>
-</div>
-<ul class="md-post__meta md-nav__list">
-<li class="md-nav__item md-nav__title">
-<div class="md-nav__link">
-<span class="md-ellipsis">
+                </a>
+              </div>
+            </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__title">
+                <div class="md-nav__link">
+                  <span class="md-ellipsis">
                     元数据
                   </span>
-</div>
-</li>
-<li class="md-nav__item">
-<div class="md-nav__link">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"></path></svg>
-<time class="md-ellipsis" datetime="2017-12-02 00:00:00">2017年12月2日</time>
-</div>
-</li>
-<li class="md-nav__item">
-<div class="md-nav__link">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"></path></svg>
-<span class="md-ellipsis">
+                </div>
+              </li>
+              <li class="md-nav__item">
+                <div class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"/></svg>
+                  <time datetime="2017-12-02 00:00:00" class="md-ellipsis">2017年12月2日</time>
+                </div>
+              </li>
+              
+                <li class="md-nav__item">
+                  <div class="md-nav__link">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"/></svg>
+                    <span class="md-ellipsis">
                       分类于
                       
                         <a href="../../../../../category/programming/">programming</a></span>
-</div>
-</li>
-<li class="md-nav__item">
-<div class="md-nav__link">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"></path></svg>
-<span class="md-ellipsis">
+                  </div>
+                </li>
+              
+              
+                
+                <li class="md-nav__item">
+                  <div class="md-nav__link">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"/></svg>
+                    <span class="md-ellipsis">
                       
                         需要 9 分钟阅读时间
                       
                     </span>
-</div>
-</li>
-</ul>
+                  </div>
+                </li>
+              
+            </ul>
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
 </nav>
-<nav aria-label="目录" class="md-nav md-nav--secondary">
-</nav>
-</div>
-</div>
-</div>
-<article class="md-content__inner md-typeset">
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+  
+
+
+
+
+
 <h1 id="nginx">Nginx 的内存池实现</h1>
 <p>今晚参加了 Tunight，会长给我们讲了 Nginx 的一些内部运作的机制和原理。中间的时候，会长展示的代码中用到了线程池方面的一些函数，但是大多地方只有调用 <code>ngx_pcalloc</code> 而没有看到相应的对象释放的过程，于是在演示的最后，会长应大家要求对 Nginx 魔幻的内存池实现做了现场代码分析。</p>
 <p>在分析的中途遇到了很多坑，最后才终于理清了内存池的工作原理。这里直接解释结论吧。以下代码均摘自 Nginx 1.13.7，代码都可以在官方仓库找到。</p>
 <p>首先分析一下创建一个内存池的函数：
-<div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span>
-</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="nf">ngx_create_pool</span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">ngx_log_t</span><span class="w"> </span><span class="o">*</span><span class="n">log</span><span class="p">)</span>
-</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="p">{</span>
-</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">  </span><span class="o">*</span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a>
-</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">log</span><span class="p">);</span>
-</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a>
-</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
-</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
-</span><span id="__span-0-13"><a href="#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-0-14"><a href="#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-</span><span id="__span-0-15"><a href="#__codelineno-0-15" id="__codelineno-0-15" name="__codelineno-0-15"></a>
-</span><span id="__span-0-16"><a href="#__codelineno-0-16" id="__codelineno-0-16" name="__codelineno-0-16"></a><span class="w">    </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
-</span><span id="__span-0-17"><a href="#__codelineno-0-17" id="__codelineno-0-17" name="__codelineno-0-17"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">;</span>
-</span><span id="__span-0-18"><a href="#__codelineno-0-18" id="__codelineno-0-18" name="__codelineno-0-18"></a>
-</span><span id="__span-0-19"><a href="#__codelineno-0-19" id="__codelineno-0-19" name="__codelineno-0-19"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-0-20"><a href="#__codelineno-0-20" id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">chain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-0-21"><a href="#__codelineno-0-21" id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-0-22"><a href="#__codelineno-0-22" id="__codelineno-0-22" name="__codelineno-0-22"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">cleanup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-0-23"><a href="#__codelineno-0-23" id="__codelineno-0-23" name="__codelineno-0-23"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">log</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">log</span><span class="p">;</span>
-</span><span id="__span-0-24"><a href="#__codelineno-0-24" id="__codelineno-0-24" name="__codelineno-0-24"></a>
-</span><span id="__span-0-25"><a href="#__codelineno-0-25" id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-0-26"><a href="#__codelineno-0-26" id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nf">ngx_create_pool</span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">ngx_log_t</span><span class="w"> </span><span class="o">*</span><span class="n">log</span><span class="p">)</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">{</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">  </span><span class="o">*</span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">log</span><span class="p">);</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">;</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">chain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">cleanup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">log</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">log</span><span class="p">;</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="p">}</span>
 </span></code></pre></div></p>
 <p>现在开始分段分析这个函数：在这里，一个内存池用一个 <code>ngx_pool_t (aka struct ngx_pool_s)</code> 类型的数据进行包装，所有的关于内存池的操作都基于相应的内存池对象。 <code>ngx_log_t</code> 表示输出信息的对象，与内存池无关，后面也不会讨论它。</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">log</span><span class="p">);</span>
-</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a>
-</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
-</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
-</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">log</span><span class="p">);</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
 </span></code></pre></div>
 <p>这里通过调用 <code>ngx_memalign</code> 分配一段（能对齐就对齐，不能对齐就放弃的）以 size 为大小的内存，做为这个内存池第一个块的内存，这个块的头是完整的，其中 <code>p-&gt;d.last</code> 和 <code>p-&gt;d.end</code> 分别表示可用于分配对象的内存段的开始和结束，在用 <code>p-&gt;d.next</code> 连接起来的链表中，每个链表实际上只有 <code>d</code> 是存储了数据，后面的各个域都不再使用。这里的 <code>p-&gt;d.failed</code> 涉及到链表的优化，在以后会接触到。</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="w">    </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
-</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">;</span>
-</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">chain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">cleanup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">log</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">log</span><span class="p">;</span>
-</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a>
-</span><span id="__span-2-10"><a href="#__codelineno-2-10" id="__codelineno-2-10" name="__codelineno-2-10"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="w">    </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="p">);</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">NGX_MAX_ALLOC_FROM_POOL</span><span class="p">;</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">chain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">cleanup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">log</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">log</span><span class="p">;</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
 </span></code></pre></div>
 <p>这里的 <code>size</code> 计算出实际用于对象分配的内存大小， <code>p-&gt;max</code> 存储了当前这个块最大能容纳的对象的大小， <code>p-&gt;current</code> 会和上面的 <code>p-&gt;d.failed</code> 合在一起对链表进行优化。 <code>p-&gt;chain</code> 与其他功能关系较密切，不会在本文中展开，而 <code>p-&gt;cleanup</code> 允许外部注册一些清理函数，实现起来并不难。</p>
 <p>接下来，由于 <code>ngx_pnalloc</code> 和 <code>ngx_pcalloc</code> 都和 <code>ngx_palloc</code> 相近，这里只对 <code>ngx_palloc</code> 进行分析：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
-</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="nf">ngx_palloc</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">)</span>
-</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a><span class="p">{</span>
-</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a><span class="cp">#if !(NGX_DEBUG_PALLOC)</span>
-</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">max</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
-</span><span id="__span-3-7"><a href="#__codelineno-3-7" id="__codelineno-3-7" name="__codelineno-3-7"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-3-8"><a href="#__codelineno-3-8" id="__codelineno-3-8" name="__codelineno-3-8"></a><span class="cp">#endif</span>
-</span><span id="__span-3-9"><a href="#__codelineno-3-9" id="__codelineno-3-9" name="__codelineno-3-9"></a>
-</span><span id="__span-3-10"><a href="#__codelineno-3-10" id="__codelineno-3-10" name="__codelineno-3-10"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ngx_palloc_large</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">);</span>
-</span><span id="__span-3-11"><a href="#__codelineno-3-11" id="__codelineno-3-11" name="__codelineno-3-11"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nf">ngx_palloc</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">{</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="cp">#if !(NGX_DEBUG_PALLOC)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">max</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="cp">#endif</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ngx_palloc_large</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">);</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>这里分了两种情况，如果要分配的内存大于一个块的最大值，那么这段内存必须要单独分配单独维护，所以调用了 <code>ngx_palloc_large</code> ，下面对其分析：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
-</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="nf">ngx_palloc_large</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">)</span>
-</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a><span class="p">{</span>
-</span><span id="__span-4-4"><a href="#__codelineno-4-4" id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="w">    </span><span class="kt">void</span><span class="w">              </span><span class="o">*</span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-4-5"><a href="#__codelineno-4-5" id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="w">    </span><span class="n">ngx_uint_t</span><span class="w">         </span><span class="n">n</span><span class="p">;</span>
-</span><span id="__span-4-6"><a href="#__codelineno-4-6" id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="w">    </span><span class="n">ngx_pool_large_t</span><span class="w">  </span><span class="o">*</span><span class="n">large</span><span class="p">;</span>
-</span><span id="__span-4-7"><a href="#__codelineno-4-7" id="__codelineno-4-7" name="__codelineno-4-7"></a>
-</span><span id="__span-4-8"><a href="#__codelineno-4-8" id="__codelineno-4-8" name="__codelineno-4-8"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_alloc</span><span class="p">(</span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">);</span>
-</span><span id="__span-4-9"><a href="#__codelineno-4-9" id="__codelineno-4-9" name="__codelineno-4-9"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-10"><a href="#__codelineno-4-10" id="__codelineno-4-10" name="__codelineno-4-10"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-4-11"><a href="#__codelineno-4-11" id="__codelineno-4-11" name="__codelineno-4-11"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-12"><a href="#__codelineno-4-12" id="__codelineno-4-12" name="__codelineno-4-12"></a>
-</span><span id="__span-4-13"><a href="#__codelineno-4-13" id="__codelineno-4-13" name="__codelineno-4-13"></a><span class="w">    </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-</span><span id="__span-4-14"><a href="#__codelineno-4-14" id="__codelineno-4-14" name="__codelineno-4-14"></a>
-</span><span id="__span-4-15"><a href="#__codelineno-4-15" id="__codelineno-4-15" name="__codelineno-4-15"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-16"><a href="#__codelineno-4-16" id="__codelineno-4-16" name="__codelineno-4-16"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">large</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-17"><a href="#__codelineno-4-17" id="__codelineno-4-17" name="__codelineno-4-17"></a><span class="w">            </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-4-18"><a href="#__codelineno-4-18" id="__codelineno-4-18" name="__codelineno-4-18"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-4-19"><a href="#__codelineno-4-19" id="__codelineno-4-19" name="__codelineno-4-19"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-4-20"><a href="#__codelineno-4-20" id="__codelineno-4-20" name="__codelineno-4-20"></a>
-</span><span id="__span-4-21"><a href="#__codelineno-4-21" id="__codelineno-4-21" name="__codelineno-4-21"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="o">++</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-22"><a href="#__codelineno-4-22" id="__codelineno-4-22" name="__codelineno-4-22"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-4-23"><a href="#__codelineno-4-23" id="__codelineno-4-23" name="__codelineno-4-23"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-4-24"><a href="#__codelineno-4-24" id="__codelineno-4-24" name="__codelineno-4-24"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-25"><a href="#__codelineno-4-25" id="__codelineno-4-25" name="__codelineno-4-25"></a>
-</span><span id="__span-4-26"><a href="#__codelineno-4-26" id="__codelineno-4-26" name="__codelineno-4-26"></a><span class="w">    </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_large_t</span><span class="p">),</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
-</span><span id="__span-4-27"><a href="#__codelineno-4-27" id="__codelineno-4-27" name="__codelineno-4-27"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">large</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-28"><a href="#__codelineno-4-28" id="__codelineno-4-28" name="__codelineno-4-28"></a><span class="w">        </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
-</span><span id="__span-4-29"><a href="#__codelineno-4-29" id="__codelineno-4-29" name="__codelineno-4-29"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-4-30"><a href="#__codelineno-4-30" id="__codelineno-4-30" name="__codelineno-4-30"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-31"><a href="#__codelineno-4-31" id="__codelineno-4-31" name="__codelineno-4-31"></a>
-</span><span id="__span-4-32"><a href="#__codelineno-4-32" id="__codelineno-4-32" name="__codelineno-4-32"></a><span class="w">    </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-4-33"><a href="#__codelineno-4-33" id="__codelineno-4-33" name="__codelineno-4-33"></a><span class="w">    </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span>
-</span><span id="__span-4-34"><a href="#__codelineno-4-34" id="__codelineno-4-34" name="__codelineno-4-34"></a><span class="w">    </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">large</span><span class="p">;</span>
-</span><span id="__span-4-35"><a href="#__codelineno-4-35" id="__codelineno-4-35" name="__codelineno-4-35"></a>
-</span><span id="__span-4-36"><a href="#__codelineno-4-36" id="__codelineno-4-36" name="__codelineno-4-36"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-4-37"><a href="#__codelineno-4-37" id="__codelineno-4-37" name="__codelineno-4-37"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nf">ngx_palloc_large</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="kt">void</span><span class="w">              </span><span class="o">*</span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="n">ngx_uint_t</span><span class="w">         </span><span class="n">n</span><span class="p">;</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="n">ngx_pool_large_t</span><span class="w">  </span><span class="o">*</span><span class="n">large</span><span class="p">;</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_alloc</span><span class="p">(</span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">);</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">large</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">            </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="o">++</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-25"><a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>
+</span><span id="__span-4-26"><a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="w">    </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_large_t</span><span class="p">),</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">large</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-28"><a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="w">        </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span><span id="__span-4-29"><a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-4-30"><a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-31"><a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>
+</span><span id="__span-4-32"><a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a><span class="w">    </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-4-33"><a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a><span class="w">    </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span>
+</span><span id="__span-4-34"><a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="w">    </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">large</span><span class="p">;</span>
+</span><span id="__span-4-35"><a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>
+</span><span id="__span-4-36"><a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-4-37"><a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>这里的 <code>ngx_alloc</code> 就是对 <code>malloc</code> 的简单封装，直接分配一段内存，然后向 <code>pool-&gt;large</code> 中以 <code>ngx_pool_large_t</code> 组成的链表中插入。这里有一个小优化：因为 <code>ngx_pool_large_t</code> 本身也要占用内存，为了复用已经被释放的 <code>ngx_pool_large_t</code> ，尝试链表的前几项，如果几项中都没有空的位置，因为 <code>ngx_pool_large_t</code> 本身是一个很小的对象，自然可以复用自己在内存池中分配对象的方法 <code>ngx_palloc_small</code> ，然后把它加入到 <code>pool-&gt;large</code> 的链表的第一向前。如果很大的内存都在分配后很快释放，这种方法可以复用很多的 <code>ngx_pool_large_t</code> 。</p>
 <p>接下来分析 <code>ngx_palloc_small</code> ：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="k">static</span><span class="w"> </span><span class="n">ngx_inline</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
-</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">ngx_uint_t</span><span class="w"> </span><span class="n">align</span><span class="p">)</span>
-</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="p">{</span>
-</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="w">    </span><span class="n">u_char</span><span class="w">      </span><span class="o">*</span><span class="n">m</span><span class="p">;</span>
-</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">  </span><span class="o">*</span><span class="n">p</span><span class="p">;</span>
-</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">current</span><span class="p">;</span>
-</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a>
-</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a><span class="w">    </span><span class="k">do</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a><span class="w">        </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="p">;</span>
-</span><span id="__span-5-11"><a href="#__codelineno-5-11" id="__codelineno-5-11" name="__codelineno-5-11"></a>
-</span><span id="__span-5-12"><a href="#__codelineno-5-12" id="__codelineno-5-12" name="__codelineno-5-12"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">align</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-13"><a href="#__codelineno-5-13" id="__codelineno-5-13" name="__codelineno-5-13"></a><span class="w">            </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_align_ptr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">NGX_ALIGNMENT</span><span class="p">);</span>
-</span><span id="__span-5-14"><a href="#__codelineno-5-14" id="__codelineno-5-14" name="__codelineno-5-14"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-5-15"><a href="#__codelineno-5-15" id="__codelineno-5-15" name="__codelineno-5-15"></a>
-</span><span id="__span-5-16"><a href="#__codelineno-5-16" id="__codelineno-5-16" name="__codelineno-5-16"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="kt">size_t</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">size</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-17"><a href="#__codelineno-5-17" id="__codelineno-5-17" name="__codelineno-5-17"></a><span class="w">            </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
-</span><span id="__span-5-18"><a href="#__codelineno-5-18" id="__codelineno-5-18" name="__codelineno-5-18"></a>
-</span><span id="__span-5-19"><a href="#__codelineno-5-19" id="__codelineno-5-19" name="__codelineno-5-19"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
-</span><span id="__span-5-20"><a href="#__codelineno-5-20" id="__codelineno-5-20" name="__codelineno-5-20"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-5-21"><a href="#__codelineno-5-21" id="__codelineno-5-21" name="__codelineno-5-21"></a>
-</span><span id="__span-5-22"><a href="#__codelineno-5-22" id="__codelineno-5-22" name="__codelineno-5-22"></a><span class="w">        </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span>
-</span><span id="__span-5-23"><a href="#__codelineno-5-23" id="__codelineno-5-23" name="__codelineno-5-23"></a>
-</span><span id="__span-5-24"><a href="#__codelineno-5-24" id="__codelineno-5-24" name="__codelineno-5-24"></a><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
-</span><span id="__span-5-25"><a href="#__codelineno-5-25" id="__codelineno-5-25" name="__codelineno-5-25"></a>
-</span><span id="__span-5-26"><a href="#__codelineno-5-26" id="__codelineno-5-26" name="__codelineno-5-26"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ngx_palloc_block</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">);</span>
-</span><span id="__span-5-27"><a href="#__codelineno-5-27" id="__codelineno-5-27" name="__codelineno-5-27"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">static</span><span class="w"> </span><span class="n">ngx_inline</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">ngx_uint_t</span><span class="w"> </span><span class="n">align</span><span class="p">)</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="p">{</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">u_char</span><span class="w">      </span><span class="o">*</span><span class="n">m</span><span class="p">;</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">  </span><span class="o">*</span><span class="n">p</span><span class="p">;</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">current</span><span class="p">;</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="k">do</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">        </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="p">;</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">align</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">            </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_align_ptr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">NGX_ALIGNMENT</span><span class="p">);</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="kt">size_t</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">size</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">            </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">        </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span>
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>
+</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a>
+</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ngx_palloc_block</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">);</span>
+</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>首先，从 <code>pool-&gt;current</code> 遍历（这样做的原因下面会提到）已有的各个块，寻找有没有哪个块能容纳下现在需要的大小，如果能就可以调整 <code>p-&gt;d.last</code> 返回，否则就分配一个新的块到内存池中，再从新的块中分配需要的大小的内存。需要一提的是，在设计中，小的对象是随着整个内存池的销毁而被一起释放的，不会在中途被释放，而大的对象尽量要用完即释放。接下来分析 <code>ngx_palloc_block</code> ：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
-</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a><span class="nf">ngx_palloc_block</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">)</span>
-</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a><span class="p">{</span>
-</span><span id="__span-6-4"><a href="#__codelineno-6-4" id="__codelineno-6-4" name="__codelineno-6-4"></a><span class="w">    </span><span class="n">u_char</span><span class="w">      </span><span class="o">*</span><span class="n">m</span><span class="p">;</span>
-</span><span id="__span-6-5"><a href="#__codelineno-6-5" id="__codelineno-6-5" name="__codelineno-6-5"></a><span class="w">    </span><span class="kt">size_t</span><span class="w">       </span><span class="n">psize</span><span class="p">;</span>
-</span><span id="__span-6-6"><a href="#__codelineno-6-6" id="__codelineno-6-6" name="__codelineno-6-6"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">  </span><span class="o">*</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">new</span><span class="p">;</span>
-</span><span id="__span-6-7"><a href="#__codelineno-6-7" id="__codelineno-6-7" name="__codelineno-6-7"></a>
-</span><span id="__span-6-8"><a href="#__codelineno-6-8" id="__codelineno-6-8" name="__codelineno-6-8"></a><span class="w">    </span><span class="n">psize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">size_t</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">pool</span><span class="p">);</span>
-</span><span id="__span-6-9"><a href="#__codelineno-6-9" id="__codelineno-6-9" name="__codelineno-6-9"></a>
-</span><span id="__span-6-10"><a href="#__codelineno-6-10" id="__codelineno-6-10" name="__codelineno-6-10"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span><span class="w"> </span><span class="n">psize</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">);</span>
-</span><span id="__span-6-11"><a href="#__codelineno-6-11" id="__codelineno-6-11" name="__codelineno-6-11"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-12"><a href="#__codelineno-6-12" id="__codelineno-6-12" name="__codelineno-6-12"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-6-13"><a href="#__codelineno-6-13" id="__codelineno-6-13" name="__codelineno-6-13"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-6-14"><a href="#__codelineno-6-14" id="__codelineno-6-14" name="__codelineno-6-14"></a>
-</span><span id="__span-6-15"><a href="#__codelineno-6-15" id="__codelineno-6-15" name="__codelineno-6-15"></a><span class="w">    </span><span class="n">new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
-</span><span id="__span-6-16"><a href="#__codelineno-6-16" id="__codelineno-6-16" name="__codelineno-6-16"></a>
-</span><span id="__span-6-17"><a href="#__codelineno-6-17" id="__codelineno-6-17" name="__codelineno-6-17"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">psize</span><span class="p">;</span>
-</span><span id="__span-6-18"><a href="#__codelineno-6-18" id="__codelineno-6-18" name="__codelineno-6-18"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-6-19"><a href="#__codelineno-6-19" id="__codelineno-6-19" name="__codelineno-6-19"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-</span><span id="__span-6-20"><a href="#__codelineno-6-20" id="__codelineno-6-20" name="__codelineno-6-20"></a>
-</span><span id="__span-6-21"><a href="#__codelineno-6-21" id="__codelineno-6-21" name="__codelineno-6-21"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_data_t</span><span class="p">);</span>
-</span><span id="__span-6-22"><a href="#__codelineno-6-22" id="__codelineno-6-22" name="__codelineno-6-22"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_align_ptr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">NGX_ALIGNMENT</span><span class="p">);</span>
-</span><span id="__span-6-23"><a href="#__codelineno-6-23" id="__codelineno-6-23" name="__codelineno-6-23"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
-</span><span id="__span-6-24"><a href="#__codelineno-6-24" id="__codelineno-6-24" name="__codelineno-6-24"></a>
-</span><span id="__span-6-25"><a href="#__codelineno-6-25" id="__codelineno-6-25" name="__codelineno-6-25"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">current</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-26"><a href="#__codelineno-6-26" id="__codelineno-6-26" name="__codelineno-6-26"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="o">++</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-27"><a href="#__codelineno-6-27" id="__codelineno-6-27" name="__codelineno-6-27"></a><span class="w">            </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span>
-</span><span id="__span-6-28"><a href="#__codelineno-6-28" id="__codelineno-6-28" name="__codelineno-6-28"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-6-29"><a href="#__codelineno-6-29" id="__codelineno-6-29" name="__codelineno-6-29"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-6-30"><a href="#__codelineno-6-30" id="__codelineno-6-30" name="__codelineno-6-30"></a>
-</span><span id="__span-6-31"><a href="#__codelineno-6-31" id="__codelineno-6-31" name="__codelineno-6-31"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new</span><span class="p">;</span>
-</span><span id="__span-6-32"><a href="#__codelineno-6-32" id="__codelineno-6-32" name="__codelineno-6-32"></a>
-</span><span id="__span-6-33"><a href="#__codelineno-6-33" id="__codelineno-6-33" name="__codelineno-6-33"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
-</span><span id="__span-6-34"><a href="#__codelineno-6-34" id="__codelineno-6-34" name="__codelineno-6-34"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nf">ngx_palloc_block</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">)</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="p">{</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="n">u_char</span><span class="w">      </span><span class="o">*</span><span class="n">m</span><span class="p">;</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="kt">size_t</span><span class="w">       </span><span class="n">psize</span><span class="p">;</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">  </span><span class="o">*</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">new</span><span class="p">;</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="n">psize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">size_t</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">u_char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">pool</span><span class="p">);</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_memalign</span><span class="p">(</span><span class="n">NGX_POOL_ALIGNMENT</span><span class="p">,</span><span class="w"> </span><span class="n">psize</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">);</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="n">new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">psize</span><span class="p">;</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">ngx_pool_data_t</span><span class="p">);</span>
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ngx_align_ptr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">NGX_ALIGNMENT</span><span class="p">);</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">    </span><span class="n">new</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">current</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">failed</span><span class="o">++</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a><span class="w">            </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span>
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-30"><a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>
+</span><span id="__span-6-31"><a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="w">    </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new</span><span class="p">;</span>
+</span><span id="__span-6-32"><a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a>
+</span><span id="__span-6-33"><a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
+</span><span id="__span-6-34"><a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>为了节省内存，结构体中并没有记录实际分配的内存块的大小，于是根据第一个块的大小分配当前的块，虽然这里用的也是一个类型为 <code>ngx_pool_t</code> 结构体，实际上只用到了 <code>new-&gt;d</code> 中的内容维护块组成的链表和块内的分配情况。然后从 <code>pool-&gt;current</code> 开始找块的链表的结尾，找到节尾后把当前的块加到结尾的后面，然后把刚才需要分配的小对象的地址返回。与此同时，由于调用这个函数的时候，一定是当前的对象在已有的从 <code>pool-&gt;current</code> 开始的块中都放不下了，我们给这些块的 <code>p-&gt;d.failed</code> 进行自增，意思是说这个块在分配新的对象的时候又一次放不下了，如果放不下的次数比较多，我们可以认为这个块已经装得比较满了，那么，我们把 <code>pool-&gt;current</code> 设为它的后继，以后在分配新的对象的时候就会自动跳过这些比较满的块，从而提高了效率。</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="n">ngx_int_t</span>
-</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="nf">ngx_pfree</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">p</span><span class="p">)</span>
-</span><span id="__span-7-3"><a href="#__codelineno-7-3" id="__codelineno-7-3" name="__codelineno-7-3"></a><span class="p">{</span>
-</span><span id="__span-7-4"><a href="#__codelineno-7-4" id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="w">    </span><span class="n">ngx_pool_large_t</span><span class="w">  </span><span class="o">*</span><span class="n">l</span><span class="p">;</span>
-</span><span id="__span-7-5"><a href="#__codelineno-7-5" id="__codelineno-7-5" name="__codelineno-7-5"></a>
-</span><span id="__span-7-6"><a href="#__codelineno-7-6" id="__codelineno-7-6" name="__codelineno-7-6"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-7"><a href="#__codelineno-7-7" id="__codelineno-7-7" name="__codelineno-7-7"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-8"><a href="#__codelineno-7-8" id="__codelineno-7-8" name="__codelineno-7-8"></a><span class="w">            </span><span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-7-9"><a href="#__codelineno-7-9" id="__codelineno-7-9" name="__codelineno-7-9"></a><span class="w">                           </span><span class="s">"free: %p"</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
-</span><span id="__span-7-10"><a href="#__codelineno-7-10" id="__codelineno-7-10" name="__codelineno-7-10"></a><span class="w">            </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
-</span><span id="__span-7-11"><a href="#__codelineno-7-11" id="__codelineno-7-11" name="__codelineno-7-11"></a><span class="w">            </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-7-12"><a href="#__codelineno-7-12" id="__codelineno-7-12" name="__codelineno-7-12"></a>
-</span><span id="__span-7-13"><a href="#__codelineno-7-13" id="__codelineno-7-13" name="__codelineno-7-13"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">NGX_OK</span><span class="p">;</span>
-</span><span id="__span-7-14"><a href="#__codelineno-7-14" id="__codelineno-7-14" name="__codelineno-7-14"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-7-15"><a href="#__codelineno-7-15" id="__codelineno-7-15" name="__codelineno-7-15"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-7-16"><a href="#__codelineno-7-16" id="__codelineno-7-16" name="__codelineno-7-16"></a>
-</span><span id="__span-7-17"><a href="#__codelineno-7-17" id="__codelineno-7-17" name="__codelineno-7-17"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">NGX_DECLINED</span><span class="p">;</span>
-</span><span id="__span-7-18"><a href="#__codelineno-7-18" id="__codelineno-7-18" name="__codelineno-7-18"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">ngx_int_t</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nf">ngx_pfree</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">p</span><span class="p">)</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">{</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="n">ngx_pool_large_t</span><span class="w">  </span><span class="o">*</span><span class="n">l</span><span class="p">;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">            </span><span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">                           </span><span class="s">&quot;free: %p&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">            </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">            </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">NGX_OK</span><span class="p">;</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">NGX_DECLINED</span><span class="p">;</span>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>从 <code>ngx_pfree</code> 的实现可以看出，只有大的对象才会要求尽快释放，小的对象和没有被手动释放的大的对象都会随着内存池生命周期的结束而一起释放。如 <code>ngx_destroy_pool</code> 中的实现：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="kt">void</span>
-</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a><span class="nf">ngx_destroy_pool</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">)</span>
-</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a><span class="p">{</span>
-</span><span id="__span-8-4"><a href="#__codelineno-8-4" id="__codelineno-8-4" name="__codelineno-8-4"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">          </span><span class="o">*</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">n</span><span class="p">;</span>
-</span><span id="__span-8-5"><a href="#__codelineno-8-5" id="__codelineno-8-5" name="__codelineno-8-5"></a><span class="w">    </span><span class="n">ngx_pool_large_t</span><span class="w">    </span><span class="o">*</span><span class="n">l</span><span class="p">;</span>
-</span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a><span class="w">    </span><span class="n">ngx_pool_cleanup_t</span><span class="w">  </span><span class="o">*</span><span class="n">c</span><span class="p">;</span>
-</span><span id="__span-8-7"><a href="#__codelineno-8-7" id="__codelineno-8-7" name="__codelineno-8-7"></a>
-</span><span id="__span-8-8"><a href="#__codelineno-8-8" id="__codelineno-8-8" name="__codelineno-8-8"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">cleanup</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-9"><a href="#__codelineno-8-9" id="__codelineno-8-9" name="__codelineno-8-9"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">handler</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-10"><a href="#__codelineno-8-10" id="__codelineno-8-10" name="__codelineno-8-10"></a><span class="w">            </span><span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-8-11"><a href="#__codelineno-8-11" id="__codelineno-8-11" name="__codelineno-8-11"></a><span class="w">                           </span><span class="s">"run cleanup: %p"</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">);</span>
-</span><span id="__span-8-12"><a href="#__codelineno-8-12" id="__codelineno-8-12" name="__codelineno-8-12"></a><span class="w">            </span><span class="n">c</span><span class="o">-&gt;</span><span class="n">handler</span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">);</span>
-</span><span id="__span-8-13"><a href="#__codelineno-8-13" id="__codelineno-8-13" name="__codelineno-8-13"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-8-14"><a href="#__codelineno-8-14" id="__codelineno-8-14" name="__codelineno-8-14"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-8-15"><a href="#__codelineno-8-15" id="__codelineno-8-15" name="__codelineno-8-15"></a>
-</span><span id="__span-8-16"><a href="#__codelineno-8-16" id="__codelineno-8-16" name="__codelineno-8-16"></a><span class="cp">#if (NGX_DEBUG)</span>
-</span><span id="__span-8-17"><a href="#__codelineno-8-17" id="__codelineno-8-17" name="__codelineno-8-17"></a>
-</span><span id="__span-8-18"><a href="#__codelineno-8-18" id="__codelineno-8-18" name="__codelineno-8-18"></a><span class="w">    </span><span class="cm">/*</span>
-</span><span id="__span-8-19"><a href="#__codelineno-8-19" id="__codelineno-8-19" name="__codelineno-8-19"></a><span class="cm">     * we could allocate the pool-&gt;log from this pool</span>
-</span><span id="__span-8-20"><a href="#__codelineno-8-20" id="__codelineno-8-20" name="__codelineno-8-20"></a><span class="cm">     * so we cannot use this log while free()ing the pool</span>
-</span><span id="__span-8-21"><a href="#__codelineno-8-21" id="__codelineno-8-21" name="__codelineno-8-21"></a><span class="cm">     */</span>
-</span><span id="__span-8-22"><a href="#__codelineno-8-22" id="__codelineno-8-22" name="__codelineno-8-22"></a>
-</span><span id="__span-8-23"><a href="#__codelineno-8-23" id="__codelineno-8-23" name="__codelineno-8-23"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-24"><a href="#__codelineno-8-24" id="__codelineno-8-24" name="__codelineno-8-24"></a><span class="w">        </span><span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">"free: %p"</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
-</span><span id="__span-8-25"><a href="#__codelineno-8-25" id="__codelineno-8-25" name="__codelineno-8-25"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-8-26"><a href="#__codelineno-8-26" id="__codelineno-8-26" name="__codelineno-8-26"></a>
-</span><span id="__span-8-27"><a href="#__codelineno-8-27" id="__codelineno-8-27" name="__codelineno-8-27"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="cm">/* void */</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-28"><a href="#__codelineno-8-28" id="__codelineno-8-28" name="__codelineno-8-28"></a><span class="w">        </span><span class="n">ngx_log_debug2</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-8-29"><a href="#__codelineno-8-29" id="__codelineno-8-29" name="__codelineno-8-29"></a><span class="w">                       </span><span class="s">"free: %p, unused: %uz"</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="p">);</span>
-</span><span id="__span-8-30"><a href="#__codelineno-8-30" id="__codelineno-8-30" name="__codelineno-8-30"></a>
-</span><span id="__span-8-31"><a href="#__codelineno-8-31" id="__codelineno-8-31" name="__codelineno-8-31"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-32"><a href="#__codelineno-8-32" id="__codelineno-8-32" name="__codelineno-8-32"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-8-33"><a href="#__codelineno-8-33" id="__codelineno-8-33" name="__codelineno-8-33"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-8-34"><a href="#__codelineno-8-34" id="__codelineno-8-34" name="__codelineno-8-34"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-8-35"><a href="#__codelineno-8-35" id="__codelineno-8-35" name="__codelineno-8-35"></a>
-</span><span id="__span-8-36"><a href="#__codelineno-8-36" id="__codelineno-8-36" name="__codelineno-8-36"></a><span class="cp">#endif</span>
-</span><span id="__span-8-37"><a href="#__codelineno-8-37" id="__codelineno-8-37" name="__codelineno-8-37"></a>
-</span><span id="__span-8-38"><a href="#__codelineno-8-38" id="__codelineno-8-38" name="__codelineno-8-38"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-39"><a href="#__codelineno-8-39" id="__codelineno-8-39" name="__codelineno-8-39"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-40"><a href="#__codelineno-8-40" id="__codelineno-8-40" name="__codelineno-8-40"></a><span class="w">            </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
-</span><span id="__span-8-41"><a href="#__codelineno-8-41" id="__codelineno-8-41" name="__codelineno-8-41"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-8-42"><a href="#__codelineno-8-42" id="__codelineno-8-42" name="__codelineno-8-42"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-8-43"><a href="#__codelineno-8-43" id="__codelineno-8-43" name="__codelineno-8-43"></a>
-</span><span id="__span-8-44"><a href="#__codelineno-8-44" id="__codelineno-8-44" name="__codelineno-8-44"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="cm">/* void */</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-45"><a href="#__codelineno-8-45" id="__codelineno-8-45" name="__codelineno-8-45"></a><span class="w">        </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
-</span><span id="__span-8-46"><a href="#__codelineno-8-46" id="__codelineno-8-46" name="__codelineno-8-46"></a>
-</span><span id="__span-8-47"><a href="#__codelineno-8-47" id="__codelineno-8-47" name="__codelineno-8-47"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-48"><a href="#__codelineno-8-48" id="__codelineno-8-48" name="__codelineno-8-48"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-8-49"><a href="#__codelineno-8-49" id="__codelineno-8-49" name="__codelineno-8-49"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-8-50"><a href="#__codelineno-8-50" id="__codelineno-8-50" name="__codelineno-8-50"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-8-51"><a href="#__codelineno-8-51" id="__codelineno-8-51" name="__codelineno-8-51"></a><span class="p">}</span>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kt">void</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nf">ngx_destroy_pool</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">)</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">{</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="n">ngx_pool_t</span><span class="w">          </span><span class="o">*</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">n</span><span class="p">;</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="n">ngx_pool_large_t</span><span class="w">    </span><span class="o">*</span><span class="n">l</span><span class="p">;</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="n">ngx_pool_cleanup_t</span><span class="w">  </span><span class="o">*</span><span class="n">c</span><span class="p">;</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">cleanup</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">handler</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">            </span><span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">                           </span><span class="s">&quot;run cleanup: %p&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">);</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">            </span><span class="n">c</span><span class="o">-&gt;</span><span class="n">handler</span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">);</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="cp">#if (NGX_DEBUG)</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="cm">/*</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="cm">     * we could allocate the pool-&gt;log from this pool</span>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="cm">     * so we cannot use this log while free()ing the pool</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="cm">     */</span>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="w">        </span><span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;free: %p&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="cm">/* void */</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">        </span><span class="n">ngx_log_debug2</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_ALLOC</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">                       </span><span class="s">&quot;free: %p, unused: %uz&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">p</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">last</span><span class="p">);</span>
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-8-34"><a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-35"><a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a>
+</span><span id="__span-8-36"><a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a><span class="cp">#endif</span>
+</span><span id="__span-8-37"><a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a>
+</span><span id="__span-8-38"><a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">large</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-39"><a id="__codelineno-8-39" name="__codelineno-8-39" href="#__codelineno-8-39"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-40"><a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a><span class="w">            </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">alloc</span><span class="p">);</span>
+</span><span id="__span-8-41"><a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-8-42"><a id="__codelineno-8-42" name="__codelineno-8-42" href="#__codelineno-8-42"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-43"><a id="__codelineno-8-43" name="__codelineno-8-43" href="#__codelineno-8-43"></a>
+</span><span id="__span-8-44"><a id="__codelineno-8-44" name="__codelineno-8-44" href="#__codelineno-8-44"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pool</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="cm">/* void */</span><span class="p">;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="o">-&gt;</span><span class="n">d</span><span class="p">.</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-45"><a id="__codelineno-8-45" name="__codelineno-8-45" href="#__codelineno-8-45"></a><span class="w">        </span><span class="n">ngx_free</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span><span id="__span-8-46"><a id="__codelineno-8-46" name="__codelineno-8-46" href="#__codelineno-8-46"></a>
+</span><span id="__span-8-47"><a id="__codelineno-8-47" name="__codelineno-8-47" href="#__codelineno-8-47"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">NULL</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-48"><a id="__codelineno-8-48" name="__codelineno-8-48" href="#__codelineno-8-48"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
+</span><span id="__span-8-49"><a id="__codelineno-8-49" name="__codelineno-8-49" href="#__codelineno-8-49"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-8-50"><a id="__codelineno-8-50" name="__codelineno-8-50" href="#__codelineno-8-50"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-51"><a id="__codelineno-8-51" name="__codelineno-8-51" href="#__codelineno-8-51"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>这个函数首先调用了一系列用户定义的 <code>pool-&gt;cleanup</code> 链表中的函数，允许自定义回收一些特定的资源。然后对每一个 <code>pool-&gt;large</code> 链表中的内容分别释放，最后再把各个块中所有的内存整块释放。注意 <code>ngx_large_block_t</code> 也是存在块中的，所以顺序不能反了。</p>
-<hr/>
+
+  <hr>
 <div class="md-source-file">
-<small>
+  <small>
     
       最后更新:
       <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
-<br/>
+      
+        <br>
         创建日期:
         <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">December 2, 2017</span>
-</small>
+      
+    
+  </small>
 </div>
+
+
+
+  
+
+
 <!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
 <h2 id="__comments">评论</h2>
 <!-- Insert generated snippet here -->
+
 <div id="disqus_thread"></div>
 <script>
     /**
@@ -841,67 +1572,120 @@
     })();
 </script>
 <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-</article>
-</div>
-</div>
-</main>
-<footer class="md-footer">
-<nav aria-label="页脚" class="md-footer__inner md-grid">
-<a aria-label="上一页: 在 Jupyter Notebook 中运行 C++ 代码" class="md-footer__link md-footer__link--prev" href="../../../11/30/run-cpp-in-jupyter-notebook/" rel="prev">
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"></path></svg>
-</div>
-<div class="md-footer__title">
-<span class="md-footer__direction">
+      
+    </article>
+  </div>
+
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../../11/30/run-cpp-in-jupyter-notebook/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 在 Jupyter Notebook 中运行 C++ 代码" rel="prev">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
                 上一页
               </span>
-<div class="md-ellipsis">
+              <div class="md-ellipsis">
                 在 Jupyter Notebook 中运行 C++ 代码
               </div>
-</div>
-</a>
-<a aria-label="下一页: LSP 和 C++" class="md-footer__link md-footer__link--next" href="../../12/lsp-and-cpp/" rel="next">
-<div class="md-footer__title">
-<span class="md-footer__direction">
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../12/lsp-and-cpp/" class="md-footer__link md-footer__link--next" aria-label="下一页: LSP 和 C++" rel="next">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
                 下一页
               </span>
-<div class="md-ellipsis">
+              <div class="md-ellipsis">
                 LSP 和 C++
               </div>
-</div>
-<div class="md-footer__button md-icon">
-<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"></path></svg>
-</div>
-</a>
-</nav>
-<div class="md-footer-meta md-typeset">
-<div class="md-footer-meta__inner md-grid">
-<div class="md-copyright">
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
   
   
     Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
       Material for MkDocs
     </a>
+  
 </div>
-<div class="md-social">
-<a class="md-social__link" href="https://github.com/jiegec" rel="noopener" target="_blank" title="github.com">
-<svg viewbox="0 0 496 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg>
-</a>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jiegec" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
 </div>
-</div>
-</div>
+      
+    </div>
+  </div>
 </footer>
-</div>
-<div class="md-dialog" data-md-component="dialog">
-<div class="md-dialog__inner md-typeset"></div>
-</div>
-<script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
-<script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
-<script src="../../../../../javascripts/mathjax.js"></script>
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
-</body>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.780af0f4.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.f11ae8b1.min.js"></script>
+      
+        
+          <script src="../../../../../javascripts/mathjax.js"></script>
+        
+      
+        
+          <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
+      
+        
+          <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
+      
+        
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+        
+      
+        
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
+        
+      
+    
+  </body>
 </html>
