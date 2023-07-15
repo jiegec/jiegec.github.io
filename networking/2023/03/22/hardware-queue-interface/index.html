@@ -52,6 +52,16 @@
     <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-3109FRSVTT"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-3109FRSVTT",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
 
     
     
@@ -1457,13 +1467,13 @@
 
 
 
-<h1 id="_1">软硬件队列接口</h1>
-<h2 id="_2">背景</h2>
+<h1 id="_1">软硬件队列接口<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<h2 id="_2">背景<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>在网卡等场景下，经常会需要在软硬件之间传输大量的数据，通常的方法是建立循环队列，例如 H2C（Host to Chip）方向，是 Host 作为 Producer 增加数据到队尾，Chip 作为 Consumer 从队头读取数据。由于每次传输的数据不定长，为了方便，队列的项是一个定长的 Descriptor，Descriptor 指向了数据的地址。但具体的细节，不同的实现还不太一样。下面逐个案例进行分析。</p>
-<h2 id="axi-dma">AXI DMA</h2>
+<h2 id="axi-dma">AXI DMA<a class="headerlink" href="#axi-dma" title="Permanent link">&para;</a></h2>
 <p>文档：<a href="https://docs.xilinx.com/r/en-US/pg021_axi_dma">https://docs.xilinx.com/r/en-US/pg021_axi_dma</a></p>
 <p>如果在 Xilinx FPGA 上使用过以太网，那大概率会接触到 AXI DMA 这个 IP，它负责把以太网 MAC 的 AXI Stream 数据用 DMA 的形式通过内存来与操作系统交互。</p>
-<h3 id="_3">发送队列</h3>
+<h3 id="_3">发送队列<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
 <p>它的收和发各是一个队列，首先来看发送队列：</p>
 <p>发送队列由一个头指针（MM2S_CURDESC）和一个尾指针定义（MM2S_TAILDESC），指针指向的是一个 Scatter Gather Descriptor，Descriptor 的内容包括：</p>
 <ul>
@@ -1492,7 +1502,7 @@
 </span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>所以，实际上是驱动不断地提供一个链表给 AXI DMA 去发送，至于这个链表是只有一个元素的数组，还是用一个循环队列去实现，都是可能的。</p>
-<h4 id="u-boot">U-Boot</h4>
+<h4 id="u-boot">U-Boot<a class="headerlink" href="#u-boot" title="Permanent link">&para;</a></h4>
 <p>下面来看 U-Boot 的例子，驱动是 <a href="https://github.com/u-boot/u-boot/blob/v2023.01/drivers/net/xilinx_axi_emac.c">xilinx_axi_emac.c</a>。这个驱动的实现很简单：每次需要发送的时候，只准备一个 Descriptor，发完就轮询直到发送成功。显然这个写法没有很好地利用 DMA 的异步特性，但胜在简单。下面是 <code>axiemac_send</code> 的部分源码：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">axiemac_send</span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">udevice</span><span class="w"> </span><span class="o">*</span><span class="n">dev</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">ptr</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">len</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="cm">/* Setup Tx BD */</span>
@@ -1527,7 +1537,7 @@
 </span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-2-32"><a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="p">}</span>
 </span></code></pre></div>
-<h4 id="linux">Linux</h4>
+<h4 id="linux">Linux<a class="headerlink" href="#linux" title="Permanent link">&para;</a></h4>
 <p>再来看 Linux 的 驱动：<a href="https://github.com/torvalds/linux/blob/v6.2/drivers/net/ethernet/xilinx/xilinx_axienet_main.c">xilinx_axienet_main.c</a>。它采取的方法是分配一个 Descriptor 数组，然后把数组的每一项都指向下一项（最后一项指向第一项），形成一个链表形式的循环队列，维护一个尾指针。下面是初始化代码：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">axienet_dma_bd_init</span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">net_device</span><span class="w"> </span><span class="o">*</span><span class="n">ndev</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="cm">/* Allocate the Tx and Rx buffer descriptors. */</span>
@@ -1641,9 +1651,9 @@
 </span><span id="__span-5-41"><a id="__codelineno-5-41" name="__codelineno-5-41" href="#__codelineno-5-41"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>从代码来看，其实也很简单：AXI DMA 传输完成后，会设置 status 的内容，标记已经传输完成。这时候只要从最后一次完成传输的 Descriptor 开始扫描，把所有完成传输的 Descriptor 回收即可。</p>
-<h3 id="_4">接收队列</h3>
+<h3 id="_4">接收队列<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <p>接收队列结构与发送队列相似，但不同的是，生产者和消费者的角色对调，驱动为了保证随时可以接收数据，需要预先准备好 Descriptor，当 AXI DMA 从以太网 MAC 收到数据的时候，随时有 Descriptor 可以使用，写入数据后，再通知 CPU。和发送队列一样，接收队列由一个头指针（S2MM_CURDESC）和一个尾指针定义（S2MM_TAILDESC），指针指向的 Descriptor 结构与发送队列一致。硬件的接收逻辑和发送逻辑类似，只不过方向相反。</p>
-<h4 id="u-boot_1">U-Boot</h4>
+<h4 id="u-boot_1">U-Boot<a class="headerlink" href="#u-boot_1" title="Permanent link">&para;</a></h4>
 <p>首先还是来看 U-Boot 的实现。前面提到，为了简化，U-Boot 的网卡驱动每次同时只会发送一个帧，接收的时候其实也一样：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">(</span><span class="n">some</span><span class="w"> </span><span class="n">net</span><span class="w"> </span><span class="n">operation</span><span class="w"> </span><span class="p">(</span><span class="n">ping</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">tftp</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">whatever</span><span class="p">...))</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">eth_init</span><span class="p">()</span>
@@ -1727,7 +1737,7 @@
 </span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>收尾工作也很简单，把接收队列恢复到可以接收数据的状态即可，因为 <code>rxframe</code> 是全局变量，也不需要进行 <code>free</code>。</p>
-<h4 id="linux_1">Linux</h4>
+<h4 id="linux_1">Linux<a class="headerlink" href="#linux_1" title="Permanent link">&para;</a></h4>
 <p>Linux 的驱动实现里，接收队列和发送队列类似，也是用一个数组来实现循环链表，只不过接收队列还需要提前准备好缓冲区，供 AXI DMA 写入：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">axienet_dma_bd_init</span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">net_device</span><span class="w"> </span><span class="o">*</span><span class="n">ndev</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="n">lp</span><span class="o">-&gt;</span><span class="n">rx_bd_v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dma_alloc_coherent</span><span class="p">(</span><span class="n">lp</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">,</span>
@@ -1821,12 +1831,12 @@
 </span><span id="__span-11-57"><a id="__codelineno-11-57" name="__codelineno-11-57" href="#__codelineno-11-57"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>可以看到，接收逻辑顺序扫描了 Descriptor，找到那些传输完成的，把其中的数据交给网络栈处理，然后分配一个新的 skb，绑定到 Descriptor 上，把它恢复到可以接收数据的状态，最后更新 TAILDESC。</p>
-<h3 id="_5">小结</h3>
+<h3 id="_5">小结<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <p>AXI DMA 提供了一个 Descriptor 链来异步地传输数据，U-Boot 为了简化，把链表退化成只有一个节点，串行地收和发；Linux 使用数组实现了一个循环的链表，通过 TAILDESC 提供新的 Descriptor，然后从 CURDESC 回收 Descriptor。Descriptor 不断在硬件和软件之间交替，CURDESC 到 TAILDESC 的部分归硬件，其余的归软件。这种设计模式在其他很多地方也可以看到。</p>
-<h2 id="intel-82599">Intel 82599</h2>
+<h2 id="intel-82599">Intel 82599<a class="headerlink" href="#intel-82599" title="Permanent link">&para;</a></h2>
 <p>Intel 82599 是一个有线网卡，Linux 的驱动是 ixgbe。Intel 82599 为收和发都提供了多个队列，每个队列都对应了一个 Descriptor 数组，在内存中连续存放。Linux 驱动使用了 64 个接收队列和发送队列。</p>
 <p>文档链接：<a href="https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf">https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf</a></p>
-<h3 id="_6">接收队列</h3>
+<h3 id="_6">接收队列<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
 <p>和 AXI DMA 的链表形式不同。每个接收队列都由如下的寄存器定义：</p>
 <ul>
 <li>RDBAL/RDBAH[n]: Receive Descriptor Base Address Low/High</li>
@@ -1890,7 +1900,7 @@
 </span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52" href="#__codelineno-12-52"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>具体到实现上，可以看到和 AXI DMA 驱动基本是一样的：分配 Descriptor 数组空间，然后给每个 Descriptor 分配一个 Buffer，然后更新 tail 指针，让硬件可以开始进行接收。</p>
-<h3 id="_7">发送队列</h3>
+<h3 id="_7">发送队列<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
 <p>发送队列和接收队列类似，也是先分配好 Descriptor 数组，只不过先不填内容，等到要发送数据的时候，再从 tail 取出一个 Descriptor，写入 buffer 地址，然后更新 tail 指针让硬件发送。代码：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">netdev_tx_t</span><span class="w"> </span><span class="nf">ixgbe_xmit_frame_ring</span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">sk_buff</span><span class="w"> </span><span class="o">*</span><span class="n">skb</span><span class="p">,</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">        </span><span class="k">struct</span><span class="w"> </span><span class="nc">ixgbe_adapter</span><span class="w"> </span><span class="o">*</span><span class="n">adapter</span><span class="p">,</span>
@@ -1964,13 +1974,13 @@
 </span><span id="__span-13-70"><a id="__codelineno-13-70" name="__codelineno-13-70" href="#__codelineno-13-70"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>这一段代码的思路是，对于 skb 的每个 frag，尝试填入 Descriptor，如果发现填不下，就填多个，直到填完位置，最后更新 tail 指针，让硬件开始发送。</p>
-<h3 id="_8">小结</h3>
+<h3 id="_8">小结<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
 <p>在了解 AXI DMA 的工作原理的基础上，Intel 82599 的队列其实也不复杂，只不过直接采取了以 Descriptor 数组作为循环队列的方式，并且这里归属于硬件的 Descriptor 空间其实是 [Head, Tail) 左闭右开区间的形式（AXI DMA 是链表的头和尾，都属于硬件），这样就可以用 Head == Tail 来表示空队列，当然了，队列也永远会差一项才能满（除非额外记录队列中合法元素个数）。最后贴一张 Intel 82599 Datasheet 中的图片来帮助理解：</p>
 <p><img alt="" src="/images/82599_queue.png" /></p>
-<h2 id="connectx-4">ConnectX-4</h2>
+<h2 id="connectx-4">ConnectX-4<a class="headerlink" href="#connectx-4" title="Permanent link">&para;</a></h2>
 <p>接下来看看 ConnectX-4 是如何设计它的各个队列的。首先，它有 Work Queue，用于发送数据（Send Queue）和准备接收数据的缓冲区（Receive Queue），然后硬件处理 Work Queue 中的 Entry 后，就会把结果写入到 Completion Queue，并且通过 Event Queue 通知 CPU。</p>
 <p>文档：<a href="https://network.nvidia.com/files/doc-2020/ethernet-adapters-programming-manual.pdf">https://network.nvidia.com/files/doc-2020/ethernet-adapters-programming-manual.pdf</a></p>
-<h3 id="work-queue">Work Queue</h3>
+<h3 id="work-queue">Work Queue<a class="headerlink" href="#work-queue" title="Permanent link">&para;</a></h3>
 <p>Work Queue 和前面 Intel 82599 的设计很像，也是一个 Descriptor 的数组的形式，只不过 Work Queue Entry 是不定长的，支持不同的 Entry Format，例如 Send WQE、Receive WQE 和 Shared Receive WQE。</p>
 <p>驱动初始化的时候，创建好 Work Queue：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">mlx5e_open_queues</span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">mlx5e_channel</span><span class="w"> </span><span class="o">*</span><span class="n">c</span><span class="p">,</span>
@@ -1982,7 +1992,7 @@
 </span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>之后，和 Intel 82599 类似，发送的时候就向 Send Queue 插入 Entry，然后更新 Doorbell 让硬件开始发送；为了接收，先分配好缓冲区，初始化 Receive Queue，更新 Doorbell 让硬件开始接收数据。</p>
-<h3 id="completion-queue">Completion Queue</h3>
+<h3 id="completion-queue">Completion Queue<a class="headerlink" href="#completion-queue" title="Permanent link">&para;</a></h3>
 <p>和 Intel 82599 不同的是，这里表示项目完成是通过 Completion Queue 完成的，也就是说，硬件会向 Completion Queue 插入一项，来表示对应的 Work Queue Entry 完成情况。这样的设计下，Work Queue 完全由软件写入，Completion Queue 完全由硬件写入，不像前面 AXI DMA 和 Intel 82599 那样硬件会更新 Descriptor 里面的状态位。Completion Queue 也有两个 Counter，相当于队列的头和尾指针：Producer Counter 记录了硬件写入的 Completion Queue Entry（CQE）数量，Consumer Counter 记录了软件已经处理了的 CQE 数量。在这里有一个比较有意思的设计：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">ownership</span><span class="w"> </span><span class="nf">cqe_ownership</span><span class="p">(</span><span class="n">cqe</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cqe</span><span class="p">.</span><span class="n">owner</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">((</span><span class="n">consumer_counter</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">log2_cq_size</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
@@ -2023,7 +2033,7 @@
 </span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>实际上，写这篇博客就是因为有同学看到了 CQE 的 owner 的奇怪设定，我才来研究的这个问题。我就是为了这点醋，才包的这顿饺子，前面做了一大堆的引入。</p>
-<h2 id="chatgpt">ChatGPT 时间</h2>
+<h2 id="chatgpt">ChatGPT 时间<a class="headerlink" href="#chatgpt" title="Permanent link">&para;</a></h2>
 <p>问：What does network driver do to send/receive network packets to/from NIC?</p>
 <p>答：A network driver is a software component that allows the operating system to communicate with the network interface card (NIC) and send and receive network packets. The NIC is a hardware device that connects a computer to a network and enables it to communicate with other devices on that network.</p>
 <p>When the computer wants to send a network packet, the operating system hands the packet off to the network driver, which then converts it into a format that the NIC can understand. The network driver also sets the appropriate control bits and headers in the packet to ensure that it is correctly transmitted over the network.</p>
@@ -2072,6 +2082,8 @@
   </small>
 </div>
 
+
+  
 
 
   

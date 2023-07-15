@@ -52,6 +52,16 @@
     <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-3109FRSVTT"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-3109FRSVTT",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
 
     
     
@@ -1346,8 +1356,8 @@
 
 
 
-<h1 id="transport-layer-interface">Transport Layer Interface 考古</h1>
-<h2 id="transport-layer-interface_1">Transport Layer Interface</h2>
+<h1 id="transport-layer-interface">Transport Layer Interface 考古<a class="headerlink" href="#transport-layer-interface" title="Permanent link">&para;</a></h1>
+<h2 id="transport-layer-interface_1">Transport Layer Interface<a class="headerlink" href="#transport-layer-interface_1" title="Permanent link">&para;</a></h2>
 <p>现在网络编程主要采用的是 BSD Sockets API，但实际上当年还有另一套 API，就是 TLI（Transport Layer Interface），后来 BSD Sockets 胜出，进入了 POSIX 标准，TLI 后面也标准化为了 XTI，现在可以在部分 Unix 系统中找到。TLI/XTI 的使用方法和 Sockets API 有些类似，但是比较特别的一点在于，Sockets API 第一步是 <code>socket</code> 调用，传的参数就决定了这是 TCP 还是 UDP 还是其他什么协议，而 TLI 是通过打开不同的设备文件来进行区分：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kt">int</span><span class="w"> </span><span class="n">fd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t_open</span><span class="p">(</span><span class="s">&quot;/dev/udp&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">O_RDWR</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">);</span>
 </span></code></pre></div>
@@ -1367,15 +1377,15 @@
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="p">}</span>
 </span></code></pre></div>
 <p>可以看到，这段在 libnsl 中的代码构造了一个结构体 <code>struct T_conn_req</code>，然后通过 <code>putmsg</code> 系统调用发送出去。可以预想，内核那边虚拟了一个 <code>/dev/tcp</code> 设备，这个设备注册了 putmsg 的回调函数。在回调函数中，解析结构体的字段，然后执行相应的操作。用户调用 TLI 函数，然后 libnsl 负责把函数的参数封装成一个结构体，然后向 <code>t_open</code> 打开的设备文件发送结构体的内容。内核和 libnsl 约定好了结构体，然后不同的操作根据结构体的 <code>PRIM_type</code> 字段来区分。实际上，这个约定也是一个标准，叫做 TPI(Transport Provider Interface)。</p>
-<h2 id="transport-provider-interface">Transport Provider Interface</h2>
+<h2 id="transport-provider-interface">Transport Provider Interface<a class="headerlink" href="#transport-provider-interface" title="Permanent link">&para;</a></h2>
 <p>TPI(Transport Provider Interface) 约定了内核和 libnsl 之间的接口。内核和用户态之间互相发送消息，有点像 HTTP，一个请求过去，一个响应回来。只不过请求是“connect”或者“accept”等等。相比 Sockets API，确实绕了很多，首先要封装到 struct 里面，然后通过统一的读写 syscall 进入到内核，再解析一遍 struct，再做实际的操作。如果直接 syscall 的话，内核实现会比较简单，只不过不“Unix”了。实际上，如过你阅读 Illumos 源码，它在解析 struct 以后，也会转而执行相应的 Sockets 处理函数，然后把返回值再封装成 TLI 的响应，发送给用户程序。</p>
 <p>比较有意思的是，TPI 本身也是有状态的：Idle，Unbound，Data Transfer，等待 ACK 等等。所以如果你在 Solaris 上跑 netstat，会发现 UDP 也有状态（Idle/Unbound），那实际上不是 UDP 的状态，而是 TPI 的状态。正因此，我在维护 lsof 的时候，经常看到 TCP/TPI state，不明所以，才会研究 TPI 的历史，然后找到 TLI，才知道除了 Sockets 以外，还有一套 Unix 上的网络 API。有趣的是，TLI 是 System V 提供的，以前经常听到 System V ABI 的说法，却不知道 System V 是一个 Unix 操作系统，现在依然还可以在很多地方看到它的身影。</p>
-<h2 id="_1">参考资料</h2>
+<h2 id="_1">参考资料<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="https://pubs.opengroup.org/onlinepubs/9647699/toc.pdf">Networking Services (XNS)</a></li>
 <li><a href="http://www.openss7.org/docs/tpi.pdf">Transport Provider Interface</a></li>
 </ul>
-<h2 id="chatgpt">ChatGPT</h2>
+<h2 id="chatgpt">ChatGPT<a class="headerlink" href="#chatgpt" title="Permanent link">&para;</a></h2>
 <p>问：What is Transport Layer Interface?</p>
 <p>答：The Transport Layer Interface (TLI) is an application programming interface (API) that provides a standard interface for communication between an application program and the transport layer protocols of a network. It was originally developed by AT&amp;T for the Unix operating system and is now used in many other operating systems.</p>
 <p>The TLI provides a set of functions that allow applications to communicate with the transport layer protocols, such as TCP and UDP, in a network-independent manner. Applications can use TLI to establish connections, send and receive data, and manage network resources.</p>
@@ -1481,6 +1491,8 @@
   </small>
 </div>
 
+
+  
 
 
   
