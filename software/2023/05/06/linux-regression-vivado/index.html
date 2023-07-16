@@ -81,7 +81,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#linux-6213-bug-vivado-fpga" class="md-skip">
+        <a href="#linux-6213-引入的-bug-导致-vivado-无法识别-fpga" class="md-skip">
           跳转至
         </a>
       
@@ -1290,28 +1290,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
+  <a href="#背景" class="md-nav__link">
     背景
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#排查" class="md-nav__link">
     排查
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#柳暗花明又一村" class="md-nav__link">
     柳暗花明又一村
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#总结" class="md-nav__link">
     总结
   </a>
   
@@ -1348,7 +1348,7 @@
 
 
 
-<h1 id="linux-6213-bug-vivado-fpga">Linux 6.2.13 引入的 BUG 导致 Vivado 无法识别 FPGA<a class="headerlink" href="#linux-6213-bug-vivado-fpga" title="Permanent link">&para;</a></h1>
+<h1 id="linux-6213-引入的-bug-导致-vivado-无法识别-fpga">Linux 6.2.13 引入的 BUG 导致 Vivado 无法识别 FPGA<a class="headerlink" href="#linux-6213-引入的-bug-导致-vivado-无法识别-fpga" title="Permanent link">&para;</a></h1>
 <p><a href="../linux-regression-vivado-en/">English version</a></p>
 <h2 id="tldr">TLDR<a class="headerlink" href="#tldr" title="Permanent link">&para;</a></h2>
 <p>简单来说，Linux 6.2.13 引入的 commit：</p>
@@ -1377,9 +1377,9 @@
 <p>修复了 BUG 的同时，引入了新的 BUG，导致 MAP_32BIT 有时无法工作，而 Xilinx 的 Digilent 下载器代码使用了这个参数，导致 mmap 失败，无法识别 FPGA。</p>
 <!-- more -->
 
-<h2 id="_1">背景<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
 <p>事情的背景是，@vowstar 升级内核到 6.2.14 以后，发现 Vivado 找不到 FPGA 了，重启回到 6.2.12 就好了。</p>
-<h2 id="_2">排查<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="排查">排查<a class="headerlink" href="#排查" title="Permanent link">&para;</a></h2>
 <p>因为升级了内核，第一反应是不是 ftdi_sio 驱动的问题。比对了一下二者的 dmesg 日志，发现 Linux 6.2.12 会显示 <code>ftdi_sio: device disconnected</code> 消息：这是因为 FPGA 下载器内置的是 FTDI 芯片，它支持多种模式，默认情况下，内核检测到设备以后，会由 ftdi_sio 驱动初始化为串口模式，创建 <code>/dev/ttyUSB*</code> 设备；而 Vivado 需要用的是 MPSSE 模式，从而使用 JTAG 协议与 FPGA 通讯。这与串口模式冲突，因此 Vivado 要做的事情，首先是把内核模块 detach，也就是不再占用 USB 设备，然后再让 FTDI 芯片进入 MPSSE 模式。</p>
 <p>沿着这个思路，首先想到的是权限问题：默认情况下，USB 设备权限比较严格，所以 Vivado 在安装的时候，会安装 udev rule，把 Digilent 下载器的 usb 设备文件的权限改为 666，这样就允许所有用户访问 USB 设备。但是检查了一下，/dev/bus/usb 下的设备文件权限是正确的：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>kernel<span class="w"> </span><span class="m">6</span>.2.12:<span class="w"> </span>crw-rw-rw-<span class="w"> </span><span class="m">1</span><span class="w"> </span>root<span class="w"> </span>usb<span class="w"> </span><span class="m">189</span>,<span class="w"> </span><span class="m">271</span><span class="w"> </span>May<span class="w">  </span><span class="m">6</span><span class="w"> </span><span class="m">15</span>:31<span class="w"> </span>/dev/bus/usb/003/016
@@ -1430,7 +1430,7 @@
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>close<span class="o">(</span><span class="m">7</span><span class="o">)</span><span class="w">                                </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
 </span></code></pre></div>
 <p>可以发现问题是返回了 ENOMEM，这就很奇怪了，<code>/dev/shm</code> 是个 tmpfs，还有很多空间，怎么会返回 ENOMEM 呢？</p>
-<h2 id="_3">柳暗花明又一村<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="柳暗花明又一村">柳暗花明又一村<a class="headerlink" href="#柳暗花明又一村" title="Permanent link">&para;</a></h2>
 <p>按照新线索继续研究：mmap 返回了不应该返回的错误，那是不是 6.2.13 或 6.2.14 引入了相关改动呢？一查，还真有：</p>
 <div class="language-diff highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.2.13
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>commit 0d30989fe9a176565d360376d4bc2ea1c61cbbac
@@ -1487,7 +1487,7 @@
 </span></code></pre></div>
 <p>赫然也是 MAP_32BIT，结果也是 ENOMEM，那说明就是这个问题了。结合邮件列表的其他讨论，基本可以确认是作者忽略了 MAP_32BIT 的情况，所以出现了问题。</p>
 <p>从 Linux 6.2.14 回滚出问题的 commit 以后，问题解决了。</p>
-<h2 id="_4">总结<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="总结">总结<a class="headerlink" href="#总结" title="Permanent link">&para;</a></h2>
 <p>这就是整个 Debug 流程，从 Vivado 找不到 FPGA 的表象，到内在的 Linux 内核 BUG，看起来毫不相关，但却能发现背后的逻辑。</p>
 <p>我和 @vowstar 一起完成了整个调试的流程，学到了许多，因此写了这篇博客。</p>
 

@@ -81,7 +81,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cpu" class="md-skip">
+        <a href="#浅谈乱序执行-cpu" class="md-skip">
           跳转至
         </a>
       
@@ -1283,14 +1283,14 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
+  <a href="#背景" class="md-nav__link">
     背景
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#tomasulo" class="md-nav__link">
+  <a href="#经典-tomasulo" class="md-nav__link">
     经典 Tomasulo
   </a>
   
@@ -1311,14 +1311,14 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#implicit-renamingrob-explicit-renaming" class="md-nav__link">
+  <a href="#implicit-renamingrob-和-explicit-renaming-的比较" class="md-nav__link">
     Implicit Renaming(ROB) 和 Explicit Renaming 的比较
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#其他优化的手段" class="md-nav__link">
     其他优化的手段
   </a>
   
@@ -1375,11 +1375,11 @@
 
 
 
-<h1 id="cpu">浅谈乱序执行 CPU<a class="headerlink" href="#cpu" title="Permanent link">&para;</a></h1>
+<h1 id="浅谈乱序执行-cpu">浅谈乱序执行 CPU<a class="headerlink" href="#浅谈乱序执行-cpu" title="Permanent link">&para;</a></h1>
 <p>本文的内容已经整合到<a href="/kb/hardware/ooo_cpu.html">知识库</a>中。</p>
-<h2 id="_1">背景<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
 <p>最早学习乱序执行 CPU 的时候，是在 Wikipedia 上自学的，后来在计算机系统结构课上又学了一遍，但发现学的和现在实际采用的乱序执行 CPU 又有很大区别，后来又仔细研究了一下，觉得理解更多了，就想总结一下。</p>
-<h2 id="tomasulo">经典 Tomasulo<a class="headerlink" href="#tomasulo" title="Permanent link">&para;</a></h2>
+<h2 id="经典-tomasulo">经典 Tomasulo<a class="headerlink" href="#经典-tomasulo" title="Permanent link">&para;</a></h2>
 <p>参考 <a href="https://people.eecs.berkeley.edu/~pattrsn/252F96/Lecture04.pdf">Stanford 教材</a></p>
 <p>经典 Tomasulo，也是 Wikipedia 上描述的 Tomasulo 算法，它的核心是保留站。指令在 Decode 之后，会被分配到一个保留站中。保留站有以下的这些属性：</p>
 <ol>
@@ -1424,13 +1424,13 @@ returns new physical registers to the free lists by restoring their read
 pointers.
 </code></pre></div>
 <p>和 @CircuitCoder 讨论并参考 <a href="https://docs.boom-core.org/en/latest/sections/reorder-buffer.html#parameterization-rollback-versus-single-cycle-reset">BOOM 文档</a> 后发现，另一种办法是记录一个 Committed Map Table，也就是，只有当 ROB Head 的指令被 Commit 的时候，才更新 Committed Map Table，可以认为是顺序执行的寄存器映射表。当发生异常的时候，把 Committed Map Table 覆盖到 Register Map Table 上。这样需要的周期比较少，但是时序可能比较差。</p>
-<h2 id="implicit-renamingrob-explicit-renaming">Implicit Renaming(ROB) 和 Explicit Renaming 的比较<a class="headerlink" href="#implicit-renamingrob-explicit-renaming" title="Permanent link">&para;</a></h2>
+<h2 id="implicit-renamingrob-和-explicit-renaming-的比较">Implicit Renaming(ROB) 和 Explicit Renaming 的比较<a class="headerlink" href="#implicit-renamingrob-和-explicit-renaming-的比较" title="Permanent link">&para;</a></h2>
 <p>这两种方法主要区别：</p>
 <ol>
 <li>Implicit Renaming 在分发的时候，就会从寄存器堆读取数据，保存到保留站中；而 Explicit Renaming 是指令从 Issue Queue 到执行单元时候从寄存器堆读取数据</li>
 <li>Implicit Renaming 的寄存器堆读取口较少，只需要考虑发射数乘以操作数个数，但所有类型的寄存器堆（整数、浮点）都需要读取；Explicit Renaming 的寄存器堆读取口更多，对于每个 Issue Queue，都需要操作数个数个读取口，但好处是可以屏蔽掉不需要访问的读取口，比如浮点 FMA 流水不需要读取整数寄存器堆。写和读是类似的：Implicit Renaming 中，寄存器堆的写入是从 ROB 上提交；而 Explicit Renaming 则是执行单元计算完后写入寄存器堆。</li>
 </ol>
-<h2 id="_2">其他优化的手段<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="其他优化的手段">其他优化的手段<a class="headerlink" href="#其他优化的手段" title="Permanent link">&para;</a></h2>
 <p>在第一和第二种设计中，当一条指令计算完成时，结果会直接通过 CDB 转发到其他指令的输入，这样可以提高运行效率。在第三种设计中，为了提高效率，也可以做类似的事情，但因为中间多了一级寄存器堆读取的流水线级，处理会更加复杂一点。比如，有一条 ALU 指令，可以确定它在一个周期后一定会得到计算结果，那么我就可以提前把依赖这条指令的其他指令 Dispatch 出去，然后在 ALU 之间连接一个 bypass 网络，这样就可以减少一些周期。</p>
 <p>此外，为了提高吞吐率，一般计算单元都被设计为每个周期可以接受一条指令，在内部实现流水线执行，每个周期完成一条指令的计算。当然了，很多时候由于数据依赖问题，可能并不能达到每个周期每个计算单元都满载的情况。</p>
 <p>有些时候，一些指令不方便后端实现，就会加一层转换，从指令转换为 uop，再由后端执行。这在 x86 处理器上很普遍，因为指令集太复杂了。像 AArch64 指令集，它在 Load/Store 的时候可以对地址进行计算，这种时候也是拆分为两条 uop 来执行。一些实用的指令需要三个操作数，比如 <code>D = A ? B : C</code>，在 Alpha 21264 中，这条指令会转换为两条 uop，这两条 uop 的操作数就只有两个，便于后端实现，否则在各个地方都允许三个操作数会导致一定的浪费。</p>

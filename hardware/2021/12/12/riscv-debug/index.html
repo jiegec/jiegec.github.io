@@ -81,7 +81,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#risc-v-debug" class="md-skip">
+        <a href="#教学risc-v-debug-协议" class="md-skip">
           跳转至
         </a>
       
@@ -1283,14 +1283,14 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
+  <a href="#背景" class="md-nav__link">
     背景
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#架构" class="md-nav__link">
     架构
   </a>
   
@@ -1311,21 +1311,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#abstract-command" class="md-nav__link">
+  <a href="#abstract-command-实现" class="md-nav__link">
     Abstract Command 实现
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#单步调试实现" class="md-nav__link">
     单步调试实现
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#软件断点实现" class="md-nav__link">
     软件断点实现
   </a>
   
@@ -1346,7 +1346,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#参考文档" class="md-nav__link">
     参考文档
   </a>
   
@@ -1398,10 +1398,10 @@
 
 
 
-<h1 id="risc-v-debug">「教学」RISC-V Debug 协议<a class="headerlink" href="#risc-v-debug" title="Permanent link">&para;</a></h1>
-<h2 id="_1">背景<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h1 id="教学risc-v-debug-协议">「教学」RISC-V Debug 协议<a class="headerlink" href="#教学risc-v-debug-协议" title="Permanent link">&para;</a></h1>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
 <p>之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。</p>
-<h2 id="_2">架构<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="架构">架构<a class="headerlink" href="#架构" title="Permanent link">&para;</a></h2>
 <p>为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：</p>
 <ol>
 <li>Debugger: GDB，连接到 OpenOCD 启动的 GDB Server</li>
@@ -1483,12 +1483,12 @@
 <li>从 data0 中读取寄存器内容</li>
 </ol>
 <p>如果要读取内存的话，也有两种方法。一种是直接向 DMI 写入要读取的总线地址，然后再向指定的寄存器中读取数据。第二种还是利用 Program Buffer，写入一条 <code>lw s0, 0(s0)</code> 指令，然后先向 s0 写入地址，执行 Program Buffer 后，再把 s0 寄存器的值读出来。</p>
-<h2 id="abstract-command">Abstract Command 实现<a class="headerlink" href="#abstract-command" title="Permanent link">&para;</a></h2>
+<h2 id="abstract-command-实现">Abstract Command 实现<a class="headerlink" href="#abstract-command-实现" title="Permanent link">&para;</a></h2>
 <p>那么，如何实现上面提到的 Abstract Command（比如读写寄存器，读写内存等）呢？Debug Spec 里面提到一种 Execution-Based 的方式，即在 Debug mode 下，核心依然在执行代码，只不过执行的是调试用的特殊代码。它做的就是轮询 Debug Module 等待命令，接受到命令以后，就去读写寄存器/内存，然后通过 data0-12 来传输数据。</p>
 <p>这里还有一个比较特别的点，就是读取寄存器的时候，寄存器的编号是直接记录在指令中的，所以可以让 Debug Module 动态生成指令，然后让核心刷新 ICache 然后跳转过去。另外，还可以利用 dscratch0/dscratch1 寄存器来保存 gpr，然后用 dret 退出的时候再恢复，这样就有两个 gpr 可以用来实现功能了，实际上这已经够用了（一个技巧是，把地址设为 0 附近，然后直接用 zero 寄存器加偏移来寻址）。</p>
-<h2 id="_3">单步调试实现<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="单步调试实现">单步调试实现<a class="headerlink" href="#单步调试实现" title="Permanent link">&para;</a></h2>
 <p>在 dcsr 中，有一个值 step 表示是否在单步调试状态。设 step 为 1 的时候，如果不在 debug mode 中，只需要记录以及执行的指令数，当执行了一条指令后，视为下一个指令发生了进入 debug mode 的异常，这样就实现了单步调试。</p>
-<h2 id="_4">软件断点实现<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="软件断点实现">软件断点实现<a class="headerlink" href="#软件断点实现" title="Permanent link">&para;</a></h2>
 <p>调试器为了打断点，一种简单的方式是，往断点处写入 ebreak 指令，然后设置 dcsr 的 ebreakm/s/u，表示在这些特权集里，ebreak 是进入 debug mode，而不是原来的处理过程。然后，程序运行到 ebreak 指令的时候，进入 debug mode，openocd 发现核心进入 halted 状态后，让 gdb 继续进行调试。</p>
 <p>硬件方面的实现方法就是，在遇到 ebreak 的时候，判断一下当前的特权集，结合 ebreakm/s/u 判断跳转到什么状态。此外，由于它会写入指令到内存，所以还需要执行 fence.i 指令，而 OpenOCD 需要依赖 progbuf 来执行 fence.i 指令，所以为了让这个方案工作，还得实现 Program Buffer。</p>
 <p>当然了，软件断点也有局限性，比如内存不可写，比如 ROM，不能覆盖里面的指令，这样就有可能出问题。而且硬件断点性能也更好，不需要来回这样写指令。</p>
@@ -1502,7 +1502,7 @@
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nf">ebreak</span>
 </span></code></pre></div>
 <p>并且设置 abstractauto，然后重复的操作是往 s1 里面写入新的数据，然后跳转到 program buffer，进行上面的 sw 操作，这样就可以一次 dmi 请求完成一次内存的写入，比较高效。</p>
-<h2 id="_5">参考文档<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<h2 id="参考文档">参考文档<a class="headerlink" href="#参考文档" title="Permanent link">&para;</a></h2>
 <ol>
 <li>RISC-V Debug Spec 0.13</li>
 <li>IEEE Standard for JTAG 1149.1-2013</li>

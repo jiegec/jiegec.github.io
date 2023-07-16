@@ -81,7 +81,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cpu" class="md-skip">
+        <a href="#浅谈乱序执行-cpu二" class="md-skip">
           跳转至
         </a>
       
@@ -1283,14 +1283,14 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
+  <a href="#背景" class="md-nav__link">
     背景
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#内存访问" class="md-nav__link">
     内存访问
   </a>
   
@@ -1304,21 +1304,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#vs" class="md-nav__link">
+  <a href="#精确异常-vs-非精确异常" class="md-nav__link">
     精确异常 vs 非精确异常
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#处理器前端" class="md-nav__link">
     处理器前端
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#处理器内存仿真模型" class="md-nav__link">
     处理器/内存仿真模型
   </a>
   
@@ -1375,11 +1375,11 @@
 
 
 
-<h1 id="cpu">浅谈乱序执行 CPU（二）<a class="headerlink" href="#cpu" title="Permanent link">&para;</a></h1>
+<h1 id="浅谈乱序执行-cpu二">浅谈乱序执行 CPU（二）<a class="headerlink" href="#浅谈乱序执行-cpu二" title="Permanent link">&para;</a></h1>
 <p>本文的内容已经整合到<a href="/kb/hardware/ooo_cpu.html">知识库</a>中。</p>
-<h2 id="_1">背景<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
 <p>之前写过一个<a href="../../../../2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a>，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。之后也许会有（三）（四）等等。</p>
-<h2 id="_2">内存访问<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="内存访问">内存访问<a class="headerlink" href="#内存访问" title="Permanent link">&para;</a></h2>
 <p>内存访问是一个比较复杂的操作，它涉及到缓存、页表、内存序等问题。在乱序执行中，要尽量优化内存访问对其他指令的延迟的影响，同时也要保证正确性。这里参考的是 <a href="https://docs.boom-core.org/en/latest/sections/load-store-unit.html">BOOM 的 LSU 设计</a>。</p>
 <p>首先是正确性。一般来说可以认为，Load 是没有副作用的（实际上，Load 会导致 Cache 加载数据，这也引发了以 Meltdown 为首的一系列漏洞），因此可以很激进地预测执行 Load。但是，Store 是有副作用的，写出去的数据就没法还原了。因此，Store 指令只有在 ROB Head 被 Commit 的时候，才会写入到 Cache 中。</p>
 <p>其次是性能，我们希望 Load 指令可以尽快地完成，这样可以使得后续的计算指令可以尽快地开始进行。当 Load 指令的地址已经计算好的时候，就可以去取数据，这时候，首先要去 Store Queue 里面找，如果有 Store 指令要写入的地址等于 Load 的地址，说明后面的 Load 依赖于前面的 Store，如果 Store 的数据已经准备好了，就可以直接把数据转发过来，就不需要从 Cache 中获取，如果数据还没准备好，就需要等待这一条 Store 完成；如果没有找到匹配的 Store 指令，再从内存中取。不过，有一种情况就是，当 Store 指令的地址迟迟没有计算出来，而后面的 Load 已经提前从 Cache 中获取数据了，这时候就会出现错误，所以当 Store 计算出地址的时候，需要检查后面的 Load 指令是否出现地址重合，如果出现了，就要把这条 Load 以及依赖这条 Load 指令的其余指令重新执行。<a href="http://ieeexplore.ieee.org/abstract/document/7029183/">POWER8 处理器微架构论文</a>中对此也有类似的表述：</p>
@@ -1442,7 +1442,7 @@ positives.
 <li><a href="https://ieeexplore.ieee.org/document/7029183?arnumber=7029183">POWER 8</a> Store Queue 40 Load Queue 44 (Virtual 128+128)</li>
 <li><a href="http://ieeexplore.ieee.org/document/755465/">Alpha 21264</a> Store Queue 32 Load Queue 32</li>
 </ol>
-<h2 id="vs">精确异常 vs 非精确异常<a class="headerlink" href="#vs" title="Permanent link">&para;</a></h2>
+<h2 id="精确异常-vs-非精确异常">精确异常 vs 非精确异常<a class="headerlink" href="#精确异常-vs-非精确异常" title="Permanent link">&para;</a></h2>
 <p>精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，<a href="http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf">网上资料</a> 说，这种情况下硬件实现更简单，但是软件上处理比较困难。</p>
 <p>一个非精确异常的例子是 <a href="https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf">Alpha</a>，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：<code>In general, it is not feasible to fix up the result value or to continue from the trap.</code>。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：</p>
 <div class="language-text highlight"><pre><span></span><code>Alpha lets the software implementor determine the precision of
@@ -1540,13 +1540,13 @@ external aborts precise wherever possible.
 <li>外部中断是异步的，同时也是 precise 的。</li>
 <li>对于一个 Write-allocate 的缓存，如果程序写入一个不存在的物理地址，那么写入缓存的时候不会出现错误，但当这个 cache line 被写入到总线上的时候，就会触发异常，这个异常是异步并且非精确的，因为之前触发这个异常的指令可能已经完成很久了。这种时候这个进程也大概率没救了，直接 SIGBUS 退出。</li>
 </ol>
-<h2 id="_3">处理器前端<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="处理器前端">处理器前端<a class="headerlink" href="#处理器前端" title="Permanent link">&para;</a></h2>
 <p>再来分析一下乱序执行 CPU 的前端部分。以 RISC-V 为例，指令长度有 4 字节或者 2 字节两种，其中 2 字节属于压缩指令集。如何正确并高效地进行取指令译码？</p>
 <p>首先，我们希望前端能够尽可能快地取指令，前端的取指能力要和后端匹配，比如对于一个四发射的 CPU，前端对应地需要一个周期取 <code>4*4=16</code> 字节的指令。但是，这 16 字节可能是 4 条非压缩指令，也可能是 8 条压缩指令，也可能是混合的情况。所以，这里会出现一个可能出现指令条数不匹配的情况，所以中间可以添加一个 Fetch Buffer，比如 <a href="https://github.com/riscv-boom/riscv-boom">BOOM</a> 的实现中，L1 ICache 每周期读取 16 字节，然后进行预译码，出来 8 条指令，保存到 Fetch Buffer 中。这里需要考虑以下几点：首先从 ICache 读取的数据是对齐的，但是 PC 可能不是，比如中间的地址。其次，可能一个 4 字节的非压缩指令跨越了两次 Fetch，比如前 2 个字节在前一个 Fetch Bundle，后 2 个字节在后一个 Fetch Bundle；此外，每个 2 字节的边界都需要判断一下是压缩指令还是非压缩指令。一个非常特殊的情况就是，一个 4 字节的指令跨越了两个页，所以两个页都需要查询页表；如果恰好在第二个页处发生了页缺失，此时 epc 是指令的起始地址，但 tval 是第二个页的地址，这样内核才知道是哪个页发生了缺失。</p>
 <p>其次，需要配合分支预测。如果需要保证分支预测正确的情况下，能够在循环中达到接近 100% 的性能，那么，在 Fetch 分支结尾的分支指令的同时，需要保证下一次 Fetch 已经得到了分支预测的目的地址。这个就是 BOOM 里面的 L0 BTB (1-cycle redirect)。但是，一个周期内完成的分支预测，它的面积肯定不能大，否则时序无法满足，所以 BOOM 里面还设计了 2-cycle 和 3-cycle 的比较高级的分支预测器，还有针对函数调用的 RAS（Return Address Stack）。</p>
 <p>分支预测也有很多方法。比较简单的方法是实现一个 BHT，每个项是一个 2 位的饱和计数器，超过一半的时候增加，少于一半时减少。但是，如果遇到了跳转/不跳转/跳转/不跳转这种来回切换的情况，准确率就很低。一个复杂一些的设计，就是用 BHR，记录这个分支指令最近几次的历史，对于每种可能的历史，都对应一个 2 位的饱和计数器。这样，遇到刚才所说的情况就会很好地预测。但实践中会遇到问题：如果在写回之前，又进行了一次预测，因为预测是在取指的时候做的，但是更新 BPU 是在写回的时候完成的，这时候预测就是基于旧的状态进行预测，这时候 BHR 就会出现不准确的问题；而且写回 BPU 的时候，会按照原来的状态进行更新，这个状态可能也是错误的，导致丢失一次更新，识别的模式从跳转/不跳转/跳转/不跳转变成了跳转/跳转/跳转/不跳转，这样又会预测错误。一个解决办法是，在取指阶段，BPU 预测完就立即按照预测的结果更新 BHR，之后写回阶段会恢复到实际的 BHR 取值。论文 <a href="https://dl.acm.org/doi/10.1145/192724.192756">The effect of speculatively updating branch history on branch prediction accuracy, revisited</a> 和 <a href="https://jilp.org/vol2/v2paper1.pdf">Speculative Updates of Local and Global Branch History: A Quantitative Analysis</a> 讨论了这个实现方式对性能的影响。</p>
 <p>比较容易做预测更新和恢复的是全局分支历史，可以维护两个 GHR（Global History Register），一个是目前取指令最新的，一个是提交的最新的。在预测的时候，用 GHR 去找对应的 2-bit 状态，然后把预测结果更新到 GHR 上。在预测失败的时候，把 GHR 恢复为提交的状态。如果要支持一个 Fetch Packet 中有多个分支，可以让 GHR 对应若干个 2-bit 状态，分别对应相应位置上的分支的状态，当然这样面积也会增加很多。</p>
-<h2 id="_4">处理器/内存仿真模型<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="处理器内存仿真模型">处理器/内存仿真模型<a class="headerlink" href="#处理器内存仿真模型" title="Permanent link">&para;</a></h2>
 <p>最后列举一下科研里常用的一些处理器/内存仿真模型：</p>
 <ul>
 <li>gem5: <a href="https://arxiv.org/abs/2007.03152">论文 The gem5 Simulator: Version 20.0+</a> <a href="https://gem5.googlesource.com/public/gem5">代码</a></li>
