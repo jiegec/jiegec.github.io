@@ -1219,6 +1219,129 @@
     <div class="md-post__meta md-meta">
       <ul class="md-meta__list">
         <li class="md-meta__item">
+          <time datetime="2019-05-30 00:00:00">2019年5月30日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/networking/" class="md-meta__link">networking</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="ip-和-udp-checksum-的增量更新问题"><a class="toclink" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/">IP 和 UDP Checksum 的增量更新问题</a></h2>
+<p>之前在写 IP Checksum 的增量更新，就是当 TTL -= 1 的时候，Checksum 应该增加 0x0100，但是这样会有问题，在于，如果按照原来的 IP Checksum 计算方法，是不会出现 0xFFFF 的（求和，进位，然后取反写入），这种加法就有可能出现 0xFFFF。于是翻阅了相关的 RFC：</p>
+<p>首先是 RFC 1141 相关部分：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-0-1"></a><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">sum</span><span class="p">;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-0-2"></a><span class="n">ipptr</span><span class="o">-&gt;</span><span class="n">ttl</span><span class="o">--</span><span class="p">;</span><span class="w">                  </span><span class="cm">/* decrement ttl */</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-0-3"></a><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ipptr</span><span class="o">-&gt;</span><span class="n">Checksum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x100</span><span class="p">;</span><span class="w">  </span><span class="cm">/* increment checksum high byte*/</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-0-4"></a><span class="n">ipptr</span><span class="o">-&gt;</span><span class="n">Checksum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="o">&gt;&gt;</span><span class="mi">16</span><span class="p">))</span><span class="w"> </span><span class="cm">/* add carry */</span>
+</span></code></pre></div>
+<p>这也是比较直接能想到的一种方法，但是会出现刚才提到的问题。于是 RFC 1624 纠正了这个问题：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-1"></a>  Although this equation appears to work, there are boundary conditions
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-2"></a>   under which it produces a result which differs from the one obtained
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-3"></a>   by checksum computation from scratch.  This is due to the way zero is
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-4"></a>   handled in one&#39;s complement arithmetic.
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-6"></a>   In one&#39;s complement, there are two representations of zero: the all
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-7"></a>   zero and the all one bit values, often referred to as +0 and -0.
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-8"></a>   One&#39;s complement addition of non-zero inputs can produce -0 as a
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-9"></a>   result, but never +0.  Since there is guaranteed to be at least one
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-10"></a>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-11"></a>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-12"></a>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-13"></a>Rijsinghani                                                     [Page 2]
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-14"></a>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-15"></a>RFC 1624             Incremental Internet Checksum              May 1994
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-16"></a>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-17"></a>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-18"></a>   non-zero field in the IP header, and the checksum field in the
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-19"></a>   protocol header is the complement of the sum, the checksum field can
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-20"></a>   never contain ~(+0), which is -0 (0xFFFF).  It can, however, contain
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-21"></a>   ~(-0), which is +0 (0x0000).
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-22"></a>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-23"></a>   RFC 1141 yields an updated header checksum of -0 when it should be
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-24"></a>   +0.  This is because it assumed that one&#39;s complement has a
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-25"></a>   distributive property, which does not hold when the result is 0 (see
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-26"></a>   derivation of [Eqn. 2]).
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-27"></a>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-28"></a>   The problem is avoided by not assuming this property.  The correct
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-29"></a>   equation is given below:
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-30"></a>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-31"></a>          HC&#39; = ~(C + (-m) + m&#39;)    --    [Eqn. 3]
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-1-32"></a>              = ~(~HC + ~m + m&#39;)
+</span></code></pre></div>
+<p>只要把代码简单修改一下就可以了，或者遇到 0xFFFF 时设为 0，这时候就解决了这个问题。</p>
+<p>但是，仔细研究了一下发现，UDP Checksum 又是这么定义的（RFC 768）:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-2-1"></a>If the computed  checksum  is zero,  it is transmitted  as all ones (the
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-2-2"></a>equivalent  in one&#39;s complement  arithmetic).   An all zero  transmitted
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-2-3"></a>checksum  value means that the transmitter  generated  no checksum  (for
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/#__codelineno-2-4"></a>debugging or for higher level protocols that don&#39;t care).
+</span></code></pre></div>
+<p>刚好和 IP Checksum 相反，这就很有意思了。</p>
+
+    <nav class="md-post__action">
+      <a href="../../networking/2019/05/30/ip-and-udp-checksum-incremental-update/">
+        继续阅读
+      </a>
+    </nav>
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2019-05-25 00:00:00">2019年5月25日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="用-htpdate-替代-ntpdate-实现时间同步"><a class="toclink" href="../../devops/2019/05/25/htpdate-for-time-sync/">用 htpdate 替代 ntpdate 实现时间同步</a></h2>
+<p>最近用 ntpdate 的时候遇到了一些麻烦，时间同步总是遇到各种问题。后来搜了搜，发现了一个解决方案：htpdate，它通过 HTTP 头里的 Date 字段获取时间，虽然没有 ntp 那么精确，但是大多时候都够用。</p>
+<p>用法见 <a href="https://linux.die.net/man/8/htpdate">htpdate(8)</a> 。</p>
+
+    <nav class="md-post__action">
+      <a href="../../devops/2019/05/25/htpdate-for-time-sync/">
+        继续阅读
+      </a>
+    </nav>
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
           <time datetime="2019-05-24 00:00:00">2019年5月24日</time></li>
         
           <li class="md-meta__item">
@@ -2445,130 +2568,6 @@
 
     <nav class="md-post__action">
       <a href="../../misc/2019/03/16/weekly-sharing-15/">
-        继续阅读
-      </a>
-    </nav>
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-03-08 00:00:00">2019年3月8日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-14-期"><a class="toclink" href="../../misc/2019/03/08/weekly-sharing-14/">每周分享第 14 期</a></h2>
-<p>最近沉迷写 OS，没怎么搜罗新的东西（</p>
-<ol>
-<li>用 Docker 做交叉编译 https://github.com/dockcross/dockcross#dockcross</li>
-<li>tar inplace extraction 有意思的思路 https://gitlab.com/antonok/taro</li>
-<li>los 16.0 发布 基于 Android Pie https://lineageos.org/Changelog-22/</li>
-<li>Rust 1.33.0 Pin 进入 stable https://blog.rust-lang.org/2019/02/28/Rust-1.33.0.html</li>
-<li>Rust 用于编写 cli 软件的工具库 https://rust-lang-nursery.github.io/cli-wg/index.html</li>
-<li>自动使用 CI 发布二进制 prebuilt 的模板 https://github.com/japaric/trust</li>
-<li>转换 gif 到 xlsx 很神奇 https://github.com/pugwonk/gif2xlsx/blob/master/README.md</li>
-<li>Go REPL https://github.com/cosmos72/gomacro</li>
-<li>基于区块链的论坛海星 其实是区块链数据库 https://github.com/CovenantSQL/CovenantForum</li>
-<li>Rime emoji 嵌入输入法 https://github.com/rime/rime-emoji</li>
-<li>一个神奇的数据库 https://github.com/mit-pdos/noria</li>
-<li>一个讲内核的 gitbook https://richardweiyang.gitbooks.io/kernel-exploring/</li>
-<li>用 React 写桌面控件 http://tracesof.net/uebersicht/</li>
-</ol>
-
-    <nav class="md-post__action">
-      <a href="../../misc/2019/03/08/weekly-sharing-14/">
-        继续阅读
-      </a>
-    </nav>
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-03-08 00:00:00">2019年3月8日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/programming/" class="md-meta__link">programming</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 4 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-rcore-上运行-nginx"><a class="toclink" href="../../programming/2019/03/08/running-nginx-on-rcore/">在 rCore 上运行 nginx</a></h2>
-<p>阿 西 吧 nginx 终于能在 rCore 上跑了 orrrrrrrz</p>
-<p>通过这半个多月来的大量开发，我和王润基 @wangrunji0408 学长算是终于完成了第一个 milestone：跑起来一个 nginx。遇到了很多困难，大概有这些：</p>
-<ol>
-<li>syscall 实现不全。各种方面都缺，然后 nginx 在编译的时候又检测到比较新的 OS 版本，所以很多 syscall 都用了新的来替代老的，例如 readv/writev pread/pwrite accept4 等等，所以这方面做了一些工作。另外，还有很多新的 syscall 进来，太多了我就不细说了，基本上一个 commit 做一点一个 commit 做一点这个样子。</li>
-<li>nginx 用到了 SSE 的寄存器 xmm，但是之前是没有开的。所以把 sse 打开，然后切换上下文的时候把 sse 通过 fxsave 保存和 fxrstor 恢复（有意思的是，as 居然不认这俩，只好手动写字节码），然后为了 16bit 的对齐又写了几行汇编代码。这块问题不大，今天一会就搞定了。但是如果要性能更高一些的话，可能需要在第一次使用 xmm 的时候再开始保存，大概就是加一个 bit 的事情。</li>
-<li>文件系统有点崩。实现还是有很多 BUG，表现就是需要经常重新 mksfs 一下，再重启加载完好的 fs，有时候强制关机一下就又崩了。</li>
-<li>内存管理做了一些改变。为了实现更加完整的 mmap mumap 和 mprotect，又发现了一些新的 BUG 在里面，然后慢慢修复了。就是实现的有点粗暴。</li>
-<li>死锁问题。这个其实现在还会出现，只是还没调出来，也不会百分百出现。我们计划在锁上面做一些死锁检测，例如记住是谁上锁的，等等。现在就遇到一个很玄学的死锁问题。</li>
-</ol>
-<p>然后代码也是一边在写一边在重构吧，很多地方现在都写得很粗暴，FIXME 和 TODO 留了很多，很多地方也写得不够优雅。以后再慢慢重构 + 优化吧。</p>
-<p>截图留念：</p>
-<p><img alt="" src="/images/nginx.jpg" /></p>
-<p>再往前的话，还有很多小的问题，例如网卡的中断启用了但没有改 mask，所以啥也没收到，靠 QEMU Tracing 找到问题。还有一个很有意思的现象，就是如果 elf 的 program header 没有 phdr 这个项的时候，我们发现，可以通过第一个 load（如果加载了完整的 elf 头的话），我们可以从这里推断出 phdr 的地址（load 的虚拟地址加偏移），然后丢到 auxv 里去让 musl 配置 tls。总之这些都解决了。也不用去考虑兼容 litc 了，已经全部向 linux 靠拢了，稳。</p>
-<p>注：最简 nginx 编译参数：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-0-1"></a>./configure --with-cc=/usr/bin/musl-gcc --with-cc-opt=-static --with-ld-opt=-satic --without-pcre --without-http_rewrite_module --without-http_gzip_module --with-poll_module
-</span></code></pre></div>
-<p>这样编译出来是一个静态文件，并且在 strip 之后只有不到 1M 的大小。</p>
-<p>最简 nginx 配置：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-1"></a>daemon off;
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-2"></a>master_process off;
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-4"></a>events {
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-5"></a>    use poll;
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-6"></a>}
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-7"></a>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-8"></a>http {
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-9"></a>    server {
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-10"></a>        listen 80;
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-11"></a>        server_name _;
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-12"></a>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-13"></a>        root /;
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-14"></a>    }
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="../../programming/2019/03/08/running-nginx-on-rcore/#__codelineno-1-15"></a>}
-</span></code></pre></div>
-<p>这样就免去了一些麻烦（多线程、多进程交互还是有很多问题），但确实可以跑起来了。</p>
-<p>另外，还需要写一份 /etc/passwd 和 /etc/group 用于 nobody 和 nogroup。不需要其他额外的东西了。</p>
-
-    <nav class="md-post__action">
-      <a href="../../programming/2019/03/08/running-nginx-on-rcore/">
         继续阅读
       </a>
     </nav>

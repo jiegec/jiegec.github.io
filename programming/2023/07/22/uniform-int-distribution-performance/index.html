@@ -10,13 +10,11 @@
       
       
       
-        <link rel="canonical" href="https://jia.je/crypto/2023/07/14/ecdsa/">
+        <link rel="canonical" href="https://jia.je/programming/2023/07/22/uniform-int-distribution-performance/">
       
       
-        <link rel="prev" href="../../../../../devops/2023/07/08/gentoo-prefix-m1/">
+        <link rel="prev" href="../../18/portable-script-across-bash-zsh-fish/">
       
-      
-        <link rel="next" href="../../../../../meta/2023/07/15/migrate-from-hugo-to-mkdocs/">
       
       
         <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
@@ -27,7 +25,7 @@
     
     
       
-        <title>ECDSA - 杰哥的{运维,编程,调板子}小笔记</title>
+        <title>libc++ 的 uniform_int_distribution 性能问题 - 杰哥的{运维,编程,调板子}小笔记</title>
       
     
     
@@ -82,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#ecdsa" class="md-skip">
+        <a href="#libc-的-uniform_int_distribution-性能问题" class="md-skip">
           跳转至
         </a>
       
@@ -118,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ECDSA
+              libc++ 的 uniform_int_distribution 性能问题
             
           </span>
         </div>
@@ -1238,7 +1236,7 @@
               <li class="md-nav__item">
                 <div class="md-nav__link">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"/></svg>
-                  <time datetime="2023-07-14 00:00:00" class="md-ellipsis">2023年7月14日</time>
+                  <time datetime="2023-07-22 00:00:00" class="md-ellipsis">2023年7月22日</time>
                 </div>
               </li>
               
@@ -1248,7 +1246,7 @@
                     <span class="md-ellipsis">
                       分类于
                       
-                        <a href="../../../../../category/crypto/">crypto</a></span>
+                        <a href="../../../../../category/programming/">programming</a></span>
                   </div>
                 </li>
               
@@ -1284,29 +1282,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#生成-key-pair" class="md-nav__link">
-    生成 key pair
+  <a href="#背景" class="md-nav__link">
+    背景
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#签名" class="md-nav__link">
-    签名
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#验证" class="md-nav__link">
-    验证
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#公钥恢复" class="md-nav__link">
-    公钥恢复
+  <a href="#探究" class="md-nav__link">
+    探究
   </a>
   
 </li>
@@ -1329,17 +1313,22 @@
     
       
       
-        <a href="../../../../../tags/#ecdsa" class="md-tag">ecdsa</a>
+        <a href="../../../../../tags/#cpp" class="md-tag">cpp</a>
       
     
       
       
-        <a href="../../../../../tags/#ecc" class="md-tag">ecc</a>
+        <a href="../../../../../tags/#stl" class="md-tag">stl</a>
       
     
       
       
-        <a href="../../../../../tags/#crypto" class="md-tag">crypto</a>
+        <a href="../../../../../tags/#random" class="md-tag">random</a>
+      
+    
+      
+      
+        <a href="../../../../../tags/#sampling" class="md-tag">sampling</a>
       
     
   </nav>
@@ -1347,92 +1336,105 @@
 
 
 
-<h1 id="ecdsa">ECDSA<a class="headerlink" href="#ecdsa" title="Permanent link">&para;</a></h1>
-<p>ECDSA 是一个基于椭圆曲线的签名算法，使用时需要确定一个椭圆曲线，以及它的 base point <span class="arithmatex">\(G\)</span>，且 <span class="arithmatex">\(G\)</span> 的阶是素数 <span class="arithmatex">\(n\)</span>。ECDSA 支持如下的操作：</p>
-<ol>
-<li>生成签名</li>
-<li>验证签名</li>
-<li>从签名和明文推导出公钥</li>
-</ol>
+<h1 id="libc-的-uniform_int_distribution-性能问题">libc++ 的 uniform_int_distribution 性能问题<a class="headerlink" href="#libc-的-uniform_int_distribution-性能问题" title="Permanent link">&para;</a></h1>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
+<p>前段时间，@lwpie 发现一段 C++ 代码在 macOS 下，分别用自带的 Clang 编译和用 Homebrew 的 GCC 编译，性能差距接近一个数量级，下面是运行时间：</p>
+<ul>
+<li>GCC-13 Homebrew: 300</li>
+<li>Apple Clang: 2170</li>
+</ul>
 <!-- more -->
 
-<p>本文的内容已经整合到<a href="/kb/cryptography/ecdsa.html">知识库</a>中。</p>
-<p>本文参考了 <a href="https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm">ECDSA - Wikipedia</a>。</p>
-<h2 id="生成-key-pair">生成 key pair<a class="headerlink" href="#生成-key-pair" title="Permanent link">&para;</a></h2>
-<p>生成 key pair 的时候，私钥是整数 <span class="arithmatex">\(d_A \in [1, n-1]\)</span>，那么公钥就是圆锥曲线上一点 <span class="arithmatex">\(Q_A = d_A \times G\)</span>，这里 <span class="arithmatex">\(\times\)</span> 表示整数与圆锥曲线上一点的乘法。</p>
-<h2 id="签名">签名<a class="headerlink" href="#签名" title="Permanent link">&para;</a></h2>
-<p>签名的时候，对于给定的消息 <span class="arithmatex">\(m\)</span>，签名流程如下：</p>
-<ol>
-<li>计算哈希：<span class="arithmatex">\(e = \mathrm{HASH}(m)\)</span>，例如用 SHA 系列的哈希算法</li>
-<li>考虑到 <span class="arithmatex">\(e\)</span> 的位数可能比 <span class="arithmatex">\(n\)</span> 的位数更多，取 <span class="arithmatex">\(e\)</span> 的高位，使得位数和 <span class="arithmatex">\(n\)</span> 一致，得到的结果记为 <span class="arithmatex">\(z\)</span></li>
-<li>生成一个密码学安全的随机数 <span class="arithmatex">\(k \in [1, n-1]\)</span></li>
-<li>计算 <span class="arithmatex">\(k \times G\)</span>，取它的 X 坐标为 <span class="arithmatex">\(x_1\)</span></li>
-<li>计算 <span class="arithmatex">\(r = x_1 \bmod n\)</span></li>
-<li>计算 <span class="arithmatex">\(s = k^{-1}(z + r d_A) \bmod n\)</span></li>
-<li>如果 <span class="arithmatex">\(r\)</span> 或者 <span class="arithmatex">\(s\)</span> 等于 0，取新的 <span class="arithmatex">\(k\)</span> 再重试</li>
-<li>得到的 ECDSA 签名就是 <span class="arithmatex">\((r, s)\)</span> 两个数</li>
-</ol>
-<h2 id="验证">验证<a class="headerlink" href="#验证" title="Permanent link">&para;</a></h2>
-<p>验证签名的时候，已知 <span class="arithmatex">\(r, s, m, Q_A\)</span>，按照下面的流程进行：</p>
-<ol>
-<li>前两步和计算签名的算法一致，求哈希和截断后得到 <span class="arithmatex">\(z\)</span></li>
-<li>计算 <span class="arithmatex">\(u_1 = zs^{-1} \bmod n, u_2 = rs^{-1} \bmod n\)</span></li>
-<li>计算 <span class="arithmatex">\(u_1 \times G + u_2 \times Q_A\)</span>，取它的 X 坐标为 <span class="arithmatex">\(x_2\)</span></li>
-<li>如果 <span class="arithmatex">\(r \equiv x_2 \pmod n\)</span>，则签名合法</li>
-</ol>
-<p>上面的过程忽略了一些边界情况的检查，详细版本见 Wikipedia。</p>
-<p>下面进行验算：</p>
-<div class="arithmatex">\[\begin{align}
-&amp; u_1 \times G + u_2 \times Q_A \\\
-&amp;= zs^{-1} \times G + rs^{-1} \times Q_A \\\
-&amp;= zs^{-1} \times G + rs^{-1}d_A \times G \\\
-&amp;= (zs^{-1} + rs^{-1}d_A) \times G \\\
-&amp;= (z+rd_A)s^{-1} \times G \\\
-&amp;= (z+rd_A)k(z+rd_A)^{-1} \times G \\\
-&amp;= k \times G
-\end{align}\]</div>
-<p>等式左边的 X 坐标等于等式右边的 X 坐标，等价于 <span class="arithmatex">\(r \equiv x_2 \pmod n\)</span>，验算没问题。</p>
-<h2 id="公钥恢复">公钥恢复<a class="headerlink" href="#公钥恢复" title="Permanent link">&para;</a></h2>
-<p>ECDSA 支持公钥恢复算法，已知 <span class="arithmatex">\(r, s, m\)</span>，恢复 <span class="arithmatex">\(Q_A\)</span>。首先进行推导：</p>
-<div class="arithmatex">\[\begin{align}
-Q_A &amp;= d_A \times G \\\
-s &amp;= k^{-1}(z + rd_A) \bmod n \\\
-sk &amp;= z + rd_A \bmod n \\\
-sk \times G &amp;= (z + rd_A) \times G \\\
-rd_A \times G &amp;= (sk - z) \times G \\\
-Q_A &amp;= d_A \times G = r^{-1}(sk-z) \times G \\\
-Q_A &amp;= r^{-1}(s(k \times G) - z \times G)
-\end{align}\]</div>
-<p>上式中 <span class="arithmatex">\(r, s\)</span> 已知，<span class="arithmatex">\(z\)</span> 可以从 <span class="arithmatex">\(m\)</span> 通过哈希计算得出，<span class="arithmatex">\(k \times G\)</span> 的 X 坐标 <span class="arithmatex">\(x_1\)</span> 满足 <span class="arithmatex">\(r = x_1 \bmod n\)</span>，因此恢复过程就是：</p>
-<ol>
-<li>在椭圆曲线上找到 X 坐标模 <span class="arithmatex">\(n\)</span> 等于 <span class="arithmatex">\(r\)</span> 的点，这个点就是 <span class="arithmatex">\(k \times G\)</span></li>
-<li>按照计算哈希的前两步，从 <span class="arithmatex">\(m\)</span> 计算出 <span class="arithmatex">\(z\)</span></li>
-<li>按照上述公式，计算出 <span class="arithmatex">\(Q_A\)</span></li>
-</ol>
-<p>但是实际上第一步没有这么简单：首先同一个 X 坐标对应椭圆曲线上的两个点，其次 <span class="arithmatex">\(r\)</span> 和 <span class="arithmatex">\(x_1\)</span> 只是同余关系，可能二者之间差了一个倍数。因此实际在 BTC 或者 ETH 里使用的时候，还额外附加了一个参数 recid，范围是 0 到 3，对应 Y 坐标是正还是负，<span class="arithmatex">\(r\)</span> 和 <span class="arithmatex">\(x_1\)</span> 之间差 0 还是 <span class="arithmatex">\(n\)</span>：</p>
-<div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// Source: https://github.com/ethereum/go-ethereum/blob/e1fe6bc8469c626afaa86b1dfb819737e980a574/crypto/secp256k1/libsecp256k1/src/modules/recovery/main_impl.h#L104-L112</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">recid</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">secp256k1_fe_cmp_var</span><span class="p">(</span><span class="o">&amp;</span><span class="n">fx</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">secp256k1_ecdsa_const_p_minus_order</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="n">secp256k1_fe_add</span><span class="p">(</span><span class="o">&amp;</span><span class="n">fx</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">secp256k1_ecdsa_const_order_as_fe</span><span class="p">);</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">}</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">secp256k1_ge_set_xo_var</span><span class="p">(</span><span class="o">&amp;</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">fx</span><span class="p">,</span><span class="w"> </span><span class="n">recid</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
+<p>代码如下：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;algorithm&gt;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;array&gt;</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;chrono&gt;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;iostream&gt;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;memory&gt;</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;random&gt;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">constexpr</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">FILE_N</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1e8</span><span class="p">;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">constexpr</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">DATA_R</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">23</span><span class="p">);</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">high_resolution_clock</span><span class="o">::</span><span class="n">now</span><span class="p">();</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">random_device</span><span class="w"> </span><span class="n">rd</span><span class="p">;</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">mt19937_64</span><span class="w"> </span><span class="n">gen</span><span class="p">(</span><span class="n">rd</span><span class="p">());</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">uniform_int_distribution</span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">dis</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">DATA_R</span><span class="p">);</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="kt">size_t</span><span class="p">,</span><span class="w"> </span><span class="n">FILE_N</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">data</span><span class="p">(</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">        </span><span class="k">new</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="kt">size_t</span><span class="p">,</span><span class="w"> </span><span class="n">FILE_N</span><span class="o">&gt;</span><span class="p">());</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">generate</span><span class="p">(</span><span class="n">data</span><span class="o">-&gt;</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">data</span><span class="o">-&gt;</span><span class="n">end</span><span class="p">(),</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">                  </span><span class="p">[</span><span class="o">&amp;</span><span class="n">dis</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">gen</span><span class="p">]()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">dis</span><span class="p">(</span><span class="n">gen</span><span class="p">);</span><span class="w"> </span><span class="p">});</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">high_resolution_clock</span><span class="o">::</span><span class="n">now</span><span class="p">();</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">duration_cast</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">milliseconds</span><span class="o">&gt;</span><span class="p">(</span><span class="n">end</span><span class="w"> </span><span class="o">-</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">                                                                       </span><span class="n">start</span><span class="p">)</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">                     </span><span class="p">.</span><span class="n">count</span><span class="p">()</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">              </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">accumulate</span><span class="p">(</span><span class="n">data</span><span class="o">-&gt;</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">data</span><span class="o">-&gt;</span><span class="n">end</span><span class="p">(),</span><span class="w"> </span><span class="mf">0.0</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">FILE_N</span><span class="p">;</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">mean</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>参考：<a href="https://medium.com/asecuritysite-when-bob-met-alice/crypto-magic-recovering-alices-public-key-from-an-ecdsa-signature-e7193df8df6e">Crypto Magic: Recovering Alice’s Public Key From An ECDSA Signature</a> 和 <a href="https://medium.com/asecuritysite-when-bob-met-alice/can-we-recover-the-public-key-from-an-ecdsa-signature-7af4b56a8a0f">Can We Recover The Public Key from an ECDSA Signature?</a></p>
+<p>首先上结论：GCC-13 Homebrew 用的是 libstdc++，而 Apple Clang 用的是 libc++；libstdc++ 优化了 uniform_int_distribution 的实现，而 libc++ 采用的是朴素的实现，同时参数的选取正好触发了朴素实现的最坏情况，因此性能差距巨大。</p>
+<h2 id="探究">探究<a class="headerlink" href="#探究" title="Permanent link">&para;</a></h2>
+<p>从现象上来看，看起来是 GCC 和 Clang 的性能差异很大，但由于这里涉及到了 STL 的实现，因此控制变量很重要：经过测试，发现 Clang + libstdc++ 性能好，GCC + libstdc++ 性能好，Clang + libc++ 性能差。</p>
+<p>因此问题大概可以定位在 libc++ 上。那么，就去找 libc++ 的 uniform_int_distribution 实现：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// https://github.com/llvm/llvm-project/blob/9b2dfff57a382b757c358b43ee1df7591cb480ee/libcxx/include/__random/uniform_int_distribution.h#L233-L257</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">typename</span><span class="w"> </span><span class="nc">uniform_int_distribution</span><span class="o">&lt;</span><span class="n">_IntType</span><span class="o">&gt;::</span><span class="n">result_type</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">uniform_int_distribution</span><span class="o">&lt;</span><span class="n">_IntType</span><span class="o">&gt;::</span><span class="k">operator</span><span class="p">()(</span><span class="n">_URNG</span><span class="o">&amp;</span><span class="w"> </span><span class="n">__g</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">param_type</span><span class="o">&amp;</span><span class="w"> </span><span class="n">__p</span><span class="p">)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">_LIBCPP_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">{</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="k">static_assert</span><span class="p">(</span><span class="n">__libcpp_random_is_valid_urng</span><span class="o">&lt;</span><span class="n">_URNG</span><span class="o">&gt;::</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">);</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="k">typedef</span><span class="w"> </span><span class="n">__conditional_t</span><span class="o">&lt;</span><span class="k">sizeof</span><span class="p">(</span><span class="n">result_type</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint32_t</span><span class="p">),</span><span class="w"> </span><span class="kt">uint32_t</span><span class="p">,</span><span class="w"> </span><span class="n">__make_unsigned_t</span><span class="o">&lt;</span><span class="n">result_type</span><span class="o">&gt;</span><span class="w"> </span><span class="o">&gt;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span><span class="n">_UIntType</span><span class="p">;</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">_UIntType</span><span class="w"> </span><span class="n">__rp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_UIntType</span><span class="p">(</span><span class="n">__p</span><span class="p">.</span><span class="n">b</span><span class="p">())</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">_UIntType</span><span class="p">(</span><span class="n">__p</span><span class="p">.</span><span class="n">a</span><span class="p">())</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">_UIntType</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">__rp</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">__p</span><span class="p">.</span><span class="n">a</span><span class="p">();</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">__dt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numeric_limits</span><span class="o">&lt;</span><span class="n">_UIntType</span><span class="o">&gt;::</span><span class="n">digits</span><span class="p">;</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="k">typedef</span><span class="w"> </span><span class="n">__independent_bits_engine</span><span class="o">&lt;</span><span class="n">_URNG</span><span class="p">,</span><span class="w"> </span><span class="n">_UIntType</span><span class="o">&gt;</span><span class="w"> </span><span class="n">_Eng</span><span class="p">;</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">__rp</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">static_cast</span><span class="o">&lt;</span><span class="n">result_type</span><span class="o">&gt;</span><span class="p">(</span><span class="n">_Eng</span><span class="p">(</span><span class="n">__g</span><span class="p">,</span><span class="w"> </span><span class="n">__dt</span><span class="p">)());</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="kt">size_t</span><span class="w"> </span><span class="n">__w</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__dt</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">__countl_zero</span><span class="p">(</span><span class="n">__rp</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">__rp</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">numeric_limits</span><span class="o">&lt;</span><span class="n">_UIntType</span><span class="o">&gt;::</span><span class="n">max</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">__dt</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">__w</span><span class="p">)))</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">        </span><span class="o">++</span><span class="n">__w</span><span class="p">;</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="n">_Eng</span><span class="w"> </span><span class="nf">__e</span><span class="p">(</span><span class="n">__g</span><span class="p">,</span><span class="w"> </span><span class="n">__w</span><span class="p">);</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="n">_UIntType</span><span class="w"> </span><span class="n">__u</span><span class="p">;</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">    </span><span class="k">do</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="p">{</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">        </span><span class="n">__u</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__e</span><span class="p">();</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">__u</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">__rp</span><span class="p">);</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">static_cast</span><span class="o">&lt;</span><span class="n">result_type</span><span class="o">&gt;</span><span class="p">(</span><span class="n">__u</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">__p</span><span class="p">.</span><span class="n">a</span><span class="p">());</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>可以看到，它的实现思路是，为了生成 <code>[a, b]</code> 之间的均匀整随机数，它先找一个比 <code>b-a</code> 大的二的幂，然后生成随机数，模这个二的幂，接着采用拒绝采样：如果采样得到的值大于 <code>b-a</code>，那就重新采样。</p>
+<p>但是前面测试的代码中，正好区间的大小就是二的幂，那么向上取整到二的幂次的时候，相当于每次采样有一半的概率需要重试。这样需要重新生成随机数的次数很多，而且分支预测错误率也很高。@Harry-Chen 用 perf 测试得到的数据：</p>
+<ul>
+<li>branch-misses: 30% of all branches</li>
+<li>Top-down: 44.6% Bad Speculation</li>
+</ul>
+<p>说明分支预测确实成为了瓶颈。那么 libstdc++ 是怎么实现的，为什么它没有这个问题？经过搜索，发现了一篇博客：<a href="https://lemire.me/blog/2019/09/28/doubling-the-speed-of-stduniform_int_distribution-in-the-gnu-c-library/">Doubling the speed of std::uniform_int_distribution in the GNU C++ library (libstdc++)</a>：</p>
+<p>论文 <a href="https://arxiv.org/abs/1805.10941">Fast Random Integer Generation in an Interval</a> 提出了新的 uniform_int_distribution 实现，比原来的实现得到了两倍的性能提升，并且合并到了 <a href="https://gcc.gnu.org/git/?p=gcc.git;a=blobdiff;f=libstdc%2B%2B-v3/include/bits/uniform_int_dist.h;h=ecb8574864aee10b9ea164379fffef27c7bdb0df;hp=6e1e3d5fc5fe8f7f22e62a85b35dc8bfa4743372;hb=98c37d3bacbb2f8bbbe56ed53a9547d3be01b66b;hpb=6ce2cb116af6e0965ff0dd69e7fd1925cf5dc68c">libstdc++ 的实现</a>当中。</p>
+<p>所以到这里，问题就比较清晰了：libstdc++ 实现了更好的算法，同时 libc++ 的算法遇到了最坏情况，二者合起来，就观测到了巨大的性能差距。</p>
+<p>如果把代码里 <code>DATA_R</code> 改成 <code>(1 &lt;&lt; 23)-1</code>，那么 libc++ 算法的采样失败概率就会降到最小，此时的性能情况是：</p>
+<ul>
+<li>GCC-13 Homebrew: 253</li>
+<li>Apple Clang: 490</li>
+</ul>
+<p>可见这里就是大概两倍的性能差距，这个差距就来源于 libstdc++ 实现的更好的采样算法。</p>
+<p>解决方法就是，等 libc++ 也实现更好的算法，或者在需要用 uniform_int_distribution 的时候，避免链接 libc++，或者自己实现更好的算法。</p>
 
   <hr>
 <div class="md-source-file">
   <small>
     
       最后更新:
-      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 18, 2023</span>
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 22, 2023</span>
       
         <br>
         创建日期:
-        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 14, 2023</span>
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 22, 2023</span>
       
     
   </small>
@@ -1486,7 +1488,7 @@ Q_A &amp;= r^{-1}(s(k \times G) - z \times G)
       <nav class="md-footer__inner md-grid" aria-label="页脚" >
         
           
-          <a href="../../../../../devops/2023/07/08/gentoo-prefix-m1/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 在 Apple M1 上试用 Gentoo/Prefix" rel="prev">
+          <a href="../../18/portable-script-across-bash-zsh-fish/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 写一个 bash zsh 和 fish 都能跑的脚本" rel="prev">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
@@ -1496,27 +1498,11 @@ Q_A &amp;= r^{-1}(s(k \times G) - z \times G)
                 上一页
               </span>
               <div class="md-ellipsis">
-                在 Apple M1 上试用 Gentoo/Prefix
+                写一个 bash zsh 和 fish 都能跑的脚本
               </div>
             </div>
           </a>
         
-        
-          
-          <a href="../../../../../meta/2023/07/15/migrate-from-hugo-to-mkdocs/" class="md-footer__link md-footer__link--next" aria-label="下一页: 把博客生成器从 Hugo 迁移到 Mkdocs" rel="next">
-            <div class="md-footer__title">
-              <span class="md-footer__direction">
-                下一页
-              </span>
-              <div class="md-ellipsis">
-                把博客生成器从 Hugo 迁移到 Mkdocs
-              </div>
-            </div>
-            <div class="md-footer__button md-icon">
-              
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
-            </div>
-          </a>
         
       </nav>
     
