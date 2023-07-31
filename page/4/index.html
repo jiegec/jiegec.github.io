@@ -1219,6 +1219,298 @@
     <div class="md-post__meta md-meta">
       <ul class="md-meta__list">
         <li class="md-meta__item">
+          <time datetime="2022-03-14 00:00:00">2022年3月14日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 9 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="synopsys-design-compiler-综合实践"><a class="toclink" href="../../hardware/2022/03/14/design-compiler-synthesis/">Synopsys Design Compiler 综合实践</a></h2>
+<h3 id="工艺库"><a class="toclink" href="../../hardware/2022/03/14/design-compiler-synthesis/#%C3%A5%C2%B7%C2%A5%C3%A8%C2%89%C2%BA%C3%A5%C2%BA%C2%93">工艺库</a></h3>
+<p>综合很重要的一步是把 HDL 的逻辑变成一个个单元，这些单元加上连接方式就成为了网表。那么，基本单元有哪些，怎么决定用哪些基本单元？</p>
+<p>这个就需要工艺库了，工艺库定义了一个个单元，单元的引脚、功能，还有各种参数，这样 Design Compiler 就可以按照这些信息去找到一个优化的网表。</p>
+<h4 id="liberty-格式"><a class="toclink" href="../../hardware/2022/03/14/design-compiler-synthesis/#liberty-%C3%A6%C2%A0%C2%BC%C3%A5%C2%BC%C2%8F">Liberty 格式</a></h4>
+<p>网上可以找到一些 Liberty 格式的工艺库，比如 <a href="https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD-flow-scripts/master/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib">Nangate45</a>，它的设定是 25 摄氏度，1.10 伏，属于 TT（Typical/Typical）的 Process Corner。</p>
+<p>在里面可以看到一些基本单元的定理，比如 <code>AND2_X1</code>，就是一个 drive strength 是 1 的二输入与门：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-1"></a>cell (AND2_X1) {
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-2"></a>    drive_strength : 1;
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-3"></a>    pin (A1) {
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-4"></a>        direction : input;
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-5"></a>    }
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-6"></a>    pin (A2) {
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-7"></a>        direction : input;
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-8"></a>    }
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-9"></a>    pin (ZN) {
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-10"></a>        direction : output;
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-11"></a>        function : &quot;(A1 &amp; A2)&quot;;
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-12"></a>    }
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-13"></a>    /* ... */
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-0-14"></a>}
+</span></code></pre></div>
+<p>这样就定义了两个输入 pin，一个输出 pin，还有它实现的功能。还有很重要的一点是保存了时序信息，比如：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-1"></a>lu_table_template (Timing_7_7) {
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-2"></a>    variable_1 : input_net_transition;
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-3"></a>    variable_2 : total_output_net_capacitance;
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-4"></a>    index_1 (&quot;0.0010,0.0020,0.0030,0.0040,0.0050,0.0060,0.0070&quot;);
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-5"></a>    index_2 (&quot;0.0010,0.0020,0.0030,0.0040,0.0050,0.0060,0.0070&quot;);
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-6"></a>}
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-7"></a>cell (AND2_X1) {
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-8"></a>    pin (ZN) {
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-9"></a>        timing () {
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-10"></a>            related_pin : &quot;A1&quot;;
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-11"></a>            timing_sense : positive_unate;
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-12"></a>            cell_fall(Timing_7_7) {
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-13"></a>                index_1 (&quot;0.00117378,0.00472397,0.0171859,0.0409838,0.0780596,0.130081,0.198535&quot;);
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-14"></a>                index_2 (&quot;0.365616,1.893040,3.786090,7.572170,15.144300,30.288700,60.577400&quot;);
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-15"></a>                values (&quot;0.0217822,0.0253224,0.0288237,0.0346827,0.0448323,0.0636086,0.100366&quot;, \
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-16"></a>                        &quot;0.0233179,0.0268545,0.0303556,0.0362159,0.0463659,0.0651426,0.101902&quot;, \
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-17"></a>                        &quot;0.0296429,0.0331470,0.0366371,0.0425000,0.0526603,0.0714467,0.108208&quot;, \
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-18"></a>                        &quot;0.0402311,0.0440292,0.0477457,0.0538394,0.0641187,0.0829203,0.119654&quot;, \
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-19"></a>                        &quot;0.0511250,0.0554077,0.0595859,0.0662932,0.0771901,0.0963434,0.133061&quot;, \
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-20"></a>                        &quot;0.0625876,0.0673198,0.0719785,0.0794046,0.0910973,0.110757,0.147656&quot;, \
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-21"></a>                        &quot;0.0748282,0.0800098,0.0851434,0.0933663,0.106111,0.126669,0.163872&quot;);
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-22"></a>            }
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-23"></a>    }
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-1-24"></a>}
+</span></code></pre></div>
+<p>首先要看 cell_fall 后面的 template 是 Timing_7_7，可以看到 variable_1 和 variable_2 对应的是 input_net_transition 和 total_output_net_capacitance。这里 cell_fall 指的是输出 pin ZN 从 1 变成 0 的时候，这个变化从 A1 的变化传播到 ZN 的时间，这个时间和输入的 transition 时间（大概是从 0 到 1、从 1 到 0 的时间，具体从多少百分比到多少百分比见设置）和输出的 capacitance 有关，所以是一个查找表，查找的时候找最近的点进行插值。输出的 capacitance 取决于 wire load 和连接了这个输出的其他单元的输入。</p>
+<p>除了 cell_fall/cell_rise 两种类型，还有 fall_transition 和 rise_transition，这就是输出引脚的变化时间，又作为后继单元的输入 transition 时间。</p>
+<p>接下来，还能看到功耗的数据：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-1"></a>power_lut_template (Power_7_7) {
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-2"></a>    variable_1 : input_transition_time;
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-3"></a>    variable_2 : total_output_net_capacitance;
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-4"></a>    index_1 (&quot;0.0010,0.0020,0.0030,0.0040,0.0050,0.0060,0.0070&quot;);
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-5"></a>    index_2 (&quot;0.0010,0.0020,0.0030,0.0040,0.0050,0.0060,0.0070&quot;);
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-6"></a>}
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-7"></a>internal_power () {
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-8"></a>    related_pin          : &quot;A1&quot;;
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-9"></a>    fall_power(Power_7_7) {
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-10"></a>        index_1 (&quot;0.00117378,0.00472397,0.0171859,0.0409838,0.0780596,0.130081,0.198535&quot;);
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-11"></a>        index_2 (&quot;0.365616,1.893040,3.786090,7.572170,15.144300,30.288700,60.577400&quot;);
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-12"></a>        values (&quot;2.707163,2.939134,3.111270,3.271119,3.366153,3.407657,3.420511&quot;, \
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-13"></a>                &quot;2.676697,2.905713,3.073189,3.236823,3.334156,3.373344,3.387400&quot;, \
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-14"></a>                &quot;2.680855,2.891263,3.047784,3.212948,3.315296,3.360694,3.377614&quot;, \
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-15"></a>                &quot;2.821141,3.032707,3.182020,3.338567,3.444608,3.488752,3.508229&quot;, \
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-16"></a>                &quot;3.129641,3.235525,3.357993,3.567372,3.743682,3.792092,3.808289&quot;, \
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-17"></a>                &quot;3.724304,3.738737,3.808381,3.980825,4.147999,4.278043,4.311323&quot;, \
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-18"></a>                &quot;4.526175,4.492292,4.510220,4.634217,4.814899,4.934862,5.047389&quot;);
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-19"></a>    }
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-20"></a>    rise_power(Power_7_7) {
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-21"></a>        index_1 (&quot;0.00117378,0.00472397,0.0171859,0.0409838,0.0780596,0.130081,0.198535&quot;);
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-22"></a>        index_2 (&quot;0.365616,1.893040,3.786090,7.572170,15.144300,30.288700,60.577400&quot;);
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-23"></a>        values (&quot;1.823439,1.926997,1.963153,2.028865,1.957837,2.123314,2.075262&quot;, \
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-24"></a>                &quot;1.796317,1.896145,1.960625,2.014112,2.050786,2.046472,1.972327&quot;, \
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-25"></a>                &quot;1.811604,1.886741,1.955658,1.978263,1.965671,1.963736,2.071227&quot;, \
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-26"></a>                &quot;1.997387,2.045930,2.092357,2.063643,2.099127,1.932089,2.131341&quot;, \
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-27"></a>                &quot;2.367285,2.439718,2.440043,2.403446,2.305848,2.351146,2.195145&quot;, \
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-28"></a>                &quot;2.916140,2.994325,3.044451,2.962881,2.836259,2.781564,2.633645&quot;, \
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-29"></a>                &quot;3.687718,3.756085,3.789394,3.792984,3.773583,3.593022,3.405552&quot;);
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-30"></a>    }
+</span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-2-31"></a>}
+</span></code></pre></div>
+<p>可以看到，这也是一个查找表，也是按照输出的 rise/fall 有不同的功耗。巧合的是，功耗的查找表的 index_1/index_2 和上面的时序查找表是一样的。除了 internal power，还有 leakage power，定义如下：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-1"></a>leakage_power_unit : &quot;1nW&quot;;
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-2"></a>/* ... */
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-3"></a>cell_leakage_power  : 50.353160;
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-5"></a>leakage_power () {
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-6"></a>    when           : &quot;!A1 &amp; !A2&quot;;
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-7"></a>    value          : 40.690980;
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-8"></a>}
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-9"></a>leakage_power () {
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-10"></a>    when           : &quot;!A1 &amp; A2&quot;;
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-11"></a>    value          : 62.007550;
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-12"></a>}
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-13"></a>leakage_power () {
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-14"></a>    when           : &quot;A1 &amp; !A2&quot;;
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-15"></a>    value          : 41.294331;
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-16"></a>}
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-17"></a>leakage_power () {
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-18"></a>    when           : &quot;A1 &amp; A2&quot;;
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-19"></a>    value          : 57.419780;
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-3-20"></a>}
+</span></code></pre></div>
+<p>可以看到，它的 leakage power 取决于输入的状态，单位是 1nW。</p>
+<p>再来看 Flip Flop 的定义：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-1"></a>cell (DFFRS_X1) {
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-2"></a>    ff (&quot;IQ&quot; , &quot;IQN&quot;) {
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-3"></a>        next_state          : &quot;D&quot;;
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-4"></a>        clocked_on          : &quot;CK&quot;;
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-5"></a>        preset              : &quot;!SN&quot;;
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-6"></a>        clear               : &quot;!RN&quot;;
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-7"></a>        clear_preset_var1   : L;
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-8"></a>        clear_preset_var2   : L;
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-9"></a>    }
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-10"></a>    pin (D) {
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-11"></a>        direction       : input;
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-12"></a>        capacitance     : 1.148034;
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-13"></a>        fall_capacitance    : 1.081549;
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-14"></a>        rise_capacitance    : 1.148034;
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-15"></a>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-16"></a>        timing () {
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-17"></a>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-18"></a>            related_pin    : &quot;CK&quot;;
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-19"></a>            timing_type    : hold_rising;
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-20"></a>            when               : &quot;RN &amp; SN&quot;;
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-21"></a>            sdf_cond       : &quot;RN_AND_SN === 1&#39;b1&quot;;
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-22"></a>            fall_constraint(Hold_3_3) {
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-23"></a>                index_1 (&quot;0.00117378,0.0449324,0.198535&quot;);
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-24"></a>                index_2 (&quot;0.00117378,0.0449324,0.198535&quot;);
+</span><span id="__span-4-25"><a id="__codelineno-4-25" name="__codelineno-4-25" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-25"></a>                values (&quot;0.002921,0.012421,0.011913&quot;, \
+</span><span id="__span-4-26"><a id="__codelineno-4-26" name="__codelineno-4-26" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-26"></a>                        &quot;0.002707,0.008886,0.005388&quot;, \
+</span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-27"></a>                        &quot;0.139993,0.148595,0.137370&quot;);
+</span><span id="__span-4-28"><a id="__codelineno-4-28" name="__codelineno-4-28" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-28"></a>            }
+</span><span id="__span-4-29"><a id="__codelineno-4-29" name="__codelineno-4-29" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-29"></a>            rise_constraint(Hold_3_3) {
+</span><span id="__span-4-30"><a id="__codelineno-4-30" name="__codelineno-4-30" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-30"></a>                index_1 (&quot;0.00117378,0.0449324,0.198535&quot;);
+</span><span id="__span-4-31"><a id="__codelineno-4-31" name="__codelineno-4-31" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-31"></a>                index_2 (&quot;0.00117378,0.0449324,0.198535&quot;);
+</span><span id="__span-4-32"><a id="__codelineno-4-32" name="__codelineno-4-32" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-32"></a>                values (&quot;0.004193,0.015978,0.019836&quot;, \
+</span><span id="__span-4-33"><a id="__codelineno-4-33" name="__codelineno-4-33" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-33"></a>                        &quot;0.020266,0.031864,0.035343&quot;, \
+</span><span id="__span-4-34"><a id="__codelineno-4-34" name="__codelineno-4-34" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-34"></a>                        &quot;0.099118,0.113075,0.120979&quot;);
+</span><span id="__span-4-35"><a id="__codelineno-4-35" name="__codelineno-4-35" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-35"></a>            }
+</span><span id="__span-4-36"><a id="__codelineno-4-36" name="__codelineno-4-36" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-36"></a>        }
+</span><span id="__span-4-37"><a id="__codelineno-4-37" name="__codelineno-4-37" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-37"></a>    }
+</span><span id="__span-4-38"><a id="__codelineno-4-38" name="__codelineno-4-38" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-4-38"></a>}
+</span></code></pre></div>
+<p>可以看到，这里的属性变成了 setup/hold 时间。</p>
+<p>SRAM 也有类似的定义，通常是写在单独的 lib 文件中，根据 width 和 depth 生成，比如 <a href="https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts/blob/master/flow/platforms/nangate45/lib/fakeram45_32x64.lib">fakeram45_32x64.lib</a>：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-1"></a>cell(fakeram45_32x64) {
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-2"></a>    area : 1754.536;
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-3"></a>    interface_timing : true;
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-4"></a>    memory() {
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-5"></a>        type : ram;
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-6"></a>        address_width : 5;
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-7"></a>        word_width : 64;
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-8"></a>    }
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-9"></a>    pin(clk)   {
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-10"></a>        direction : input;
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-11"></a>        min_period : 0.174 ;
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-12"></a>        internal_power(){
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-13"></a>            rise_power(scalar) {
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-14"></a>                values (&quot;1498.650&quot;)
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-15"></a>            }
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-16"></a>            fall_power(scalar) {
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-17"></a>                values (&quot;1498.650&quot;)
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-18"></a>            }
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-19"></a>        }
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-20"></a>    }
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-21"></a>    bus(wd_in)   {
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-22"></a>        bus_type : fakeram45_32x64_DATA;
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-23"></a>        direction : input;
+</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-24"></a>        timing() {
+</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-25"></a>            related_pin     : clk;
+</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-26"></a>            timing_type     : setup_rising ;
+</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-27"></a>            rise_constraint(scalar) {
+</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-28"></a>                values (&quot;0.050&quot;);
+</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-29"></a>            }
+</span><span id="__span-5-30"><a id="__codelineno-5-30" name="__codelineno-5-30" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-30"></a>            fall_constraint(scalar) {
+</span><span id="__span-5-31"><a id="__codelineno-5-31" name="__codelineno-5-31" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-31"></a>                values (&quot;0.050&quot;);
+</span><span id="__span-5-32"><a id="__codelineno-5-32" name="__codelineno-5-32" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-32"></a>            }
+</span><span id="__span-5-33"><a id="__codelineno-5-33" name="__codelineno-5-33" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-33"></a>        } 
+</span><span id="__span-5-34"><a id="__codelineno-5-34" name="__codelineno-5-34" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-34"></a>        internal_power(){
+</span><span id="__span-5-35"><a id="__codelineno-5-35" name="__codelineno-5-35" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-35"></a>            when : &quot;(we_in)&quot;;
+</span><span id="__span-5-36"><a id="__codelineno-5-36" name="__codelineno-5-36" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-36"></a>            rise_power(scalar) {
+</span><span id="__span-5-37"><a id="__codelineno-5-37" name="__codelineno-5-37" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-37"></a>                values (&quot;14.987&quot;);
+</span><span id="__span-5-38"><a id="__codelineno-5-38" name="__codelineno-5-38" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-38"></a>            }
+</span><span id="__span-5-39"><a id="__codelineno-5-39" name="__codelineno-5-39" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-39"></a>            fall_power(scalar) {
+</span><span id="__span-5-40"><a id="__codelineno-5-40" name="__codelineno-5-40" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-40"></a>                values (&quot;14.987&quot;);
+</span><span id="__span-5-41"><a id="__codelineno-5-41" name="__codelineno-5-41" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-41"></a>            }
+</span><span id="__span-5-42"><a id="__codelineno-5-42" name="__codelineno-5-42" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-42"></a>        }
+</span><span id="__span-5-43"><a id="__codelineno-5-43" name="__codelineno-5-43" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-43"></a>    }
+</span><span id="__span-5-44"><a id="__codelineno-5-44" name="__codelineno-5-44" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-5-44"></a>}
+</span></code></pre></div>
+<p>也可以类似地看到，它的输入 setup/hold，功耗，面积等等信息。</p>
+<h4 id="db-格式"><a class="toclink" href="../../hardware/2022/03/14/design-compiler-synthesis/#db-%C3%A6%C2%A0%C2%BC%C3%A5%C2%BC%C2%8F">DB 格式</a></h4>
+<p>在给 Design Compiler 配置工艺库前，需要用 Library Compiler 先把 lib 格式转换为更紧凑的二进制 db 格式：</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-6-1"></a><span class="nv">read_lib</span><span class="w"> </span>xxx.lib
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-6-2"></a><span class="nv">write_lib</span><span class="w"> </span><span class="o">-</span>format<span class="w"> </span>db<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>实测部分 Liberty 文件会报错，不知道有没有修复的办法。另外，不同版本的 Library Compiler 生成的格式也不大一样，但都是兼容的。</p>
+<p>在 Design Compiler 中，设置当前工艺库命令：</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-7-1"></a><span class="nv">set_app_var</span><span class="w"> </span>target_library<span class="w"> </span>xxx.db
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-7-2"></a><span class="nv">set_link_var</span><span class="w"> </span>target_library<span class="w"> </span>xxx.db
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-7-3"></a><span class="c">## or</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-7-4"></a><span class="nv">set_app_var</span><span class="w"> </span>target_library<span class="w"> </span><span class="k">{</span><span class="nv">xxx.db</span><span class="w"> </span>yyy.db<span class="k">}</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-7-5"></a><span class="nv">set_link_var</span><span class="w"> </span>target_library<span class="w"> </span><span class="k">{</span><span class="nv">xxx.db</span><span class="w"> </span>yyy.db<span class="k">}</span>
+</span></code></pre></div>
+<h3 id="综合脚本"><a class="toclink" href="../../hardware/2022/03/14/design-compiler-synthesis/#%C3%A7%C2%BB%C2%BC%C3%A5%C2%90%C2%88%C3%A8%C2%84%C2%9A%C3%A6%C2%9C%C2%AC">综合脚本</a></h3>
+<p>准备好工艺库以后，就可以开始编写综合脚本了，通常有这么些步骤：</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-1"></a><span class="c">## step 1: read source code &amp; set top level module name</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-2"></a><span class="nv">read_file</span><span class="w"> </span><span class="o">-</span>format<span class="w"> </span>verilog<span class="w"> </span>xxx.v
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-3"></a><span class="nv">read_file</span><span class="w"> </span><span class="o">-</span>format<span class="w"> </span>vhdl<span class="w"> </span>yyy.vhdl
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-4"></a><span class="nv">current_design</span><span class="w"> </span>xxx
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-5"></a>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-6"></a><span class="c">## step 2: setup timing constraints</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-7"></a><span class="nv">create_clock</span><span class="w"> </span>clock<span class="w"> </span><span class="o">-</span>period<span class="w"> </span><span class="mf">1.0000</span><span class="w"> </span><span class="err">#</span><span class="w"> </span><span class="mi">1</span>GHz<span class="w"> </span>for<span class="w"> </span>example
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-8"></a><span class="c">## other timing constraints:</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-9"></a><span class="c">## e.g. set_input_delay/set_output_delay</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-10"></a>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-11"></a><span class="c">## step 3: synthesis</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-12"></a><span class="nv">link</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-13"></a><span class="nv">uniquify</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-14"></a><span class="c">## use this if you want to ungroup all hierarchy</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-15"></a><span class="c">## ungroup -flatten -all</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-16"></a><span class="c">## use this to retime design</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-17"></a><span class="c">## set_optimize_registers</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-18"></a><span class="nv">compile_ultra</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-19"></a>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-20"></a><span class="c">## step 4: check &amp; report</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-21"></a><span class="nv">check_timing</span>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-22"></a><span class="nv">check_design</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-23"></a><span class="nv">report_design</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-24"></a><span class="nv">report_area</span><span class="w"> </span><span class="o">-</span>hierarchy
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-25"></a><span class="nv">report_power</span><span class="w"> </span><span class="o">-</span>hierarchy
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-26"></a><span class="nv">report_cell</span>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-27"></a><span class="nv">report_timing</span><span class="w"> </span><span class="o">-</span>delay_type<span class="w"> </span>max
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-28"></a><span class="nv">report_timing</span><span class="w"> </span><span class="o">-</span>delay_type<span class="w"> </span>min
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-29"></a><span class="nv">report_constraint</span><span class="w"> </span><span class="o">-</span>all_violators
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-30"></a><span class="nv">report_qor</span>
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-31"></a>
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-32"></a><span class="c">## step 5: export</span>
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-33"></a><span class="nv">write</span><span class="w"> </span><span class="o">-</span>format<span class="w"> </span>ddc<span class="w"> </span><span class="o">-</span>hierarchy<span class="w"> </span><span class="o">-</span>output<span class="w"> </span>xxx.ddc
+</span><span id="__span-8-34"><a id="__codelineno-8-34" name="__codelineno-8-34" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-34"></a><span class="nv">write_sdc</span><span class="w"> </span><span class="o">-</span>version<span class="w"> </span><span class="mf">1.0</span><span class="w"> </span>xxx.sdf
+</span><span id="__span-8-35"><a id="__codelineno-8-35" name="__codelineno-8-35" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-35"></a><span class="nv">write</span><span class="w"> </span><span class="o">-</span>format<span class="w"> </span>verilog<span class="w"> </span><span class="o">-</span>hierarchy<span class="w"> </span><span class="o">-</span>output<span class="w"> </span>xxx.syn.v
+</span><span id="__span-8-36"><a id="__codelineno-8-36" name="__codelineno-8-36" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-8-36"></a><span class="nv">write_sdc</span><span class="w"> </span>xxx.sdc
+</span></code></pre></div>
+<p>根据需求，进行自定义的修改。综合完成后，可以看到生成的 <code>xxx.syn.v</code> 文件里都是一个个的 cell，比如：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-9-1"></a><span class="n">AND2X2</span><span class="w"> </span><span class="n">U3912</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="p">.</span><span class="n">A</span><span class="p">(</span><span class="n">n4416</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">B</span><span class="p">(</span><span class="n">n2168</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">Y</span><span class="p">(</span><span class="n">n3469</span><span class="p">)</span><span class="w"> </span><span class="p">);</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-9-2"></a><span class="n">OAI21X1</span><span class="w"> </span><span class="n">U3913</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="p">.</span><span class="n">A</span><span class="p">(</span><span class="n">n2872</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">B</span><span class="p">(</span><span class="n">n4589</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">C</span><span class="p">(</span><span class="n">n2461</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">Y</span><span class="p">(</span><span class="n">n3471</span><span class="p">)</span><span class="w"> </span><span class="p">);</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="../../hardware/2022/03/14/design-compiler-synthesis/#__codelineno-9-3"></a><span class="n">DFFPOSX1</span><span class="w"> </span><span class="n">clock_r_REG147_S1</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="p">.</span><span class="n">D</span><span class="p">(</span><span class="n">n7634</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">CLK</span><span class="p">(</span><span class="n">clock</span><span class="p">),</span><span class="w"> </span><span class="p">.</span><span class="n">Q</span><span class="p">(</span><span class="n">n7773</span><span class="p">)</span><span class="w"> </span><span class="p">);</span>
+</span></code></pre></div>
+<p>还有一些比较特殊的 cell，比如 TIEHI/TIELO 就是恒定输出 1/0，用于门控时钟的 CLKGATE/ICG 等，还有一些综合阶段不会出现的 cell，在后续阶段会使用。</p>
+<h3 id="参考文档"><a class="toclink" href="../../hardware/2022/03/14/design-compiler-synthesis/#%C3%A5%C2%8F%C2%82%C3%A8%C2%80%C2%83%C3%A6%C2%96%C2%87%C3%A6%C2%A1%C2%A3">参考文档</a></h3>
+<ul>
+<li><a href="https://vlsiuniverse.blogspot.com/2016/12/liberty-format-introduction.html">Liberty format: an introduction</a></li>
+<li><a href="https://www.eng.biu.ac.il/temanad/files/2017/02/Lecture-4-Standard-Cell-Libraries.pdf">Digital VLSI Design Lecture 4: Standard Cell Libraries</a></li>
+</ul>
+
+    <nav class="md-post__action">
+      <a href="../../hardware/2022/03/14/design-compiler-synthesis/">
+        继续阅读
+      </a>
+    </nav>
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
           <time datetime="2022-03-12 00:00:00">2022年3月12日</time></li>
         
           <li class="md-meta__item">
@@ -4010,57 +4302,6 @@ pointers.
 
     <nav class="md-post__action">
       <a href="../../software/2021/09/02/locale/">
-        继续阅读
-      </a>
-    </nav>
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2021-08-30 00:00:00">2021年8月30日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/system/" class="md-meta__link">system</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 4 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="一次从-rhel-6-到-centos-7-的更新"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/">一次从 RHEL 6 到 CentOS 7 的更新</a></h2>
-<h3 id="背景"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/#%C3%A8%C2%83%C2%8C%C3%A6%C2%99%C2%AF">背景</a></h3>
-<p>有一台 RHEL 6 的服务器，各种软件版本太老了，用起来很难受，因此想升级。一开始想升级到 RHEL 7，但是发现必须要从 RedHat 下载 ISO，比较慢，所以我就先切换到 CentOS 6，再升级到 CentOS 7</p>
-<h3 id="过程"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/#%C3%A8%C2%BF%C2%87%C3%A7%C2%A8%C2%8B">过程</a></h3>
-<h4 id="rhel-6-pre-upgrade"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/#rhel-6-pre-upgrade">RHEL 6 Pre upgrade</a></h4>
-<p>一开始还是打算升级到 RHEL 7，所以跟随 RedHat 的文档去做 pre upgrade check，发现有一步要跑好久，网上搜了一下，发现这个步骤会扫描已有的各种程序，检查升级以后会不会出现不能运行的问题。但是如果有很多小文件，这一个过程就会进行很久，好在可以设置 exclusion 目录。最后检查出来的结果就是 GNOME 没法升级，建议卸载。</p>
-<p>倒腾了一下升级工具，发现需要离线安装，比较麻烦，我就干脆换 CentOS 了。</p>
-<h4 id="rhel-6---centos-6"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/#rhel-6---centos-6">RHEL 6 -&gt; CentOS 6</a></h4>
-<p>首先，把软件源都切换到 CentOS，这一步很简单，因为包都是一样的。只不过，因为 CentOS 6 在 centos-vault 里面，所以用起来比较麻烦。</p>
-<h4 id="centos-6---centos-7"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/#centos-6---centos-7">CentOS 6 -&gt; CentOS 7</a></h4>
-<p>由于 CentOS 6 到 CentOS 7 升级涉及的改动比较多，官方提供了一个升级工具。一开始，我想直接升级到 CentOS 7 最新版本，但是报错，看到网上说可以升级到 CentOS 7 的早期版本，试了一下，确实没问题。</p>
-<p>一通升级以后，重启，进入更新过程，发现很多包都安装失败了。重启以后，因为找不到 rootfs，挂在了 dracut 的 initramfs 里面。</p>
-<h4 id="漫长的修复过程"><a class="toclink" href="../../system/2021/08/30/rhel6-upgrade-centos7/#%C3%A6%C2%BC%C2%AB%C3%A9%C2%95%C2%BF%C3%A7%C2%9A%C2%84%C3%A4%C2%BF%C2%AE%C3%A5%C2%A4%C2%8D%C3%A8%C2%BF%C2%87%C3%A7%C2%A8%C2%8B">漫长的修复过程</a></h4>
-<p>简单试了一下，发现 dracut 的 initramfs 里程序太少了，调试起来很痛苦。所以，我在 BMC 里通过 Virtual Media 挂了一个 Arch Linux 的 Live CD。因为通过 Web 访问延迟太高，我设了一个 root 密码，然后直接 ssh 到 live cd 系统中。</p>
-<p>接着，我发现，可以正常找到盘和里面的各个分区，所以怀疑是之前 initramfs 里缺了什么东西，导致找不到硬盘。我 arch-chroot 到 root 分区里，然后手动更新各个包，特别麻烦：我首先升级了 yum repos 到最新的 CentOS 7，然后手动删掉/升级 el6 的各个软件包。最后好不容易把 kernel 终于升级好了，又重新生成 grub2 的配置，因为 CentOS 6 是 grub1。这时候，重启进入系统，发现可以找到 rootfs 了，但是经过 selinux relabel 以后，仍然会遇到 systemd-logind 起不来的问题，伴随着一系列的 audit 报警。</p>
-<p>最后，使出了暴力的解决办法：在 cmdline 中设置 selinux=0 audit=0，然后终于进入系统了。再继续删掉一些 el6 的包，然后升级各种包，最后终于是恢复了正常。</p>
-
-    <nav class="md-post__action">
-      <a href="../../system/2021/08/30/rhel6-upgrade-centos7/">
         继续阅读
       </a>
     </nav>
