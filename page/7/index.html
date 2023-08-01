@@ -1219,6 +1219,92 @@
     <div class="md-post__meta md-meta">
       <ul class="md-meta__list">
         <li class="md-meta__item">
+          <time datetime="2020-03-17 00:00:00">2020年3月17日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-rocket-chip-上挂接-tlram"><a class="toclink" href="../../hardware/2020/03/17/rocket-chip-tlram-load/">在 Rocket Chip 上挂接 TLRAM</a></h2>
+<p>最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM，这样每次修改内容不需要重新跑一次 Chisel -&gt; Verilog 的流程。然后到处研究了一下，找到了解决的方案：</p>
+<p>首先是新建一个 TLRAM 然后挂接到 cbus 上：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-1"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">tilelink</span><span class="p">.</span><span class="nc">TLRAM</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-2"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">tilelink</span><span class="p">.</span><span class="nc">TLFragmenter</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-3"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">diplomacy</span><span class="p">.</span><span class="nc">LazyModule</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-4"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">diplomacy</span><span class="p">.</span><span class="nc">AddressSet</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-6"></a><span class="k">trait</span><span class="w"> </span><span class="nc">HasTestRAM</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">this</span><span class="p">:</span><span class="w"> </span><span class="nc">BaseSubsystem</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-7"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">testRAM</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">LazyModule</span><span class="p">(</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-8"></a><span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="nc">TLRAM</span><span class="p">(</span><span class="nc">AddressSet</span><span class="p">(</span><span class="mh">0x40000000</span><span class="p">,</span><span class="w"> </span><span class="mh">0x1FFF</span><span class="p">),</span><span class="w"> </span><span class="n">beatBytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cbus</span><span class="p">.</span><span class="n">beatBytes</span><span class="p">)</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-9"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-11"></a><span class="w">  </span><span class="n">testRAM</span><span class="p">.</span><span class="n">node</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">cbus</span><span class="p">.</span><span class="n">coupleTo</span><span class="p">(</span><span class="s">&quot;bootrom&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nc">TLFragmenter</span><span class="p">(</span><span class="n">cbus</span><span class="p">)</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestTop</span><span class="p">(</span><span class="k">implicit</span><span class="w"> </span><span class="n">p</span><span class="p">:</span><span class="nc">Parameters</span><span class="p">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-2"></a><span class="w">    </span><span class="k">extends</span><span class="w"> </span><span class="nc">RocketSystem</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-3"></a><span class="w">    </span><span class="c1">// ...</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-4"></a><span class="w">    </span><span class="k">with</span><span class="w"> </span><span class="nc">HasTestRAM</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-5"></a><span class="w">    </span><span class="c1">//...</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-6"></a><span class="w">    </span><span class="p">{</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-7"></a><span class="w">    </span><span class="k">override</span><span class="w"> </span><span class="k">lazy</span><span class="w"> </span><span class="p">...</span><span class="w">    </span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>实际上这时候 TLRAM 就已经加入到了 TileLink 总线中。接着，为了让 firrtl 生成 $readmemh 的代码，需要两个步骤：</p>
+<p>首先是用 <code>chisel3.util.experimental.loadMemoryFromFile</code> 函数（文档在 https://github.com/freechipsproject/chisel3/wiki/Chisel-Memories）：</p>
+<p>UPDATE：现在的文档在 <a href="https://www.chisel-lang.org/chisel3/docs/appendix/experimental-features#loading-memories-for-simulation-or-fpga-initialization-">Loading Memories for simulation or FPGA initialization</a> 处，并且可以用 loadMemoryFromFileInline。</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestTopImp</span><span class="p">(</span><span class="n">outer</span><span class="p">:</span><span class="w"> </span><span class="nc">TestTop</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-2"></a><span class="w">    </span><span class="k">extends</span><span class="w"> </span><span class="nc">RocketSubsystemModuleImp</span><span class="p">(</span><span class="n">outer</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-3"></a><span class="w">    </span><span class="c1">// ...</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-4"></a><span class="w">    </span><span class="p">{</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-5"></a><span class="w">    </span><span class="n">loadMemoryFromFile</span><span class="p">(</span><span class="n">outer</span><span class="p">.</span><span class="n">testRAM</span><span class="p">.</span><span class="n">module</span><span class="p">.</span><span class="n">mem</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;test.hex&quot;</span><span class="p">)</span><span class="w">    </span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这个函数会生成一个 FIRRTL Annotation，记录了在这里需要对这个 mem 生成对应的 readmemh 调用。然后在 firrtl 的调用里传入 .anno.json 和 transform：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-3-1"></a>$<span class="w"> </span>runMain<span class="w"> </span>firrtl.stage.Main<span class="w"> </span>-i<span class="w"> </span>xxx<span class="w"> </span>-o<span class="w"> </span>xxx<span class="w"> </span>-X<span class="w"> </span>verilog<span class="w"> </span>-faf<span class="w"> </span>/path/to/xxx.anno.json<span class="w"> </span>-fct<span class="w"> </span>chisel3.util.experimental.LoadMemoryTransform
+</span></code></pre></div>
+<p>UPDATE: 现在不需要 <code>-fct chisel3.util.experimental.LoadMemoryTransform</code> 参数。目前这个功能和生成 blackbox memory 有冲突，不能同时使用，需要等 chisel3 后续修复。</p>
+<p>这里的 chisel3.util.experimental.LoadMemoryTransform 会找到 anno.json 里面对应的 Annotation，然后生成类似下面这样的 verilog 代码：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-1"></a><span class="k">module</span><span class="w"> </span><span class="n">xxx</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-2"></a><span class="w">    </span><span class="c1">// ...</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-3"></a><span class="p">);</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-4"></a><span class="w">  </span><span class="c1">// ...</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-5"></a><span class="w">    </span><span class="nb">$readmemh</span><span class="p">(</span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="n">mem_xxx</span><span class="p">);</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-6"></a><span class="k">endmodule</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-7"></a>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-8"></a><span class="n">bind</span><span class="w"> </span><span class="n">TLRAM</span><span class="w"> </span><span class="n">xxx</span><span class="w"> </span><span class="n">xxx</span><span class="p">(.</span><span class="o">*</span><span class="p">);</span>
+</span></code></pre></div>
+<p>这里采用了 Verilog 的 bind 功能，可以在不修改模块代码的时候注入，比如上面，就是注入了一个语句 $readmemh，从而达到目的。</p>
+
+    <nav class="md-post__action">
+      <a href="../../hardware/2020/03/17/rocket-chip-tlram-load/">
+        继续阅读
+      </a>
+    </nav>
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
           <time datetime="2020-03-14 00:00:00">2020年3月14日</time></li>
         
           <li class="md-meta__item">
@@ -2898,50 +2984,6 @@ P.P.S MacBookPro11,2 的网卡是 BCM4360，直接用 broadcom-wl 驱动就可�
 
     <nav class="md-post__action">
       <a href="../../devops/2019/10/19/configure-telegraf-for-cisco-wlc/">
-        继续阅读
-      </a>
-    </nav>
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-10-19 00:00:00">2019年10月19日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-46-期"><a class="toclink" href="../../misc/2019/10/19/weekly-sharing-46/">每周分享第 46 期</a></h2>
-<ol>
-<li>LibC++ 正式支持 WASI https://releases.llvm.org/9.0.0/projects/libcxx/docs/ReleaseNotes.html</li>
-<li>从文本反推 regex https://github.com/pemistahl/grex</li>
-<li>KDE 5.17 发布 https://www.omgubuntu.co.uk/2019/10/kde-plasma-5-17-features</li>
-<li>IDA 7.4 发布 支持 Py3 https://www.hex-rays.com/products/ida/7.4/index.shtml</li>
-<li>新的 CPU Bug https://www.phoronix.com/scan.php?page=news_item&amp;px=Chrome-Geminilake-Bug</li>
-<li>WAST -&gt; WASM in Rust https://docs.rs/wast/</li>
-</ol>
-
-    <nav class="md-post__action">
-      <a href="../../misc/2019/10/19/weekly-sharing-46/">
         继续阅读
       </a>
     </nav>

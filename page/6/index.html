@@ -1219,6 +1219,166 @@
     <div class="md-post__meta md-meta">
       <ul class="md-meta__list">
         <li class="md-meta__item">
+          <time datetime="2021-01-26 00:00:00">2021年1月26日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="skid-buffer"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/">Skid Buffer</a></h2>
+<h3 id="skid-buffer_1"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#skid-buffer_1">Skid buffer</a></h3>
+<p>Skid buffer 指的就是，对于 valid + ready 的握手信号，用空间（更多的逻辑）来换取时间（更好的时序）的一个硬件模块。</p>
+<p>简单来说，背景就是，为了解决 valid 和 ready 信号在数据流水线上一路经过组合逻辑导致的时序问题，在中途加上一些寄存器来阻隔。当然了，代价就是延迟和面积，不过吞吐量还是需要保持的。</p>
+<p>由于需求的不同，Skid buffer 也有不同的实现。目前，找到了四个实现，实现上有所不同，特性也不大一样。</p>
+<h4 id="统一约定"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#%C3%A7%C2%BB%C2%9F%C3%A4%C2%B8%C2%80%C3%A7%C2%BA%C2%A6%C3%A5%C2%AE%C2%9A">统一约定</a></h4>
+<p>由于我在 SpinalHDL 语言中重新实现了下面的这些 Skid buffer，所以按照 SpinalHDL 的 Stream 定义接口：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SkidBufferCommon</span><span class="p">[</span><span class="nc">T</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="nc">Data</span><span class="p">](</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-2"></a><span class="w">    </span><span class="n">gen</span><span class="p">:</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nc">T</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-3"></a><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">Component</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-4"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">io</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="nc">Bundle</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-5"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slave</span><span class="p">(</span><span class="nc">Stream</span><span class="p">(</span><span class="n">gen</span><span class="p">))</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-6"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">master</span><span class="p">(</span><span class="nc">Stream</span><span class="p">(</span><span class="n">gen</span><span class="p">))</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-7"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-0-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>在这里，<code>io.s</code> 表示从上游取的数据，<code>io.m</code> 表示传递给下游的数据。</p>
+<p>输出信号共有：<code>io.s.ready</code>、<code>io.m.valid</code> 和 <code>io.m.payload</code>。</p>
+<h4 id="zipcpu-版本"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#zipcpu-%C3%A7%C2%89%C2%88%C3%A6%C2%9C%C2%AC">ZipCPU 版本</a></h4>
+<p>第一个版本来自 ZipCPU：</p>
+<p>博客地址：<a href="https://zipcpu.com/blog/2019/05/22/skidbuffer.html">Building a Skid Buffer for AXI processing</a>
+代码地址：<a href="https://github.com/ZipCPU/wb2axip/blob/master/rtl/skidbuffer.v">skidbuffer.v</a></p>
+<p>它有两个参数，一个表示是否有额外的输出寄存器（outputReg），一个表示是否低功耗（lowPower）。</p>
+<h4 id="fpgacpu-版本"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#fpgacpu-%C3%A7%C2%89%C2%88%C3%A6%C2%9C%C2%AC">FPGACPU 版本</a></h4>
+<p>第二个版本来自 FPGACPU：</p>
+<p>文章地址：<a href="http://fpgacpu.ca/fpga/Pipeline_Skid_Buffer.html">Pipeline Skid Buffer</a></p>
+<h4 id="spinalhdl-s2m-版本"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#spinalhdl-s2m-%C3%A7%C2%89%C2%88%C3%A6%C2%9C%C2%AC">SpinalHDL S2M 版本</a></h4>
+<p>第三个版本来自 SpinalHDL Library 的 s2mPipe：</p>
+<p>代码地址：<a href="https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L348">Stream.scala L348</a></p>
+<h4 id="spinalhdl-m2s-版本"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#spinalhdl-m2s-%C3%A7%C2%89%C2%88%C3%A6%C2%9C%C2%AC">SpinalHDL M2S 版本</a></h4>
+<p>第四个版本来自 SpinalHDL Library 的 m2sPipe：</p>
+<p>代码地址：<a href="https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L327">Stream.scala L327</a></p>
+<h4 id="四个版本的对比"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#%C3%A5%C2%9B%C2%9B%C3%A4%C2%B8%C2%AA%C3%A7%C2%89%C2%88%C3%A6%C2%9C%C2%AC%C3%A7%C2%9A%C2%84%C3%A5%C2%AF%C2%B9%C3%A6%C2%AF%C2%94">四个版本的对比</a></h4>
+<p>在研究了代码以后，可以看到这四个版本的区别：</p>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>ZipCPU w/ outputReg</th>
+<th>ZipCPU w/o outputReg</th>
+<th>FPGACPU</th>
+<th>S2M</th>
+<th>M2S</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>io.s.ready</td>
+<td>Reg</td>
+<td>Reg</td>
+<td>Reg</td>
+<td>Reg</td>
+<td>Comb</td>
+</tr>
+<tr>
+<td>io.m.valid</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+</tr>
+<tr>
+<td>io.m.payload</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+<td>Comb</td>
+<td>Reg</td>
+</tr>
+<tr>
+<td>latency</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>buffer 数量</td>
+<td>1</td>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p>注：</p>
+<ol>
+<li>Reg 表示从寄存器输出，Comb 表示从组合逻辑输出</li>
+<li>Latency 表示从 <code>io.s.fire</code> 到 <code>io.m.fire</code> 的延迟</li>
+<li>Buffer 表示缓冲的 payload 个数</li>
+<li>ZipCPU w/o outputReg 和 S2M 实现的逻辑是一样的</li>
+</ol>
+<h4 id="形式化验证"><a class="toclink" href="../../hardware/2021/01/26/skid-buffer/#%C3%A5%C2%BD%C2%A2%C3%A5%C2%BC%C2%8F%C3%A5%C2%8C%C2%96%C3%A9%C2%AA%C2%8C%C3%A8%C2%AF%C2%81">形式化验证</a></h4>
+<p>为了确认上面这些类型的 Skid Buffer 都可以正常工作，按照 ZipCPU Skid Buffer 的文章，也照着写了几个 property：</p>
+<p>1: 在 valid &amp;&amp; ~ready 的时候，valid 需要继续保持为高，并且 payload 不变：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-1"></a><span class="c1">// When valid goes high, data is stable and valid stays high before ready</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-2"></a><span class="n">when</span><span class="p">(</span><span class="n">past</span><span class="p">(</span><span class="n">stream</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">stream</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">outerReset</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-3"></a><span class="w">    </span><span class="n">slaveAssume</span><span class="p">(</span><span class="n">stream</span><span class="p">.</span><span class="n">valid</span><span class="p">);</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dataStable</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-5"></a><span class="w">        </span><span class="n">slaveAssume</span><span class="p">(</span><span class="n">stable</span><span class="p">(</span><span class="n">stream</span><span class="p">.</span><span class="n">payload</span><span class="p">.</span><span class="n">asBits</span><span class="p">));</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-1-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>2: 在 reset 释放的第一个周期里，valid 不能为高：</p>
+<p>参考 AXI 标准 (IHI0022E Page 38 A3.1.2) 原文：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-2-1"></a>The earliest point after reset that a master is permitted to begin driving ARVALID, AWVALID, or WVALID HIGH is at a rising ACLK edge after ARESETn is HIGH.
+</span></code></pre></div>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-3-1"></a><span class="c1">// Valid is low in the first cycle after reset falls</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-3-2"></a><span class="n">when</span><span class="p">(</span><span class="n">pastValid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">past</span><span class="p">(</span><span class="n">outerReset</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">outerReset</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-3-3"></a><span class="w">    </span><span class="n">slaveAssume</span><span class="p">(</span><span class="o">~</span><span class="n">stream</span><span class="p">.</span><span class="n">valid</span><span class="p">);</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-3-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>3: 添加 cover property，要求 <code>io.s</code> 和 <code>io.m</code> 可以连续若干个周期 valid &amp;&amp; ready，保证吞吐率：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-1"></a><span class="n">cover</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-2"></a><span class="w">    </span><span class="n">pastValid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">genPast</span><span class="p">(</span><span class="n">pastValid</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="n">cycles</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">genPast</span><span class="p">(</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-3"></a><span class="w">        </span><span class="o">~</span><span class="n">outerReset</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-4"></a><span class="w">        </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-5"></a><span class="w">        </span><span class="n">cycles</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-6"></a><span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">genPast</span><span class="p">(</span><span class="n">stream</span><span class="p">.</span><span class="n">fire</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="p">,</span><span class="w"> </span><span class="n">cycles</span><span class="p">)</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="../../hardware/2021/01/26/skid-buffer/#__codelineno-4-7"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>采用 <code>yosys-smtbmc</code> 工具验证了以上四种 Skid buffer 都满足这些属性。</p>
+
+    <nav class="md-post__action">
+      <a href="../../hardware/2021/01/26/skid-buffer/">
+        继续阅读
+      </a>
+    </nav>
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
           <time datetime="2021-01-02 00:00:00">2021年1月2日</time></li>
         
           <li class="md-meta__item">
@@ -4219,92 +4379,6 @@ in 1.4.
 
     <nav class="md-post__action">
       <a href="../../devops/2020/03/17/setup-k8s-tencentcloud/">
-        继续阅读
-      </a>
-    </nav>
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2020-03-17 00:00:00">2020年3月17日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 3 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-rocket-chip-上挂接-tlram"><a class="toclink" href="../../hardware/2020/03/17/rocket-chip-tlram-load/">在 Rocket Chip 上挂接 TLRAM</a></h2>
-<p>最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM，这样每次修改内容不需要重新跑一次 Chisel -&gt; Verilog 的流程。然后到处研究了一下，找到了解决的方案：</p>
-<p>首先是新建一个 TLRAM 然后挂接到 cbus 上：</p>
-<div class="language-scala highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-1"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">tilelink</span><span class="p">.</span><span class="nc">TLRAM</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-2"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">tilelink</span><span class="p">.</span><span class="nc">TLFragmenter</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-3"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">diplomacy</span><span class="p">.</span><span class="nc">LazyModule</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-4"></a><span class="k">import</span><span class="w"> </span><span class="nn">freechips</span><span class="p">.</span><span class="nn">rocketchip</span><span class="p">.</span><span class="nn">diplomacy</span><span class="p">.</span><span class="nc">AddressSet</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-5"></a>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-6"></a><span class="k">trait</span><span class="w"> </span><span class="nc">HasTestRAM</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">this</span><span class="p">:</span><span class="w"> </span><span class="nc">BaseSubsystem</span><span class="w"> </span><span class="o">=&gt;</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-7"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">testRAM</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">LazyModule</span><span class="p">(</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-8"></a><span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="nc">TLRAM</span><span class="p">(</span><span class="nc">AddressSet</span><span class="p">(</span><span class="mh">0x40000000</span><span class="p">,</span><span class="w"> </span><span class="mh">0x1FFF</span><span class="p">),</span><span class="w"> </span><span class="n">beatBytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cbus</span><span class="p">.</span><span class="n">beatBytes</span><span class="p">)</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-9"></a><span class="w">  </span><span class="p">)</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-10"></a>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-11"></a><span class="w">  </span><span class="n">testRAM</span><span class="p">.</span><span class="n">node</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">cbus</span><span class="p">.</span><span class="n">coupleTo</span><span class="p">(</span><span class="s">&quot;bootrom&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nc">TLFragmenter</span><span class="p">(</span><span class="n">cbus</span><span class="p">)</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-0-12"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>这里的地址和大小都可以自由定义。然后添加到自己的 Top Module 中：</p>
-<div class="language-scala highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestTop</span><span class="p">(</span><span class="k">implicit</span><span class="w"> </span><span class="n">p</span><span class="p">:</span><span class="nc">Parameters</span><span class="p">)</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-2"></a><span class="w">    </span><span class="k">extends</span><span class="w"> </span><span class="nc">RocketSystem</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-3"></a><span class="w">    </span><span class="c1">// ...</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-4"></a><span class="w">    </span><span class="k">with</span><span class="w"> </span><span class="nc">HasTestRAM</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-5"></a><span class="w">    </span><span class="c1">//...</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-6"></a><span class="w">    </span><span class="p">{</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-7"></a><span class="w">    </span><span class="k">override</span><span class="w"> </span><span class="k">lazy</span><span class="w"> </span><span class="p">...</span><span class="w">    </span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-1-8"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>实际上这时候 TLRAM 就已经加入到了 TileLink 总线中。接着，为了让 firrtl 生成 $readmemh 的代码，需要两个步骤：</p>
-<p>首先是用 <code>chisel3.util.experimental.loadMemoryFromFile</code> 函数（文档在 https://github.com/freechipsproject/chisel3/wiki/Chisel-Memories）：</p>
-<p>UPDATE：现在的文档在 <a href="https://www.chisel-lang.org/chisel3/docs/appendix/experimental-features#loading-memories-for-simulation-or-fpga-initialization-">Loading Memories for simulation or FPGA initialization</a> 处，并且可以用 loadMemoryFromFileInline。</p>
-<div class="language-scala highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestTopImp</span><span class="p">(</span><span class="n">outer</span><span class="p">:</span><span class="w"> </span><span class="nc">TestTop</span><span class="p">)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-2"></a><span class="w">    </span><span class="k">extends</span><span class="w"> </span><span class="nc">RocketSubsystemModuleImp</span><span class="p">(</span><span class="n">outer</span><span class="p">)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-3"></a><span class="w">    </span><span class="c1">// ...</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-4"></a><span class="w">    </span><span class="p">{</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-5"></a><span class="w">    </span><span class="n">loadMemoryFromFile</span><span class="p">(</span><span class="n">outer</span><span class="p">.</span><span class="n">testRAM</span><span class="p">.</span><span class="n">module</span><span class="p">.</span><span class="n">mem</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;test.hex&quot;</span><span class="p">)</span><span class="w">    </span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-2-6"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>这个函数会生成一个 FIRRTL Annotation，记录了在这里需要对这个 mem 生成对应的 readmemh 调用。然后在 firrtl 的调用里传入 .anno.json 和 transform：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-3-1"></a>$<span class="w"> </span>runMain<span class="w"> </span>firrtl.stage.Main<span class="w"> </span>-i<span class="w"> </span>xxx<span class="w"> </span>-o<span class="w"> </span>xxx<span class="w"> </span>-X<span class="w"> </span>verilog<span class="w"> </span>-faf<span class="w"> </span>/path/to/xxx.anno.json<span class="w"> </span>-fct<span class="w"> </span>chisel3.util.experimental.LoadMemoryTransform
-</span></code></pre></div>
-<p>UPDATE: 现在不需要 <code>-fct chisel3.util.experimental.LoadMemoryTransform</code> 参数。目前这个功能和生成 blackbox memory 有冲突，不能同时使用，需要等 chisel3 后续修复。</p>
-<p>这里的 chisel3.util.experimental.LoadMemoryTransform 会找到 anno.json 里面对应的 Annotation，然后生成类似下面这样的 verilog 代码：</p>
-<div class="language-verilog highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-1"></a><span class="k">module</span><span class="w"> </span><span class="n">xxx</span><span class="p">(</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-2"></a><span class="w">    </span><span class="c1">// ...</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-3"></a><span class="p">);</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-4"></a><span class="w">  </span><span class="c1">// ...</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-5"></a><span class="w">    </span><span class="nb">$readmemh</span><span class="p">(</span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="n">mem_xxx</span><span class="p">);</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-6"></a><span class="k">endmodule</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-7"></a>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="../../hardware/2020/03/17/rocket-chip-tlram-load/#__codelineno-4-8"></a><span class="n">bind</span><span class="w"> </span><span class="n">TLRAM</span><span class="w"> </span><span class="n">xxx</span><span class="w"> </span><span class="n">xxx</span><span class="p">(.</span><span class="o">*</span><span class="p">);</span>
-</span></code></pre></div>
-<p>这里采用了 Verilog 的 bind 功能，可以在不修改模块代码的时候注入，比如上面，就是注入了一个语句 $readmemh，从而达到目的。</p>
-
-    <nav class="md-post__action">
-      <a href="../../hardware/2020/03/17/rocket-chip-tlram-load/">
         继续阅读
       </a>
     </nav>
