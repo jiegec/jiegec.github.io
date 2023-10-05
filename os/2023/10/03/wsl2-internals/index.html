@@ -1,0 +1,1714 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="杰哥的{运维，编程，调板子}小笔记">
+      
+      
+      
+        <link rel="canonical" href="https://jia.je/os/2023/10/03/wsl2-internals/">
+      
+      
+        <link rel="prev" href="../../01/linux-boot-protocol/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.2">
+    
+    
+      
+        <title>WSL2 内部实现探究 - 杰哥的{运维，编程，调板子}小笔记</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.d451bc0e.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-3109FRSVTT"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-3109FRSVTT",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#wsl2-内部实现探究" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-header__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            杰哥的{运维，编程，调板子}小笔记
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              WSL2 内部实现探究
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+    
+  
+  博客
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+    
+  
+  关于
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../open-source-contributions/" class="md-tabs__link">
+        
+  
+    
+  
+  开源
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tags/" class="md-tabs__link">
+        
+  
+    
+  
+  标签
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/kb/" class="md-tabs__link">
+        
+  
+    
+  
+  知识库
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../series/" class="md-tabs__link">
+        
+  
+    
+  
+  系列
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../projects/" class="md-tabs__link">
+        
+  
+    
+  
+  项目
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tools/" class="md-tabs__link">
+        
+  
+    
+  
+  工具
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/feed.xml" class="md-tabs__link">
+        
+  
+    
+  
+  订阅
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../archive/2023/" class="md-tabs__link">
+          
+  
+  归档
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../category/os/" class="md-tabs__link">
+          
+  
+  分类
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-nav__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    杰哥的{运维，编程，调板子}小笔记
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    博客
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    关于
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../open-source-contributions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    开源
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tags/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    标签
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/kb/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    知识库
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../series/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    系列
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../projects/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    项目
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    工具
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/feed.xml" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    订阅
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    归档
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2023/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2023
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2022/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2022
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2021/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2021
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2020/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2020
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2019/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2019
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2018/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2018
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2017/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2017
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2016/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2016
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2014/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2014
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    分类
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/os/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    os
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/software/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    software
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/system/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    system
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/hardware/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    hardware
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/others/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    others
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/devops/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    devops
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/crypto/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    crypto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/programming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    programming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/meta/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    meta
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/networking/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    networking
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/misc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    misc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/ctf/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ctf
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/unboxing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    unboxing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/news/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    news
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/life/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    life
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/speech/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    speech
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/logo/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    logo
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/csdn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    csdn
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+                  <span class="md-ellipsis">
+                    回到主页
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    元数据
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"/></svg>
+                        <time datetime="2023-10-03 00:00:00" class="md-ellipsis">2023年10月3日</time>
+                      </div>
+                    </li>
+                    
+                    
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"/></svg>
+                          <span class="md-ellipsis">
+                            分类于
+                            
+                              <a href="../../../../../category/os/">os</a></span>
+                        </div>
+                      </li>
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              需要 6 分钟阅读时间
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#背景" class="md-nav__link">
+    背景
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wsl2" class="md-nav__link">
+    WSL2
+  </a>
+  
+    <nav class="md-nav" aria-label="WSL2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#drvfs" class="md-nav__link">
+    drvfs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#运行-windows-程序" class="md-nav__link">
+    运行 Windows 程序
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kernel-和-initramfs" class="md-nav__link">
+    kernel 和 initramfs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init" class="md-nav__link">
+    /init
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kernel" class="md-nav__link">
+    kernel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wslg" class="md-nav__link">
+    WSLg
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemvhd" class="md-nav__link">
+    system.vhd
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+  
+
+<nav class="md-tags" >
+  
+    
+    
+    
+      <a href="../../../../../tags/#windows" class="md-tag">windows</a>
+    
+  
+    
+    
+    
+      <a href="../../../../../tags/#wsl" class="md-tag">wsl</a>
+    
+  
+    
+    
+    
+      <a href="../../../../../tags/#wsl2" class="md-tag">wsl2</a>
+    
+  
+    
+    
+    
+      <a href="../../../../../tags/#linux" class="md-tag">linux</a>
+    
+  
+</nav>
+
+
+
+<h1 id="wsl2-内部实现探究">WSL2 内部实现探究<a class="headerlink" href="#wsl2-内部实现探究" title="Permanent link">&para;</a></h1>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
+<p>最近看到 <a href="https://devblogs.microsoft.com/commandline/windows-subsystem-for-linux-september-2023-update/">Windows Subsystem for Linux September 2023 update</a> 声称 WSL2 最新的预览版本支持让 Linux 和 Windows 一定程度上共享网络地址空间，就像 WSL1 那样：</p>
+<ul>
+<li>IPv6 support</li>
+<li>Connect to Windows servers from within Linux using the localhost address 127.0.0.1</li>
+<li>Connect to WSL directly from your local area network (LAN)</li>
+<li>Improved networking compatibility for VPNs</li>
+<li>Multicast support</li>
+</ul>
+<p>因此比较想知道这是怎么做到的，但目前我手上还没有预览版本的 windows，因此目前先研究 WSL2 已有的功能是如何实现的，未来再回来更新这一部分。</p>
+<!-- more -->
+
+<h2 id="wsl2">WSL2<a class="headerlink" href="#wsl2" title="Permanent link">&para;</a></h2>
+<p>WSL1 实现的是 proxy kernel 模式，虽然跑的是 linux 程序，但其实还是 windows 内核，中间包了一层 syscall 的转换，没有开一个虚拟机。这个套路和 MinGW/Cygwin 类似，只不过是在不同层次上做的 syscall 转换。</p>
+<p>WSL2 则是回归传统的虚拟机模式，基于 Hyper-V 开了虚拟机，然后做了比较多的集成，尽量保证和原来 WSL1 的功能一致。但此时就是两个分立的系统了，在虚拟机里跑一份 Linux 内核，这个内核有微软自己的一些修改，可以在 <a href="https://github.com/microsoft/WSL2-Linux-Kernel">microsoft/WSL2-Linux-Kernel</a> 里看到。除此之外，我们看不到 bootloader，虚拟机启动的流程都被隐藏起来了，所以这里就有很多可以做骚操作的地方了，例如植入一些程序，提前做一些配置等等。</p>
+<p>下面尝试探究 WSL2 的一些功能背后的原理。</p>
+<h3 id="drvfs">drvfs<a class="headerlink" href="#drvfs" title="Permanent link">&para;</a></h3>
+<p>drvfs 指的是从 WSL 里面访问 Windows 的文件系统，例如 C 盘会被映射到 <code>/mnt/c</code> 下面。在 WSL2 下面，用 <code>mount</code> 命令可以看到，它实际上是一个 9pfs：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>drvfs<span class="w"> </span>on<span class="w"> </span>/mnt/c<span class="w"> </span><span class="nb">type</span><span class="w"> </span>9p<span class="w"> </span><span class="o">(</span>rw,noatime,dirsync,aname<span class="o">=</span>drvfs<span class="p">;</span><span class="nv">path</span><span class="o">=</span>C:<span class="se">\;</span><span class="nv">uid</span><span class="o">=</span><span class="m">1000</span><span class="p">;</span><span class="nv">gid</span><span class="o">=</span><span class="m">1000</span><span class="p">;</span><span class="nv">symlinkroot</span><span class="o">=</span>/mnt/,mmap,access<span class="o">=</span>client,msize<span class="o">=</span><span class="m">262144</span>,trans<span class="o">=</span>virtio<span class="o">)</span>
+</span></code></pre></div>
+<p>9pfs 类似 NFS，是一个远程的文件系统访问协议，只不过不走网络，而是走的 virtio（<code>trans=virtio</code>），从 PCIe 总线上也能看到一堆 virtio 设备：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>2a99:00:00.0<span class="w"> </span>System<span class="w"> </span>peripheral:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span>file<span class="w"> </span>system<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span><span class="m">01</span><span class="o">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">        </span>Subsystem:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span>file<span class="w"> </span>system
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span>Kernel<span class="w"> </span>driver<span class="w"> </span><span class="k">in</span><span class="w"> </span>use:<span class="w"> </span>virtio-pci
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>lspci:<span class="w"> </span>Unable<span class="w"> </span>to<span class="w"> </span>load<span class="w"> </span>libkmod<span class="w"> </span>resources:<span class="w"> </span>error<span class="w"> </span>-2
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>47ee:00:00.0<span class="w"> </span>SCSI<span class="w"> </span>storage<span class="w"> </span>controller:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>filesystem<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span><span class="m">01</span><span class="o">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span>Subsystem:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>filesystem
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span>Kernel<span class="w"> </span>driver<span class="w"> </span><span class="k">in</span><span class="w"> </span>use:<span class="w"> </span>virtio-pci
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>7cd4:00:00.0<span class="w"> </span>SCSI<span class="w"> </span>storage<span class="w"> </span>controller:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>filesystem<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span><span class="m">01</span><span class="o">)</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span>Subsystem:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>filesystem
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span>Kernel<span class="w"> </span>driver<span class="w"> </span><span class="k">in</span><span class="w"> </span>use:<span class="w"> </span>virtio-pci
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>b9dc:00:00.0<span class="w"> </span>SCSI<span class="w"> </span>storage<span class="w"> </span>controller:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>console<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span><span class="m">01</span><span class="o">)</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">        </span>Subsystem:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>console
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span>Kernel<span class="w"> </span>driver<span class="w"> </span><span class="k">in</span><span class="w"> </span>use:<span class="w"> </span>virtio-pci
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>e7ba:00:00.0<span class="w"> </span>SCSI<span class="w"> </span>storage<span class="w"> </span>controller:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>filesystem<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span><span class="m">01</span><span class="o">)</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">        </span>Subsystem:<span class="w"> </span>Red<span class="w"> </span>Hat,<span class="w"> </span>Inc.<span class="w"> </span>Virtio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>filesystem
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">        </span>Kernel<span class="w"> </span>driver<span class="w"> </span><span class="k">in</span><span class="w"> </span>use:<span class="w"> </span>virtio-pci
+</span></code></pre></div>
+<h3 id="运行-windows-程序">运行 Windows 程序<a class="headerlink" href="#运行-windows-程序" title="Permanent link">&para;</a></h3>
+<p>在 WSL2 里，可以运行 Windows 上的程序，这是通过 <code>binfmt_misc</code> 实现的：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$<span class="w"> </span>cat<span class="w"> </span>/proc/sys/fs/binfmt_misc/WSLInterop
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>enabled
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>interpreter<span class="w"> </span>/init
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>flags:<span class="w"> </span>PF
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>offset<span class="w"> </span><span class="m">0</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>magic<span class="w"> </span>4d5a
+</span></code></pre></div>
+<p>当 Linux 尝试执行 PE 文件的时候，匹配上 <code>magic 4d5a</code>（<code>MZ</code>），就会用 <code>/init</code> 去执行它。之后就由 <code>/init</code> 和 Windows 进行通信，把命令和参数传过去，最后在 Windows 上执行。</p>
+<p><code>/init</code> 则是一个 WSL2 自带的程序：它会作为 WSL2 内部的 init 程序，也就是 PID 1。同时它会跑多个进程，虽然都是用同一个可执行文件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>USER<span class="w">       </span>PID<span class="w"> </span>%CPU<span class="w"> </span>%MEM<span class="w">    </span>VSZ<span class="w">   </span>RSS<span class="w"> </span>TTY<span class="w">      </span>STAT<span class="w"> </span>START<span class="w">   </span>TIME<span class="w"> </span>COMMAND
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>root<span class="w">         </span><span class="m">1</span><span class="w">  </span><span class="m">0</span>.0<span class="w">  </span><span class="m">0</span>.0<span class="w">   </span><span class="m">2324</span><span class="w">  </span><span class="m">1512</span><span class="w"> </span>?<span class="w">        </span>Sl<span class="w">   </span><span class="m">23</span>:20<span class="w">   </span><span class="m">0</span>:00<span class="w"> </span>/init
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>root<span class="w">         </span><span class="m">4</span><span class="w">  </span><span class="m">0</span>.0<span class="w">  </span><span class="m">0</span>.0<span class="w">   </span><span class="m">2324</span><span class="w">     </span><span class="m">4</span><span class="w"> </span>?<span class="w">        </span>Sl<span class="w">   </span><span class="m">23</span>:20<span class="w">   </span><span class="m">0</span>:00<span class="w"> </span>plan9<span class="w"> </span>--control-socket<span class="w"> </span><span class="m">5</span><span class="w"> </span>--log-level<span class="w"> </span><span class="m">4</span><span class="w"> </span>--server-fd<span class="w"> </span><span class="m">6</span><span class="w"> </span>--pipe-fd<span class="w"> </span><span class="m">8</span><span class="w"> </span>--log-truncate
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>root<span class="w">         </span><span class="m">7</span><span class="w">  </span><span class="m">0</span>.0<span class="w">  </span><span class="m">0</span>.0<span class="w">   </span><span class="m">2332</span><span class="w">   </span><span class="m">112</span><span class="w"> </span>?<span class="w">        </span>Ss<span class="w">   </span><span class="m">23</span>:20<span class="w">   </span><span class="m">0</span>:00<span class="w"> </span>/init
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>root<span class="w">         </span><span class="m">8</span><span class="w">  </span><span class="m">0</span>.0<span class="w">  </span><span class="m">0</span>.0<span class="w">   </span><span class="m">2348</span><span class="w">   </span><span class="m">116</span><span class="w"> </span>?<span class="w">        </span>S<span class="w">    </span><span class="m">23</span>:20<span class="w">   </span><span class="m">0</span>:00<span class="w"> </span>/init
+</span></code></pre></div>
+<p>WSL2 可以打开 systemd，见 <a href="https://learn.microsoft.com/en-us/windows/wsl/wsl-config">Advanced settings configuration in WS</a>，此时 PID 1 是 systemd，而 PID 2 还有其他几个进程就是 <code>/init</code>：可以猜测，启动过程中，首先启动还是的 <code>/init</code>，然后 PID 1 的 <code>/init</code> 调用 <code>exec</code> 切换到 systemd PID 1，其余进程继续执行。</p>
+<h3 id="kernel-和-initramfs">kernel 和 initramfs<a class="headerlink" href="#kernel-和-initramfs" title="Permanent link">&para;</a></h3>
+<p>如果查看 dmesg，会发现 Linux 的启动 cmdline 是：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>initrd=\initrd.img WSL_ROOT_INIT=1 panic=-1 nr_cpus=8 bonding.max_bonds=0 dummy.numdummies=0 fb_tunnels=none swiotlb=force console=hvc0 debug pty.legacy_count=0
+</span></code></pre></div>
+<p>这个 <code>initrd.img</code> 可以在 <code>C:\Windows\System32\lxss\tools</code> 下面找到，也可以从 <a href="https://github.com/microsoft/WSL/releases/download/1.2.5/Microsoft.WSL_1.2.5.0_x64_ARM64.msixbundle">WSL 安装包</a> 中解包出来。进一步可以发现 <code>initrd.img</code> 内部只有一个 <code>/init</code> 文件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$<span class="w"> </span>cpio<span class="w"> </span>-itv<span class="w"> </span>&lt;<span class="w"> </span>initrd.img
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>-rwxrwxrwx<span class="w">   </span><span class="m">0</span><span class="w"> </span>root<span class="w">     </span>root<span class="w">      </span><span class="m">1978872</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">06</span>:55<span class="w"> </span>init
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="m">3866</span><span class="w"> </span>blocks
+</span></code></pre></div>
+<p>也就是说所有启动以后的准备工作都在这个 init 程序里做完了。</p>
+<p>kernel 的格式在不同版本也不一样：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># WSL 1.2.5</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>kernel:<span class="w"> </span>ELF<span class="w"> </span><span class="m">64</span>-bit<span class="w"> </span>LSB<span class="w"> </span>executable,<span class="w"> </span>x86-64,<span class="w"> </span>version<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="o">(</span>SYSV<span class="o">)</span>,<span class="w"> </span>statically<span class="w"> </span>linked,<span class="w"> </span>BuildID<span class="o">[</span>sha1<span class="o">]=</span>e87c738e1e340eaf67d8d0c99369d458cdb5e6a0,<span class="w"> </span>stripped
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># WSL 2.0.0</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>kernel:<span class="w"> </span>Linux<span class="w"> </span>kernel<span class="w"> </span>x86<span class="w"> </span>boot<span class="w"> </span>executable<span class="w"> </span>bzImage,<span class="w"> </span>version<span class="w"> </span><span class="m">5</span>.15.123.1-microsoft-standard-WSL2<span class="w"> </span><span class="o">(</span>root@5a891d5fa777<span class="o">)</span><span class="w"> </span><span class="c1">#1 SMP Mon Aug 7 19:01:48 UTC 2023, RO-rootFS, swap_dev 0XD, Normal VGA</span>
+</span></code></pre></div>
+<p>或许隐含了什么启动流程上的变化，这里并不确定。</p>
+<h3 id="init">/init<a class="headerlink" href="#init" title="Permanent link">&para;</a></h3>
+<p>在 WSL2 文件系统内，有多个到 <code>/init</code> 的符号链接：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/usr/bin/wslpath -&gt; /init
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>/usr/sbin/mount.drvfs -&gt; /init
+</span></code></pre></div>
+<p>同时还有上面出现过的 <code>plan9</code>，其实也是 <code>/init</code> 去执行的，说明 <code>/init</code> 内部会有逻辑，去判断 <code>argv[0]</code> 是什么，然后进行相应的操作。可以找到如下几个 usage 文本：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># wslpath</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Usage:
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span>-a<span class="w">    </span>force<span class="w"> </span>result<span class="w"> </span>to<span class="w"> </span>absolute<span class="w"> </span>path<span class="w"> </span>format
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span>-u<span class="w">    </span>translate<span class="w"> </span>from<span class="w"> </span>a<span class="w"> </span>Windows<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>a<span class="w"> </span>WSL<span class="w"> </span>path<span class="w"> </span><span class="o">(</span>default<span class="o">)</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span>-w<span class="w">    </span>translate<span class="w"> </span>from<span class="w"> </span>a<span class="w"> </span>WSL<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>a<span class="w"> </span>Windows<span class="w"> </span>path
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span>-m<span class="w">    </span>translate<span class="w"> </span>from<span class="w"> </span>a<span class="w"> </span>WSL<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>a<span class="w"> </span>Windows<span class="w"> </span>path,<span class="w"> </span>with<span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span><span class="s1">&#39;\&#39;</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>EX:<span class="w"> </span>wslpath<span class="w"> </span><span class="s1">&#39;c:\users&#39;</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># mount.drvfs: no usage?</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># localhost</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>Usage:<span class="w"> </span>localhost<span class="w"> </span>--port-tracker-fd<span class="w"> </span>fd<span class="w"> </span><span class="o">[</span>--bpf-fd<span class="w"> </span>fd<span class="o">]</span><span class="w"> </span><span class="o">[</span>--netlink-fd<span class="w"> </span>fd<span class="o">]</span><span class="w"> </span><span class="o">[</span>--localhost-relay<span class="w"> </span>fd<span class="o">]</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1"># plan9</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>Usage:<span class="w"> </span>plan9<span class="w"> </span>--control-socket<span class="w"> </span>fd<span class="w"> </span>--socket-path<span class="w"> </span>path<span class="w"> </span>--server-fd<span class="w"> </span>fd<span class="w"> </span>--log-file<span class="w"> </span>log-file<span class="w"> </span>--log-level<span class="w"> </span>level<span class="w"> </span>pipe-fd<span class="w"> </span>fd<span class="w"> </span><span class="o">[</span>--log-truncate<span class="o">]</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="c1"># gns</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>Usage:<span class="w"> </span>gns<span class="w"> </span><span class="o">[</span>--socket<span class="w"> </span>fd<span class="o">]</span><span class="w"> </span><span class="o">[</span>--dns_socket<span class="w"> </span>fd<span class="o">]</span><span class="w"> </span><span class="o">[</span>--adapter<span class="w"> </span>guid<span class="o">]</span><span class="w"> </span><span class="o">[</span>--msg_type<span class="w"> </span>int<span class="o">]</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="c1"># telagent: no usage?</span>
+</span></code></pre></div>
+<p>其中 <code>localhost</code> 命令和 <code>gns</code> 命令应该就是 WSL 2.0.0 引入的 mirrored networking mode 所用到的子程序了。<code>telagent</code> 从名字来看应该是 telemetry agent。<code>plan9</code> 和 <code>mount.drvfs</code> 应该是配合 9pfs 使用的进程了。使用 <code>strings</code> 可以看到一些 mirrored networking mode 相关的文字：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>GnsPortTracker: Failed to deallocate port
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>GnsPortTracker: Requested the host for port allocation on port (family %d, port %u, protocol %d) - returned %d
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>GnsPortTracker: Tracking bind call: family (%d) port (%u) protocol (%d)
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>GnsPortTracker: No longer tracking bind call: family (%d) port (%u) protocol (%d)
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>GnsPortTracker: Fetch to read bind() call info with ID %llu for pid %d, %s
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>GnsPortTracker: Request for a port that&#39;s already reserved (family %d, port %u, protocol %d)
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>GnsPortTracker: Failed to complete bind request, %s
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>GnsPortTracker: Failed to read bind request, %s
+</span></code></pre></div>
+<p>可以可以大概预测一下它的工作模式：观测 Linux 上的 bind 系统调用，如果发现有进程要 bind 端口，就去 Windows 上也分配同一个端口，然后启动一个端口转发程序，让 Windows 上的程序可以访问到 Linux 里面的服务。</p>
+<p>此外 mirrored networking mode 还有一个特性是，同步 Windows 和 Linux 的 IP 地址等配置，这个功能看起来也是由 <code>gns</code> 来完成的：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>SetAdapterConfiguration setting the IPv4 address on endpointID (%s) to %s on interfaceName %s
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>ModifyAddress: Restoring route %s after address change, on interfaceName %s
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>ProcessRouteChange: Reset routes on interfaceName %s
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>ProcessRouteChange: Remove route %s on interfaceName %s
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>ProcessRouteChange: Update route %s on interfaceName %s
+</span></code></pre></div>
+<p>新的 DNS tunneling 功能也能找到相应的文本：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>DnsTunnelingManager::DnsTunnelingManager - using DNS server IP %s
+</span></code></pre></div>
+<h3 id="kernel">kernel<a class="headerlink" href="#kernel" title="Permanent link">&para;</a></h3>
+<p>在内核方面，WSL2 打了一些自己的 <a href="https://github.com/microsoft/WSL2-Linux-Kernel/commits/linux-msft-wsl-5.15.y">patch</a>，涵盖的范围有：</p>
+<ul>
+<li>内存相关：memory-reclaim，page-reporting</li>
+<li>WSLg 相关：Hyper-V vGPU</li>
+<li>ARM64 相关：Hyper-V 支持</li>
+</ul>
+<p>其中修改量最大的部分就是 WSLg 的 vGPU。</p>
+<h3 id="wslg">WSLg<a class="headerlink" href="#wslg" title="Permanent link">&para;</a></h3>
+<p>WSLg 是允许 WSL2 的程序在 Windows 上显示 UI 的功能。首先能看到的是，它设置了一个 <code>DISPLAY=:0</code>，同时还 mount 了不少文件进来：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>none<span class="w"> </span>on<span class="w"> </span>/usr/lib/wsl/drivers<span class="w"> </span><span class="nb">type</span><span class="w"> </span>9p<span class="w"> </span><span class="o">(</span>ro,nosuid,nodev,noatime,dirsync,aname<span class="o">=</span>drivers<span class="p">;</span><span class="nv">fmask</span><span class="o">=</span><span class="m">222</span><span class="p">;</span><span class="nv">dmask</span><span class="o">=</span><span class="m">222</span>,mmap,access<span class="o">=</span>client,msize<span class="o">=</span><span class="m">65536</span>,trans<span class="o">=</span>fd,rfd<span class="o">=</span><span class="m">7</span>,wfd<span class="o">=</span><span class="m">7</span><span class="o">)</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>none<span class="w"> </span>on<span class="w"> </span>/usr/lib/wsl/lib<span class="w"> </span><span class="nb">type</span><span class="w"> </span>overlay<span class="w"> </span><span class="o">(</span>rw,relatime,lowerdir<span class="o">=</span>/gpu_lib_packaged:/gpu_lib_inbox,upperdir<span class="o">=</span>/gpu_lib/rw/upper,workdir<span class="o">=</span>/gpu_lib/rw/work<span class="o">)</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>none<span class="w"> </span>on<span class="w"> </span>/mnt/wslg<span class="w"> </span><span class="nb">type</span><span class="w"> </span>tmpfs<span class="w"> </span><span class="o">(</span>rw,relatime<span class="o">)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>/dev/sdc<span class="w"> </span>on<span class="w"> </span>/mnt/wslg/distro<span class="w"> </span><span class="nb">type</span><span class="w"> </span>ext4<span class="w"> </span><span class="o">(</span>ro,relatime,discard,errors<span class="o">=</span>remount-ro,data<span class="o">=</span>ordered<span class="o">)</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>none<span class="w"> </span>on<span class="w"> </span>/mnt/wslg/versions.txt<span class="w"> </span><span class="nb">type</span><span class="w"> </span>overlay<span class="w"> </span><span class="o">(</span>rw,relatime,lowerdir<span class="o">=</span>/systemvhd,upperdir<span class="o">=</span>/system/rw/upper,workdir<span class="o">=</span>/system/rw/work<span class="o">)</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>none<span class="w"> </span>on<span class="w"> </span>/mnt/wslg/doc<span class="w"> </span><span class="nb">type</span><span class="w"> </span>overlay<span class="w"> </span><span class="o">(</span>rw,relatime,lowerdir<span class="o">=</span>/systemvhd,upperdir<span class="o">=</span>/system/rw/upper,workdir<span class="o">=</span>/system/rw/work<span class="o">)</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>none<span class="w"> </span>on<span class="w"> </span>/tmp/.X11-unix<span class="w"> </span><span class="nb">type</span><span class="w"> </span>tmpfs<span class="w"> </span><span class="o">(</span>ro,relatime<span class="o">)</span>
+</span></code></pre></div>
+<p>其中 <code>/tmp/.X11-unix</code> 是从 <code>/mnt/wslg/.X11-unix</code> bind-mount 而来：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>/bin/mount<span class="w"> </span>-o<span class="w"> </span>bind,ro,X-mount.mkdir<span class="w"> </span>-t<span class="w"> </span>none<span class="w"> </span>/mnt/wslg/.X11-unix<span class="w"> </span>/tmp/.X11-unix
+</span></code></pre></div>
+<p>这点也可以在打开 systemd 的 WSL2 系统里，在 <code>/run/systemd/generator.early/wslg-mount.service</code> 文件里看到。</p>
+<p>在 WSL2 的安装程序里，还能看到 RDP 的身影，因此让人怀疑，是否是在 Windows 上启动 RDP 客户端，远程连接到 WSL2 的 Linux 里面，而 Linux 里面启动了一个类似 xrdp 的程序，启动了一个 X11 Server，通过 RDP 把界面共享给 Windows。</p>
+<h3 id="systemvhd">system.vhd<a class="headerlink" href="#systemvhd" title="Permanent link">&para;</a></h3>
+<p>在 WSL2 安装包中，可以看到一个 <code>system.vhd</code> 文件，里面是一个 ext2 的 rootfs，解开以后，会看到是 <a href="https://github.com/microsoft/CBL-Mariner">CBL-Mariner</a> 的发行版：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">DISTRIB_ID</span><span class="o">=</span><span class="s2">&quot;Mariner&quot;</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nv">DISTRIB_RELEASE</span><span class="o">=</span><span class="s2">&quot;2.0.20230630&quot;</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="nv">DISTRIB_CODENAME</span><span class="o">=</span>Mariner
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="nv">DISTRIB_DESCRIPTION</span><span class="o">=</span><span class="s2">&quot;CBL-Mariner 2.0.20230630&quot;</span>
+</span></code></pre></div>
+<p>在这个发行版系统里，可以看到装了很多软件，包括很多图形界面的内容，可以想到是和 WSLg 有关（毕竟系统里只有一个用户目录 <code>/home/wslg</code>），把很多图形界面的依赖都打包进去了。甚至还有一个 <code>etc/wsl.conf</code>：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="o">[</span>boot<span class="o">]</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">command</span><span class="o">=</span>/usr/bin/WSLGd
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="o">[</span>user<span class="o">]</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nv">default</span><span class="o">=</span>wslg
+</span></code></pre></div>
+<p>所以可以猜想，WSLg 运行的时候，为了避免污染 WSL2 Linux 的环境，把 WSLg 的很多图形界面的进程放到了一个单独的 ns 中，两个 ns 之间通过 X11 unix socket 进行互相访问，这样 WSLg 的内部实现对用户就是透明的，用户只会看到一个 <code>DISPLAY=:0</code>，用这个 DISPLAY 就可以在 Windows 上显示 UI。</p>
+<p>更进一步猜想，结合 <code>mount</code> 看到的各种 overlayfs，还有不存在的目录，很容易想到，是不是自己访问的整个 WSL2 Linux 环境，其实是在一个容器里面，容器外面是这个 CBL-Mariner，容器里面才是我们看到的部分。这完全可以做到，毕竟 systemd-nspawn 容器是可以在里面 boot systemd 的。可以用来佐证这个猜测的一个现象是，系统里找不到监听 <code>/tmp/.X11-unix/X0</code> 的进程。</p>
+<p>在 WSL2 Linux 里面，rootfs 是 <code>/dev/sdc</code>，<code>/dev/sdb</code> 是 SWAP 分区，如果 mount 一下 <code>/dev/sda</code>，就会发现它里面的内容就是 <code>systemd.vhd</code> 的内容，也就是上面的 CBL-Mariner 系统。同时，CBL-Mariner 的 <code>/etc/versions.txt</code> 内容和 WSL2 Linux 的 <code>/mnt/wslg/versions.txt</code> 内容一样：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>none<span class="w"> </span>on<span class="w"> </span>/mnt/wslg/versions.txt<span class="w"> </span><span class="nb">type</span><span class="w"> </span>overlay<span class="w"> </span><span class="o">(</span>rw,relatime,lowerdir<span class="o">=</span>/systemvhd,upperdir<span class="o">=</span>/system/rw/upper,workdir<span class="o">=</span>/system/rw/work<span class="o">)</span>
+</span></code></pre></div>
+<p>可以猜测 <code>/dev/sda</code> 曾经被挂载到了 <code>/systemvhd</code>，然后在上面套了一层 overlayfs，最后 mount 到 <code>/mnt/wslg</code> 下面。同理，CBL-Mariner 的 <code>/usr/share/doc</code> 被挂载到了 <code>/mnt/wslg/doc</code> 路径：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>none<span class="w"> </span>on<span class="w"> </span>/mnt/wslg/doc<span class="w"> </span><span class="nb">type</span><span class="w"> </span>overlay<span class="w"> </span><span class="o">(</span>rw,relatime,lowerdir<span class="o">=</span>/systemvhd,upperdir<span class="o">=</span>/system/rw/upper,workdir<span class="o">=</span>/system/rw/work<span class="o">)</span>
+</span></code></pre></div>
+<p>接下来就是验证猜想的时刻，事实上，你可以进入 CBL-Mariner 这个系统，这个系统称为 WSLg System Distro：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>wsl<span class="w"> </span>--system
+</span></code></pre></div>
+<p>就可以看到它里面确实跑了一个 Xwayland，并且和 WSL2 Linux 拥有同样的 IP 地址：这说明它们共享了同一个 network namespace，但其他是独立的，甚至你还可以在 CBL-Mariner 看到你在 WSL2 Linux 里面的进程，就好像你运行了一个 <code>docker run --net=host</code> 的容器一样。</p>
+<p>关于 WSL2 System Distro 的讨论，推荐阅读：<a href="https://unix.stackexchange.com/a/732459/144358">https://unix.stackexchange.com/a/732459/144358</a>，你甚至可以自己构建一个：<a href="https://github.com/microsoft/WSLG/blob/main/CONTRIBUTING.md#building-the-wslg-system-distro">Building the WSLg System Distro</a>，并且替换掉自带的 WSLg System Distro。</p>
+
+  <hr>
+<div class="md-source-file">
+  <small>
+    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">October 3, 2023</span>
+      
+        <br>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">October 3, 2023</span>
+      
+    
+  </small>
+</div>
+
+
+  
+
+
+  
+
+
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
+    };
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+      
+    </article>
+  </div>
+
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../01/linux-boot-protocol/" class="md-footer__link md-footer__link--prev" aria-label="上一页: Linux 内核格式与启动协议">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                Linux 内核格式与启动协议
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jiegec" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.a264c092.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.726fbb30.min.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
+      
+    
+  </body>
+</html>
