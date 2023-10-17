@@ -21,7 +21,7 @@
         <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../feed_rss_updated.xml">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.2">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.6">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.d451bc0e.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.35e1ed30.min.css">
       
       
 
@@ -351,7 +351,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../category/os/" class="md-tabs__link">
+        <a href="../../category/software/" class="md-tabs__link">
           
   
   分类
@@ -453,6 +453,13 @@
       目录
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#教学risc-v-debug-协议" class="md-nav__link">
+    「教学」RISC-V Debug 协议
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#教学随想" class="md-nav__link">
@@ -618,13 +625,6 @@
         <li class="md-nav__item">
   <a href="#用-gitlab-ci-构建并部署应用到-k8s" class="md-nav__link">
     用 gitlab ci 构建并部署应用到 k8s
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#gnome-的-fractional-scaling" class="md-nav__link">
-    Gnome 的 Fractional Scaling
   </a>
   
 </li>
@@ -1060,11 +1060,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../category/os/" class="md-nav__link">
+      <a href="../../category/software/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    os
+    software
   </span>
   
 
@@ -1080,11 +1080,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../category/software/" class="md-nav__link">
+      <a href="../../category/os/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    software
+    os
   </span>
   
 
@@ -1435,6 +1435,150 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-12-12 00:00:00">2021年12月12日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="教学risc-v-debug-协议"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/">「教学」RISC-V Debug 协议</a></h2>
+<h3 id="背景"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#背景">背景</a></h3>
+<p>之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。</p>
+<h3 id="架构"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#架构">架构</a></h3>
+<p>为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：</p>
+<ol>
+<li>Debugger: GDB，连接到 OpenOCD 启动的 GDB Server</li>
+<li>Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG</li>
+<li>Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO</li>
+<li>Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准</li>
+<li>Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为</li>
+<li>Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer</li>
+</ol>
+<p>可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。</p>
+<h3 id="jtag"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#jtag">JTAG</a></h3>
+<p>首先什么是 JTAG？简单来说，它工作流程是这样的：</p>
+<ol>
+<li>JTAG TAP 维护了一个状态机，由 TMS 信号控制</li>
+<li>当状态机进入 CaptureDR/CaptureIR 状态的时候，加载数据到 DR/IR 中</li>
+<li>在 ShiftDR/ShiftIR 状态下，寄存器从 TDI 移入，从 TDO 移出</li>
+<li>当进入 UpdateDR/UpdateIR 状态的时候，把 DR/IR 的结果输出到其他单元</li>
+</ol>
+<p>具体来说，JTAG 定义了两类寄存器：IR 和 DR。可以把 JTAG 理解成一个小的总线，我通过 IR 选择总线上的设备，通过 DR 向指定的设备上进行数据传输。比如在 RISC-V Debug Spec 里面，规定了以下的 5 位 IR 地址定义：</p>
+<ol>
+<li>0x00/0x1f: BYPASS</li>
+<li>0x01: IDCODE</li>
+<li>0x10: dtmcs</li>
+<li>0x11: dmi</li>
+</ol>
+<p>可以类比为有四个设备：BYPASS，IDCODE，dtmcs，dmi，对应了一些地址。如果要选择 dtmcs 这个设备，就在 ShiftIR 阶段向 TDI 输入二进制的 00001 即可。选择地址以后，再向 DR 写入时，操作的就是 dtmcs 设备。</p>
+<p>那么，每个设备是怎么操作的呢？假如我已经通过 IR 设置了当前设备是 dtmcs，然后进入 ShiftDR 模式时，JTAG 会同时输入和输出。输入的就是当前要输入的数据，输出的就是原来寄存器里的结果，这个结果可能是固定的，也可能是表示上一次输入对应的结果。</p>
+<p>举个例子：IDCODE 设备，在 CaptureDR 阶段的时候，DR 总会被设为一个固定的 IDCODE，表示设备的 ID；在 Shift 的时候，这个 IDCODE 就会一位一位从 TDO 中输出，而 TDI 输入的数据都会被忽略掉。BYPASS 设备则是一个 1 位的寄存器，直接从 TDI 到寄存器，寄存器到 TDO，数据就这么流过去了。</p>
+<p>那么，在 RISC-V Debug 里面，JTAG 是怎么用的呢？我们可以这么类比一下：CaptureDR 相当于读取寄存器到缓冲区，然后 ShiftDR 在读取缓冲区的同时写入缓冲区，最后 UpdateDR 则是把缓冲区中的数据写入到寄存器中。这和 MMIO 有点类似，只不过每次操作不是单独的写和读，而是一次操作等于先读后写。</p>
+<p>还是来看例子。dtmcs 这个设备表示的是 DTM 当前的状态，它有 32 位，读取的时候可以得到 DMI 的状态和配置，写入的时候可以 reset DMI。以 OpenOCD 代码 <code>dtmcontrol_scan</code> 为例子，它做了这么几个事情：</p>
+<ol>
+<li>首先设置 IR 为 0x10，对应 dtmcs。</li>
+<li>向 DR 中写入数据，同时读取数据。</li>
+<li>设置 IR 为 0x11，对应 dmi，因为 dmi 操作是比较多的，所以它默认恢复到 dmi。</li>
+</ol>
+<p>如果我只想读取 dtmcs 寄存器，那么只要设置写入数据为 0 即可，因为寄存器的设计里考虑到，如果写入全 0 是没有副作用的。同理，如果只想写入 dtmcs 寄存器，直接写入即可，因为设计的时候也保证读入寄存器的值是没有副作用的。这样，就在一个一读一写的操作中，实现了读或者写的功能。</p>
+<p>那么，dmi 寄存器的用途是什么呢？我们前面提到过，JTAG 其实是一个传输层，而 DMI 又定义了一系列的寄存器，这会让人有点混乱，为啥到处都是寄存器？又是 JTAG 的 IR/DR，又是 dmi，dmi 又有一堆寄存器，这是什么关系？</p>
+<p>首先我们来看 dmi 寄存器的定义。它由三部分组成：地址、数据和操作。由于 JTAG 每次操作是一读一写，虽然寄存器定义差不多，但是读和写的含义是不同的。</p>
+<p>比如读的时候，它表示的是上一次 dmi 请求的结果。地址还是上一次请求的地址，数据则是上一次请求的结果，操作字段 0 表示成功，2 表示失败，3 表示还没执行完。而写的时候，地址和数据表示了对哪个寄存器写入什么数据，操作字段 0 表示无操作，1 表示读，2 表示写。</p>
+<p>可以看到，如果想操作 dmi 定义的寄存器，需要如下几个步骤，这也是 OpenOCD <code>dmi_op_timeout</code> 要做的事情：</p>
+<ol>
+<li>设置 IR 为 0x11，对应 DMI。</li>
+<li>向 DR 写入请求的地址 + 数据 + 操作，丢弃读取的结果。</li>
+<li>等待若干个周期。</li>
+<li>向 DR 写入全 0，对应无操作，同时读取结果，这个结果就对应上面的请求。</li>
+</ol>
+<p>可以预期，如果首先写入了一个写操作，那么第二次 DR scan 得到的结果就是是否成功写入；如果首先写入了一个读操作，那么第二次 DR scan 得到的结果就是目标寄存器的值。</p>
+<p>可能看起来还是很绕，确实很绕，因为这里有一个封装的过程。首先，DMI 本身定义了一些寄存器，这些寄存器读/写都有一定的含义，比如控制某一个 RISC-V 核心暂停等等。接着，JTAG 需要传输 DMI 的读取和写入操作，同时还要考虑读写尚未完成的情况，怎么办？结论就是通过 DR 来实现，写入 DR 时，按照 DR 中的操作数，对应到 DMI 的写入/读取；然后读取 DR 的时候，按照 DMI 的状态，告诉 OpenOCD 目前是否已经完成了上一次 DMI 操作，和操作的结果。</p>
+<h3 id="dmi"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#dmi">DMI</a></h3>
+<p>讲完 JTAG 以后，终于来到了 DMI。其实 DMI 就是一系列的寄存器，类似于 MMIO 设备，只不过访问方式不是我们通常的内存读写，而是通过 JTAG 的方式进行。它有很多个寄存器，摘录如下：</p>
+<ol>
+<li>dmcontrol 0x10: Debug Module Control</li>
+<li>dmstatus 0x11: Debug Module Status</li>
+<li>hartinfo 0x12: Hart Info</li>
+<li>hartsum 0x13: Hart Summary</li>
+<li>command 0x16: Abstract Control and Status</li>
+<li>data0 0x04: Abstract Data 0</li>
+<li>progbuf0 0x20: Program Buffer 0</li>
+<li>sbcs 0x38: System Bus Access Control and Status</li>
+<li>sbaddress0 0x39: System Bus Address 31:0</li>
+<li>sbdata0 0x3c: System Bus Data 31:0</li>
+</ol>
+<p>OpenOCD 的 <code>examine</code> 函数对 DMI 初始化并进行一些参数的获取。它的操作如下：</p>
+<ol>
+<li>调用 dtmcontrol_scan，读取 JTAG 里的 dtmcs，可以得到 JTAG-DMI 的配置信息</li>
+<li>向 dmcontrol 写入，进行复位</li>
+<li>向 dmcontrol 写入，启用调试模块</li>
+<li>从 hartinfo 读取 hart 信息</li>
+<li>检查各个 hart 的状态</li>
+</ol>
+<p>类似地，其他各种调试操作都是对这些 DMI 寄存器的读和写进行。RISC-V Debug Spec 附录里还提到了如何实现调试器的一些功能。</p>
+<p>比如要读取 CPU 的寄存器（比如通用寄存器，CSR 等等）的话，有如下的方式：</p>
+<p>第一种是 Abstract Command，直接向 DMI 写入要寄存器编号，就可以实现读/写。</p>
+<p>第二种是 Program Buffer。它是一块小的代码存储，可以通过 DMI 向其中写入指令，比如 <code>csrw s0, mstatus; ebreak</code>，然后设置 s0 寄存器的值，再执行 Program Buffer 里的代码。</p>
+<p>以 OpenOCD 代码为例，<code>register_read_abstract</code> 做了以下操作：</p>
+<ol>
+<li>找到要读取的寄存器对应的 Abstract Register Number</li>
+<li>进行 transfer 命令，DM 会读取对应寄存器到 data0 中</li>
+<li>从 data0 中读取寄存器内容</li>
+</ol>
+<p>如果要读取内存的话，也有两种方法。一种是直接向 DMI 写入要读取的总线地址，然后再向指定的寄存器中读取数据。第二种还是利用 Program Buffer，写入一条 <code>lw s0, 0(s0)</code> 指令，然后先向 s0 写入地址，执行 Program Buffer 后，再把 s0 寄存器的值读出来。</p>
+<h3 id="abstract-command-实现"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#abstract-command-实现">Abstract Command 实现</a></h3>
+<p>那么，如何实现上面提到的 Abstract Command（比如读写寄存器，读写内存等）呢？Debug Spec 里面提到一种 Execution-Based 的方式，即在 Debug mode 下，核心依然在执行代码，只不过执行的是调试用的特殊代码。它做的就是轮询 Debug Module 等待命令，接受到命令以后，就去读写寄存器/内存，然后通过 data0-12 来传输数据。</p>
+<p>这里还有一个比较特别的点，就是读取寄存器的时候，寄存器的编号是直接记录在指令中的，所以可以让 Debug Module 动态生成指令，然后让核心刷新 ICache 然后跳转过去。另外，还可以利用 dscratch0/dscratch1 寄存器来保存 gpr，然后用 dret 退出的时候再恢复，这样就有两个 gpr 可以用来实现功能了，实际上这已经够用了（一个技巧是，把地址设为 0 附近，然后直接用 zero 寄存器加偏移来寻址）。</p>
+<h3 id="单步调试实现"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#单步调试实现">单步调试实现</a></h3>
+<p>在 dcsr 中，有一个值 step 表示是否在单步调试状态。设 step 为 1 的时候，如果不在 debug mode 中，只需要记录以及执行的指令数，当执行了一条指令后，视为下一个指令发生了进入 debug mode 的异常，这样就实现了单步调试。</p>
+<h3 id="软件断点实现"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#软件断点实现">软件断点实现</a></h3>
+<p>调试器为了打断点，一种简单的方式是，往断点处写入 ebreak 指令，然后设置 dcsr 的 ebreakm/s/u，表示在这些特权集里，ebreak 是进入 debug mode，而不是原来的处理过程。然后，程序运行到 ebreak 指令的时候，进入 debug mode，openocd 发现核心进入 halted 状态后，让 gdb 继续进行调试。</p>
+<p>硬件方面的实现方法就是，在遇到 ebreak 的时候，判断一下当前的特权集，结合 ebreakm/s/u 判断跳转到什么状态。此外，由于它会写入指令到内存，所以还需要执行 fence.i 指令，而 OpenOCD 需要依赖 progbuf 来执行 fence.i 指令，所以为了让这个方案工作，还得实现 Program Buffer。</p>
+<p>当然了，软件断点也有局限性，比如内存不可写，比如 ROM，不能覆盖里面的指令，这样就有可能出问题。而且硬件断点性能也更好，不需要来回这样写指令。</p>
+<h3 id="semihosting"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#semihosting">Semihosting</a></h3>
+<p>ARM 有一种 semihosting 机制，就是处理器执行一种特定的指令序列，然后调试器看到整个序列的时候，不是进入 GDB 调试状态，而是去进行一些操作，比如输出信息，读写文件等等，然后结果通过 JTAG 写回去。OpenOCD 给 RISC-V 也做了类似的 semihosting 机制，只不过触发的指令序列不大一样，但是机制是类似的。</p>
+<p>如果用过 Rocket Chip 仿真的或者以前的 ucb-bar/fpga-zynq 项目的话，会知道还有一个目的有些类似的东西：HTIF + fesvr，它是通过 fromhost/tohost 两组地址来进行通信，但是这个方法缺点是需要 poll tohost/fromhost 地址的内容，相对来说比较麻烦。</p>
+<h3 id="program-buffer"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#program-buffer">Program Buffer</a></h3>
+<p>此外，debug spec 还有一个可选的功能，就是 Program Buffer，调试器可以往里面插入自定义的指令，然后结合 abstract command 进行操作。这样就可以做一些比较高效的操作，比如 OpenOCD 实现的批量写入内存：</p>
+<div class="language-asm highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nf">sw</span><span class="w"> </span><span class="no">s1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">(</span><span class="no">a0</span><span class="p">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nf">addi</span><span class="w"> </span><span class="no">a0</span><span class="p">,</span><span class="w"> </span><span class="no">a0</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nf">ebreak</span>
+</span></code></pre></div>
+<p>并且设置 abstractauto，然后重复的操作是往 s1 里面写入新的数据，然后跳转到 program buffer，进行上面的 sw 操作，这样就可以一次 dmi 请求完成一次内存的写入，比较高效。</p>
+<h3 id="参考文档"><a class="toclink" href="../../hardware/2021/12/12/riscv-debug/#参考文档">参考文档</a></h3>
+<ol>
+<li>RISC-V Debug Spec 0.13</li>
+<li>IEEE Standard for JTAG 1149.1-2013</li>
+<li>OpenOCD 相关代码</li>
+</ol>
+    <nav class="md-post__action">
+      <a href="../../hardware/2021/12/12/riscv-debug/">
+        继续阅读
+      </a>
+    </nav>
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3070,6 +3214,39 @@ https://software.intel.com/en-us/support
 <li>PCIe</li>
 <li>SAS</li>
 </ul>
+<h3 id="硬盘性能指标"><a class="toclink" href="../../hardware/2021/05/06/disk/#硬盘性能指标">硬盘性能指标</a></h3>
+<p>硬盘性能一般会看如下几个指标：</p>
+<ol>
+<li>顺序读写性能，在指定的 block size 下，顺序读写的传输速度，单位通常是 MB/s</li>
+<li>随机读写性能，在指定的 block size 下（一般是 4KB），随机地址读写的每秒读写操作次数，单位通常是 IOPS</li>
+<li>延迟</li>
+</ol>
+<p>CrystalDiskInfo 术语：</p>
+<ul>
+<li>SEQ1MQ8T1：顺序读写（SEQ），一次读写 1 MB（1M），队列深度是 8（Q8），单线程（T1）</li>
+<li>SEQ128KQ32T1：顺序读写（SEQ），一次读写 128 KB（128K），队列深度是 32（Q32），单线程（T1）</li>
+<li>RND4KQ32T16：随机读写（RND），一次读写 4KB（4K），队列深度是 32（Q32），16 线程（T16）</li>
+<li>RND4KQ1T1：随机读写（RND），一次读写 4KB（4K），队列深度是 1（Q1），单线程（T1）</li>
+</ul>
+<p>根据 <a href="https://www.buildcomputers.net/ssd-vs-hdd.html">SSD vs HDD - Should You Buy a Solid State Drive or Hard Disk Drive?</a>，SSD 和 HDD 在顺序读写性能上的常见范围：</p>
+<ul>
+<li>SSD: 300 ~ 500 MB/s</li>
+<li>HDD: 100 ~ 160 MB/s</li>
+</ul>
+<p>SSD 和 HDD 在随机读写性能上的常见范围：</p>
+<ul>
+<li>SSD: 20,000 ~ 100,000 IOPS</li>
+<li>HDD: 75 ~ 100 IOPS</li>
+</ul>
+<p>可以看到，SSD 和 HDD 相比，顺序读写性能高，随机读写性能显著高。但实际上，这个数据有些过时了。</p>
+<p>下面看一些具体的例子：</p>
+<ul>
+<li><a href="https://toshiba.semicon-storage.com/ap-en/storage/product/data-center-enterprise/enterprise-performance/articles/al15sebxxex.html">HDD TOSHIBA AL15SEB120N</a>: 顺序读写性能 234.0 MB/s，延迟 2.86ms</li>
+<li><a href="https://www.seagate.com/www-content/datasheets/pdfs/ent-cap-3-5-hdd-10tb-channelDS1863-5C-1608US-en_US.pdf">HDD SEAGATE ST10000NM0096</a>: 顺序读写性能 254 MB/s，随机读 170 IOPS，随机写 370 IOPS，延迟 4.16ms</li>
+<li><a href="https://documents.westerndigital.com/content/dam/doc-library/en_us/assets/public/western-digital/product/data-center-drives/ultrastar-ssd-sas-series/data-sheet-ultrastar-dc-ss200.pdf">SSD Ultrastar DC SS200</a>: 顺序读 1,800 MB/s，顺序写 1,000 MB/s，随机读 250,000 IOPS，随机写 86,000 IOPS，延迟 100us</li>
+<li><a href="https://apac.kioxia.com/en-apac/personal/ssd/exceria-pro.html">SSD KIOXIA EXCERIA PRO NVMe SSD</a>: 顺序读 7,300 MB/s，顺序写 6,400 MB/s，随机读 800,000 IOPS，随机写 1,300,000 IOPS</li>
+<li><a href="https://semiconductor.samsung.com/cn/ssd/pc-ssd/pm9a1/">SSD SAMSUNG PM9A1</a>: 顺序读 7,000 MB/s，顺序写 5,200 MB/s，随机读 1,000,000 IOPS，随机写 850,000 IOPS</li>
+</ul>
     <nav class="md-post__action">
       <a href="../../hardware/2021/05/06/disk/">
         继续阅读
@@ -3876,181 +4053,6 @@ https://github.com/ewenmcneill/docker-build-static-ipmitool</p>
   </div>
 </article>
       
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2021-03-13 00:00:00">2021年3月13日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/software/" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 3 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="gnome-的-fractional-scaling"><a class="toclink" href="../../software/2021/03/13/gnome-fractional-scaling/">Gnome 的 Fractional Scaling</a></h2>
-<h3 id="背景"><a class="toclink" href="../../software/2021/03/13/gnome-fractional-scaling/#背景">背景</a></h3>
-<p>最近发现部分软件（包括 Google Chrome，Firefox 和 Visual Studio Code）在 125% 的 Fractional Scaling 模式下会很卡。找到了一些临时解决方法，但是很不优雅，也很麻烦。所以深入研究了一下 Fractional Scaling 的工作方式。</p>
-<h3 id="临时解决方法"><a class="toclink" href="../../software/2021/03/13/gnome-fractional-scaling/#临时解决方法">临时解决方法</a></h3>
-<p>根据关键字，找到了 <a href="https://askubuntu.com/questions/1274719/chrome-menus-too-slow-after-enabling-fractional-scaling-in-ubuntu-20-04">Chrome menus too slow after enabling fractional scaling in Ubuntu 20.04</a>。按它的方法，关闭 Google Chrome 的硬件加速，发现卡顿问题确实解决了。</p>
-<p>类似地，也可以<a href="https://gist.github.com/andriyudatama/fe5d00deb36feeea30ef35a5ea0f7eff">关闭 VSCode 的硬件加速</a>，在 Firefox 里也可以找到相应的设置。这样操作确实可以解决问题。但是，对于每一个出问题的应用都这样搞一遍，还是挺麻烦的。</p>
-<p>另一个思路是，<a href="https://askubuntu.com/questions/1230208/fractional-scaling-does-not-work-properly-ubuntu-20-04/1272794#1272794">不使用 Fractional Scaling，而只是把字体变大</a>。但毕竟和我们想要的效果不大一样。</p>
-<h3 id="一些发现"><a class="toclink" href="../../software/2021/03/13/gnome-fractional-scaling/#一些发现">一些发现</a></h3>
-<p>在物理机进行了一些实验以后，发现一个现象：125% 的时候卡顿，而其他比例（100%，150%，175%，200%）都不卡顿。</p>
-<p>网上一顿搜到，找到了 xrandr 工具。下面是观察到的一些现象（GNOME 设置分辨率一直是 1920x1080）：</p>
-<table>
-<thead>
-<tr>
-<th>放缩比例</th>
-<th>xrandr 显示的分辨率</th>
-<th>xrandr 显示的 transform</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>100%</td>
-<td>1920x1080</td>
-<td>diag(1.0, 1.0, 1.0)</td>
-</tr>
-<tr>
-<td>125%</td>
-<td>3072x1728</td>
-<td>diag(1.6, 1.6, 1.0)</td>
-</tr>
-<tr>
-<td>150%</td>
-<td>2560x1440</td>
-<td>diag(1.33, 1.33, 1.0)</td>
-</tr>
-<tr>
-<td>175%</td>
-<td>2208x1242</td>
-<td>diag(1.15, 1.15, 1.0)</td>
-</tr>
-<tr>
-<td>200%</td>
-<td>1920x1080</td>
-<td>diag(1.0, 1.0, 1.0)</td>
-</tr>
-</tbody>
-</table>
-<p>在 <a href="https://www.x.org/releases/X11R7.5/doc/man/man1/xrandr.1.html">xrandr 文档</a> 中，写了：transform 是一个 3x3 矩阵，矩阵乘以输出的点的坐标得到图形缓存里面的坐标。</p>
-<p>由此可以猜想：fractional scaling 的工作方式是，把绘制的 buffer 调大，然后再用 transform 把最终输出分辨率调成 1920x1080。可以看到，xrandr 显示的分辨率除以 transform 对应的值，就是 1920x1080。但这并不能解释 100% 和 200% 的区别，所以肯定还漏了什么信息。</p>
-<p>翻了翻 <a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_376_422">mutter 实现 fractional scaling 的 pr</a>，找到了实现 scale 的一部分：</p>
-<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">clutter_actor_get_resource_scale</span><span class="w"> </span><span class="p">(</span><span class="n">priv</span><span class="o">-&gt;</span><span class="n">actor</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">resource_scale</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="n">resource_scale</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mf">1.0f</span><span class="p">)</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="p">{</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="kt">float</span><span class="w"> </span><span class="n">paint_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0f</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">resource_scale</span><span class="p">;</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="n">cogl_matrix_scale</span><span class="w"> </span><span class="p">(</span><span class="o">&amp;</span><span class="n">modelview</span><span class="p">,</span><span class="w"> </span><span class="n">paint_scale</span><span class="p">,</span><span class="w"> </span><span class="n">paint_scale</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="p">}</span>
-</span></code></pre></div>
-<p>然后找到了一段对 scale 做 ceiling 的<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_238_265">代码</a>：</p>
-<div class="language-cpp highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">_clutter_actor_get_real_resource_scale</span><span class="w"> </span><span class="p">(</span><span class="n">priv</span><span class="o">-&gt;</span><span class="n">actor</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">resource_scale</span><span class="p">))</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">{</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="n">ceiled_resource_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ceilf</span><span class="w"> </span><span class="p">(</span><span class="n">resource_scale</span><span class="p">);</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="n">stage_width</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="n">ceiled_resource_scale</span><span class="p">;</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="n">stage_height</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="n">ceiled_resource_scale</span><span class="p">;</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="p">}</span>
-</span></code></pre></div>
-<p>这样，100% 和其他比例就区分开了。</p>
-<p>另外，也在<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#d66a28cda989fbb17c8a7302b3f6360640c3c152_33_33">代码</a> 中发现：</p>
-<div class="language-cpp highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="cp">#define SCALE_FACTORS_PER_INTEGER 4</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="cp">#define SCALE_FACTORS_STEPS (1.0 / (float) SCALE_FACTORS_PER_INTEGER)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="cp">#define MINIMUM_SCALE_FACTOR 1.0f</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="cp">#define MAXIMUM_SCALE_FACTOR 4.0f</span>
-</span></code></pre></div>
-<p>这段代码规定了比例只能是 25% 的倍数。</p>
-<p>我也试了一下用 xrandr --scale 1.5x1.5：效果就是窗口看起来都更小了，分辨率变成了 2880x1620，transform 是 diag(1.5, 1.5, 1.0)。</p>
-<h3 id="虚拟机测试"><a class="toclink" href="../../software/2021/03/13/gnome-fractional-scaling/#虚拟机测试">虚拟机测试</a></h3>
-<p>接着，用虚拟机做了一些测试。为了在 GNOME over Wayland 上使用 fractional scaling，需要运行：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$<span class="w"> </span>gsettings<span class="w"> </span><span class="nb">set</span><span class="w"> </span>org.gnome.mutter<span class="w"> </span>experimental-features<span class="w"> </span><span class="s2">&quot;[&#39;scale-monitor-framebuffer&#39;]&quot;</span>
-</span></code></pre></div>
-<p>接着又做了类似上面的测试（GNOME 设置分辨率一直是 2560x1600）：</p>
-<table>
-<thead>
-<tr>
-<th>放缩比例</th>
-<th>xrandr 显示的分辨率</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>100%</td>
-<td>2560x1600</td>
-</tr>
-<tr>
-<td>125%</td>
-<td>2048x1280</td>
-</tr>
-<tr>
-<td>150%</td>
-<td>1704x1065</td>
-</tr>
-<tr>
-<td>175%</td>
-<td>1464x915</td>
-</tr>
-<tr>
-<td>200%</td>
-<td>1280x800</td>
-</tr>
-</tbody>
-</table>
-<p>在这个测试中，xrandr 显示的 transform 一直都是单位矩阵；还用了来自 <a href="https://github.com/xyproto/wallutils">xyproto/wallutils</a> 的 <code>wayinfo</code> 命令查看输出的分辨率，一直是 2560x1600，DPI 一直是 96。用 wallutils 的 xinfo 看到的结果和 xrandr 一致（通过 XWayland）。但是和物理机有一点不同：物理机有一个选项问要不要打开 fractional scaling，下面还会提示性能下降的问题；但是虚拟机上并没有这个提示，而是直接给了一些 Scale 比例的选项。</p>
-<p>尝试了一下，在 GNOME over X11 上是找不到 fractional scaling 的（没有出现设置 scale 的选项）。找到一个实现这个功能的 fork：https://github.com/puxplaying/mutter-x11-scaling，不过没有尝试过。</p>
-<p>我也尝试在虚拟机中用 xrandr --scale，结果就是输出黑屏，需要重启 gdm 来恢复到登录界面。</p>
-<p>更新：由于物理机使用的是 Ubuntu，想到是不是 Ubuntu 采用了上面那个 fork 的 patch，然后就在 <a href="https://changelogs.ubuntu.com/changelogs/pool/main/m/mutter/mutter_3.38.1-1ubuntu1/changelog">changelog</a> 中看到：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>mutter (3.38.1-1ubuntu1) groovy; urgency=medium
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  * Merge with debian, including new upstream version, remaining changes:
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    - debian/gbp.conf: update upstream branch to point to ubuntu/master
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    - debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch:
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>      + X11: Add support for fractional scaling using Randr
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  * d/p/clutter-backend-x11-Don-t-set-the-font-dpi-computed-on-X1.patch:
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    - Dropped, applied upstream
-</span></code></pre></div>
-<p>也找到了对应的 <a href="https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch?h=applied/ubuntu/groovy">patch 文件</a>。这也就解释了，为什么网上会说 GNOME over X11 支持 fractional scaling，并且需要用 gsettings 打开，而我在 Debian 和 Arch Linux 上设置这个选项也没有用了。原来是 Ubuntu 加的私货啊。</p>
-<p>在 patch 中，找到了这么一段配置的解释：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>+    &lt;key name=&quot;fractional-scale-mode&quot; enum=&quot;org.gnome.mutter.X11.scale-mode&quot;&gt;
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>+      &lt;default&gt;&quot;scale-ui-down&quot;&lt;/default&gt;
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>+      &lt;description&gt;
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>+        Choose the scaling mode to be used under X11 via Randr extension.
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>+
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>+        Supported methods are:
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>+
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>+        • “scale-up”     — Scale everything up to the requested scale, shrinking
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>+                           the UI. The applications will look blurry when scaling
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>+                           at higher values and the resolution will be lowered.
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>+        • “scale-ui-down — Scale up the UI toolkits to the closest integer
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>+                           scaling value upwards, while scale down the display
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>+                           to match the requested scaling level.
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>+                           It increases the resolution of the logical display.
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>+      &lt;/description&gt;
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>+    &lt;/key&gt;
-</span></code></pre></div>
-<p>这样就可以解释前面看到的现象了：默认是 <code>scale-ui-down</code>，也就是先放大到两倍（closest integer scaling value upwards），再缩小（scale down the display to match the requested scaling level）。</p>
-    <nav class="md-post__action">
-      <a href="../../software/2021/03/13/gnome-fractional-scaling/">
-        继续阅读
-      </a>
-    </nav>
-  </div>
-</article>
-      
       
         
           
@@ -4132,10 +4134,11 @@ https://github.com/ewenmcneill/docker-build-static-ipmitool</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a264c092.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.726fbb30.min.js"></script>
+      <script src="../../assets/javascripts/bundle.aecac24b.min.js"></script>
       
         <script src="../../javascripts/mathjax.js"></script>
       

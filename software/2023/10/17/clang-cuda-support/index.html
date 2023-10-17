@@ -1,0 +1,1667 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="杰哥的{运维，编程，调板子}小笔记">
+      
+      
+      
+        <link rel="canonical" href="https://jia.je/software/2023/10/17/clang-cuda-support/">
+      
+      
+        <link rel="prev" href="../../../../../os/2023/10/03/wsl2-internals/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.6">
+    
+    
+      
+        <title>Clang 如何支持 CUDA 程序 - 杰哥的{运维，编程，调板子}小笔记</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.35e1ed30.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-3109FRSVTT"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-3109FRSVTT",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#clang-如何支持-cuda-程序" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-header__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            杰哥的{运维，编程，调板子}小笔记
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Clang 如何支持 CUDA 程序
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+    
+  
+  博客
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+    
+  
+  关于
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../open-source-contributions/" class="md-tabs__link">
+        
+  
+    
+  
+  开源
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tags/" class="md-tabs__link">
+        
+  
+    
+  
+  标签
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/kb/" class="md-tabs__link">
+        
+  
+    
+  
+  知识库
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../series/" class="md-tabs__link">
+        
+  
+    
+  
+  系列
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../projects/" class="md-tabs__link">
+        
+  
+    
+  
+  项目
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tools/" class="md-tabs__link">
+        
+  
+    
+  
+  工具
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/feed.xml" class="md-tabs__link">
+        
+  
+    
+  
+  订阅
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../archive/2023/" class="md-tabs__link">
+          
+  
+  归档
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../category/software/" class="md-tabs__link">
+          
+  
+  分类
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-nav__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    杰哥的{运维，编程，调板子}小笔记
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    博客
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    关于
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../open-source-contributions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    开源
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tags/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    标签
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/kb/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    知识库
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../series/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    系列
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../projects/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    项目
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    工具
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/feed.xml" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    订阅
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    归档
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2023/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2023
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2022/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2022
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2021/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2021
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2020/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2020
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2019/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2019
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2018/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2018
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2017/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2017
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2016/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2016
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2014/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2014
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    分类
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/software/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    software
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/os/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    os
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/system/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    system
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/hardware/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    hardware
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/others/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    others
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/devops/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    devops
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/crypto/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    crypto
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/programming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    programming
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/meta/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    meta
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/networking/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    networking
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/misc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    misc
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/ctf/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ctf
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/unboxing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    unboxing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/news/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    news
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/life/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    life
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/speech/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    speech
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/logo/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    logo
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/csdn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    csdn
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+                  <span class="md-ellipsis">
+                    回到主页
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    元数据
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"/></svg>
+                        <time datetime="2023-10-17 00:00:00" class="md-ellipsis">2023年10月17日</time>
+                      </div>
+                    </li>
+                    
+                    
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3H9m3 2 4 13 3-1-4-13-3 1M5 5v13h3V5H5M3 19v2h18v-2H3Z"/></svg>
+                          <span class="md-ellipsis">
+                            分类于
+                            
+                              <a href="../../../../../category/software/">software</a></span>
+                        </div>
+                      </li>
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              需要 5 分钟阅读时间
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#前言" class="md-nav__link">
+    前言
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#编译命令" class="md-nav__link">
+    编译命令
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#编译流程" class="md-nav__link">
+    编译流程
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#host-代码" class="md-nav__link">
+    Host 代码
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cuda-runtime-注册" class="md-nav__link">
+    CUDA Runtime 注册
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fatbin" class="md-nav__link">
+    fatbin
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+  
+
+<nav class="md-tags" >
+  
+    
+    
+    
+      <a href="../../../../../tags/#clang" class="md-tag">clang</a>
+    
+  
+    
+    
+    
+      <a href="../../../../../tags/#llvm" class="md-tag">llvm</a>
+    
+  
+    
+    
+    
+      <a href="../../../../../tags/#cuda" class="md-tag">cuda</a>
+    
+  
+    
+    
+    
+      <a href="../../../../../tags/#nvidia" class="md-tag">nvidia</a>
+    
+  
+</nav>
+
+
+
+<h1 id="clang-如何支持-cuda-程序">Clang 如何支持 CUDA 程序<a class="headerlink" href="#clang-如何支持-cuda-程序" title="Permanent link">&para;</a></h1>
+<h2 id="前言">前言<a class="headerlink" href="#前言" title="Permanent link">&para;</a></h2>
+<p>编译 CUDA 程序的主要工具是 NVIDIA 提供的闭源编译器 NVCC，但实际上，NVCC 是基于 LLVM 开发的（来源：<a href="https://developer.nvidia.com/cuda-llvm-compiler">NVIDIA CUDA Compiler</a>），NVIDIA 也把 NVCC 其中一部分逻辑贡献给了 LLVM 上游，使得 <a href="https://llvm.org/docs/CompileCudaWithLLVM.html">Clang 也可以在 CUDA 的配合下编译 CUDA 程序</a>。这篇博客尝试研究 Clang/LLVM 如何实现 CUDA 程序的编译，主要是 Clang 前端部分，后端部分，也就是从 LLVM IR 到 NVPTX 的这一步还没有进行深入的研究。</p>
+<!-- more -->
+
+<h2 id="编译命令">编译命令<a class="headerlink" href="#编译命令" title="Permanent link">&para;</a></h2>
+<p>首先按照 <a href="https://llvm.org/docs/CompileCudaWithLLVM.html">Compiling CUDA with clang</a> 文档，介绍一下使用 clang 编译 CUDA 程序的命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>clang++<span class="w"> </span>axpy.cu<span class="w"> </span>-o<span class="w"> </span>axpy<span class="w"> </span>-L&lt;CUDA<span class="w"> </span>install<span class="w"> </span>path&gt;/&lt;lib64<span class="w"> </span>or<span class="w"> </span>lib&gt;<span class="w"> </span>-lcudart/cudart_static<span class="w"> </span><span class="o">[</span>--cuda-gpu-arch<span class="o">=</span>&lt;GPU<span class="w"> </span>arch&gt;<span class="o">]</span>
+</span></code></pre></div>
+<p>其中 <code>-L&lt;CUDA install path&gt;/&lt;lib64 or lib&gt; -lcudart/cudart_static</code> 表示的是链接 CUDA 提供的 libcudart，它有静态库和动态库两种形式，根据实际需求选择。<code>--cuda-gpu-arch=&lt;GPU arch&gt;</code> 就和 NVCC 一样，指定 GPU 的 SM Architecture 版本，可以写多个。如果 CUDA 安装到 <code>/usr/local/cuda</code>，一个例子如下：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>clang++<span class="w"> </span>axpy.cu<span class="w"> </span>-o<span class="w"> </span>axpy<span class="w"> </span>-L<span class="w"> </span>/usr/local/cuda/lib64<span class="w"> </span>-lcudart
+</span></code></pre></div>
+<p>编译出来的可执行文件可以直接运行，就和 NVCC 一样，只不过需要手动链接 libcudart。</p>
+<h2 id="编译流程">编译流程<a class="headerlink" href="#编译流程" title="Permanent link">&para;</a></h2>
+<p>为了查看 clang 的编译流程，可以在编译命令中，添加 <code>-v</code> 选项让它打印出中间执行的命令，再添加 <code>--save-temps</code> 命令可以把中途的编译产物保留在当前路径下。观察输出，可以发现它进行了如下操作（省略了大量的命令行参数）：</p>
+<ol>
+<li><code>clang -triple nvptx64-nvidia-cuda -S -target-cpu sm_70 axpy.cu -o axpy-sm_70.s</code>：以 NVPTX 为 target，编译源代码，生成 PTX 汇编</li>
+<li><code>ptxas --gpu-name sm_70 --output-file axpy-sm_70.o axpy-sm_70.s</code>：使用 CUDA 提供的 <code>ptxas</code> 程序，把 PTX 汇编翻译成 SM 70 的 SASS 指令，打包到一个 ELF object 中</li>
+<li><code>fatbinary --create axpy.fatbin --image=profile=sm_70,file=axpy-sm_70.o --image=profile=compute_70,file=axpy-sm_70.s</code>: 使用 CUDA 提供的 <code>fatbinary</code> 程序，把 ptxas 生成的 ELF object 和 clang 生成的 PTX 汇编内容打包成一个 fatbin 文件</li>
+<li><code>clang -triple x86_64-pc-linux-gnu -emit-obj axpy.cu -fcuda-include-gpubinary axpy.fatbin -o axpy.o</code>：编译 Host 代码，把 fatbin 的内容嵌入到一个 <code>.nv_fatbin</code> section 中，生成一个 ELF object 中</li>
+<li><code>ld -o axpy axpy.o -lcudart</code>：最后一步就是常规的链接，得到最终的可执行文件</li>
+</ol>
+<p>实际上还有一步预处理，这里省略了。对比通常 C++ 程序的编译流程，这里不同的点在于：</p>
+<ol>
+<li>用 Clang 以 NVPTX target 编译了一遍，得到 PTX 汇编</li>
+<li>用 CUDA 的 ptxas，把 PTX 汇编翻译成对应 SM Architecture 的 SASS 指令，放到一个 ELF object 里</li>
+<li>用 CUDA 的 fatbinary，把第一步和第二步的结果放到一个 fatbin 文件里</li>
+<li>把 fatbin 文件嵌入到 ELF 中</li>
+</ol>
+<p>其中第一步和第四步是由 LLVM 实现的，因此可以找到相应的代码；第二步和第三步则没有源码，但是网上有很多公开的逆向，例如 <a href="https://dl.acm.org/doi/abs/10.5555/3314872.3314900">Decoding CUDA binary</a>、<a href="https://github.com/decodecudabinary/Decoding-CUDA-Binary/tree/master/tools">decodecudabinary/Decoding-CUDA-Binary</a> 和 <a href="https://github.com/n-eiling/cuda-fatbin-decompression">n-eiling/cuda-fatbin-decompression</a>。</p>
+<p>此外，Clang 还需要针对 Host 部分代码，进行特殊处理，因为 CUDA 有一些扩展语法（主要是启动 Kernel 的 <code>&lt;&lt;&lt;&gt;&gt;&gt;</code>），需要把这些部分替换为对 CUDA Runtime（也就是 libcudart）的调用。接下来要讨论的就是这一部分。</p>
+<h2 id="host-代码">Host 代码<a class="headerlink" href="#host-代码" title="Permanent link">&para;</a></h2>
+<p>首先研究的是 CUDA 的扩展语法里的启动 Kernel 语法：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">axpy</span><span class="o">&lt;&lt;&lt;</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">kDataLen</span><span class="o">&gt;&gt;&gt;</span><span class="p">(</span><span class="n">kDataLen</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">device_x</span><span class="p">,</span><span class="w"> </span><span class="n">device_y</span><span class="p">);</span>
+</span></code></pre></div>
+<p>实际上是怎么实现的呢？如果去查看 LLVM IR，会发现它的逻辑类似下面的代码：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">success</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__cudaPushCallConfiguration</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">kDataLen</span><span class="p">);</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">success</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="n">__device_stub__axpy</span><span class="p">(</span><span class="n">kDataLen</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">device_x</span><span class="p">,</span><span class="w"> </span><span class="n">device_y</span><span class="p">);</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这段代码的生成逻辑在 <a href="https://github.com/llvm/llvm-project/blob/52db7e27458f774fa0c6c6a864ce197fa071a230/clang/lib/CodeGen/CGCUDARuntime.cpp#L26">EmitCUDAKernelCallExpr</a> 函数中，可以看到它构造了两个基本块，对应 success 内的 device stub 调用（ConfigOKBlock）和完成调用的基本块（ContBlock）。</p>
+<p>也就是说，它首先把 <code>&lt;&lt;&lt;</code> 和 <code>&gt;&gt;&gt;</code> 之间的参数传给了 <code>__cudaPushCallConfiguration</code>（实际上是构造了一个 <code>dim3</code> 再传进去，这里省略了），如果它成功了，再去调用一个 <code>__device_stub__axpy</code>。可以猜想，它会对参数进行检查，如果不符合 CUDA 的要求，那就直接返回错误，不去启动 Kernel。如果配置没问题，就去调用 <code>__device_stub__axpy</code>。那么这个函数是什么呢？它是在 <a href="https://github.com/llvm/llvm-project/blob/ab6d5fa3d0643e68d6ec40d9190f20fb14190ed1/clang/lib/CodeGen/CGCUDANV.cpp#L324">Clang 代码</a> 里生成的：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// CUDA 9.0+ uses new way to launch kernels. Parameters are packed in a local</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1">// array and kernels are launched using cudaLaunchKernel().</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kt">void</span><span class="w"> </span><span class="nf">CGNVCUDARuntime::emitDeviceStubBodyNew</span><span class="p">(</span><span class="n">CodeGenFunction</span><span class="w"> </span><span class="o">&amp;</span><span class="n">CGF</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">                                            </span><span class="n">FunctionArgList</span><span class="w"> </span><span class="o">&amp;</span><span class="n">Args</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="c1">// omitted</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="c1">// Calculate amount of space we will need for all arguments.  If we have no</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="c1">// args, allocate a single pointer so we still have a valid pointer to the</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="c1">// argument array that we can pass to runtime, even if it will be unused.</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="c1">// Store pointers to the arguments in a locally allocated launch_args.</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="c1">// omitted</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="c1">// Lookup cudaLaunchKernel/hipLaunchKernel function.</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">  </span><span class="c1">// cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">  </span><span class="c1">//                              void **args, size_t sharedMem,</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">  </span><span class="c1">//                              cudaStream_t stream);</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">LaunchKernelName</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">addPrefixToName</span><span class="p">(</span><span class="n">KernelLaunchAPI</span><span class="p">);</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">  </span><span class="n">IdentifierInfo</span><span class="w"> </span><span class="o">&amp;</span><span class="n">cudaLaunchKernelII</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">      </span><span class="n">CGM</span><span class="p">.</span><span class="n">getContext</span><span class="p">().</span><span class="n">Idents</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="n">LaunchKernelName</span><span class="p">);</span>
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">  </span><span class="n">FunctionDecl</span><span class="w"> </span><span class="o">*</span><span class="n">cudaLaunchKernelFD</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">  </span><span class="c1">// Create temporary dim3 grid_dim, block_dim.</span>
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">  </span><span class="n">llvm</span><span class="o">::</span><span class="n">FunctionCallee</span><span class="w"> </span><span class="n">cudaPopConfigFn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CGM</span><span class="p">.</span><span class="n">CreateRuntimeFunction</span><span class="p">(</span>
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">      </span><span class="n">llvm</span><span class="o">::</span><span class="n">FunctionType</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">IntTy</span><span class="p">,</span>
+</span><span id="__span-4-25"><a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="w">                              </span><span class="p">{</span><span class="cm">/*gridDim=*/</span><span class="n">GridDim</span><span class="p">.</span><span class="n">getType</span><span class="p">(),</span>
+</span><span id="__span-4-26"><a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="w">                               </span><span class="cm">/*blockDim=*/</span><span class="n">BlockDim</span><span class="p">.</span><span class="n">getType</span><span class="p">(),</span>
+</span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="w">                               </span><span class="cm">/*ShmemSize=*/</span><span class="n">ShmemSize</span><span class="p">.</span><span class="n">getType</span><span class="p">(),</span>
+</span><span id="__span-4-28"><a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="w">                               </span><span class="cm">/*Stream=*/</span><span class="n">Stream</span><span class="p">.</span><span class="n">getType</span><span class="p">()},</span>
+</span><span id="__span-4-29"><a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="w">                              </span><span class="cm">/*isVarArg=*/</span><span class="nb">false</span><span class="p">),</span>
+</span><span id="__span-4-30"><a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="w">      </span><span class="n">addUnderscoredPrefixToName</span><span class="p">(</span><span class="s">&quot;PopCallConfiguration&quot;</span><span class="p">));</span>
+</span><span id="__span-4-31"><a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>
+</span><span id="__span-4-32"><a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a><span class="w">  </span><span class="n">CGF</span><span class="p">.</span><span class="n">EmitRuntimeCallOrInvoke</span><span class="p">(</span><span class="n">cudaPopConfigFn</span><span class="p">,</span>
+</span><span id="__span-4-33"><a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a><span class="w">                              </span><span class="p">{</span><span class="n">GridDim</span><span class="p">.</span><span class="n">getPointer</span><span class="p">(),</span><span class="w"> </span><span class="n">BlockDim</span><span class="p">.</span><span class="n">getPointer</span><span class="p">(),</span>
+</span><span id="__span-4-34"><a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="w">                               </span><span class="n">ShmemSize</span><span class="p">.</span><span class="n">getPointer</span><span class="p">(),</span><span class="w"> </span><span class="n">Stream</span><span class="p">.</span><span class="n">getPointer</span><span class="p">()});</span>
+</span><span id="__span-4-35"><a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>
+</span><span id="__span-4-36"><a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a><span class="w">  </span><span class="c1">// Emit the call to cudaLaunch</span>
+</span><span id="__span-4-37"><a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a><span class="w">  </span><span class="n">llvm</span><span class="o">::</span><span class="n">Value</span><span class="w"> </span><span class="o">*</span><span class="n">Kernel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CGF</span><span class="p">.</span><span class="n">Builder</span><span class="p">.</span><span class="n">CreatePointerCast</span><span class="p">(</span>
+</span><span id="__span-4-38"><a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a><span class="w">      </span><span class="n">KernelHandles</span><span class="p">[</span><span class="n">CGF</span><span class="p">.</span><span class="n">CurFn</span><span class="o">-&gt;</span><span class="n">getName</span><span class="p">()],</span><span class="w"> </span><span class="n">VoidPtrTy</span><span class="p">);</span>
+</span><span id="__span-4-39"><a id="__codelineno-4-39" name="__codelineno-4-39" href="#__codelineno-4-39"></a><span class="w">  </span><span class="n">CallArgList</span><span class="w"> </span><span class="n">LaunchKernelArgs</span><span class="p">;</span>
+</span><span id="__span-4-40"><a id="__codelineno-4-40" name="__codelineno-4-40" href="#__codelineno-4-40"></a><span class="w">  </span><span class="n">LaunchKernelArgs</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">RValue</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">Kernel</span><span class="p">),</span>
+</span><span id="__span-4-41"><a id="__codelineno-4-41" name="__codelineno-4-41" href="#__codelineno-4-41"></a><span class="w">                       </span><span class="n">cudaLaunchKernelFD</span><span class="o">-&gt;</span><span class="n">getParamDecl</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">getType</span><span class="p">());</span>
+</span><span id="__span-4-42"><a id="__codelineno-4-42" name="__codelineno-4-42" href="#__codelineno-4-42"></a><span class="w">  </span><span class="n">LaunchKernelArgs</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">RValue</span><span class="o">::</span><span class="n">getAggregate</span><span class="p">(</span><span class="n">GridDim</span><span class="p">),</span><span class="w"> </span><span class="n">Dim3Ty</span><span class="p">);</span>
+</span><span id="__span-4-43"><a id="__codelineno-4-43" name="__codelineno-4-43" href="#__codelineno-4-43"></a><span class="w">  </span><span class="n">LaunchKernelArgs</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">RValue</span><span class="o">::</span><span class="n">getAggregate</span><span class="p">(</span><span class="n">BlockDim</span><span class="p">),</span><span class="w"> </span><span class="n">Dim3Ty</span><span class="p">);</span>
+</span><span id="__span-4-44"><a id="__codelineno-4-44" name="__codelineno-4-44" href="#__codelineno-4-44"></a><span class="w">  </span><span class="n">LaunchKernelArgs</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">RValue</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">KernelArgs</span><span class="p">.</span><span class="n">getPointer</span><span class="p">()),</span>
+</span><span id="__span-4-45"><a id="__codelineno-4-45" name="__codelineno-4-45" href="#__codelineno-4-45"></a><span class="w">                       </span><span class="n">cudaLaunchKernelFD</span><span class="o">-&gt;</span><span class="n">getParamDecl</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">getType</span><span class="p">());</span>
+</span><span id="__span-4-46"><a id="__codelineno-4-46" name="__codelineno-4-46" href="#__codelineno-4-46"></a><span class="w">  </span><span class="n">LaunchKernelArgs</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">RValue</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">CGF</span><span class="p">.</span><span class="n">Builder</span><span class="p">.</span><span class="n">CreateLoad</span><span class="p">(</span><span class="n">ShmemSize</span><span class="p">)),</span>
+</span><span id="__span-4-47"><a id="__codelineno-4-47" name="__codelineno-4-47" href="#__codelineno-4-47"></a><span class="w">                       </span><span class="n">cudaLaunchKernelFD</span><span class="o">-&gt;</span><span class="n">getParamDecl</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">getType</span><span class="p">());</span>
+</span><span id="__span-4-48"><a id="__codelineno-4-48" name="__codelineno-4-48" href="#__codelineno-4-48"></a><span class="w">  </span><span class="n">LaunchKernelArgs</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">RValue</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">CGF</span><span class="p">.</span><span class="n">Builder</span><span class="p">.</span><span class="n">CreateLoad</span><span class="p">(</span><span class="n">Stream</span><span class="p">)),</span>
+</span><span id="__span-4-49"><a id="__codelineno-4-49" name="__codelineno-4-49" href="#__codelineno-4-49"></a><span class="w">                       </span><span class="n">cudaLaunchKernelFD</span><span class="o">-&gt;</span><span class="n">getParamDecl</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">getType</span><span class="p">());</span>
+</span><span id="__span-4-50"><a id="__codelineno-4-50" name="__codelineno-4-50" href="#__codelineno-4-50"></a><span class="w">  </span><span class="n">llvm</span><span class="o">::</span><span class="n">FunctionCallee</span><span class="w"> </span><span class="n">cudaLaunchKernelFn</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-4-51"><a id="__codelineno-4-51" name="__codelineno-4-51" href="#__codelineno-4-51"></a><span class="w">      </span><span class="n">CGM</span><span class="p">.</span><span class="n">CreateRuntimeFunction</span><span class="p">(</span><span class="n">FTy</span><span class="p">,</span><span class="w"> </span><span class="n">LaunchKernelName</span><span class="p">);</span>
+</span><span id="__span-4-52"><a id="__codelineno-4-52" name="__codelineno-4-52" href="#__codelineno-4-52"></a><span class="w">  </span><span class="n">CGF</span><span class="p">.</span><span class="n">EmitCall</span><span class="p">(</span><span class="n">FI</span><span class="p">,</span><span class="w"> </span><span class="n">CGCallee</span><span class="o">::</span><span class="n">forDirect</span><span class="p">(</span><span class="n">cudaLaunchKernelFn</span><span class="p">),</span><span class="w"> </span><span class="n">ReturnValueSlot</span><span class="p">(),</span>
+</span><span id="__span-4-53"><a id="__codelineno-4-53" name="__codelineno-4-53" href="#__codelineno-4-53"></a><span class="w">               </span><span class="n">LaunchKernelArgs</span><span class="p">);</span>
+</span><span id="__span-4-54"><a id="__codelineno-4-54" name="__codelineno-4-54" href="#__codelineno-4-54"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>代码比较长，这里进行了删减，大概的逻辑是：把 device stub 的函数参数放到一个数组里，然后通过调用 <code>__cudaPopCallConfiguration</code> 把刚刚在 <code>__cudaPushCallConfiguration</code> 传入的启动配置再读取出来，再调用真正启动 CUDA Kernel 的函数 <a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EXECUTION.html#group__CUDART__EXECUTION_1g5064cdf5d8e6741ace56fd8be951783c"><code>cudaLaunchKernel</code></a>：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">__host__</span><span class="err">​</span><span class="n">cudaError_t</span><span class="w"> </span><span class="n">cudaLaunchKernel</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">void</span><span class="o">*</span><span class="w"> </span><span class="n">func</span><span class="p">,</span><span class="w"> </span><span class="n">dim3</span><span class="w"> </span><span class="n">gridDim</span><span class="p">,</span><span class="w"> </span><span class="n">dim3</span><span class="w"> </span><span class="n">blockDim</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">**</span><span class="w"> </span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">sharedMem</span><span class="p">,</span><span class="w"> </span><span class="n">cudaStream_t</span><span class="w"> </span><span class="n">stream</span><span class="w"> </span><span class="p">)</span>
+</span></code></pre></div>
+<p>其中 <code>const void* func</code> 指向了 device stub function 本身，<code>args</code> 是 device stub 把自己的参数保存下来放到数组中的，其余的参数是经过 <code>__cudaPushCallConfiguration</code> 保存又用 <code>__cudaPopCallConfiguration</code> 取出的启动配置。</p>
+<p>这时候你可能觉得很奇怪，为什么要传 function 本身的指针，按理说要启动 GPU 上的 CUDA Kernel，不应该给一个 CUDA Kernel 的指针吗？CUDA Runtime 怎么能通过 device stub function 的指针，判断对应的 CUDA Kernel 是哪个呢？下面来讨论这个问题。</p>
+<h2 id="cuda-runtime-注册">CUDA Runtime 注册<a class="headerlink" href="#cuda-runtime-注册" title="Permanent link">&para;</a></h2>
+<p>除了启动 Kernel 以外，Clang 还生成了很多代码，用来向 CUDA Runtime 注册一些信息。回忆前面的流程，Kernel 编译成 PTX 汇编以后，先是编译成 SASS 指令打包在了 ELF 里，后来 PTX 和 ELF 一起打包成了一个 fatbin 文件，最后嵌入到可执行程序里面。到目前为止，还没有用到它，而如果要启动 Kernel，肯定需要让 CUDA Runtime 去解析 fatbin，找到里面的 Kernel 指令，放到 GPU 上去执行。另外，根据上一节内容，CUDA Runtime 还需要知道 device stub function 和 Kernel 的对应关系，才能知道 Launch 哪份 Kernel 指令。</p>
+<p>实际上，这个事情是由 <a href="https://github.com/llvm/llvm-project/blob/ab6d5fa3d0643e68d6ec40d9190f20fb14190ed1/clang/lib/CodeGen/CGCUDANV.cpp#L695">Clang 生成的初始化代码</a>完成的：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">/// Creates a global constructor function for the module:</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1">///</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1">/// For CUDA:</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1">/// \code</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">/// void __cuda_module_ctor() {</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1">///     Handle = __cudaRegisterFatBinary(GpuBinaryBlob);</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1">///     __cuda_register_globals(Handle);</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1">/// }</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1">/// \endcode</span>
+</span></code></pre></div>
+<p>Clang 会负责生成一个 <code>__cuda_module_ctor</code> 函数，放到可执行程序里面，并且把地址添加到 <code>.init_array</code> 中，这个 section 里面的函数地址会被 libc 在加载的时候调用，这也是 C++ 里全局类变量自动调用构造函数的实现方法。这个函数里面，首先调用 cudart 的 <code>__cudaRegisterFatBinary</code> 函数，把 fatbin 地址传递过去，这样 cudart 就知道了这个程序里打包的 fatbin，也就拿到了所有的 PTX 代码和 SASS 指令。接着还调用了 <code>__cuda_register_globals</code>，这也是 <a href="https://github.com/llvm/llvm-project/blob/ab6d5fa3d0643e68d6ec40d9190f20fb14190ed1/clang/lib/CodeGen/CGCUDANV.cpp#L523">Clang 生成的</a>：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1">/// Creates a function that sets up state on the host side for CUDA objects that</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1">/// have a presence on both the host and device sides. Specifically, registers</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1">/// the host side of kernel functions and device global variables with the CUDA</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1">/// runtime.</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1">/// \code</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1">/// void __cuda_register_globals(void** GpuBinaryHandle) {</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1">///    __cudaRegisterFunction(GpuBinaryHandle,Kernel0,...);</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1">///    ...</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1">///    __cudaRegisterFunction(GpuBinaryHandle,KernelM,...);</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1">///    __cudaRegisterVar(GpuBinaryHandle, GlobalVar0, ...);</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="c1">///    ...</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1">///    __cudaRegisterVar(GpuBinaryHandle, GlobalVarN, ...);</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1">/// }</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1">/// \endcode</span>
+</span></code></pre></div>
+<p>Clang 会扫描代码里的 Kernel 函数和需要和 GPU 互操作的全局变量（用于 <code>cudaMemcpyFromSymbol</code> 等函数），然后去调用 cudart 的 <code>__cudaRegisterFunction</code> 和 <code>__cudaRegisterVar</code> 函数。也就是在这个时候，建立了 device stub function 地址和 Kernel 的映射关系：cudart 的 <code>cudaLaunchKernel</code> 实现里面，可以根据 device stub function 的地址，去查询 Kernel 的符号，再根据符号去找到对应的 PTX 和 SASS 指令。</p>
+<h2 id="fatbin">fatbin<a class="headerlink" href="#fatbin" title="Permanent link">&para;</a></h2>
+<p>在前面提到了 fatbin 的过程，它作为一个容器，保存了 PTX 代码或者使用 ptxas 编译后得到的 ELF 文件。它的格式比较简单，可以在 <a href="https://github.com/n-eiling/cuda-fatbin-decompression">n-eiling/cuda-fatbin-decompression</a> 和 <a href="https://github.com/jiegec/fatbinary">fatbinary</a> 中看到。它的结构大体如下：</p>
+<ol>
+<li>开头是一个 fatbin 头部</li>
+<li>接下来是若干个 entry:<ol>
+<li>每个 entry 有一个头部</li>
+<li>每个 entry 有一个 payload，里面是 ELF 或者 PTX，可选压缩</li>
+</ol>
+</li>
+</ol>
+<p>它在每个 entry 的头部里会记录一些信息，例如 SM Architecture 等等，方便 CUDA Runtime 快速地定位到要去使用的 ELF 或者 PTX，免得扫描完整的 ELF 或者 PTX 内容。这有点像 .a（archive）文件，本身是一个 .o（object）文件的容器，但还提供了一个索引，从符号到 object 文件的映射。虽然 fatbin 没有做映射，但是它每个 entry 头部都记录了 entry 的长度，解析时可以跳过不关心的 payload。</p>
+<p>如果想看 fatbin 的内容，可以用 <code>cuobjdump</code> 命令来查看，它可以显示出每个 entry 在头部中记录的信息，也可以把内部的 payload 释放出来。如果想生成 fatbin，可以用 <code>fatbinary</code> 命令，它会解析 ELF 和 PTX 文件，提取一些信息，放到 entry 头部中。</p>
+<p>fatbin 还采用了一个比较简单的压缩算法：如果出现了重复的部分，把重复的部分替换为距离上一次重复的偏移和重复的长度，那么解压的时候，只需要 memcpy 即可，不涉及到复杂的字典操作，见 <a href="https://github.com/n-eiling/cuda-fatbin-decompression/blob/9b194a9aa526b71131990ddd97ff5c41a273ace5/fatbin-decompress.c#L137">decompress 函数</a>。</p>
+
+  <hr>
+<div class="md-source-file">
+  <small>
+    
+      最后更新:
+      <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">October 17, 2023</span>
+      
+        <br>
+        创建日期:
+        <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">October 17, 2023</span>
+      
+    
+  </small>
+</div>
+
+
+  
+
+
+  
+
+
+<!-- https://squidfunk.github.io/mkdocs-material/setup/adding-a-comment-system/ -->
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+
+<div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
+    };
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiegec.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+      
+    </article>
+  </div>
+
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../../../../os/2023/10/03/wsl2-internals/" class="md-footer__link md-footer__link--prev" aria-label="上一页: WSL2 内部实现探究">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                WSL2 内部实现探究
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jiegec" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.aecac24b.min.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/skins/default.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavedrom/3.1.0/wavedrom.min.js"></script>
+      
+    
+  </body>
+</html>
