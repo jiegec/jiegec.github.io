@@ -16,6 +16,8 @@
         <link rel="prev" href="../../../02/18/write-a-linker-1/">
       
       
+        <link rel="next" href="../../../04/06/write-a-linker-3/">
+      
       
         <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
         <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
@@ -1438,6 +1440,48 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="分析">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#拆分代码" class="md-nav__link">
+    <span class="md-ellipsis">
+      拆分代码
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#观察对象文件" class="md-nav__link">
+    <span class="md-ellipsis">
+      观察对象文件
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#观察可执行文件" class="md-nav__link">
+    <span class="md-ellipsis">
+      观察可执行文件
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结" class="md-nav__link">
+    <span class="md-ellipsis">
+      小结
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1507,6 +1551,7 @@
 </ol>
 <p>接下来我们就要实现单文件输入到多文件输入的跨越，让我们首先分析一下，这里的不同在哪里。</p>
 <h2 id="分析">分析<a class="headerlink" href="#分析" title="Permanent link">&para;</a></h2>
+<h3 id="拆分代码">拆分代码<a class="headerlink" href="#拆分代码" title="Permanent link">&para;</a></h3>
 <p>输入只有一个 ELF object（.o）文件的时候，这个 object 文件里需要的所有东西都只能由这个 object 自己来提供，所以比较好实现。但如果要输入多个 ELF object 文件，此时可能会出现需要依赖的情况。首先回忆一下之前学习的 C/C++ 的内容，在编写代码的时候，经常会把声明（declaration）放到头文件（.h）里，实现（definition）放在源文件（.c/cpp）：这样可以在 <code>A.cpp</code> 中调用 <code>B.cpp</code> 里的函数，不会出现大家经常遇到的 <code>duplicate symbol</code> 错误。那么这是怎么实现的呢？</p>
 <p>我们首先在汇编语言中模拟这个场景。首先回顾一下上一篇博客中用汇编实现的 Hello World 例子：</p>
 <div class="language-asm highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># From https://gist.github.com/adrianratnapala/1321776</span>
@@ -1583,6 +1628,7 @@
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>$<span class="w"> </span>./helloworld
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>Hello<span class="w"> </span>world!
 </span></code></pre></div>
+<h3 id="观察对象文件">观察对象文件<a class="headerlink" href="#观察对象文件" title="Permanent link">&para;</a></h3>
 <p>这时候我们就要探究，汇编器和链接器是如何协作，使得 <code>main.s</code> 中的代码可以调用 <code>printer.s</code> 中的函数。当然了，在这里我们用的是汇编语言，汇编器遇到不存在的函数名就会认为是外部函数。如果是 C/C++ 语言，则要先在 <code>main.c</code> 中声明这两个函数（或者 <code>#include</code> 了一个声明了这两个函数的头文件）再调用（比较老的 C 标准允许不声明直接调用，但这是不推荐的）。</p>
 <p>首先观察 <code>main.s</code> 经过汇编得到的 <code>main.o</code>，看它是怎么调用 <code>print</code> 和 <code>exit</code> 函数的：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># objdump -S: Display assembly and intermix source code with disassembly</span>
@@ -1658,6 +1704,7 @@
 </span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">  </span><span class="m">29</span>:<span class="w">   </span>0f<span class="w"> </span><span class="m">05</span><span class="w">                   </span>syscall
 </span></code></pre></div>
 <p>不出意外，两个函数都出现了，同时也出现了上一篇博客中提到的 <code>R_X86_64_32S</code> 的 relocation 类型。仔细观察，会发现这个 relocation 的地址是 <code>0xa</code>，而不是 <code>mov</code> 指令的地址 <code>0x7</code>，聪明的你应该已经观察出来：<code>mov</code> 指令前三个字节表示了这是一条 <code>mov</code> 指令，目的寄存器是 <code>%rsi</code>，后四个字节就是要 <code>mov</code> 的立即数，所以 relocation 直接指向了后四个字节的地址。链接器不需要反汇编，不需要知道这是一条 <code>mov</code> 指令，只管找 relocation 往里填。</p>
+<h3 id="观察可执行文件">观察可执行文件<a class="headerlink" href="#观察可执行文件" title="Permanent link">&para;</a></h3>
 <p>关于两个 <code>.o</code> 文件分析得差不多了，接下来看最后运行 <code>ld main.o printer.o -o helloworld</code> 得到的可执行文件：</p>
 <div class="language-asm highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nl">helloworld:</span><span class="w">     </span><span class="nf">file</span><span class="w"> </span><span class="no">format</span><span class="w"> </span><span class="no">elf64-x86-64</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
@@ -1687,6 +1734,7 @@
 <li>来自两个 <code>.o</code> 文件的代码段 <code>.text</code> 的内容被拼接起来，得到了输出的 ELF 里的 <code>.text</code> 段内容；类似地，<code>printer.o</code> 里面的只读数据段 <code>.rodata</code> 的内容也复制到了输出的 ELF 中，地址是 <code>0x402000</code></li>
 <li>虽然 <code>objdump</code> 参数里写了 <code>-r</code>，要求 <code>objdump</code> 显示代码中的 relocation，但是链接器已经完成了所有 relocation 的计算并更新了对应的数，因此输出的 ELF 里就没有 relocation 了。在未来的博客中，我们会看到，可执行文件里也可以有 relocation</li>
 </ol>
+<h3 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h3>
 <p>按照这些观察，我们可以得出，为了支持第二版的链接器，也就是支持两个或者更多个 .o 文件的链接的静态链接器，需要做的额外工作：</p>
 <div class="admonition note">
 <p class="admonition-title">合并来自多个文件的同一个 section</p>
@@ -1818,6 +1866,22 @@
             </div>
           </a>
         
+        
+          
+          <a href="../../../04/06/write-a-linker-3/" class="md-footer__link md-footer__link--next" aria-label="下一页: 开发一个链接器（3）">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                开发一个链接器（3）
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
         
       </nav>
     

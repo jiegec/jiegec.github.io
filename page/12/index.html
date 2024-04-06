@@ -456,6 +456,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#配置-homebridge-mi-aqara-并添加为-telegraf-的数据源" class="md-nav__link">
+    <span class="md-ellipsis">
+      配置 homebridge-mi-aqara 并添加为 telegraf 的数据源
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#每周分享第-1-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 1 期
@@ -666,15 +675,6 @@
   <a href="#在-ubuntu-上跨版本迁移-mongodb" class="md-nav__link">
     <span class="md-ellipsis">
       在 Ubuntu 上跨版本迁移 MongoDB
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#在-ledeopenwrt上启用-wpad" class="md-nav__link">
-    <span class="md-ellipsis">
-      在 LEDE（OpenWrt）上启用 wpad
     </span>
   </a>
   
@@ -1600,6 +1600,61 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2018-12-13 00:00:00">2018年12月13日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/software/" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="配置-homebridge-mi-aqara-并添加为-telegraf-的数据源"><a class="toclink" href="../../software/2018/12/13/homebridge-mi-aqara-telegraf/">配置 homebridge-mi-aqara 并添加为 telegraf 的数据源</a></h2>
+<p>最近有了设备，想把设备拿到的数据都导一份存到 influxdb 里，但是目前找到的只有 <a href="https://github.com/YinHangCode/homebridge-mi-aqara">homebridge-mi-aqara</a> 可以访问并拿到数据，然后它又提供了 mqtt 的数据获取方案，于是自己写了个脚本去读取这些数据。</p>
+<p>首先当然是配置一下 homebridge-mi-aqara，按照网上的教程来，这个不难。然后本地开一个 MQTT Broker（如 mosquitto），配置为本地监听，然后我编写了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara.py">脚本 telegraf-mi-aqara.py</a> ，使用前需要 <code>pip install paho-mqtt</code>，并且按照实际路径修改一下内容。验证能够跑起来后，写一个 telegraf 配置：</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[[inputs.exec]]</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">        </span><span class="n">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/usr/bin/python3 /path/to/telegraf-mi-aqara.py&quot;</span><span class="p">]</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;5s&quot;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="n">data_format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;influx&quot;</span>
+</span></code></pre></div>
+<p>现在就可以读取到各项信息，如温度，湿度，是否开门，开关用电情况等等。</p>
+<p>2018-12-16 更新：</p>
+<p>研究了一下<a href="https://github.com/aqara/aiot-gateway-local-api">绿米网关局域网通信协议</a>，得到了<a href="https://github.com/jiegec/tools/blob/master/telegraf-mi-aqara-v2.py">第二个版本 telegraf-mi-aqara-v2.py</a>，它与第一版的区别是，第一版是主动向网关读取信息，而这一版则是监听组播包，等待网关发消息。这个脚本负责把读取到的组播信息发送到 MQTT，再让 telegraf 从 MQTT 里解析 JSON 消息，写入数据库。Telegraf 配置如下：</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[[inputs.mqtt_consumer]]</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">        </span><span class="n">servers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tcp://127.0.0.1:1883&quot;</span><span class="p">]</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">        </span><span class="n">qos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">        </span><span class="n">connection_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;30s&quot;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">        </span><span class="n">topics</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">                </span><span class="s2">&quot;/telegraf-mi-aqara&quot;</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">        </span><span class="p">]</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">        </span><span class="n">persistent_session</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">        </span><span class="n">client_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Telegraf&quot;</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">        </span><span class="n">data_format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;json&quot;</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">        </span><span class="n">json_string_fields</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;sid&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;status&quot;</span><span class="p">]</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">        </span><span class="n">tag_keys</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;sid&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;short_id&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<p>由于设备不全，有些字段可能不完整。如果大家自己要用的话，可能需要自行修改一下。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -2612,53 +2667,6 @@
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="o">{</span><span class="w"> </span><span class="s2">&quot;featureCompatibilityVersion&quot;</span><span class="w"> </span>:<span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="s2">&quot;version&quot;</span><span class="w"> </span>:<span class="w"> </span><span class="s2">&quot;3.6&quot;</span><span class="w"> </span><span class="o">}</span>,<span class="w"> </span><span class="s2">&quot;ok&quot;</span><span class="w"> </span>:<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="o">}</span>
 </span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>$<span class="w"> </span><span class="c1"># Okay now</span>
 </span></code></pre></div>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2018-09-11 00:00:00">2018年9月11日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/networking/" class="md-meta__link">networking</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-ledeopenwrt上启用-wpad"><a class="toclink" href="../../networking/2018/09/11/enable-wpad-on-lede/">在 LEDE（OpenWrt）上启用 wpad</a></h2>
-<p>WPAD（Web Proxy Auto-Discovery Protocol）是一个可以利用 dhcp 分发 pac 配置的协议。方法如下：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span><span class="c1"># ssh to router first</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>$<span class="w"> </span>vim<span class="w"> </span>/etc/dnsmasq.conf
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>dhcp-option<span class="o">=</span><span class="m">252</span>,<span class="s2">&quot;http://router_ip/wpad.dat&quot;</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>$<span class="w"> </span>vim<span class="w"> </span>/www/wpad.dat<span class="w"> </span><span class="c1"># put pac here</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>$<span class="w"> </span>service<span class="w"> </span>dnsmasq<span class="w"> </span>restart
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>$<span class="w"> </span><span class="c1"># ensure proxy is available to lan</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>$<span class="w"> </span><span class="c1"># enable wpad on devices</span>
-</span></code></pre></div>
-<p>参考文档：</p>
-<ol>
-<li><a href="https://en.wikipedia.org/wiki/Web_Proxy_Auto-Discovery_Protocol">Web Proxy Auto-Discovery Protocol</a></li>
-<li><a href="https://www.davidpashley.com/articles/automatic-proxy-configuration-with-wpad/">Automatic Proxy Configuration with WPAD</a></li>
-<li><a href="https://findproxyforurl.com/deployment-options/">Deployment Options</a></li>
-<li><a href="http://findproxyforurl.com/example-pac-file/">Example PAC File</a></li>
-</ol>
     
   </div>
 </article>

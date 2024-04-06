@@ -235,6 +235,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#ceph-cookbook">
+<span class="md-ellipsis">
+      Ceph Cookbook
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#编程作业中的学术诚信">
 <span class="md-ellipsis">
       编程作业中的学术诚信
@@ -399,13 +406,6 @@
 <a class="md-nav__link" href="#在-m1-上运行-windows-arm-虚拟机">
 <span class="md-ellipsis">
       在 M1 上运行 Windows ARM 虚拟机
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#risc-v-vector-10-工具链构建">
-<span class="md-ellipsis">
-      RISC-V Vector 1.0 工具链构建
     </span>
 </a>
 </li>
@@ -708,6 +708,411 @@
 <header class="md-typeset">
 <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-07-16 00:00:00">2022年7月16日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/devops/">devops</a></li>
+<li class="md-meta__item">
+            
+              需要 6 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="ceph-cookbook"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/">Ceph Cookbook</a></h2>
+<h3 id="概念"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#概念">概念</a></h3>
+<ul>
+<li>OSD：负责操作硬盘的程序，一个硬盘一个 OSD</li>
+<li>MON：管理集群状态，比较重要，可以在多个节点上各跑一个</li>
+<li>MGR：监测集群状态</li>
+<li>RGW(optional)：提供对象存储 API</li>
+<li>MDS(optional)：提供 CephFS</li>
+</ul>
+<p>使用 Ceph 做存储的方式：</p>
+<ol>
+<li>librados: 库</li>
+<li>radosgw: 对象存储 HTTP API</li>
+<li>rbd: 块存储</li>
+<li>cephfs: 文件系统</li>
+</ol>
+<h3 id="认证"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#认证">认证</a></h3>
+<p>Ceph 客户端认证需要用户名 + 密钥。默认情况下，用户名是 <code>client.admin</code>，密钥路径是 <code>/etc/ceph/ceph.用户名.keyring</code>。<code>ceph --user abc</code> 表示以用户 <code>client.abc</code> 的身份访问集群。</p>
+<p>用户的权限是按照服务类型决定的。可以用 <code>ceph auth ls</code> 显示所有的用户以及权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-108-1"><a href="#__codelineno-108-1" id="__codelineno-108-1" name="__codelineno-108-1"></a>$<span class="w"> </span>ceph<span class="w"> </span>auth<span class="w"> </span>ls
+</span><span id="__span-108-2"><a href="#__codelineno-108-2" id="__codelineno-108-2" name="__codelineno-108-2"></a>osd.0
+</span><span id="__span-108-3"><a href="#__codelineno-108-3" id="__codelineno-108-3" name="__codelineno-108-3"></a><span class="w">        </span>key:<span class="w"> </span>REDACTED
+</span><span id="__span-108-4"><a href="#__codelineno-108-4" id="__codelineno-108-4" name="__codelineno-108-4"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mgr<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>profile<span class="w"> </span>osd
+</span><span id="__span-108-5"><a href="#__codelineno-108-5" id="__codelineno-108-5" name="__codelineno-108-5"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mon<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>profile<span class="w"> </span>osd
+</span><span id="__span-108-6"><a href="#__codelineno-108-6" id="__codelineno-108-6" name="__codelineno-108-6"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>osd<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-108-7"><a href="#__codelineno-108-7" id="__codelineno-108-7" name="__codelineno-108-7"></a>client.admin
+</span><span id="__span-108-8"><a href="#__codelineno-108-8" id="__codelineno-108-8" name="__codelineno-108-8"></a><span class="w">        </span>key:<span class="w"> </span>REDACTED
+</span><span id="__span-108-9"><a href="#__codelineno-108-9" id="__codelineno-108-9" name="__codelineno-108-9"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mds<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-108-10"><a href="#__codelineno-108-10" id="__codelineno-108-10" name="__codelineno-108-10"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mgr<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-108-11"><a href="#__codelineno-108-11" id="__codelineno-108-11" name="__codelineno-108-11"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>mon<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span><span id="__span-108-12"><a href="#__codelineno-108-12" id="__codelineno-108-12" name="__codelineno-108-12"></a><span class="w">        </span>caps:<span class="w"> </span><span class="o">[</span>osd<span class="o">]</span><span class="w"> </span>allow<span class="w"> </span>*
+</span></code></pre></div>
+<p>可以看到，<code>osd.0</code> 对 OSD 有所有权限，对 mgr 和 mon 都只有 osd 相关功能的权限；<code>client.admin</code> 有所有权限。<code>profile</code> 可以认为是预定义的一些权限集合。</p>
+<p>新建用户并赋予权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-109-1"><a href="#__codelineno-109-1" id="__codelineno-109-1" name="__codelineno-109-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>get-or-create<span class="w"> </span>client.abc<span class="w"> </span>mon<span class="w"> </span><span class="s1">'allow r'</span>
+</span></code></pre></div>
+<p>修改权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-110-1"><a href="#__codelineno-110-1" id="__codelineno-110-1" name="__codelineno-110-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>caps<span class="w"> </span>client.abc<span class="w"> </span>mon<span class="w"> </span><span class="s1">'allow rw'</span>
+</span></code></pre></div>
+<p>获取权限：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-111-1"><a href="#__codelineno-111-1" id="__codelineno-111-1" name="__codelineno-111-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>get<span class="w"> </span>client.abc
+</span></code></pre></div>
+<p>删除用户：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-112-1"><a href="#__codelineno-112-1" id="__codelineno-112-1" name="__codelineno-112-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>print-key<span class="w"> </span>client.abc
+</span></code></pre></div>
+<h3 id="osd"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#osd">OSD</a></h3>
+<p>管理 OSD 实际上就是管理存储数据的硬盘。</p>
+<p>查看状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-113-1"><a href="#__codelineno-113-1" id="__codelineno-113-1" name="__codelineno-113-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>stat
+</span></code></pre></div>
+<p>显示有多少个在线和离线的 OSD。</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-114-1"><a href="#__codelineno-114-1" id="__codelineno-114-1" name="__codelineno-114-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>tree
+</span></code></pre></div>
+<p>显示了存储的层级，其中 ID 非负数是实际的 OSD，负数是其他层级，例如存储池，机柜，主机等等。</p>
+<h3 id="crush"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#crush">CRUSH</a></h3>
+<p>CRUSH 是一个算法，指定了如何给 PG 分配 OSD，到什么类型的设备，确定它的 failure domain 等等。例如，如果指定 failure domain 为 host，那么它就会分配到不同 host 上的 osd，这样一个 host 挂了不至于全军覆没。类似地，还可以设定更多级别的 failure domain，例如 row，rack，chassis 等等。</p>
+<p>OSD 可以设置它的 CRUSH Location，在 ceph.conf 中定义。</p>
+<p>为了配置数据置放的规则，需要设置 CRUSH Rule。</p>
+<p>列举 CRUSH Rule：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-115-1"><a href="#__codelineno-115-1" id="__codelineno-115-1" name="__codelineno-115-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>ls
+</span><span id="__span-115-2"><a href="#__codelineno-115-2" id="__codelineno-115-2" name="__codelineno-115-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>dump
+</span></code></pre></div>
+<p>查看 CRUSH 层级：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-116-1"><a href="#__codelineno-116-1" id="__codelineno-116-1" name="__codelineno-116-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>tree<span class="w"> </span>--show-shadow
+</span></code></pre></div>
+<p>在里面可能会看到 <code>default~ssd</code>，它指的意思就是只保留 default 下面的 ssd 设备。</p>
+<p>文本形式导出 CRUSH 配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-117-1"><a href="#__codelineno-117-1" id="__codelineno-117-1" name="__codelineno-117-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>getcrushmap<span class="w"> </span><span class="p">|</span><span class="w"> </span>crushtool<span class="w"> </span>-d<span class="w"> </span>-<span class="w"> </span>-o<span class="w"> </span>crushmap
+</span><span id="__span-117-2"><a href="#__codelineno-117-2" id="__codelineno-117-2" name="__codelineno-117-2"></a>cat<span class="w"> </span>crushmap
+</span></code></pre></div>
+<p>可以看到 Rule 的定义，如：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-118-1"><a href="#__codelineno-118-1" id="__codelineno-118-1" name="__codelineno-118-1"></a># simple replicated
+</span><span id="__span-118-2"><a href="#__codelineno-118-2" id="__codelineno-118-2" name="__codelineno-118-2"></a>rule replicated_rule {
+</span><span id="__span-118-3"><a href="#__codelineno-118-3" id="__codelineno-118-3" name="__codelineno-118-3"></a>        id 0
+</span><span id="__span-118-4"><a href="#__codelineno-118-4" id="__codelineno-118-4" name="__codelineno-118-4"></a>        # a replicated rule
+</span><span id="__span-118-5"><a href="#__codelineno-118-5" id="__codelineno-118-5" name="__codelineno-118-5"></a>        type replicated
+</span><span id="__span-118-6"><a href="#__codelineno-118-6" id="__codelineno-118-6" name="__codelineno-118-6"></a>        # iterate all devices of "default"
+</span><span id="__span-118-7"><a href="#__codelineno-118-7" id="__codelineno-118-7" name="__codelineno-118-7"></a>        step take default
+</span><span id="__span-118-8"><a href="#__codelineno-118-8" id="__codelineno-118-8" name="__codelineno-118-8"></a>        # select n osd with failure domain "osd"
+</span><span id="__span-118-9"><a href="#__codelineno-118-9" id="__codelineno-118-9" name="__codelineno-118-9"></a>        # firstn: continuous
+</span><span id="__span-118-10"><a href="#__codelineno-118-10" id="__codelineno-118-10" name="__codelineno-118-10"></a>        step chooseleaf firstn 0 type osd
+</span><span id="__span-118-11"><a href="#__codelineno-118-11" id="__codelineno-118-11" name="__codelineno-118-11"></a>        step emit
+</span><span id="__span-118-12"><a href="#__codelineno-118-12" id="__codelineno-118-12" name="__codelineno-118-12"></a>}
+</span><span id="__span-118-13"><a href="#__codelineno-118-13" id="__codelineno-118-13" name="__codelineno-118-13"></a>
+</span><span id="__span-118-14"><a href="#__codelineno-118-14" id="__codelineno-118-14" name="__codelineno-118-14"></a># erasure on hdd
+</span><span id="__span-118-15"><a href="#__codelineno-118-15" id="__codelineno-118-15" name="__codelineno-118-15"></a>rule erasure-hdd {
+</span><span id="__span-118-16"><a href="#__codelineno-118-16" id="__codelineno-118-16" name="__codelineno-118-16"></a>        id 4
+</span><span id="__span-118-17"><a href="#__codelineno-118-17" id="__codelineno-118-17" name="__codelineno-118-17"></a>        # an erasure rule
+</span><span id="__span-118-18"><a href="#__codelineno-118-18" id="__codelineno-118-18" name="__codelineno-118-18"></a>        type erasure
+</span><span id="__span-118-19"><a href="#__codelineno-118-19" id="__codelineno-118-19" name="__codelineno-118-19"></a>        # try more times to find a good mapping
+</span><span id="__span-118-20"><a href="#__codelineno-118-20" id="__codelineno-118-20" name="__codelineno-118-20"></a>        step set_chooseleaf_tries 5
+</span><span id="__span-118-21"><a href="#__codelineno-118-21" id="__codelineno-118-21" name="__codelineno-118-21"></a>        step set_choose_tries 100
+</span><span id="__span-118-22"><a href="#__codelineno-118-22" id="__codelineno-118-22" name="__codelineno-118-22"></a>        # iterate hdd devices of "default", i.e. "default~hdd"
+</span><span id="__span-118-23"><a href="#__codelineno-118-23" id="__codelineno-118-23" name="__codelineno-118-23"></a>        step take default class hdd
+</span><span id="__span-118-24"><a href="#__codelineno-118-24" id="__codelineno-118-24" name="__codelineno-118-24"></a>        # select n osd with failure domain "osd"
+</span><span id="__span-118-25"><a href="#__codelineno-118-25" id="__codelineno-118-25" name="__codelineno-118-25"></a>        # indep: replace failed osd with another
+</span><span id="__span-118-26"><a href="#__codelineno-118-26" id="__codelineno-118-26" name="__codelineno-118-26"></a>        step choose indep 0 type osd
+</span><span id="__span-118-27"><a href="#__codelineno-118-27" id="__codelineno-118-27" name="__codelineno-118-27"></a>        step emit
+</span><span id="__span-118-28"><a href="#__codelineno-118-28" id="__codelineno-118-28" name="__codelineno-118-28"></a>}
+</span><span id="__span-118-29"><a href="#__codelineno-118-29" id="__codelineno-118-29" name="__codelineno-118-29"></a>
+</span><span id="__span-118-30"><a href="#__codelineno-118-30" id="__codelineno-118-30" name="__codelineno-118-30"></a># replicated on hdd
+</span><span id="__span-118-31"><a href="#__codelineno-118-31" id="__codelineno-118-31" name="__codelineno-118-31"></a>rule replicated-hdd-osd {
+</span><span id="__span-118-32"><a href="#__codelineno-118-32" id="__codelineno-118-32" name="__codelineno-118-32"></a>        id 5
+</span><span id="__span-118-33"><a href="#__codelineno-118-33" id="__codelineno-118-33" name="__codelineno-118-33"></a>        # a replicated rule
+</span><span id="__span-118-34"><a href="#__codelineno-118-34" id="__codelineno-118-34" name="__codelineno-118-34"></a>        type replicated
+</span><span id="__span-118-35"><a href="#__codelineno-118-35" id="__codelineno-118-35" name="__codelineno-118-35"></a>        # iterate hdd devices of "default", i.e. "default~hdd"
+</span><span id="__span-118-36"><a href="#__codelineno-118-36" id="__codelineno-118-36" name="__codelineno-118-36"></a>        step take default class hdd
+</span><span id="__span-118-37"><a href="#__codelineno-118-37" id="__codelineno-118-37" name="__codelineno-118-37"></a>        # select n osd with failure domain "osd"
+</span><span id="__span-118-38"><a href="#__codelineno-118-38" id="__codelineno-118-38" name="__codelineno-118-38"></a>        # firstn: continuous
+</span><span id="__span-118-39"><a href="#__codelineno-118-39" id="__codelineno-118-39" name="__codelineno-118-39"></a>        step choose firstn 0 type osd
+</span><span id="__span-118-40"><a href="#__codelineno-118-40" id="__codelineno-118-40" name="__codelineno-118-40"></a>        step emit
+</span><span id="__span-118-41"><a href="#__codelineno-118-41" id="__codelineno-118-41" name="__codelineno-118-41"></a>}
+</span><span id="__span-118-42"><a href="#__codelineno-118-42" id="__codelineno-118-42" name="__codelineno-118-42"></a>
+</span><span id="__span-118-43"><a href="#__codelineno-118-43" id="__codelineno-118-43" name="__codelineno-118-43"></a># replicated on different hosts
+</span><span id="__span-118-44"><a href="#__codelineno-118-44" id="__codelineno-118-44" name="__codelineno-118-44"></a>rule replicated-host {
+</span><span id="__span-118-45"><a href="#__codelineno-118-45" id="__codelineno-118-45" name="__codelineno-118-45"></a>        id 6
+</span><span id="__span-118-46"><a href="#__codelineno-118-46" id="__codelineno-118-46" name="__codelineno-118-46"></a>        # a replicated rule
+</span><span id="__span-118-47"><a href="#__codelineno-118-47" id="__codelineno-118-47" name="__codelineno-118-47"></a>        type replicated
+</span><span id="__span-118-48"><a href="#__codelineno-118-48" id="__codelineno-118-48" name="__codelineno-118-48"></a>        # iterate all devices of "default"
+</span><span id="__span-118-49"><a href="#__codelineno-118-49" id="__codelineno-118-49" name="__codelineno-118-49"></a>        step take default
+</span><span id="__span-118-50"><a href="#__codelineno-118-50" id="__codelineno-118-50" name="__codelineno-118-50"></a>        # select n osd with failure domain "host"
+</span><span id="__span-118-51"><a href="#__codelineno-118-51" id="__codelineno-118-51" name="__codelineno-118-51"></a>        # firstn: continuous
+</span><span id="__span-118-52"><a href="#__codelineno-118-52" id="__codelineno-118-52" name="__codelineno-118-52"></a>        step chooseleaf firstn 0 type host
+</span><span id="__span-118-53"><a href="#__codelineno-118-53" id="__codelineno-118-53" name="__codelineno-118-53"></a>        step emit
+</span><span id="__span-118-54"><a href="#__codelineno-118-54" id="__codelineno-118-54" name="__codelineno-118-54"></a>}
+</span><span id="__span-118-55"><a href="#__codelineno-118-55" id="__codelineno-118-55" name="__codelineno-118-55"></a>
+</span><span id="__span-118-56"><a href="#__codelineno-118-56" id="__codelineno-118-56" name="__codelineno-118-56"></a># replicate one on ssd, two on hdd
+</span><span id="__span-118-57"><a href="#__codelineno-118-57" id="__codelineno-118-57" name="__codelineno-118-57"></a>rule replicated-ssd-primary {
+</span><span id="__span-118-58"><a href="#__codelineno-118-58" id="__codelineno-118-58" name="__codelineno-118-58"></a>        id 7
+</span><span id="__span-118-59"><a href="#__codelineno-118-59" id="__codelineno-118-59" name="__codelineno-118-59"></a>        # a replicated rule
+</span><span id="__span-118-60"><a href="#__codelineno-118-60" id="__codelineno-118-60" name="__codelineno-118-60"></a>        type replicated
+</span><span id="__span-118-61"><a href="#__codelineno-118-61" id="__codelineno-118-61" name="__codelineno-118-61"></a>
+</span><span id="__span-118-62"><a href="#__codelineno-118-62" id="__codelineno-118-62" name="__codelineno-118-62"></a>        # iterate ssd devices of "default"
+</span><span id="__span-118-63"><a href="#__codelineno-118-63" id="__codelineno-118-63" name="__codelineno-118-63"></a>        step take default class ssd
+</span><span id="__span-118-64"><a href="#__codelineno-118-64" id="__codelineno-118-64" name="__codelineno-118-64"></a>        step chooseleaf firstn 1 type host
+</span><span id="__span-118-65"><a href="#__codelineno-118-65" id="__codelineno-118-65" name="__codelineno-118-65"></a>        step emit
+</span><span id="__span-118-66"><a href="#__codelineno-118-66" id="__codelineno-118-66" name="__codelineno-118-66"></a>
+</span><span id="__span-118-67"><a href="#__codelineno-118-67" id="__codelineno-118-67" name="__codelineno-118-67"></a>        # iterate hdd devices of "default"
+</span><span id="__span-118-68"><a href="#__codelineno-118-68" id="__codelineno-118-68" name="__codelineno-118-68"></a>        step take default class hdd
+</span><span id="__span-118-69"><a href="#__codelineno-118-69" id="__codelineno-118-69" name="__codelineno-118-69"></a>        step chooseleaf firstn 2 type host
+</span><span id="__span-118-70"><a href="#__codelineno-118-70" id="__codelineno-118-70" name="__codelineno-118-70"></a>        step emit
+</span><span id="__span-118-71"><a href="#__codelineno-118-71" id="__codelineno-118-71" name="__codelineno-118-71"></a>}
+</span></code></pre></div>
+<p>choose 和 chooseleaf 的区别是，前者可以 choose 到中间层级，例如先选择 host，再在 host 里面选 osd；而 chooseleaf 是直接找到 osd。所以 <code>choose type osd</code> 和 <code>chooseleaf type osd</code> 是等价的。</p>
+<p>如果这个搜索条件比较复杂，例如找到了某一个 host，里面的 osd 个数不够，就需要重新搜。</p>
+<p>新建一个 Replicated CRUSH Rule：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-119-1"><a href="#__codelineno-119-1" id="__codelineno-119-1" name="__codelineno-119-1"></a><span class="c1"># root=default, failure domain=osd</span>
+</span><span id="__span-119-2"><a href="#__codelineno-119-2" id="__codelineno-119-2" name="__codelineno-119-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>create-replicated<span class="w"> </span>xxx<span class="w"> </span>default<span class="w"> </span>osd
+</span><span id="__span-119-3"><a href="#__codelineno-119-3" id="__codelineno-119-3" name="__codelineno-119-3"></a><span class="c1"># root=default, failure domain=host, class=ssd</span>
+</span><span id="__span-119-4"><a href="#__codelineno-119-4" id="__codelineno-119-4" name="__codelineno-119-4"></a>ceph<span class="w"> </span>osd<span class="w"> </span>crush<span class="w"> </span>rule<span class="w"> </span>create-replicated<span class="w"> </span>yyy<span class="w"> </span>default<span class="w"> </span>host<span class="w"> </span>ssd
+</span></code></pre></div>
+<p>如果指定了 device class，它只会在对应类型的设备上存储。</p>
+<h3 id="pool"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#pool">Pool</a></h3>
+<p>Pool 是存储池，后续的 RBD/CephFS 功能都需要指定存储池来工作。</p>
+<p>创建存储池：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-120-1"><a href="#__codelineno-120-1" id="__codelineno-120-1" name="__codelineno-120-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>create<span class="w"> </span>xxx
+</span><span id="__span-120-2"><a href="#__codelineno-120-2" id="__codelineno-120-2" name="__codelineno-120-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>create<span class="w"> </span>PG_NUM
+</span></code></pre></div>
+<p>为了性能考虑，可以设置 PG（Placement Group）数量。默认情况下，会创建 replicated 类型的存储池，也就是会存多份，类似 RAID1。也可以设置成 erasure 类型的存储池，类似 RAID5。</p>
+<p>每个 Placement Group 里的数据会保存在同一组 OSD 中。数据通过 hash，会分布在不同的 PG 里。</p>
+<p>列举所有的存储池：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-121-1"><a href="#__codelineno-121-1" id="__codelineno-121-1" name="__codelineno-121-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>lspools
+</span></code></pre></div>
+<p>查看存储池的使用量：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-122-1"><a href="#__codelineno-122-1" id="__codelineno-122-1" name="__codelineno-122-1"></a>rados<span class="w"> </span>df
+</span></code></pre></div>
+<p>存储池的 IO 状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-123-1"><a href="#__codelineno-123-1" id="__codelineno-123-1" name="__codelineno-123-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>stats
+</span></code></pre></div>
+<p>对存储池做快照：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-124-1"><a href="#__codelineno-124-1" id="__codelineno-124-1" name="__codelineno-124-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>mksnap<span class="w"> </span>xxx<span class="w"> </span>snap-xxx-123
+</span></code></pre></div>
+<h4 id="pg"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#pg">PG</a></h4>
+<p>PG 是数据存放的组，每个对象都会放到一个 PG 里面，而 PG 会决定它保存到哪些 OSD 上（具体哪些 OSD 是由 CRUSH 决定的）。PG 数量只有一个的话，那么一个 pool 的所有数据都会存放在某几个 OSD 中，一旦这几个 OSD 都不工作了，那么整个 pool 的数据都不能访问了。PG 增多了以后，就会分布到不同的 OSD 上，并且各个 OSD 的占用也会比较均匀。</p>
+<p>查看 PG 状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-125-1"><a href="#__codelineno-125-1" id="__codelineno-125-1" name="__codelineno-125-1"></a>ceph<span class="w"> </span>pg<span class="w"> </span>dump
+</span></code></pre></div>
+<h5 id="auto-scale"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#auto-scale">Auto Scale</a></h5>
+<p>PG 数量可以让集群自动调整：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-126-1"><a href="#__codelineno-126-1" id="__codelineno-126-1" name="__codelineno-126-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span><span class="nb">set</span><span class="w"> </span>xxx<span class="w"> </span>pg_autoscale_mode<span class="w"> </span>on
+</span></code></pre></div>
+<p>设置 autoscale 目标为每个 OSD 平均 100 个 PG：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-127-1"><a href="#__codelineno-127-1" id="__codelineno-127-1" name="__codelineno-127-1"></a>ceph<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>global<span class="w"> </span>mon_target_pg_per_osd<span class="w"> </span><span class="m">100</span>
+</span></code></pre></div>
+<p>全局 autoscale 开关：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-128-1"><a href="#__codelineno-128-1" id="__codelineno-128-1" name="__codelineno-128-1"></a><span class="c1"># Enable</span>
+</span><span id="__span-128-2"><a href="#__codelineno-128-2" id="__codelineno-128-2" name="__codelineno-128-2"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span><span class="nb">unset</span><span class="w"> </span>noautoscale
+</span><span id="__span-128-3"><a href="#__codelineno-128-3" id="__codelineno-128-3" name="__codelineno-128-3"></a><span class="c1"># Disable</span>
+</span><span id="__span-128-4"><a href="#__codelineno-128-4" id="__codelineno-128-4" name="__codelineno-128-4"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span><span class="nb">set</span><span class="w"> </span>unautoscale
+</span><span id="__span-128-5"><a href="#__codelineno-128-5" id="__codelineno-128-5" name="__codelineno-128-5"></a><span class="c1"># Read</span>
+</span><span id="__span-128-6"><a href="#__codelineno-128-6" id="__codelineno-128-6" name="__codelineno-128-6"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>get<span class="w"> </span>noautoscale
+</span></code></pre></div>
+<p>查看 autoscale 状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-129-1"><a href="#__codelineno-129-1" id="__codelineno-129-1" name="__codelineno-129-1"></a>ceph<span class="w"> </span>osd<span class="w"> </span>pool<span class="w"> </span>autoscale-status
+</span></code></pre></div>
+<p>如果没有显示，说明 autoscale 没有工作，可能的原因是，部分 pool 采用了指定 osd class 的 crush rule，例如指定了 hdd 盘，但是也有部分 pool 没有指定盘的类型，例如默认的 replicated_rule。这时候，把这些盘也设置成一个指定 osd class 的 crush rule 即可。</p>
+<h3 id="rbd"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#rbd">RBD</a></h3>
+<p>RBD 把 Ceph 暴露为块设备。</p>
+<h4 id="创建"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#创建">创建</a></h4>
+<p>初始化 Pool 用于 RBD：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-130-1"><a href="#__codelineno-130-1" id="__codelineno-130-1" name="__codelineno-130-1"></a>rbd<span class="w"> </span>pool<span class="w"> </span>init<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>为了安全性考虑，一般会为 RBD 用户创建单独的用户：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-131-1"><a href="#__codelineno-131-1" id="__codelineno-131-1" name="__codelineno-131-1"></a>ceph<span class="w"> </span>auth<span class="w"> </span>get-or-create<span class="w"> </span>client.abc<span class="w"> </span>mon<span class="w"> </span><span class="s1">'profile rbd'</span><span class="w"> </span>osd<span class="w"> </span><span class="s1">'profile rbd pool=xxx'</span><span class="w"> </span>mgr<span class="w"> </span><span class="s1">'profile rbd pool=xxx'</span>
+</span></code></pre></div>
+<p>创建 RBD 镜像：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-132-1"><a href="#__codelineno-132-1" id="__codelineno-132-1" name="__codelineno-132-1"></a>rbd<span class="w"> </span>create<span class="w"> </span>--size<span class="w"> </span><span class="m">1024</span><span class="w"> </span>xxx/yyy
+</span></code></pre></div>
+<p>表示在 Pool xxx 上面创建了一个名字为 yyy 大小为 1024MB 的镜像。</p>
+<h4 id="状态"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#状态">状态</a></h4>
+<p>列举 Pool 里的镜像：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-133-1"><a href="#__codelineno-133-1" id="__codelineno-133-1" name="__codelineno-133-1"></a>rbd<span class="w"> </span>ls
+</span><span id="__span-133-2"><a href="#__codelineno-133-2" id="__codelineno-133-2" name="__codelineno-133-2"></a>rbd<span class="w"> </span>ls<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>默认的 Pool 名字是 <code>rbd</code>。</p>
+<p>查看镜像信息：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-134-1"><a href="#__codelineno-134-1" id="__codelineno-134-1" name="__codelineno-134-1"></a>rbd<span class="w"> </span>info<span class="w"> </span>yyy
+</span><span id="__span-134-2"><a href="#__codelineno-134-2" id="__codelineno-134-2" name="__codelineno-134-2"></a>rbd<span class="w"> </span>info<span class="w"> </span>xxx/yyy
+</span></code></pre></div>
+<h4 id="扩容"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#扩容">扩容</a></h4>
+<p>修改镜像的容量：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-135-1"><a href="#__codelineno-135-1" id="__codelineno-135-1" name="__codelineno-135-1"></a>rbd<span class="w"> </span>resize<span class="w"> </span>--size<span class="w"> </span><span class="m">2048</span><span class="w"> </span>yyy
+</span><span id="__span-135-2"><a href="#__codelineno-135-2" id="__codelineno-135-2" name="__codelineno-135-2"></a>rbd<span class="w"> </span>resize<span class="w"> </span>--size<span class="w"> </span><span class="m">512</span><span class="w"> </span>yyy<span class="w"> </span>--allow-shrink
+</span></code></pre></div>
+<h4 id="挂载"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#挂载">挂载</a></h4>
+<p>在其他机器挂载 RBD 的时候，首先要修改 <code>/etc/ceph</code> 下配置，确认有用户，密钥和 MON 的地址。</p>
+<p>然后，用 rbd 挂载设备：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-136-1"><a href="#__codelineno-136-1" id="__codelineno-136-1" name="__codelineno-136-1"></a>rbd<span class="w"> </span>device<span class="w"> </span>map<span class="w"> </span>xxx/yyy<span class="w"> </span>--id<span class="w"> </span>abc
+</span></code></pre></div>
+<p>以用户 abc 的身份挂载 Pool xxx 下面的 yyy 镜像。</p>
+<p>这时候就可以在 <code>/dev/rbd*</code> 或者 <code>/dev/rbd/</code> 下面看到设备文件了。</p>
+<p>显示已经挂载的设备：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-137-1"><a href="#__codelineno-137-1" id="__codelineno-137-1" name="__codelineno-137-1"></a>rbd<span class="w"> </span>device<span class="w"> </span>list
+</span></code></pre></div>
+<h3 id="cephfs"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#cephfs">CephFS</a></h3>
+<h4 id="创建_1"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#创建_1">创建</a></h4>
+<p>如果配置了编排器（Orchestrator），可以直接用命令：</p>
+<p><div class="language-shell highlight"><pre><span></span><code><span id="__span-138-1"><a href="#__codelineno-138-1" id="__codelineno-138-1" name="__codelineno-138-1"></a>ceph<span class="w"> </span>fs<span class="w"> </span>volume<span class="w"> </span>create<span class="w"> </span>xxx
+</span></code></pre></div>
+创建一个名为 <code>xxx</code> 的 CephFS。</p>
+<p>也可以手动创建：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-139-1"><a href="#__codelineno-139-1" id="__codelineno-139-1" name="__codelineno-139-1"></a>ceph osd pool create xxx_data0
+</span><span id="__span-139-2"><a href="#__codelineno-139-2" id="__codelineno-139-2" name="__codelineno-139-2"></a>ceph osd pool create xxx_metadata
+</span><span id="__span-139-3"><a href="#__codelineno-139-3" id="__codelineno-139-3" name="__codelineno-139-3"></a>ceph fs new xxx xxx_metadata xxx_data0
+</span></code></pre></div>
+<p>这样就创建了两个 pool，分别用于存储元数据和文件数据。一个 CephFS 需要一个 pool 保存元数据，若干个 pool 保存文件数据。</p>
+<p>创建了 CephFS 以后，相应的 MDS 也会启动。</p>
+<h4 id="状态_1"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#状态_1">状态</a></h4>
+<p>查看 MDS 状态：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-140-1"><a href="#__codelineno-140-1" id="__codelineno-140-1" name="__codelineno-140-1"></a>ceph mds stat
+</span></code></pre></div>
+<h4 id="客户端配置"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#客户端配置">客户端配置</a></h4>
+<p>在挂载 CephFS 之前，首先要配置客户端。</p>
+<p>在集群里运行 <code>ceph config generate-minimal-conf</code>，它会生成一个配置文件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-141-1"><a href="#__codelineno-141-1" id="__codelineno-141-1" name="__codelineno-141-1"></a>$<span class="w"> </span>ceph<span class="w"> </span>config<span class="w"> </span>generate-minimal-conf
+</span><span id="__span-141-2"><a href="#__codelineno-141-2" id="__codelineno-141-2" name="__codelineno-141-2"></a><span class="c1"># minimal ceph.conf for &lt;fsid&gt;</span>
+</span><span id="__span-141-3"><a href="#__codelineno-141-3" id="__codelineno-141-3" name="__codelineno-141-3"></a><span class="o">[</span>global<span class="o">]</span>
+</span><span id="__span-141-4"><a href="#__codelineno-141-4" id="__codelineno-141-4" name="__codelineno-141-4"></a><span class="w">        </span><span class="nv">fsid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>&lt;fsid&gt;
+</span><span id="__span-141-5"><a href="#__codelineno-141-5" id="__codelineno-141-5" name="__codelineno-141-5"></a><span class="w">        </span><span class="nv">mon_host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>v2:x.x.x.x:3300/0,v1:x.x.x.x:6789/0<span class="o">]</span>
+</span></code></pre></div>
+<p>把内容复制到客户端的 <code>/etc/ceph/ceph.conf</code>。这样客户端就能找到集群的 MON 地址和 FSID。</p>
+<p>接着，我们在集群上给客户端创建一个用户：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-142-1"><a href="#__codelineno-142-1" id="__codelineno-142-1" name="__codelineno-142-1"></a>ceph fs authorize xxx client.abc / rw
+</span></code></pre></div>
+<p>创建一个用户 abc，对 CephFS xxx 有读写的权限。把输出保存到客户端的 <code>/etc/ceph/ceph.client.abc.keyring</code> 即可。</p>
+<h4 id="挂载_1"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#挂载_1">挂载</a></h4>
+<p>挂载：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-143-1"><a href="#__codelineno-143-1" id="__codelineno-143-1" name="__codelineno-143-1"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@.xxx<span class="o">=</span>/<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-143-2"><a href="#__codelineno-143-2" id="__codelineno-143-2" name="__codelineno-143-2"></a><span class="c1"># or</span>
+</span><span id="__span-143-3"><a href="#__codelineno-143-3" id="__codelineno-143-3" name="__codelineno-143-3"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@&lt;fsid&gt;.xxx<span class="o">=</span>/<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-143-4"><a href="#__codelineno-143-4" id="__codelineno-143-4" name="__codelineno-143-4"></a><span class="c1"># or</span>
+</span><span id="__span-143-5"><a href="#__codelineno-143-5" id="__codelineno-143-5" name="__codelineno-143-5"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@&lt;fsid&gt;.xxx<span class="o">=</span>/<span class="w"> </span>-o<span class="w"> </span><span class="nv">mon_addr</span><span class="o">=</span>x.x.x.x:6789,secret<span class="o">=</span>REDACTED<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-143-6"><a href="#__codelineno-143-6" id="__codelineno-143-6" name="__codelineno-143-6"></a><span class="c1">#or</span>
+</span><span id="__span-143-7"><a href="#__codelineno-143-7" id="__codelineno-143-7" name="__codelineno-143-7"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>abc@.xxx<span class="o">=</span>/<span class="w"> </span>-o<span class="w"> </span><span class="nv">mon_addr</span><span class="o">=</span>x.x.x.x:6789/y.y.y.y:6789,secretfile<span class="o">=</span>/etc/ceph/xxx.secret<span class="w"> </span>MOUNTPOINT
+</span><span id="__span-143-8"><a href="#__codelineno-143-8" id="__codelineno-143-8" name="__codelineno-143-8"></a><span class="c1"># or</span>
+</span><span id="__span-143-9"><a href="#__codelineno-143-9" id="__codelineno-143-9" name="__codelineno-143-9"></a>mount<span class="w"> </span>-t<span class="w"> </span>ceph<span class="w"> </span>-o<span class="w"> </span><span class="nv">name</span><span class="o">=</span>client.abc,secret<span class="o">=</span>REDACTED,mds_namespace<span class="o">=</span>xxx<span class="w"> </span>MON_IP:/<span class="w"> </span>MOUNTPOINT
+</span></code></pre></div>
+<p>以用户 <code>client.abc</code> 的身份登录，挂载 CepFS <code>xxx</code> 下面的 <code>/</code> 目录到 <code>MOUNTPOINT</code>。它会读取 <code>/etc/ceph</code> 下面的配置，如果已经 <code>ceph.conf</code> 写了，命令行里就可以不写。</p>
+<p>fsid 指的不是 CephFS 的 ID，实际上是集群的 ID：<code>ceph fsid</code>。</p>
+<h4 id="限额"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#限额">限额</a></h4>
+<p>CephFS 可以对目录进行限额：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-144-1"><a href="#__codelineno-144-1" id="__codelineno-144-1" name="__codelineno-144-1"></a>setfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_bytes<span class="w"> </span>-v<span class="w"> </span>LIMIT<span class="w"> </span>PATH
+</span><span id="__span-144-2"><a href="#__codelineno-144-2" id="__codelineno-144-2" name="__codelineno-144-2"></a>setfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_files<span class="w"> </span>-v<span class="w"> </span>LIMIT<span class="w"> </span>PATH
+</span><span id="__span-144-3"><a href="#__codelineno-144-3" id="__codelineno-144-3" name="__codelineno-144-3"></a>getfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_bytes<span class="w"> </span>PATH
+</span><span id="__span-144-4"><a href="#__codelineno-144-4" id="__codelineno-144-4" name="__codelineno-144-4"></a>getfattr<span class="w"> </span>-n<span class="w"> </span>ceph.quota.max_files<span class="w"> </span>PATH
+</span></code></pre></div>
+<p>限制目录大小和文件数量。LIMIT 是 0 的时候表示没有限制。</p>
+<h4 id="nfs"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#nfs">NFS</a></h4>
+<p>可以把 CephFS 或者 RGW 通过 NFS 的方式共享出去。</p>
+<p>启动 NFS 服务：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-145-1"><a href="#__codelineno-145-1" id="__codelineno-145-1" name="__codelineno-145-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>create<span class="w"> </span>xxx
+</span><span id="__span-145-2"><a href="#__codelineno-145-2" id="__codelineno-145-2" name="__codelineno-145-2"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>create<span class="w"> </span>xxx<span class="w"> </span><span class="s2">"host1,host2"</span>
+</span></code></pre></div>
+<p>在主机上运行 NFS 服务器，NFS 集群的名字叫做 xxx。</p>
+<p>查看 NFS 集群信息：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-146-1"><a href="#__codelineno-146-1" id="__codelineno-146-1" name="__codelineno-146-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>info<span class="w"> </span>xxx
+</span></code></pre></div>
+<p>列举所有 NFS 集群：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-147-1"><a href="#__codelineno-147-1" id="__codelineno-147-1" name="__codelineno-147-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span>cluster<span class="w"> </span>ls
+</span></code></pre></div>
+<p>NFS 导出 CephFS：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-148-1"><a href="#__codelineno-148-1" id="__codelineno-148-1" name="__codelineno-148-1"></a>ceph<span class="w"> </span>nfs<span class="w"> </span><span class="nb">export</span><span class="w"> </span>create<span class="w"> </span>cephfs<span class="w"> </span>--cluster-id<span class="w"> </span>xxx<span class="w"> </span>--pseudo-path<span class="w"> </span>/a/b/c<span class="w"> </span>--fsname<span class="w"> </span>some-cephfs-name<span class="w"> </span><span class="o">[</span>--path<span class="o">=</span>/d/e/f<span class="o">]</span><span class="w"> </span><span class="o">[</span>--client_addr<span class="w"> </span>y.y.y.y<span class="o">]</span>
+</span></code></pre></div>
+<p>这样就导出了 CephFS 内的一个目录，客户端可以通过 NFS 挂载 /a/b/c 路径（pseudo path）来访问。可以设置客户端的 IP 访问权限。</p>
+<p>这样在客户端就可以 mount：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-149-1"><a href="#__codelineno-149-1" id="__codelineno-149-1" name="__codelineno-149-1"></a>mount<span class="w"> </span>-t<span class="w"> </span>nfs<span class="w"> </span>x.x.x.x:/a/b/c<span class="w"> </span>/mnt
+</span></code></pre></div>
+<h3 id="radosgw"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#radosgw">RadosGW</a></h3>
+<p>RGW 提供了 S3 或者 OpenStack Swift 兼容的对象存储 API。</p>
+<p>TODO</p>
+<h3 id="编排器"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#编排器">编排器</a></h3>
+<p>由于 Ceph 需要运行多个 daemon，并且都在不同的容器中运行，所以一般会跑一个系统级的编排器，用于新增和管理这些容器。</p>
+<p>查看当前编排器：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-150-1"><a href="#__codelineno-150-1" id="__codelineno-150-1" name="__codelineno-150-1"></a>$<span class="w"> </span>ceph<span class="w"> </span>orch<span class="w"> </span>status
+</span><span id="__span-150-2"><a href="#__codelineno-150-2" id="__codelineno-150-2" name="__codelineno-150-2"></a>Backend:<span class="w"> </span>cephadm
+</span><span id="__span-150-3"><a href="#__codelineno-150-3" id="__codelineno-150-3" name="__codelineno-150-3"></a>Available:<span class="w"> </span>Yes
+</span><span id="__span-150-4"><a href="#__codelineno-150-4" id="__codelineno-150-4" name="__codelineno-150-4"></a>Paused:<span class="w"> </span>No
+</span></code></pre></div>
+<p>比较常见的就是 cephadm，安装的时候如果用了 cephadm，那么编排器也是它。</p>
+<p>被编排的服务：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-151-1"><a href="#__codelineno-151-1" id="__codelineno-151-1" name="__codelineno-151-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ls
+</span></code></pre></div>
+<p>被编排的容器：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-152-1"><a href="#__codelineno-152-1" id="__codelineno-152-1" name="__codelineno-152-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ps
+</span></code></pre></div>
+<p>被编排的主机：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-153-1"><a href="#__codelineno-153-1" id="__codelineno-153-1" name="__codelineno-153-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>host<span class="w"> </span>ls
+</span></code></pre></div>
+<h4 id="添加新机器"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#添加新机器">添加新机器</a></h4>
+<p>首先，复制 <code>/etc/ceph/ceph.pub</code> 到新机器的 <code>/root/.ssh/authorized_keys</code> 中</p>
+<p>接着，添加机器到编排器中：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-154-1"><a href="#__codelineno-154-1" id="__codelineno-154-1" name="__codelineno-154-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>host<span class="w"> </span>add<span class="w"> </span>xxxx<span class="w"> </span>y.y.y.y
+</span></code></pre></div>
+<p>导出编排器配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-155-1"><a href="#__codelineno-155-1" id="__codelineno-155-1" name="__codelineno-155-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ls<span class="w"> </span>--export<span class="w"> </span>&gt;<span class="w"> </span>cephadm.yaml
+</span></code></pre></div>
+<p>如果想让一些 daemon 只运行在部分主机上，可以修改：</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-156-1"><a href="#__codelineno-156-1" id="__codelineno-156-1" name="__codelineno-156-1"></a><span class="c1"># change</span>
+</span><span id="__span-156-2"><a href="#__codelineno-156-2" id="__codelineno-156-2" name="__codelineno-156-2"></a><span class="nt">placement</span><span class="p">:</span>
+</span><span id="__span-156-3"><a href="#__codelineno-156-3" id="__codelineno-156-3" name="__codelineno-156-3"></a><span class="w">  </span><span class="nt">host_pattern</span><span class="p">:</span><span class="w"> </span><span class="s">'*'</span>
+</span><span id="__span-156-4"><a href="#__codelineno-156-4" id="__codelineno-156-4" name="__codelineno-156-4"></a><span class="c1"># to</span>
+</span><span id="__span-156-5"><a href="#__codelineno-156-5" id="__codelineno-156-5" name="__codelineno-156-5"></a><span class="nt">placement</span><span class="p">:</span>
+</span><span id="__span-156-6"><a href="#__codelineno-156-6" id="__codelineno-156-6" name="__codelineno-156-6"></a><span class="w">  </span><span class="nt">host_pattern</span><span class="p">:</span><span class="w"> </span><span class="s">'xxx'</span>
+</span></code></pre></div>
+<p>然后应用：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-157-1"><a href="#__codelineno-157-1" id="__codelineno-157-1" name="__codelineno-157-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>-i<span class="w"> </span>cephadm.yaml
+</span></code></pre></div>
+<h4 id="配置监控"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#配置监控">配置监控</a></h4>
+<p>添加监控相关的服务：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-158-1"><a href="#__codelineno-158-1" id="__codelineno-158-1" name="__codelineno-158-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>node-exporter
+</span><span id="__span-158-2"><a href="#__codelineno-158-2" id="__codelineno-158-2" name="__codelineno-158-2"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>alertmanager
+</span><span id="__span-158-3"><a href="#__codelineno-158-3" id="__codelineno-158-3" name="__codelineno-158-3"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>prometheus
+</span><span id="__span-158-4"><a href="#__codelineno-158-4" id="__codelineno-158-4" name="__codelineno-158-4"></a>ceph<span class="w"> </span>orch<span class="w"> </span>apply<span class="w"> </span>grafana
+</span><span id="__span-158-5"><a href="#__codelineno-158-5" id="__codelineno-158-5" name="__codelineno-158-5"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ps
+</span></code></pre></div>
+<p>然后就可以访问 Grafana 看到集群的状态。</p>
+<h3 id="更新"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#更新">更新</a></h3>
+<p>使用容器编排器来升级：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-159-1"><a href="#__codelineno-159-1" id="__codelineno-159-1" name="__codelineno-159-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--ceph-version<span class="w"> </span>x.x.x
+</span><span id="__span-159-2"><a href="#__codelineno-159-2" id="__codelineno-159-2" name="__codelineno-159-2"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--image<span class="w"> </span>quay.io/ceph/ceph:vx.x.x
+</span></code></pre></div>
+<p>如果 docker hub 上找不到 image，就从 quay.io 拉取。</p>
+<p>查看升级状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-160-1"><a href="#__codelineno-160-1" id="__codelineno-160-1" name="__codelineno-160-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>status
+</span><span id="__span-160-2"><a href="#__codelineno-160-2" id="__codelineno-160-2" name="__codelineno-160-2"></a>ceph<span class="w"> </span>-s
+</span></code></pre></div>
+<p>查看 cephadm 日志：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-161-1"><a href="#__codelineno-161-1" id="__codelineno-161-1" name="__codelineno-161-1"></a>ceph<span class="w"> </span>-W<span class="w"> </span>cephadm
+</span></code></pre></div>
+<h3 id="参考文档"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://docs.ceph.com/en/latest/architecture/">Ceph Architecture</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rados/operations/user-management/">Ceph User Management</a></li>
+<li><a href="https://docs.ceph.com/en/latest/cephfs/createfs/">Ceph Create a Ceph File System</a></li>
+<li><a href="https://docs.ceph.com/en/latest/man/8/mount.ceph/">mount.ceph</a></li>
+<li><a href="https://docs.ceph.com/en/latest/cephfs/quota/">Ceph CephFS Quota</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/">Ceph Basic Block Device Commands</a></li>
+<li><a href="https://docs.ceph.com/en/quincy/cephadm/upgrade/">Ceph Upgrade</a></li>
+<li><a href="https://docs.ceph.com/en/latest/mgr/nfs/">Ceph CephFS &amp; RGW Exports Over NFS</a></li>
+<li><a href="https://docs.ceph.com/en/quincy/rados/operations/crush-map/">CRUSH Maps</a></li>
+<li><a href="https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/">CRUSH Map Edits</a></li>
+<li><a href="https://llussy.github.io/2019/08/17/ceph-architecture/">ceph 架构和概念</a></li>
+<li><a href="https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw">RedHat Object Gateway Guide</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -1234,9 +1639,9 @@ July 2019.)
 <li>Installer Type: deb (network)</li>
 </ol>
 <p>此时，下面就会显示一些命令，复制下来执行：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-16-1"><a href="#__codelineno-16-1" id="__codelineno-16-1" name="__codelineno-16-1"></a>wget<span class="w"> </span>https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
-</span><span id="__span-16-2"><a href="#__codelineno-16-2" id="__codelineno-16-2" name="__codelineno-16-2"></a>sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </span>cuda-keyring_1.0-1_all.deb
-</span><span id="__span-16-3"><a href="#__codelineno-16-3" id="__codelineno-16-3" name="__codelineno-16-3"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>wget<span class="w"> </span>https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
+</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a>sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </span>cuda-keyring_1.0-1_all.deb
+</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 </span></code></pre></div>
 <p>最后一步的 <code>sudo apt-get -y install cuda</code> 可以不着急安装，我们在后面再来讨论 CUDA 版本的问题。</p>
 <h3 id="nvidia-驱动"><a class="toclink" href="../../software/2022/07/06/install-nvidia-cuda/#nvidia-驱动">NVIDIA 驱动</a></h3>
@@ -1247,59 +1652,59 @@ July 2019.)
 </ol>
 <p>这些信息在网络上都可以查到，也可以参考 <a href="../../software/2021/12/26/nvidia-cuda/">NVIDIA 驱动和 CUDA 版本信息速查</a>。</p>
 <p>假如我们已经选择了要安装 470.129.06 版本，那么，我们接下来要确认一下 NVIDIA 的 APT 源的版本名称：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a href="#__codelineno-17-1" id="__codelineno-17-1" name="__codelineno-17-1"></a>sudo apt show -a nvidia-driver-470
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>sudo apt show -a nvidia-driver-470
 </span></code></pre></div>
 <p>在输出的结果中搜索 <code>470.129.06</code>，找到 <code>Version: 470.129.06-0ubuntu1</code>，下面写了 <code>APT-Sources: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64 Packages</code>，这就说明这个版本是从 NVIDIA 的 APT 源来的。</p>
 <p>所以，我们要用 <code>470.129.06-0ubuntu1</code>，而不是 <code>470.129.06-0ubuntu0.20.04.1</code>，后者是 Ubuntu 源自带的，我们要用前者。</p>
 <p>接下来，指定版本安装驱动：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-18-1"><a href="#__codelineno-18-1" id="__codelineno-18-1" name="__codelineno-18-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>nvidia-driver-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>nvidia-driver-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1
 </span></code></pre></div>
 <p>如果系统里已经安装了其他版本的 nvidia 驱动，可能会出现冲突。这时候，只需要把冲突的包也写在要安装的包里即可，例如：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-19-1"><a href="#__codelineno-19-1" id="__codelineno-19-1" name="__codelineno-19-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>nvidia-utils-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>cuda-drivers<span class="o">=</span><span class="m">470</span>.129.06-1<span class="w"> </span>cuda-drivers-470<span class="o">=</span><span class="m">470</span>.129.06-1<span class="w"> </span>nvidia-driver-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-gl-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-compute-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-decode-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-encode-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-ifr1-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-fbc1-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-common-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-kernel-source-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-dkms-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-kernel-common-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-extra-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-compute-utils-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>xserver-xorg-video-nvidia-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-cfg1-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-settings<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span><span class="nv">libxnvctrl0</span><span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-modprobe<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>nvidia-utils-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>cuda-drivers<span class="o">=</span><span class="m">470</span>.129.06-1<span class="w"> </span>cuda-drivers-470<span class="o">=</span><span class="m">470</span>.129.06-1<span class="w"> </span>nvidia-driver-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-gl-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-compute-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-decode-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-encode-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-ifr1-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-fbc1-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-common-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-kernel-source-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-dkms-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-kernel-common-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-extra-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-compute-utils-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>xserver-xorg-video-nvidia-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>libnvidia-cfg1-470<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-settings<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span><span class="nv">libxnvctrl0</span><span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>nvidia-modprobe<span class="o">=</span><span class="m">470</span>.129.06-0ubuntu1
 </span></code></pre></div>
 <p>最终，我们要保证，系统里面所有 nvidia 驱动相关的包都是同一个版本：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-20-1"><a href="#__codelineno-20-1" id="__codelineno-20-1" name="__codelineno-20-1"></a>$<span class="w"> </span>sudo<span class="w"> </span>apt<span class="w"> </span>list<span class="w"> </span>--installed<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>nvidia
-</span><span id="__span-20-2"><a href="#__codelineno-20-2" id="__codelineno-20-2" name="__codelineno-20-2"></a>libnvidia-cfg1-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-3"><a href="#__codelineno-20-3" id="__codelineno-20-3" name="__codelineno-20-3"></a>libnvidia-common-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>all<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-4"><a href="#__codelineno-20-4" id="__codelineno-20-4" name="__codelineno-20-4"></a>libnvidia-compute-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-5"><a href="#__codelineno-20-5" id="__codelineno-20-5" name="__codelineno-20-5"></a>libnvidia-decode-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-6"><a href="#__codelineno-20-6" id="__codelineno-20-6" name="__codelineno-20-6"></a>libnvidia-encode-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-7"><a href="#__codelineno-20-7" id="__codelineno-20-7" name="__codelineno-20-7"></a>libnvidia-extra-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-8"><a href="#__codelineno-20-8" id="__codelineno-20-8" name="__codelineno-20-8"></a>libnvidia-fbc1-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-9"><a href="#__codelineno-20-9" id="__codelineno-20-9" name="__codelineno-20-9"></a>libnvidia-gl-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-10"><a href="#__codelineno-20-10" id="__codelineno-20-10" name="__codelineno-20-10"></a>libnvidia-ifr1-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-11"><a href="#__codelineno-20-11" id="__codelineno-20-11" name="__codelineno-20-11"></a>nvidia-compute-utils-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-12"><a href="#__codelineno-20-12" id="__codelineno-20-12" name="__codelineno-20-12"></a>nvidia-dkms-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-13"><a href="#__codelineno-20-13" id="__codelineno-20-13" name="__codelineno-20-13"></a>nvidia-driver-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
-</span><span id="__span-20-14"><a href="#__codelineno-20-14" id="__codelineno-20-14" name="__codelineno-20-14"></a>nvidia-fabricmanager-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-15"><a href="#__codelineno-20-15" id="__codelineno-20-15" name="__codelineno-20-15"></a>nvidia-kernel-common-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-16"><a href="#__codelineno-20-16" id="__codelineno-20-16" name="__codelineno-20-16"></a>nvidia-kernel-source-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-17"><a href="#__codelineno-20-17" id="__codelineno-20-17" name="__codelineno-20-17"></a>nvidia-modprobe/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,upgradable<span class="w"> </span>to:<span class="w"> </span><span class="m">515</span>.48.07-0ubuntu1<span class="o">]</span>
-</span><span id="__span-20-18"><a href="#__codelineno-20-18" id="__codelineno-20-18" name="__codelineno-20-18"></a>nvidia-settings/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,upgradable<span class="w"> </span>to:<span class="w"> </span><span class="m">515</span>.48.07-0ubuntu1<span class="o">]</span>
-</span><span id="__span-20-19"><a href="#__codelineno-20-19" id="__codelineno-20-19" name="__codelineno-20-19"></a>nvidia-utils-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
-</span><span id="__span-20-20"><a href="#__codelineno-20-20" id="__codelineno-20-20" name="__codelineno-20-20"></a>xserver-xorg-video-nvidia-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>$<span class="w"> </span>sudo<span class="w"> </span>apt<span class="w"> </span>list<span class="w"> </span>--installed<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>nvidia
+</span><span id="__span-12-2"><a href="#__codelineno-12-2" id="__codelineno-12-2" name="__codelineno-12-2"></a>libnvidia-cfg1-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-3"><a href="#__codelineno-12-3" id="__codelineno-12-3" name="__codelineno-12-3"></a>libnvidia-common-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>all<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-4"><a href="#__codelineno-12-4" id="__codelineno-12-4" name="__codelineno-12-4"></a>libnvidia-compute-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-5"><a href="#__codelineno-12-5" id="__codelineno-12-5" name="__codelineno-12-5"></a>libnvidia-decode-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-6"><a href="#__codelineno-12-6" id="__codelineno-12-6" name="__codelineno-12-6"></a>libnvidia-encode-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-7"><a href="#__codelineno-12-7" id="__codelineno-12-7" name="__codelineno-12-7"></a>libnvidia-extra-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-8"><a href="#__codelineno-12-8" id="__codelineno-12-8" name="__codelineno-12-8"></a>libnvidia-fbc1-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-9"><a href="#__codelineno-12-9" id="__codelineno-12-9" name="__codelineno-12-9"></a>libnvidia-gl-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-10"><a href="#__codelineno-12-10" id="__codelineno-12-10" name="__codelineno-12-10"></a>libnvidia-ifr1-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-11"><a href="#__codelineno-12-11" id="__codelineno-12-11" name="__codelineno-12-11"></a>nvidia-compute-utils-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-12"><a href="#__codelineno-12-12" id="__codelineno-12-12" name="__codelineno-12-12"></a>nvidia-dkms-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-13"><a href="#__codelineno-12-13" id="__codelineno-12-13" name="__codelineno-12-13"></a>nvidia-driver-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed<span class="o">]</span>
+</span><span id="__span-12-14"><a href="#__codelineno-12-14" id="__codelineno-12-14" name="__codelineno-12-14"></a>nvidia-fabricmanager-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-15"><a href="#__codelineno-12-15" id="__codelineno-12-15" name="__codelineno-12-15"></a>nvidia-kernel-common-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-16"><a href="#__codelineno-12-16" id="__codelineno-12-16" name="__codelineno-12-16"></a>nvidia-kernel-source-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-17"><a href="#__codelineno-12-17" id="__codelineno-12-17" name="__codelineno-12-17"></a>nvidia-modprobe/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,upgradable<span class="w"> </span>to:<span class="w"> </span><span class="m">515</span>.48.07-0ubuntu1<span class="o">]</span>
+</span><span id="__span-12-18"><a href="#__codelineno-12-18" id="__codelineno-12-18" name="__codelineno-12-18"></a>nvidia-settings/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,upgradable<span class="w"> </span>to:<span class="w"> </span><span class="m">515</span>.48.07-0ubuntu1<span class="o">]</span>
+</span><span id="__span-12-19"><a href="#__codelineno-12-19" id="__codelineno-12-19" name="__codelineno-12-19"></a>nvidia-utils-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
+</span><span id="__span-12-20"><a href="#__codelineno-12-20" id="__codelineno-12-20" name="__codelineno-12-20"></a>xserver-xorg-video-nvidia-470/unknown,now<span class="w"> </span><span class="m">470</span>.129.06-0ubuntu1<span class="w"> </span>amd64<span class="w"> </span><span class="o">[</span>installed,automatic<span class="o">]</span>
 </span></code></pre></div>
 <p>接下来，为了防止 apt 升级的时候顺手破坏了一致的版本，我们要把包固定在一个版本里：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-21-1"><a href="#__codelineno-21-1" id="__codelineno-21-1" name="__codelineno-21-1"></a>sudo<span class="w"> </span>apt-mark<span class="w"> </span>hold<span class="w"> </span>cuda-drivers<span class="w"> </span>nvidia-modprobe<span class="w"> </span>nvidia-settings<span class="w"> </span>libxnvctrl0
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-13-1"><a href="#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a>sudo<span class="w"> </span>apt-mark<span class="w"> </span>hold<span class="w"> </span>cuda-drivers<span class="w"> </span>nvidia-modprobe<span class="w"> </span>nvidia-settings<span class="w"> </span>libxnvctrl0
 </span></code></pre></div>
 <p>如果有其他 nvidia 包说要自动升级，也可以类似地固定住。</p>
 <h3 id="cuda"><a class="toclink" href="../../software/2022/07/06/install-nvidia-cuda/#cuda">CUDA</a></h3>
 <p>CUDA 实际上是绿色软件，把整个目录放在任意一个目录，都可以使用。</p>
 <p>安装 CUDA 的方式有很多，我们可以用 APT 安装全局的，也可以用 Spack 或者 Anaconda 安装到本地目录。实际上这些安装过程都是把同样的文件复制到不同的地方而已。</p>
 <p>如果要安装全局的话，还是推荐用 NVIDIA 的 APT 源，以安装 CUDA 11.1 为例：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-22-1"><a href="#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cuda-11-1
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-14-1"><a href="#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cuda-11-1
 </span></code></pre></div>
 <p>那么 CUDA 就会安装到 /usr/local/cuda-11.1 目录下。如果想要用 nvcc，我们可以手动把它加到 PATH 环境变量中。</p>
 <p>CUDA 是可以多版本共存的，比如你可以把 CUDA 11.1 到 CUDA 11.7 一口气都装了。不过注意，CUDA 对 NVIDIA 驱动有版本要求，所以有一些可能会不满足 APT 的版本要求；同时，CUDA 对编译器版本有要求，所以如果系统还是 Ubuntu 16.04 或者 18.04，赶紧升级吧。</p>
 <h3 id="nvidia-container-toolkit"><a class="toclink" href="../../software/2022/07/06/install-nvidia-cuda/#nvidia-container-toolkit">NVIDIA Container Toolkit</a></h3>
 <p>安装方法：<a href="https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#linux-distributions">https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#linux-distributions</a></p>
 <p>命令：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://nvidia.github.io/libnvidia-container/gpgkey<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>gpg<span class="w"> </span>--dearmor<span class="w"> </span>-o<span class="w"> </span>/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-L<span class="w"> </span>https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a><span class="w">    </span>sed<span class="w"> </span><span class="s1">'s#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="w">    </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/apt/sources.list.d/nvidia-container-toolkit.list<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-23-6"><a href="#__codelineno-23-6" id="__codelineno-23-6" name="__codelineno-23-6"></a><span class="w">    </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-15-1"><a href="#__codelineno-15-1" id="__codelineno-15-1" name="__codelineno-15-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://nvidia.github.io/libnvidia-container/gpgkey<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>gpg<span class="w"> </span>--dearmor<span class="w"> </span>-o<span class="w"> </span>/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-2"><a href="#__codelineno-15-2" id="__codelineno-15-2" name="__codelineno-15-2"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-L<span class="w"> </span>https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-3"><a href="#__codelineno-15-3" id="__codelineno-15-3" name="__codelineno-15-3"></a><span class="w">    </span>sed<span class="w"> </span><span class="s1">'s#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-4"><a href="#__codelineno-15-4" id="__codelineno-15-4" name="__codelineno-15-4"></a><span class="w">    </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/apt/sources.list.d/nvidia-container-toolkit.list<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-5"><a href="#__codelineno-15-5" id="__codelineno-15-5" name="__codelineno-15-5"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-6"><a href="#__codelineno-15-6" id="__codelineno-15-6" name="__codelineno-15-6"></a><span class="w">    </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 </span></code></pre></div>
 </div>
 </article>
@@ -6919,75 +7324,6 @@ contains the 2 currently supported drivers for graphics and networking.
 <p>回收硬盘空间：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>sudo<span class="w"> </span>vmware-toolbox-cmd<span class="w"> </span>disk<span class="w"> </span>shrink<span class="w"> </span>/
 </span></code></pre></div>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2022-01-25 00:00:00">2022年1月25日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/software/">software</a></li>
-<li class="md-meta__item">
-            
-              需要 2 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="risc-v-vector-10-工具链构建"><a class="toclink" href="../../software/2022/01/25/rvv-1.0-toolchain/">RISC-V Vector 1.0 工具链构建</a></h2>
-<p>不久前 RVV 1.0 标准终于是出来了，但是工具链的支持目前基本还处于刚 upstream 还没有 release 的状态。而目前 RVV 1.0 的支持主要在 LLVM 上比较活跃，因此也是采用 LLVM Clang + GCC Newlib Toolchain 的方式进行配合，前者做 RVV 1.0 的编译，后者提供 libc 等基础库。</p>
-<p>UPDATE: LLVM 14 已经发布，这个版本已经支持 RVV 1.0，直接从 https://apt.llvm.org 等地安装 LLVM 14 即可。</p>
-<p>LLVM Clang 直接采用 upstream 即可。编译选项：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>$<span class="w"> </span>cmake<span class="w"> </span>-G<span class="w"> </span>Ninja<span class="w"> </span>../llvm<span class="w"> </span>-DCMAKE_C_COMPILER<span class="o">=</span>clang<span class="w"> </span>-DCMAKE_CXX_COMPILER<span class="o">=</span>clang++<span class="w"> </span>-DCMAKE_INSTALL_PREFIX<span class="o">=</span>/prefix/llvm<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span>-DLLVM_ENABLE_PROJECTS<span class="o">=</span><span class="s2">"clang"</span><span class="w"> </span>-DLLVM_TARGETS_TO_BUILD<span class="o">=</span><span class="s2">"RISCV"</span>
-</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>$<span class="w"> </span>ninja
-</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a>$<span class="w"> </span>ninja<span class="w"> </span>install
-</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a>$<span class="w"> </span>/prefix/llvm/bin/clang<span class="w"> </span>--version
-</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a>clang<span class="w"> </span>version<span class="w"> </span><span class="m">14</span>.0.0<span class="w"> </span><span class="o">(</span>https://github.com/llvm/llvm-project.git<span class="w"> </span>8d298355ca3778a47fd6b3110aeee03ea5e8e02b<span class="o">)</span>
-</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a>Target:<span class="w"> </span>x86_64-unknown-linux-gnu
-</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a>Thread<span class="w"> </span>model:<span class="w"> </span>posix
-</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a>InstalledDir:<span class="w"> </span>/data/llvm/bin
-</span></code></pre></div>
-<p>还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 <a href="https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.01.17/riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz">riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz</a>。下载以后解压，得到 riscv 目录，GCC 版本是比较新的：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>$<span class="w"> </span>~/riscv/bin/riscv64-unknown-elf-gcc<span class="w"> </span>--version
-</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>riscv64-unknown-elf-gcc<span class="w"> </span><span class="o">(</span>GCC<span class="o">)</span><span class="w"> </span><span class="m">11</span>.1.0
-</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a>Copyright<span class="w"> </span><span class="o">(</span>C<span class="o">)</span><span class="w"> </span><span class="m">2021</span><span class="w"> </span>Free<span class="w"> </span>Software<span class="w"> </span>Foundation,<span class="w"> </span>Inc.
-</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a>This<span class="w"> </span>is<span class="w"> </span>free<span class="w"> </span>software<span class="p">;</span><span class="w"> </span>see<span class="w"> </span>the<span class="w"> </span><span class="nb">source</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>copying<span class="w"> </span>conditions.<span class="w">  </span>There<span class="w"> </span>is<span class="w"> </span>NO
-</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a>warranty<span class="p">;</span><span class="w"> </span>not<span class="w"> </span>even<span class="w"> </span><span class="k">for</span><span class="w"> </span>MERCHANTABILITY<span class="w"> </span>or<span class="w"> </span>FITNESS<span class="w"> </span>FOR<span class="w"> </span>A<span class="w"> </span>PARTICULAR<span class="w"> </span>PURPOSE.
-</span></code></pre></div>
-<p>但是如果编译 C++ 程序，链接的时候就会报错：<code>prefixed ISA extension must separate with _</code>，这是因为 riscv-gnu-toolchain 仓库的 binutils 版本不够新，在 upstream 的 binutils 里面已经修复了这个问题。所以 clone 下来，然后编译，覆盖掉 riscv-gnu-toolchain 里面的 binutils：</p>
-<p>UPDATE: binutils 2.38 已经发布，用这个版本即可。</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>$<span class="w"> </span>../configure<span class="w"> </span>--target<span class="o">=</span>riscv64-unknown-elf<span class="w"> </span>--prefix<span class="o">=</span><span class="nv">$HOME</span>/riscv<span class="w"> </span>--disable-gdb<span class="w"> </span>--disable-sim<span class="w"> </span>--disable-libdecnumber<span class="w"> </span>--disable-readline
-</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>$<span class="w"> </span>make
-</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>$<span class="w"> </span>make<span class="w"> </span>install
-</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a>$<span class="w"> </span>~/riscv/bin/riscv64-unknown-elf-ld<span class="w"> </span>--version
-</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a>GNU<span class="w"> </span>ld<span class="w"> </span><span class="o">(</span>GNU<span class="w"> </span>Binutils<span class="o">)</span><span class="w"> </span><span class="m">2</span>.38.50.20220125
-</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a>Copyright<span class="w"> </span><span class="o">(</span>C<span class="o">)</span><span class="w"> </span><span class="m">2022</span><span class="w"> </span>Free<span class="w"> </span>Software<span class="w"> </span>Foundation,<span class="w"> </span>Inc.
-</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a>This<span class="w"> </span>program<span class="w"> </span>is<span class="w"> </span>free<span class="w"> </span>software<span class="p">;</span><span class="w"> </span>you<span class="w"> </span>may<span class="w"> </span>redistribute<span class="w"> </span>it<span class="w"> </span>under<span class="w"> </span>the<span class="w"> </span>terms<span class="w"> </span>of
-</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a>the<span class="w"> </span>GNU<span class="w"> </span>General<span class="w"> </span>Public<span class="w"> </span>License<span class="w"> </span>version<span class="w"> </span><span class="m">3</span><span class="w"> </span>or<span class="w"> </span><span class="o">(</span>at<span class="w"> </span>your<span class="w"> </span>option<span class="o">)</span><span class="w"> </span>a<span class="w"> </span>later<span class="w"> </span>version.
-</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a>This<span class="w"> </span>program<span class="w"> </span>has<span class="w"> </span>absolutely<span class="w"> </span>no<span class="w"> </span>warranty.
-</span></code></pre></div>
-<p>然后编译程序的时候，使用 clang，配置参数 <code>--gcc-toolchain=~/riscv</code> 即可让 clang 找到 GNU 工具链。这样就可以编译出来 RVV 1.0 的程序了：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>$<span class="w"> </span>/llvm/bin/clang<span class="w"> </span>--target<span class="o">=</span>riscv64-unknown-elf<span class="w"> </span>-O2<span class="w"> </span>-march<span class="o">=</span>rv64gcv1p0<span class="w"> </span>-menable-experimental-extensions<span class="w"> </span>-mllvm<span class="w"> </span>--riscv-v-vector-bits-min<span class="o">=</span><span class="m">256</span><span class="w"> </span>--gcc-toolchain<span class="o">=</span><span class="nv">$HOME</span>/riscv<span class="w"> </span>add.cpp<span class="w"> </span>-o<span class="w"> </span>add
-</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a>$<span class="w"> </span>/data/llvm/bin/llvm-objdump<span class="w"> </span>--mattr<span class="o">=</span>+v<span class="w"> </span>-S<span class="w"> </span>add
-</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a><span class="w">   </span>1020e:<span class="w"> </span><span class="m">57</span><span class="w"> </span><span class="m">70</span><span class="w"> </span><span class="m">04</span><span class="w"> </span>c5<span class="w">   </span>vsetivli<span class="w">        </span>zero,<span class="w"> </span><span class="m">8</span>,<span class="w"> </span>e32,<span class="w"> </span>m1,<span class="w"> </span>ta,<span class="w"> </span>mu
-</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a><span class="w">   </span><span class="m">10212</span>:<span class="w"> </span><span class="m">07</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">03</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vle32.v<span class="w"> </span>v8,<span class="w"> </span><span class="o">(</span>t1<span class="o">)</span>
-</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a><span class="w">   </span><span class="m">10216</span>:<span class="w"> </span><span class="m">87</span><span class="w"> </span>e4<span class="w"> </span><span class="m">03</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vle32.v<span class="w"> </span>v9,<span class="w"> </span><span class="o">(</span>t2<span class="o">)</span>
-</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a><span class="w">   </span>1021a:<span class="w"> </span><span class="m">93</span><span class="w"> </span><span class="m">07</span><span class="w"> </span><span class="m">07</span><span class="w"> </span>fe<span class="w">   </span>addi<span class="w">    </span>a5,<span class="w"> </span>a4,<span class="w"> </span>-32
-</span><span id="__span-3-7"><a href="#__codelineno-3-7" id="__codelineno-3-7" name="__codelineno-3-7"></a><span class="w">   </span>1021e:<span class="w"> </span><span class="m">07</span><span class="w"> </span>e5<span class="w"> </span><span class="m">07</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vle32.v<span class="w"> </span>v10,<span class="w"> </span><span class="o">(</span>a5<span class="o">)</span>
-</span><span id="__span-3-8"><a href="#__codelineno-3-8" id="__codelineno-3-8" name="__codelineno-3-8"></a><span class="w">   </span><span class="m">10222</span>:<span class="w"> </span><span class="m">87</span><span class="w"> </span><span class="m">65</span><span class="w"> </span><span class="m">07</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vle32.v<span class="w"> </span>v11,<span class="w"> </span><span class="o">(</span>a4<span class="o">)</span>
-</span><span id="__span-3-9"><a href="#__codelineno-3-9" id="__codelineno-3-9" name="__codelineno-3-9"></a><span class="w">   </span><span class="m">10226</span>:<span class="w"> </span><span class="m">57</span><span class="w"> </span><span class="m">14</span><span class="w"> </span><span class="m">85</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vfadd.vv<span class="w">        </span>v8,<span class="w"> </span>v8,<span class="w"> </span>v10
-</span><span id="__span-3-10"><a href="#__codelineno-3-10" id="__codelineno-3-10" name="__codelineno-3-10"></a><span class="w">   </span>1022a:<span class="w"> </span>d7<span class="w"> </span><span class="m">94</span><span class="w"> </span><span class="m">95</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vfadd.vv<span class="w">        </span>v9,<span class="w"> </span>v9,<span class="w"> </span>v11
-</span><span id="__span-3-11"><a href="#__codelineno-3-11" id="__codelineno-3-11" name="__codelineno-3-11"></a><span class="w">   </span>1022e:<span class="w"> </span><span class="m">93</span><span class="w"> </span><span class="m">07</span><span class="w"> </span><span class="m">05</span><span class="w"> </span>fe<span class="w">   </span>addi<span class="w">    </span>a5,<span class="w"> </span>a0,<span class="w"> </span>-32
-</span><span id="__span-3-12"><a href="#__codelineno-3-12" id="__codelineno-3-12" name="__codelineno-3-12"></a><span class="w">   </span><span class="m">10232</span>:<span class="w"> </span><span class="m">27</span><span class="w"> </span>e4<span class="w"> </span><span class="m">07</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vse32.v<span class="w"> </span>v8,<span class="w"> </span><span class="o">(</span>a5<span class="o">)</span>
-</span><span id="__span-3-13"><a href="#__codelineno-3-13" id="__codelineno-3-13" name="__codelineno-3-13"></a><span class="w">   </span><span class="m">10236</span>:<span class="w"> </span>a7<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">05</span><span class="w"> </span><span class="m">02</span><span class="w">   </span>vse32.v<span class="w"> </span>v9,<span class="w"> </span><span class="o">(</span>a0<span class="o">)</span>
-</span></code></pre></div>
-<p>可以看到 llvm 的自动向量化是工作的。此外，也可以编写 rvv intrinsic。</p>
 </div>
 </article>
 <nav class="md-pagination">
