@@ -1502,7 +1502,7 @@
 <ol>
 <li>解析输入的 ELF，收集各个 section 需要保留下来的内容</li>
 <li>规划将要生成的 ELF 可执行文件的内容布局：开始是固定的文件头，之后是各个 section，计算出它们从哪里开始到哪里结束</li>
-<li>第二步完成以后，就可以知道在运行时，各个 section 将会被加载到哪个地址上；此时我们就可以计算重定向，把地址按照预设的规则填入到对应的地方</li>
+<li>第二步完成以后，就可以知道在运行时，各个 section 将会被加载到哪个地址上；此时我们就可以计算重定位，把地址按照预设的规则填入到对应的地方</li>
 <li>最后按照预设的文件布局，把文件内容写入到 ELF 文件中</li>
 </ol>
 <p>接下来我们就要实现单文件输入到多文件输入的跨越，让我们首先分析一下，这里的不同在哪里。</p>
@@ -1598,7 +1598,7 @@
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">   </span><span class="m">5</span>:<span class="w">   </span>e8<span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w">          </span>call<span class="w">   </span>a<span class="w"> </span>&lt;_start+0xa&gt;
 </span></code></pre></div>
 <p>反汇编出来可以看到两条 <code>call</code> 指令，但是它们的地址都很奇怪：第一条指令是 <code>call 5</code>，而 0x5 是第二条 call 地址的地址；第二条指令是 <code>call a</code>，按照规律，可以猜出来 0xa 是第二条指令之后的第一个字节的地址，每条指令 5 个字节，两条指令刚好 10 字节，也就是 0xa。这似乎与 <code>print</code> 和 <code>exit</code> 函数都没有关系，执行的时候怎么会得到正确的结果呢？</p>
-<p>回忆一下，在这个系列的上一篇博客中，反汇编 <code>.o</code> 文件的时候也出现过类似的情况：<code>_start</code> 函数需要知道 <code>.rodata</code> 段里的 <code>hello</code> 字符串的地址，但是汇编的时候这个地址无法知道，所以汇编器生成了一个 relocation（relocation 的中文翻译是重定向，但我不喜欢这个翻译，所以下文还是用 relocation），告诉链接器去填入正确的地址。这里也是类似的：汇编器在汇编 <code>main.s</code> 的时候，也无法知道 <code>print</code> 和 <code>exit</code> 函数会在什么地址，所以只能生成一个 relocation，把偏移初始化为零，等着链接器来填写。而 x86 上 <code>call</code> 指令的目的地址计算方法是 <code>call</code> 指令之后的第一个字节地址加上偏移，这个偏移初始化为 0，那么反汇编看到的就好像是 <code>call</code> 要调用它自己的下一条指令，这就解释了上面观察到的现象。</p>
+<p>回忆一下，在这个系列的上一篇博客中，反汇编 <code>.o</code> 文件的时候也出现过类似的情况：<code>_start</code> 函数需要知道 <code>.rodata</code> 段里的 <code>hello</code> 字符串的地址，但是汇编的时候这个地址无法知道，所以汇编器生成了一个 relocation（relocation 的中文翻译是重定位，但我不喜欢这个翻译，所以下文还是用 relocation），告诉链接器去填入正确的地址。这里也是类似的：汇编器在汇编 <code>main.s</code> 的时候，也无法知道 <code>print</code> 和 <code>exit</code> 函数会在什么地址，所以只能生成一个 relocation，把偏移初始化为零，等着链接器来填写。而 x86 上 <code>call</code> 指令的目的地址计算方法是 <code>call</code> 指令之后的第一个字节地址加上偏移，这个偏移初始化为 0，那么反汇编看到的就好像是 <code>call</code> 要调用它自己的下一条指令，这就解释了上面观察到的现象。</p>
 <p>正好 <code>objdump</code> 可以帮我们显示出 relocation，只需要添加 <code>-r</code> 参数：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># objdump -r, --reloc: Display the relocation entries in the file</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>$<span class="w"> </span>objdump<span class="w"> </span>-S<span class="w"> </span>-r<span class="w"> </span>main.o
@@ -1736,7 +1736,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1-2.1-2M12.5 7v5.2l4 2.4-1 1L11 13V7h1.5M11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2v1.8Z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 3, 2024</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 6, 2024</span>
   </span>
 
     
