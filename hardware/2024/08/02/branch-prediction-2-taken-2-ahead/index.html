@@ -16,6 +16,8 @@
         <link rel="prev" href="../../../07/30/debian-linux-on-surface-laptop-7/">
       
       
+        <link rel="next" href="../../../09/01/qualcomm_oryon/">
+      
       
         <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
         <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
@@ -1423,7 +1425,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 3 分钟阅读时间
+                              需要 4 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1584,8 +1586,35 @@
 <p>刚才提到，想要进一步提升分支预测和执行能力，需要支持每个周期预测更多的 taken 分支，刚才是 1 个，现在就要 2 个。ARM 在 Cortex-A78 上添加了 2-taken 分支预测的支持，也就是可以每周期最多可以预测两个 taken 的分支。这是怎么做到的？如果做的非常通用，就要像上面说的那样，先预测第一个分支，拿第一个分支预测的结果，再去预测第二个分支，这件事情要在一个周期内完成，这个挑战是很大的。我们来分析一下：</p>
 <p>假如现在有四个基本块 A、B、C 和 D，并且按照这个顺序执行，也就是说，A 最后的指令是一个分支，跳转到 B，同理 B 跳转到 C，C 跳转到 D。经典的分支预测算法，用 A 去预测 B，用 B 去预测 C，用 C 去预测 D，这样每个周期预测一个 taken 分支。那么如果要实现 2-taken 预测算法，假如已知了 A，那就要预测 B 和 C，但是就必须先拿 A 预测 B，再拿 B 预测 C，这样就串行了，时序很难保证。当然也可以同时搞两套预测，一套用 A 预测 B，一套用 A 预测 C，但是这样每个分支要记录的信息就翻倍了。</p>
 <p>在论文 Multiple-Block Ahead Branch Predictors 中可以看到一种更通用做法，称为 2-ahead：已知 A 和 B，用 A 去预测 C，用 B 去预测 D。此时分支预测的就是间隔一次以后的目的地址，而不是直接的目的地址，这样的设计下，BTB 等结构需要变成双端口，这样才能同时预测两个分支：A 和 B。预测出 C 和 D 以后，再用同样的办法去预测 E 和 F，这样持续下去。当然论文设计的比这里讲的更复杂一点，具体细节见论文。</p>
-<p>我们不知道 ARM 具体如何实现的 2-taken，但是可以猜想它做了一些限制，例如虽然两个分支都是 taken，但是可能对偏移、地址有一些限制，例如要求在同一个 cacheline 内。Intel 的 Golden Cove 架构，AMD 的 Zen 4 架构也实现了 2-taken，都有或多或少类似的限制。因此，可以用 2-taken 表示限制比较多的每个周期可以预测 2 个 taken 的算法，而用 2-ahead 表示更加通用的预测 2 个 taken 的算法。</p>
-<p>虽然做了 2-taken/2-ahead，只是分支预测的带宽增加了，每个周期可以预测更多的分支。但前面也提到了，分支预测器是生产者，指令缓存是消费者，生产者的性能提升了，那么消费者的性能也要相应提升才是。但是指令缓存是一片很大的 SRAM，功耗和时序都比较麻烦，所以改起来比较困难。如果单纯增加指令缓存一次取指的宽度，例如 8 字节提升到 16 字节，对于分支密度低的情况比较有效，但如果分支很多，那么这样效果也不会很好，要提升性能，就要考虑双端口，每个周期从两个不同的地址取指。这就是 Zen 5 做的事情。</p>
+<p>我们不知道 ARM 具体如何实现的 2-taken，但是可以猜想它做了一些限制，例如虽然两个分支都是 taken，但是可能对偏移、地址有一些限制，例如要求在同一个 cacheline 内。Intel 的 Golden Cove 架构，AMD 的 Zen 4 架构也实现了 2-taken，都有或多或少类似的限制。<a href="https://chipsandcheese.com/2023/10/08/zen-5s-leaked-slides/">Chips and Cheese</a> 是这么描述 Intel 和 ARM 的 2-taken 支持的：</p>
+<blockquote>
+<p>Rocket Lake could unroll small loops within its loop buffer, turning taken
+branches into not-taken ones from the fetch perspective. Arm’s Neoverse N2 and
+Cortex X2 can also sustain two taken branches per cycle by using a 64 entry
+nano-BTB.</p>
+</blockquote>
+<p>在 AMD 针对 Zen 2 的 Software Optimization Guide for AMD Family 17h Models 30h and Greater Processors 中也明确指出，BTB 每个条目最多可以记录同一个 cache line 里的两个分支，但是要求第一个分支是条件分支，这为 2-taken 分支预测提供了必要的信息，但也有限制：</p>
+<blockquote>
+<p>The branch target buffer (BTB) is a three-level structure accessed using the
+fetch address of the current fetch block. Each BTB entry includes information
+for branches and their targets. Each BTB entry can hold up to two branches if
+the branches reside in the same 64-byte aligned cache line and the first branch
+is a conditional branch.</p>
+</blockquote>
+<p>因此，可以用 2-taken 表示限制比较多的每个周期可以预测 2 个 taken 的算法，而用 2-ahead 表示更加通用的预测 2 个 taken 的算法。即使做了 2-taken 的预测器支持，也未必可以每周期执行 2 个 taken 分支，例如 AMD 在论文 <a href="https://ieeexplore.ieee.org/document/10466769">AMD Next-Generation “Zen 4” Core and 4th Gen AMD EPYC Server CPUs</a> 是这么表述 Zen 4 的 2-taken 实现的：</p>
+<blockquote>
+<p>To better feed the wide execution engine, AMD has implemented several front-end
+bandwidth improvements on “Zen 4.” One is the ability to predict and dispatch up
+to two taken branches per cycle. While the Instruction Cache (I-Cache) or
+Operation Cache (Op Cache) fetch limits the sustained fetch bandwidth to one
+taken branch per cycle, predicting two taken branches per cycle allows the
+branch predictor to run ahead more often and compensate for existing branch
+prediction stall cycles. Dispatching up to two taken branches per cycle, and
+optimizations of the integer scheduler assignment allow “Zen 4” to fill the
+out-of-order part of the machine faster once a dispatch (allocation) stall has
+been resolved.</p>
+</blockquote>
+<p>也就是说，虽然做了 2-taken/2-ahead，只是分支预测的带宽增加了，每个周期可以预测更多的分支，但这还不够。前面也提到了，分支预测器是生产者，指令缓存是消费者，生产者的性能提升了，那么消费者的性能也要相应提升才是。但是指令缓存是一片很大的 SRAM，功耗和时序都比较麻烦，所以改起来比较困难。如果单纯增加指令缓存一次取指的宽度，例如 8 字节提升到 16 字节，对于分支密度低的情况比较有效，但如果分支很多，那么这样效果也不会很好，要提升性能，就要考虑双端口，每个周期从两个不同的地址取指。这就是 Zen 5 做的事情。</p>
 <h2 id="2-fetch">2-fetch<a class="headerlink" href="#2-fetch" title="Permanent link">&para;</a></h2>
 <p>Zen 5 除了 2-taken 以外，还实现了 2-fetch，也就是每个周期可以预测未来的两个分支，并从两个地址取指令，分别译码，然后再拼起来。此外，Zen 5 的双取指还可以服务于超线程，每个线程用一个取指流水线。当超线程空闲的时候，两个取值流水线可以服务于同一个线程，提供更高的性能。</p>
 <p>目前 Zen 5 的实现细节还不清晰，期待未来更多的微架构解析。</p>
@@ -1601,6 +1630,7 @@
 <li><a href="https://dl.acm.org/doi/pdf/10.1145/237090.237169">Multiple-Block Ahead Branch Predictors</a></li>
 <li><a href="https://chipsandcheese.com/2021/12/02/popping-the-hood-on-golden-cove/">Popping the Hood on Golden Cove</a></li>
 <li><a href="https://www.anandtech.com/show/17585/amd-zen-4-ryzen-9-7950x-and-ryzen-5-7600x-review-retaking-the-high-end/8">AMD Zen 4 Ryzen 9 7950X and Ryzen 5 7600X Review: Retaking The High-End</a></li>
+<li><a href="https://ieeexplore.ieee.org/document/10466769">AMD Next-Generation “Zen 4” Core and 4th Gen AMD EPYC Server CPUs</a></li>
 </ul>
 
 
@@ -1624,7 +1654,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1-2.1-2M12.5 7v5.2l4 2.4-1 1L11 13V7h1.5M11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2v1.8Z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 2, 2024</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 11, 2024</span>
   </span>
 
     
@@ -1706,6 +1736,22 @@
             </div>
           </a>
         
+        
+          
+          <a href="../../../09/01/qualcomm_oryon/" class="md-footer__link md-footer__link--next" aria-label="下一页: Qualcomm Oryon 微架构评测">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                Qualcomm Oryon 微架构评测
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
         
       </nav>
     

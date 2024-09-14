@@ -815,9 +815,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#浅谈乱序执行-cpu二" class="md-nav__link">
+  <a href="#浅谈乱序执行-cpu二访存" class="md-nav__link">
     <span class="md-ellipsis">
-      浅谈乱序执行 CPU（二）
+      浅谈乱序执行 CPU（二：访存）
     </span>
   </a>
   
@@ -2527,7 +2527,7 @@ when a message was not accepted.
           
           <li class="md-meta__item">
             
-              需要 7 分钟阅读时间
+              需要 6 分钟阅读时间
             
           </li>
         
@@ -2536,193 +2536,24 @@ when a message was not accepted.
     </div>
   </header>
   <div class="md-post__content md-typeset">
-    <h2 id="浅谈乱序执行-cpu二"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/">浅谈乱序执行 CPU（二）</a></h2>
+    <h2 id="浅谈乱序执行-cpu二访存"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/">浅谈乱序执行 CPU（二：访存）</a></h2>
 <p>本文的内容已经整合到<a href="/kb/hardware/ooo_cpu.html">知识库</a>中。</p>
 <h3 id="背景"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/#背景">背景</a></h3>
-<p>之前写过一个<a href="../../../../hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a>，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。之后也许会有（三）（四）等等。</p>
-<h3 id="内存访问"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/#内存访问">内存访问</a></h3>
-<p>内存访问是一个比较复杂的操作，它涉及到缓存、页表、内存序等问题。在乱序执行中，要尽量优化内存访问对其他指令的延迟的影响，同时也要保证正确性。这里参考的是 <a href="https://docs.boom-core.org/en/latest/sections/load-store-unit.html">BOOM 的 LSU 设计</a>。</p>
-<p>首先是正确性。一般来说可以认为，Load 是没有副作用的（实际上，Load 会导致 Cache 加载数据，这也引发了以 Meltdown 为首的一系列漏洞），因此可以很激进地预测执行 Load。但是，Store 是有副作用的，写出去的数据就没法还原了。因此，Store 指令只有在 ROB Head 被 Commit 的时候，才会写入到 Cache 中。</p>
-<p>其次是性能，我们希望 Load 指令可以尽快地完成，这样可以使得后续的计算指令可以尽快地开始进行。当 Load 指令的地址已经计算好的时候，就可以去取数据，这时候，首先要去 Store Queue 里面找，如果有 Store 指令要写入的地址等于 Load 的地址，说明后面的 Load 依赖于前面的 Store，如果 Store 的数据已经准备好了，就可以直接把数据转发过来，就不需要从 Cache 中获取，如果数据还没准备好，就需要等待这一条 Store 完成；如果没有找到匹配的 Store 指令，再从内存中取。不过，有一种情况就是，当 Store 指令的地址迟迟没有计算出来，而后面的 Load 已经提前从 Cache 中获取数据了，这时候就会出现错误，所以当 Store 计算出地址的时候，需要检查后面的 Load 指令是否出现地址重合，如果出现了，就要把这条 Load 以及依赖这条 Load 指令的其余指令重新执行。<a href="http://ieeexplore.ieee.org/abstract/document/7029183/">POWER8 处理器微架构论文</a>中对此也有类似的表述：</p>
-<div class="language-text highlight"><pre><span></span><code>The POWER8 IFU also implements mechanisms to mitigate performance
-degradation associated with pipeline hazards. A Store-Hit-Load (SHL) is
-an out-of-order pipeline hazard condition, where an older store executes
-after a younger overlapping load, thus signaling that the load received
-stale data. The POWER8 IFU has logic to detect when this condition
-exists and provide control to avoid the hazard by flushing the load
-instruction which received stale data (and any following instructions).
-When a load is flushed due to detection of a SHL, the fetch address of
-the load is saved and the load is marked on subsequent fetches allowing
-the downstream logic to prevent the hazard. When a marked load
-instruction is observed, the downstream logic introduces an explicit
-register dependency for the load to ensure that it is issued after the
-store operation.
-</code></pre></div>
-<p>下面再详细讨论一下 LSU 的设计。</p>
-<h3 id="load-store-unit"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/#load-store-unit">Load Store Unit</a></h3>
-<p>LSU 是很重要的一个执行单元，负责 Load/Store/Atomic 等指令的实现。最简单的实现方法是按顺序执行，但由于 pipeline 会被清空，Store/Atomic/Uncached Load 这类有副作用（当然了，如果考虑 Meltdown 类攻击的话，Cached Load 也有副作用，这里就忽略了），需要等到 commit 的时候再执行。这样 LSU 很容易成为瓶颈，特别是在访存指令比较多的时候。</p>
-<p>为了解决这个问题，很重要的是让读写也乱序起来，具体怎么乱序，受到实现的影响和 Memory Order/Program Order 的要求。从性能的角度上来看，我们肯定希望 Load 可以尽快执行，因为可能有很多指令在等待 Load 的结果。那么，需要提前执行 Load，但是怎么保证正确性呢？在 Load 更早的时候，可能还有若干个 Store 指令尚未执行，一个思路是等待所有的 Store 执行完毕，但是这样性能不好；另一个思路是用地址来搜索 Store 指令，看看是否出现对同一个地址的 Store 和 Load，如果有，直接转发数据，就不需要从 Cache 获取了，不过这种方法相当于做了一个全相连的 Buffer，面积大，延迟高，不好扩展等问题接踵而至。</p>
-<p>为了解决 Store Queue 需要相连搜索的问题，<a href="https://repository.upenn.edu/cgi/viewcontent.cgi?article=1001&amp;context=cis_reports">A high-bandwidth load-store unit for single-and multi-threaded processors</a> 的解决思路是，把 Store 指令分为两类，一类是需要转发的，一类是不需要的，那么可以设计一个小的相连存储器，只保存这些需要转发的 Store 指令；同时还有一个比较大的，保存所有 Store 指令的队列，因为不需要相连搜索，所以可以做的比较大。</p>
-<p>仔细想想，这里还有一个问题：Load 在执行前，更早的 Store 的地址可能还没有就绪，这时候去搜索 Store Queue 得到的结果可能是错的，这时候要么等待所有的 Store 地址都就绪，要么就先执行，再用一些机制来修复这个问题，显然后者 IPC 要更好。</p>
-<p>修复 Load Store 指令相关性问题，一个方法是当一个 Store 提交的时候，检查是否有地址冲突的 Load 指令（那么 Load Queue 也要做成相连搜索的），是否转发了错误的 Store 数据，这也是 <a href="https://docs.boom-core.org/en/latest/sections/load-store-unit.html#memory-ordering-failures">Boom LSU</a> 采用的方法。另一个办法是 Commit 的时候（或者按顺序）重新执行 Load 指令，如果 Load 结果和之前不同，要把后面依赖的刷新掉，这种方式的缺点是每条 Load 指令都要至少访问两次 Cache。<a href="https://repository.upenn.edu/cgi/viewcontent.cgi?article=1228&amp;context=cis_papers">Store Vulnerability Window (SVW): Re-Execution Filtering for Enhanced Load Optimization</a> 属于重新执行 Load 指令的方法，通过 Bloom filter 来减少一些没有必要重复执行的 Load。还有一种办法，就是预测 Load 指令和哪一条 Store 指令有依赖关系，然后直接去访问那一项，如果不匹配，就认为没有依赖。<a href="https://ieeexplore.ieee.org/document/1540957">Scalable Store-Load Forwarding via Store Queue Index Prediction</a> 把 Load 指令分为三类，一类是不确定依赖哪条 Store 指令（Difficult Loads），一类是基本确定依赖哪一条 Store 指令，一类是不依赖 Store 指令。这个有点像 Cache 里面的 Way Prediction 机制。</p>
-<p>分析完了上述一些优化方法，我们也来看一些 CPU 设计采用了哪种方案。首先来分析一下 <a href="https://ieeexplore.ieee.org/abstract/document/7029183">IBM POWER8</a> 的 LSU，首先，可以看到它设计了比较多项目的 virtual STAG/LTAG，然后再转换成比较少项目的 physical STAG/LTAG，这样 LSQ 可以做的比较小，原文：</p>
-<div class="language-text highlight"><pre><span></span><code>A virtual STAG/LTAG scheme is used to minimize dispatch holds due to
-running out of physical SRQ/LRQ entries. When a physical entry in the
-LRQ is freed up, a virtual LTAG will be converted to a real LTAG. When a
-physical entry in the SRQ is freed up, a virtual STAG will be converted
-to a real STAG. Virtual STAG/LTAGs are not issued to the LSU until they
-are subsequently marked as being real in the UniQueue. The ISU can
-assign up to 128 virtual LTAGs and 128 virtual STAGs to each thread.
-</code></pre></div>
-<p>这个思路在 2007 年的论文 <a href="https://people.csail.mit.edu/emer/papers/2007.06.isca.late_binding.pdf">Late-Binding: Enabling Unordered Load-Store Queues</a> 里也可以看到，也许 POWER8 参考了这篇论文的设计。可以看到，POWER8 没有采用那些免除 CAM 的方案：</p>
-<div class="language-text highlight"><pre><span></span><code>The SRQ is a 40-entry, real address based CAM structure. Similar to the
-SRQ, the LRQ is a 44-entry, real address based, CAM structure. The LRQ
-keeps track of out-of-order loads, watching for hazards. Hazards
-generally exist when a younger load instruction executes out-of-order
-before an older load or store instruction to the same address (in part
-or in whole). When such a hazard is detected, the LRQ initiates a flush
-of the younger load instruction and all its subsequent instructions from
-the thread, without impacting the instructions from other threads. The
-load is then re-fetched from the I-cache and re-executed, ensuring
-proper load/store ordering.
-</code></pre></div>
-<p>而是在传统的两个 CAM 设计的基础上，做了减少物理 LSQ 项目的优化。比较有意思的是，POWER7 和 POWER8 的 L1 Cache 都是 8 路组相连，并且采用了 set-prediction 的方式（应该是通常说的 way-prediction）。</p>
-<p>此外还有一个实现上的小细节，就是在判断 Load 和 Store 指令是否有相关性的时候，由于地址位数比较多，完整比较的延迟比较大，可以牺牲精度的前提下，选取地址的一部分进行比较。<a href="https://ieeexplore.ieee.org/document/8409955">POWER9 论文</a> 提到了这一点：</p>
-<div class="language-text highlight"><pre><span></span><code>POWER8 and prior designs matched the effective address (EA) bits 48:63
-between the younger load and the older store queue entry. In POWER9,
-through a combination of outright matches for EA bits 32:63 and hashed
-EA matches for bits 0:31, false positive avoidance is greatly improved.
-This reduces the number of flushes, which are compulsory for false
-positives.
-</code></pre></div>
-<p>这里又是一个精确度和时序上的一个 tradeoff。</p>
-<p>具体到 Load/Store Queue 的大小，其实都不大：</p>
-<ol>
-<li><a href="https://ieeexplore.ieee.org/document/9000513">Zen 2</a> Store Queue 48</li>
-<li><a href="https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(client)#Memory_subsystem">Intel Skylake</a> Store Buffer 56 Load Buffer 72</li>
-<li><a href="https://ieeexplore.ieee.org/document/7029183?arnumber=7029183">POWER 8</a> Store Queue 40 Load Queue 44 (Virtual 128+128)</li>
-<li><a href="http://ieeexplore.ieee.org/document/755465/">Alpha 21264</a> Store Queue 32 Load Queue 32</li>
-</ol>
-<h3 id="精确异常-vs-非精确异常"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/#精确异常-vs-非精确异常">精确异常 vs 非精确异常</a></h3>
-<p>精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，<a href="http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf">网上资料</a> 说，这种情况下硬件实现更简单，但是软件上处理比较困难。</p>
-<p>一个非精确异常的例子是 <a href="https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf">Alpha</a>，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：<code>In general, it is not feasible to fix up the result value or to continue from the trap.</code>。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：</p>
-<div class="language-text highlight"><pre><span></span><code>Alpha lets the software implementor determine the precision of
-arithmetic traps.  With the Alpha architecture, arithmetic traps (such
-as overflow and underflow) are imprecise—they can be delivered an
-arbitrary number of instructions after the instruction that triggered
-the trap. Also, traps from many different instructions can be reported
-at once. That makes implementations that use pipelining and multiple
-issue substantially easier to build.  However, if precise arithmetic
-exceptions are desired, trap barrier instructions can be explicitly
-inserted in the program to force traps to be delivered at specific
-points.
-</code></pre></div>
-<p>具体来说，在 <a href="http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf">Reference Manual</a> 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64 位，低 32 位对应整数寄存器，高 32 位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。</p>
-<p>Linux 处理代码在 <code>arch/alpha/kernel/traps.c</code> 的 <code>do_entArith</code> 函数中。首先判断，如果是 software completion，那就要进行处理；否则直接 SIGFPE 让程序自己处理或者退出。如果是精确异常，那就对 PC-4 进行浮点模拟；如果是非精确异常，就从 trap shadow 的最后一条指令开始往前搜索，并同时记录遇到的指令写入的寄存器，如果发现指令的写入的寄存器已经覆盖了 register write mask，就说明找到了 trap shadow 的开头，则模拟这条指令，然后从下一条开始重新执行。具体代码如下：</p>
-<div class="language-cpp highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kt">long</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nf">alpha_fp_emul_imprecise</span><span class="w"> </span><span class="p">(</span><span class="k">struct</span><span class="w"> </span><span class="nc">pt_regs</span><span class="w"> </span><span class="o">*</span><span class="n">regs</span><span class="p">,</span><span class="w"> </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">write_mask</span><span class="p">)</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">{</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">trigger_pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">pc</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">insn</span><span class="p">,</span><span class="w"> </span><span class="n">opcode</span><span class="p">,</span><span class="w"> </span><span class="n">rc</span><span class="p">,</span><span class="w"> </span><span class="n">si_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="cm">/*</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="cm">     * Turn off the bits corresponding to registers that are the</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="cm">     * target of instructions that set bits in the exception</span>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="cm">     * summary register.  We have some slack doing this because a</span>
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="cm">     * register that is the target of a trapping instruction can</span>
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="cm">     * be written at most once in the trap shadow.</span>
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="cm">     *</span>
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="cm">     * Branches, jumps, TRAPBs, EXCBs and calls to PALcode all</span>
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="cm">     * bound the trap shadow, so we need not look any further than</span>
-</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="cm">     * up to the first occurrence of such an instruction.</span>
-</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="cm">     */</span>
-</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">write_mask</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">        </span><span class="n">get_user</span><span class="p">(</span><span class="n">insn</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">__u32</span><span class="w"> </span><span class="n">__user</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">trigger_pc</span><span class="p">));</span>
-</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">        </span><span class="n">opcode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insn</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">26</span><span class="p">;</span>
-</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insn</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0x1f</span><span class="p">;</span>
-</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>
-</span><span id="__span-7-23"><a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">        </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">opcode</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_PAL</span><span class="p">:</span>
-</span><span id="__span-7-25"><a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_JSR</span><span class="p">:</span>
-</span><span id="__span-7-26"><a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="mh">0x30</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="mh">0x3f</span><span class="p">:</span><span class="w">   </span><span class="cm">/* branches */</span>
-</span><span id="__span-7-27"><a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">            </span><span class="k">goto</span><span class="w"> </span><span class="n">egress</span><span class="p">;</span>
-</span><span id="__span-7-28"><a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>
-</span><span id="__span-7-29"><a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_MISC</span><span class="p">:</span>
-</span><span id="__span-7-30"><a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="w">            </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">insn</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xffff</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-31"><a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="w">                  </span><span class="k">case</span><span class="w"> </span><span class="no">MISC_TRAPB</span><span class="p">:</span>
-</span><span id="__span-7-32"><a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="w">                  </span><span class="k">case</span><span class="w"> </span><span class="no">MISC_EXCB</span><span class="p">:</span>
-</span><span id="__span-7-33"><a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="w">                </span><span class="k">goto</span><span class="w"> </span><span class="n">egress</span><span class="p">;</span>
-</span><span id="__span-7-34"><a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>
-</span><span id="__span-7-35"><a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="w">                  </span><span class="k">default</span><span class="o">:</span>
-</span><span id="__span-7-36"><a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="w">                </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-7-37"><a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="w">            </span><span class="p">}</span>
-</span><span id="__span-7-38"><a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-7-39"><a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a>
-</span><span id="__span-7-40"><a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTA</span><span class="p">:</span>
-</span><span id="__span-7-41"><a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTL</span><span class="p">:</span>
-</span><span id="__span-7-42"><a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTS</span><span class="p">:</span>
-</span><span id="__span-7-43"><a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_INTM</span><span class="p">:</span>
-</span><span id="__span-7-44"><a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a><span class="w">            </span><span class="n">write_mask</span><span class="w"> </span><span class="o">&amp;=</span><span class="w"> </span><span class="o">~</span><span class="p">(</span><span class="mi">1UL</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">rc</span><span class="p">);</span>
-</span><span id="__span-7-45"><a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-7-46"><a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a>
-</span><span id="__span-7-47"><a id="__codelineno-7-47" name="__codelineno-7-47" href="#__codelineno-7-47"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTC</span><span class="p">:</span>
-</span><span id="__span-7-48"><a id="__codelineno-7-48" name="__codelineno-7-48" href="#__codelineno-7-48"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTV</span><span class="p">:</span>
-</span><span id="__span-7-49"><a id="__codelineno-7-49" name="__codelineno-7-49" href="#__codelineno-7-49"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTI</span><span class="p">:</span>
-</span><span id="__span-7-50"><a id="__codelineno-7-50" name="__codelineno-7-50" href="#__codelineno-7-50"></a><span class="w">              </span><span class="k">case</span><span class="w"> </span><span class="no">OPC_FLTL</span><span class="p">:</span>
-</span><span id="__span-7-51"><a id="__codelineno-7-51" name="__codelineno-7-51" href="#__codelineno-7-51"></a><span class="w">            </span><span class="n">write_mask</span><span class="w"> </span><span class="o">&amp;=</span><span class="w"> </span><span class="o">~</span><span class="p">(</span><span class="mi">1UL</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">rc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">32</span><span class="p">));</span>
-</span><span id="__span-7-52"><a id="__codelineno-7-52" name="__codelineno-7-52" href="#__codelineno-7-52"></a><span class="w">            </span><span class="k">break</span><span class="p">;</span>
-</span><span id="__span-7-53"><a id="__codelineno-7-53" name="__codelineno-7-53" href="#__codelineno-7-53"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-7-54"><a id="__codelineno-7-54" name="__codelineno-7-54" href="#__codelineno-7-54"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">write_mask</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-55"><a id="__codelineno-7-55" name="__codelineno-7-55" href="#__codelineno-7-55"></a><span class="w">            </span><span class="cm">/* Re-execute insns in the trap-shadow.  */</span>
-</span><span id="__span-7-56"><a id="__codelineno-7-56" name="__codelineno-7-56" href="#__codelineno-7-56"></a><span class="w">            </span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trigger_pc</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
-</span><span id="__span-7-57"><a id="__codelineno-7-57" name="__codelineno-7-57" href="#__codelineno-7-57"></a><span class="w">            </span><span class="n">si_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alpha_fp_emul</span><span class="p">(</span><span class="n">trigger_pc</span><span class="p">);</span>
-</span><span id="__span-7-58"><a id="__codelineno-7-58" name="__codelineno-7-58" href="#__codelineno-7-58"></a><span class="w">            </span><span class="k">goto</span><span class="w"> </span><span class="n">egress</span><span class="p">;</span>
-</span><span id="__span-7-59"><a id="__codelineno-7-59" name="__codelineno-7-59" href="#__codelineno-7-59"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-7-60"><a id="__codelineno-7-60" name="__codelineno-7-60" href="#__codelineno-7-60"></a><span class="w">        </span><span class="n">trigger_pc</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
-</span><span id="__span-7-61"><a id="__codelineno-7-61" name="__codelineno-7-61" href="#__codelineno-7-61"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-7-62"><a id="__codelineno-7-62" name="__codelineno-7-62" href="#__codelineno-7-62"></a>
-</span><span id="__span-7-63"><a id="__codelineno-7-63" name="__codelineno-7-63" href="#__codelineno-7-63"></a><span class="nl">egress</span><span class="p">:</span>
-</span><span id="__span-7-64"><a id="__codelineno-7-64" name="__codelineno-7-64" href="#__codelineno-7-64"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">si_code</span><span class="p">;</span>
-</span><span id="__span-7-65"><a id="__codelineno-7-65" name="__codelineno-7-65" href="#__codelineno-7-65"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>ARM 架构也有 imprecise asynchronous external abort：</p>
-<div class="language-text highlight"><pre><span></span><code>Normally, external aborts are rare. An imprecise asynchronous external
-abort is likely to be fatal to the process that is running. An example
-of an event that might cause an external abort is an uncorrectable
-parity or ECC failure on a Level 2 Memory structure.
-
-Because imprecise asynchronous external aborts are normally fatal to the
-process that caused them, ARM recommends that implementations make
-external aborts precise wherever possible.
-</code></pre></div>
-<p>不过这更多是因为内存的无法预知的错误，这种时候机器直接可以拿去维修了。</p>
-<p><a href="https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/5056/can-anyone-provide-an-example-of-asynchronous-exceptions">文章</a> 提到了两个 precise/imprecise async/sync的例子：</p>
-<ol>
-<li>外部中断是异步的，同时也是 precise 的。</li>
-<li>对于一个 Write-allocate 的缓存，如果程序写入一个不存在的物理地址，那么写入缓存的时候不会出现错误，但当这个 cache line 被写入到总线上的时候，就会触发异常，这个异常是异步并且非精确的，因为之前触发这个异常的指令可能已经完成很久了。这种时候这个进程也大概率没救了，直接 SIGBUS 退出。</li>
-</ol>
-<h3 id="处理器前端"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/#处理器前端">处理器前端</a></h3>
-<p>再来分析一下乱序执行 CPU 的前端部分。以 RISC-V 为例，指令长度有 4 字节或者 2 字节两种，其中 2 字节属于压缩指令集。如何正确并高效地进行取指令译码？</p>
-<p>首先，我们希望前端能够尽可能快地取指令，前端的取指能力要和后端匹配，比如对于一个四发射的 CPU，前端对应地需要一个周期取 <code>4*4=16</code> 字节的指令。但是，这 16 字节可能是 4 条非压缩指令，也可能是 8 条压缩指令，也可能是混合的情况。所以，这里会出现一个可能出现指令条数不匹配的情况，所以中间可以添加一个 Fetch Buffer，比如 <a href="https://github.com/riscv-boom/riscv-boom">BOOM</a> 的实现中，L1 ICache 每周期读取 16 字节，然后进行预译码，出来 8 条指令，保存到 Fetch Buffer 中。这里需要考虑以下几点：首先从 ICache 读取的数据是对齐的，但是 PC 可能不是，比如中间的地址。其次，可能一个 4 字节的非压缩指令跨越了两次 Fetch，比如前 2 个字节在前一个 Fetch Bundle，后 2 个字节在后一个 Fetch Bundle；此外，每个 2 字节的边界都需要判断一下是压缩指令还是非压缩指令。一个非常特殊的情况就是，一个 4 字节的指令跨越了两个页，所以两个页都需要查询页表；如果恰好在第二个页处发生了页缺失，此时 epc 是指令的起始地址，但 tval 是第二个页的地址，这样内核才知道是哪个页发生了缺失。</p>
-<p>其次，需要配合分支预测。如果需要保证分支预测正确的情况下，能够在循环中达到接近 100% 的性能，那么，在 Fetch 分支结尾的分支指令的同时，需要保证下一次 Fetch 已经得到了分支预测的目的地址。这个就是 BOOM 里面的 L0 BTB (1-cycle redirect)。但是，一个周期内完成的分支预测，它的面积肯定不能大，否则时序无法满足，所以 BOOM 里面还设计了 2-cycle 和 3-cycle 的比较高级的分支预测器，还有针对函数调用的 RAS（Return Address Stack）。</p>
-<p>分支预测也有很多方法。比较简单的方法是实现一个 BHT，每个项是一个 2 位的饱和计数器，超过一半的时候增加，少于一半时减少。但是，如果遇到了跳转/不跳转/跳转/不跳转这种来回切换的情况，准确率就很低。一个复杂一些的设计，就是用 BHR，记录这个分支指令最近几次的历史，对于每种可能的历史，都对应一个 2 位的饱和计数器。这样，遇到刚才所说的情况就会很好地预测。但实践中会遇到问题：如果在写回之前，又进行了一次预测，因为预测是在取指的时候做的，但是更新 BPU 是在写回的时候完成的，这时候预测就是基于旧的状态进行预测，这时候 BHR 就会出现不准确的问题；而且写回 BPU 的时候，会按照原来的状态进行更新，这个状态可能也是错误的，导致丢失一次更新，识别的模式从跳转/不跳转/跳转/不跳转变成了跳转/跳转/跳转/不跳转，这样又会预测错误。一个解决办法是，在取指阶段，BPU 预测完就立即按照预测的结果更新 BHR，之后写回阶段会恢复到实际的 BHR 取值。论文 <a href="https://dl.acm.org/doi/10.1145/192724.192756">The effect of speculatively updating branch history on branch prediction accuracy, revisited</a> 和 <a href="https://jilp.org/vol2/v2paper1.pdf">Speculative Updates of Local and Global Branch History: A Quantitative Analysis</a> 讨论了这个实现方式对性能的影响。</p>
-<p>比较容易做预测更新和恢复的是全局分支历史，可以维护两个 GHR（Global History Register），一个是目前取指令最新的，一个是提交的最新的。在预测的时候，用 GHR 去找对应的 2-bit 状态，然后把预测结果更新到 GHR 上。在预测失败的时候，把 GHR 恢复为提交的状态。如果要支持一个 Fetch Packet 中有多个分支，可以让 GHR 对应若干个 2-bit 状态，分别对应相应位置上的分支的状态，当然这样面积也会增加很多。</p>
-<h3 id="处理器内存仿真模型"><a class="toclink" href="../../../../hardware/2022/03/31/brief-into-ooo-2/#处理器内存仿真模型">处理器/内存仿真模型</a></h3>
-<p>最后列举一下科研里常用的一些处理器/内存仿真模型：</p>
+<p>之前写过一个<a href="../../../../hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a>，随着学习的深入，内容越来越多，页面太长，因此把后面的一部分内容独立出来，变成了这篇博客文章。</p>
+<p>本文主要讨论访存的部分。</p>
+<p>本系列的所有文章：</p>
 <ul>
-<li>gem5: <a href="https://arxiv.org/abs/2007.03152">论文 The gem5 Simulator: Version 20.0+</a> <a href="https://gem5.googlesource.com/public/gem5">代码</a></li>
-<li>DRAMSim2: <a href="https://user.eng.umd.edu/~blj/papers/cal10-1.pdf">论文 DRAMSim2: A Cycle Accurate Memory System Simulator</a> <a href="https://github.com/umd-memsys/DRAMSim2">代码</a></li>
-<li>DRAMsim3: <a href="https://ieeexplore.ieee.org/document/8999595">论文 DRAMsim3: A Cycle-Accurate, Thermal-Capable DRAM Simulator</a> <a href="https://github.com/umd-memsys/DRAMsim3">代码</a></li>
-<li>DRAMSys4.0：<a href="https://link.springer.com/chapter/10.1007/978-3-030-60939-9_8">论文 DRAMSys4.0: A Fast and Cycle-Accurate SystemC/TLM-Based DRAM Simulator</a> <a href="https://github.com/tukl-msd/DRAMSys/releases/tag/v4.0">4.0 代码</a> <a href="https://github.com/tukl-msd/DRAMSys/releases/tag/v5.0">5.0 代码</a></li>
-<li>CACTI: <a href="https://www.hpl.hp.com/research/cacti/cacti2.pdf">论文 CACTI 2.0: An Integrated Cache Timing and Power Model</a> <a href="https://github.com/HewlettPackard/cacti">代码</a></li>
-<li>McPAT: <a href="https://ieeexplore.ieee.org/document/5375438">论文 McPAT: An integrated power, area, and timing modeling framework for multicore and manycore architectures</a> <a href="https://github.com/HewlettPackard/mcpat">代码</a></li>
-<li>Multi2Sim: <a href="https://ieeexplore.ieee.org/document/7842946">论文 Multi2Sim: A simulation framework for CPU-GPU computing</a> <a href="https://github.com/Multi2Sim/multi2sim">代码</a></li>
-<li>Ramulator: <a href="https://users.ece.cmu.edu/~omutlu/pub/ramulator_dram_simulator-ieee-cal15.pdf">论文 Ramulator: A Fast and Extensible DRAM Simulator</a> <a href="https://github.com/CMU-SAFARI/ramulator">代码</a></li>
-<li>Scarab: <a href="https://github.com/hpsresearchgroup/scarab">代码</a></li>
-<li>Sniper: <a href="https://dl.acm.org/doi/abs/10.1145/2063384.2063454">论文 Sniper: exploring the level of abstraction for scalable and accurate parallel multi-core simulation</a> <a href="https://snipersim.org/w/The_Sniper_Multi-Core_Simulator">官网</a> <a href="https://github.com/snipersim/snipersim">仓库</a></li>
-<li>ZSim: <a href="https://people.csail.mit.edu/sanchez/papers/2013.zsim.isca.pdf">论文 ZSim: fast and accurate microarchitectural simulation of thousand-core systems</a> <a href="https://github.com/s5z/zsim">代码</a></li>
-<li>PTLsim: <a href="https://ieeexplore.ieee.org/document/4211019">论文 PTLsim: A Cycle Accurate Full System x86-64 Microarchitectural Simulator</a></li>
+<li><a href="../../../../hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU（一：乱序）</a></li>
+<li><a href="../../../../hardware/2022/03/31/brief-into-ooo-2/">浅谈乱序执行 CPU（二：访存）</a></li>
+<li><a href="../../../../hardware/2024/09/12/brief-into-ooo-3/">浅谈乱序执行 CPU（三：前端）</a></li>
 </ul>
+
+    
+      <nav class="md-post__action">
+        <a href="../../../../hardware/2022/03/31/brief-into-ooo-2/">
+          继续阅读
+        </a>
+      </nav>
     
   </div>
 </article>

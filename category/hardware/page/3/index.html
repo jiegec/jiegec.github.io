@@ -445,6 +445,34 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#教学dram-结构和特性">
+<span class="md-ellipsis">
+      「教学」DRAM 结构和特性
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#教学risc-v-debug-协议">
+<span class="md-ellipsis">
+      「教学」RISC-V Debug 协议
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#manycore-处理器架构分析">
+<span class="md-ellipsis">
+      Manycore 处理器架构分析
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sunway-处理器架构分析">
+<span class="md-ellipsis">
+      Sunway 处理器架构分析
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#移植系统到-rocket-chip-on-vcu128">
 <span class="md-ellipsis">
       移植系统到 Rocket Chip on VCU128
@@ -459,9 +487,9 @@
 </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#浅谈乱序执行-cpu">
+<a class="md-nav__link" href="#浅谈乱序执行-cpu一乱序">
 <span class="md-ellipsis">
-      浅谈乱序执行 CPU
+      浅谈乱序执行 CPU（一：乱序）
     </span>
 </a>
 </li>
@@ -591,34 +619,6 @@
     </span>
 </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#向咸鱼派写入-archlinuxarm">
-<span class="md-ellipsis">
-      向咸鱼派写入 ArchlinuxARM
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#咸鱼派的启动配置">
-<span class="md-ellipsis">
-      咸鱼派的启动配置
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#在荔枝糖lichee-tang上初次体验-fpga">
-<span class="md-ellipsis">
-      在荔枝糖（Lichee Tang）上初次体验 FPGA
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#在-macos-上读取移动硬盘的-smart-信息">
-<span class="md-ellipsis">
-      在 macOS 上读取移动硬盘的 S.M.A.R.T. 信息
-    </span>
-</a>
-</li>
 </ul>
 </nav>
 </li>
@@ -726,6 +726,527 @@
 <header class="md-typeset">
 <h1 id="hardware">hardware<a class="headerlink" href="#hardware" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-12-12 00:00:00">2021年12月12日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 5 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="教学dram-结构和特性"><a class="toclink" href="../../../../hardware/2021/12/12/dram/">「教学」DRAM 结构和特性</a></h2>
+<p>本文的内容已经整合到<a href="/kb/hardware/sdram.html">知识库</a>中。</p>
+<h3 id="dram-是如何组织的"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#dram-是如何组织的">DRAM 是如何组织的</a></h3>
+<p>DRAM 分成很多层次：Bank Group，Bank，Row，Column，从大到小，容量也是各级别的乘积。</p>
+<p>举例子：</p>
+<ul>
+<li>4 Bank Group</li>
+<li>4 Bank per Bank Group</li>
+<li>32,768 Row per Bank</li>
+<li>1024 Column per Row</li>
+<li>4 Bits per Column</li>
+</ul>
+<p>那么总大小就是 <code>4*4*32768*1024*4=2 Gb</code>。</p>
+<h3 id="访问模式"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#访问模式">访问模式</a></h3>
+<p>DRAM 的访问模式决定了访问内存的实际带宽。对于每次访问，需要这样的操作：</p>
+<ol>
+<li>用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe）</li>
+<li>用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。</li>
+<li>在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。</li>
+</ol>
+<p>可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。</p>
+<p>除了显式 PRE 以外，还可以在某次读写之后自动进行 PRE：WRA(Write with Auto-Precharge) 和 RDA(Read with Auto-Precharge)。</p>
+<p>总结一下上面提到的六种命令：</p>
+<ol>
+<li>ACT: Bank Activate，激活一个 Row，用于接下来的访问</li>
+<li>PRE: Single Bank Precharge，与 ACT 是逆操作，解除 Row 的激活状态</li>
+<li>RD: Read，读取当前 Row 的某个 Column 数据</li>
+<li>RDA: Read with Auto-Precharge，读取后执行 Precharge</li>
+<li>WR: Write，写入当前 Row 的某个 Column 数据</li>
+<li>WRA: Write with Auto-Precharge，写入后执行 Precharge</li>
+</ol>
+<p>除此之外，还有一些常用命令：</p>
+<ol>
+<li>REF: Refresh，需要定期执行，保证 DRAM 数据不会丢失。</li>
+</ol>
+<h3 id="参数"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#参数">参数</a></h3>
+<p>DRAM 有很多参数，以服务器上的内存 <a href="https://in.micron.com/products/dram-modules/rdimm/part-catalog/mta36asf2g72pz-2g3">MTA36ASF2G72PZ-2G3A3</a> 为例子：</p>
+<ul>
+<li>16GB 容量，DDR4 SDRAM RDIMM</li>
+<li>PC4-2400</li>
+<li>Row address: 64K A[15:0]</li>
+<li>Column address: 1K A[9:0]</li>
+<li>Device bank group address: 4 BG[1:0]</li>
+<li>Device bank address per group: 4 BA[1:0]</li>
+<li>Device configuration: 4Gb (1Gig x 4), 16 banks</li>
+<li>Module rank address: 2 CS_n[1:0]</li>
+<li>Configuration: 2Gig x 72</li>
+<li>Module Bandwidth: 19.2 GB/s=2400 MT/s * 8B/T</li>
+<li>Memory Clock: 0.83ns(1200 MHz)</li>
+<li>Data Rate: 2400 MT/s</li>
+<li>Clock Cycles: CL-nRCD-nRP = 17-17-17</li>
+</ul>
+<p>容量：每个 DRAM 颗粒 <code>64K*1K*4*4*4=4Gb</code>，不考虑 ECC，一共有 <code>16*2=32</code> 个这样的颗粒，实际容量是 16 GB。32 个颗粒分为两组，每组 16 个颗粒，两组之间通过 CS_n 片选信号区分。每组 16 个颗粒，每个颗粒 4 位 DQ 数据信号，合并起来就是 64 位，如果考虑 ECC 就是 72 位。</p>
+<p>再举一个 FPGA 开发板上内存的例子：<a href="https://www.micron.com/products/dram/ddr4-sdram/part-catalog/mt40a512m16ly-075">MT40A512M16LY-075E</a>，参数如下：</p>
+<ol>
+<li>Data Rate: 2666 MT/s, Clock Frequency: 1333 MHz, tCK=0.750ns=750ps</li>
+<li>Target CL-nRCD-nRP: 18-18-18</li>
+<li>tAA(Internal READ command to first data)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRCD(ACTIVATE to internal READ or WRITE delay time)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRP(PRECHARGE command period)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRAS(ACTIVATE-to-PRECHARGE command period)=32ns</li>
+<li>512 Meg x 16</li>
+<li>Number of bank groups: 2</li>
+<li>Bank count per group: 4</li>
+<li>Row addressing: 64K</li>
+<li>Column addressing: 1K</li>
+<li>Page size: 2KB=2K*16b</li>
+</ol>
+<p>总大小：<code>2*4*64K*1K*16=1GB</code>。这个开发板用了 5 个 DRAM 芯片，只采用了其中的 4.5 个芯片：最后一个芯片只用了 8 位数据，这样就是 <code>4.5*16=72</code> 位的数据线，对应 64 位+ECC。</p>
+<h3 id="时序"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#时序">时序</a></h3>
+<p>可以看到，上面的 DRAM Datasheet 里提到了三个时序参数：</p>
+<ol>
+<li>CL=17: CAS Latency，从发送读请求到第一个数据的延迟周期数</li>
+<li>RCD=17: ACT to internal read or write delay time，表示从 ACT 到读/写需要的延迟周期数</li>
+<li>RP=17: Row Precharge Time，表示 Precharge 后需要延迟周期数</li>
+</ol>
+<p>如果第一次访问一个 Row 中的数据，并且之前没有已经打开的 Row，那么要执行 ACT 和 RD 命令，需要的周期数是 RCD+CL；如果之前已经有打开了的 Row，那么要执行 PRE，ACT 和 RD 命令，需要的周期数是 RP+RCD+CL。但如果是连续访问，虽然还需要 CL 的延迟，但是可以流水线起来，充分利用 DDR 的带宽。</p>
+<p>如果把这个换算到 CPU 角度的内存访问延迟的话，如果每次访问都是最坏情况，那么需要 17+17+17=51 个 DRAM 时钟周期，考虑 DRAM 时钟是 1200MHz，那就是 42.5ns，这个相当于是 DRAM 内部的延迟，实际上测得的是 100ns 左右。</p>
+<p>更严格来说，读延迟 READ Latency = AL + CL + PL，其中 AL 和 PL 是可以配置的，CL 是固有的，所以简单可以认为 READ Latency = CL。同理 WRITE Latency = AL + CWL + PL，可以简单认为 WRITE Latency = CWL。CWL 也是可以配置的，不同的 DDR 速率对应不同的 CWL，范围从 1600 MT/s 的 CWL=9 到 3200 MT/s 的 CWL=20，具体见 JESD79-4B 标准的 Table 7 CWL (CAS Write Latency)。</p>
+<h3 id="波形"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#波形">波形</a></h3>
+<p>用 Micron 提供的 <a href="https://media-www.micron.com/-/media/client/global/documents/products/sim-model/dram/ddr4/ddr4_verilog_models.zip?rev=caf27a5eaf6b4a9f81eb894a874a4492">Verilog Model</a> 进行仿真，可以看到如下的波形图：</p>
+<p><img alt="" src="../../../../hardware/ddr4_waveform.png"/></p>
+<p>首先看第一个命令，ACT_n=0, ADDR=0x009C, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=0, WE_n_A14=1，查阅标准可知这是 ACT(Bank Activate) 命令。接着第二个命令，ACT_n=1, ADDR=0x0400, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=1, WE_n_A14=1, A10=1, 这是 RDA(Read with Auto Precharge) 命令。若干个周期后，读取的数据从 DQ 上输出，一共 8 个字节的数据。</p>
+<h3 id="刷新"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#刷新">刷新</a></h3>
+<p>DRAM 的一个特点是需要定期刷新。有一个参数 tREFI，表示刷新的时间周期，这个值通常是 7.8us，在温度大于 85 摄氏度时是 3.9 us（见 JESD79-4B Table 131）。在刷新之前，所有的 bank 都需要 Precharge 完成并等待 RP 的时间，这时候所有的 Bank 都是空闲的，再执行 REF(Refresh) 命令。等待 tRFC(Refresh Cycle) 时间后，可以继续正常使用。</p>
+<p>为了更好的性能，DDR4 标准允许推迟一定次数的刷新，但是要在之后补充，保证平均下来依然满足每过 tREFI 时间至少一次刷新。</p>
+<h3 id="地址映射"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#地址映射">地址映射</a></h3>
+<p>如果研究 DRAM 内存控制器，比如 <a href="https://www.xilinx.com/support/documentation/ip_documentation/ultrascale_memory_ip/v1_4/pg150-ultrascale-memory-ip.pdf">FPGA 上的 MIG</a>，可以发现它可以配置不同的地址映射方式，例如：</p>
+<ul>
+<li>ROW_COLUMN_BANK</li>
+<li>ROW_BANK_COLUMN</li>
+<li>BANK_ROW_COLUMN</li>
+<li>ROW_COLUMN_LRANK_BANK</li>
+<li>ROW_LRANK_COLUMN_BANK</li>
+<li>ROW_COLUMN_BANK_INTLV</li>
+</ul>
+<p>就是将地址的不同部分映射到 DRAM 的几个地址：Row，Column，Bank。可以想象，不同的地址映射方式针对不同的访存模式会有不同的性能。对于连续的内存访问，ROW_COLUMN_BANK 方式是比较适合的，因为连续的访问会分布到不同的 Bank 上，这样性能就会更好。</p>
+<p>此外，如果访问会连续命中同一个 Page，那么直接读写即可；反之如果每次读写几乎都不会命中同一个 Page，那么可以设置 Auto Precharge，即读写以后自动 Precharge，减少了下一次访问前因为 Row 不同导致的 PRE 命令。一个思路是在对每个 Page 的最后一次访问采用 Auto Precharge。</p>
+<h3 id="传输速率"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#传输速率">传输速率</a></h3>
+<p>DDR SDRAM 的传输速率计算方式如下：</p>
+<div class="language-text highlight"><pre><span></span><code>Memory Speed (MT/s) * 64 (bits/transfer)
+</code></pre></div>
+<p>例如一个 DDR4-3200 的内存，带宽就是 <code>3200 * 64 = 204.8 Gb/s = 25.6 GB/s</code>。但前面已经看到，除了传输数据，还需要进行很多命令，实际上很难达到 100% 的带宽。然后 CPU 可以连接多个 channel 的 DRAM，再考虑多个 CPU Socket，系统的总带宽就是</p>
+<div class="language-text highlight"><pre><span></span><code>Memory Speed (MT/s) * 64 (bits/transfer) * Channels * Sockets
+</code></pre></div>
+<p>使用 MLC 等工具进行测试，计算实际与理论的比值，我测试得到的大概在 70%-90% 之间。</p>
+<h3 id="hbm"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#hbm">HBM</a></h3>
+<p>HBM 相比前面的 DDR SDRAM，它堆叠了多个 DRAM，提供多个 channel 并且提高了位宽。例如 <a href="https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/dram/hbm2e/8gb_and_16gb_hbm2e_dram.pdf">Micron HBM with ECC</a>，堆叠了 4/8 层 DRAM，提供 8 个 channel，每个 channel 的数据宽度是 128 位，以 3200 MT/s 计算，一个 HBM 芯片的传输速率最大是：</p>
+<div class="language-text highlight"><pre><span></span><code>3200 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 3276.8 Gb/s = 409.6 GB/s
+</code></pre></div>
+<p>所以一片 HBM 的传输速率就相当于 16 个传统的 DDR SDRAM：8 个 Channel 加双倍的位宽。128 位实际上就是把两片 64-bit DDR SDRAM 并起来了，可以当成一个 128 位的用，也可以在 Pseudo Channel 模式下，当成共享地址和命令信号的两个 DDR SDRAM 用。</p>
+<p>Xilinx 的 Virtex Ultrascale Plus HBM FPGA 提供了 <code>1800 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 230.4 GB/s</code> 的带宽，如果用了两片 HBM 就是 460.8 GB/s。暴露给 FPGA 逻辑的是 16 个 256 位的 AXI3 端口，AXI 频率 450 MHz，内存频率 900 MHz。可以看到，每个 AXI3 就对应了一个 HBM 的 pseudo channel。每个 pseudo channel 是 64 位，但是 AXI 端口是 256 位：在速率不变的情况下，从 450MHz 到 900MHz，再加上 DDR，相当于频率翻了四倍，所以位宽要从 64 位翻四倍到 256 位。</p>
+<p>当然了，HBM 的高带宽的代价就是引脚数量很多。根据 <a href="https://www.jedec.org/system/files/docs/JESD238A.pdf">HBM3 JESD238A</a>，每个 Channel 要 120 个 pin，一共 16 个 channel（HBM2 是 8 channel，每个 channel 128 位；HBM3 是 16 channel，每个 channel 64 位），然后还有其他的 52 个 pin，这些加起来就 1972 个 pin 了。所以一般在 Silicon Interposer 上连接，而不是传统的在 PCB 上走线（图源 <a href="https://picture.iczhiku.com/resource/ieee/WYifSuFTZuHLFcMV.pdf">A 1.2V 20nm 307GB/s HBM DRAM with At-Speed Wafer-Level I/O Test Scheme and Adaptive Refresh Considering Temperature Distribution</a>）：</p>
+<p><img alt="" src="../../../../hardware/hbm_stack.png"/></p>
+<p>所以在 HBM3 标准里，用 Microbump 来描述 HBM 的 pin。</p>
+<p>可以理解为把原来插在主板上的内存条，通过堆叠，变成一个 HBM Die，然后紧密地连接到 CPU 中。但是另一方面，密度上去了，价格也更贵了。</p>
+<p>A100 显卡 40GB PCIe 版本提供了 1555 GB/s 的内存带宽。根据倍数关系，可以猜测是 5 个 8GB 的 HBM，每个提供 <code>1555 / 5 = 311 GB/s</code> 的带宽，那么时钟频率就是 <code>311 (GB/s) * 8 (bits/byte) / 128 (bits/transfer) / 8 (channels) / 2 (DDR) = 1215 MHz</code>，这与 <code>nvidia-smi -q</code> 看到的结果是一致的。</p>
+<p>进一步，A100 80GB PCIe 版本提供了 1935 GB/s 的带宽，按照同样的方法计算，可得时钟频率是 <code>1935 (GB/s) / 5 * 8 (bits/byte) / 128 (bits/transfer) / 8 (channels) / 2(DDR) = 1512 MHz</code>，与 <a href="https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/PB-10577-001_v02.pdf">Product Brief</a> 一致。频率的提高是因为从 HBM2 升级到了 HBM2e。</p>
+<p>A100 文档中的 Memory bus width 5120 的计算方式也就清楚了：<code>128 (bits/transfer) * 8 (channels) * 5 (stacks) = 5120 (bits)</code>。</p>
+<p>H100 SXM5 升级到了 HBM3，内存容量依然是 80GB，但是时钟频率提高，内存带宽是 <code>2619 (MHz) * 2 (DDR) * 128 (bits/transfer) * 8 (channels) * 5 (stacks) / 8 (bits/byte) = 3352 GB/s</code>。</p>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#参考文档">参考文档</a></h3>
+<ul>
+<li>Memory systems: Cache, DRAM &amp; Disk</li>
+<li><a href="https://zhuanlan.zhihu.com/p/262052220">译文：DDR4 SDRAM - Understanding the Basics（上）</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/263080272">译文：DDR4 SDRAM - Understanding the Basics（下）</a></li>
+<li><a href="https://github.com/RAMGuide/TheRamGuide-WIP-/raw/main/DDR5%20Spec%20JESD79-5.pdf">JEDEC STANDARD DDR5 SDRAM JESD79-5</a></li>
+<li><a href="http://www.softnology.biz/pdf/JESD79-4B.pdf">JEDEC STANDARD DDR4 SDRAM JESD79-4B</a></li>
+<li><a href="https://documents.pub/document/jesd79-3e-ddr3-sdram-specification.html">JEDEC STANDARD DDR3 SDRAM JESD79-3E</a></li>
+</ul>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-12-12 00:00:00">2021年12月12日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="教学risc-v-debug-协议"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/">「教学」RISC-V Debug 协议</a></h2>
+<h3 id="背景"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#背景">背景</a></h3>
+<p>之前用过一些 RISC-V 核心，但是遇到调试相关的内容的时候就两眼一抹黑，不知道原理，出了问题也不知道如何排查，趁此机会研究一下工作原理。</p>
+<h3 id="架构"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#架构">架构</a></h3>
+<p>为了调试 RISC-V 核心，需要很多部件一起工作。按 RISC-V Debug Spec 所述，有这么几部分：</p>
+<ol>
+<li>Debugger: GDB，连接到 OpenOCD 启动的 GDB Server</li>
+<li>Debug Translator: OpenOCD，向 GDB 提供 Server 实现，同时会通过 FTDI 等芯片控制 JTAG</li>
+<li>Debug Transport Hardware: 比如 FTDI 的芯片，可以提供 USB 接口，让 OpenOCD 控制 JTAG 信号 TMS/TDI/TCK 的变化，并读取 TDO</li>
+<li>Debug Transport Module: 在芯片内部的 JTAG 控制器（TAP），符合 JTAG 标准</li>
+<li>Debug Module Interface：RISC-V 自定义的一系列寄存器，通过这些寄存器来控制 Debug Module 的行为</li>
+<li>Debug Module：调试器，控制 RISC-V 核心，同时也支持直接访问总线，也有内部的 Program Buffer</li>
+</ol>
+<p>可以看到，DMI 是实际的调试接口，而 JTAG 可以认为是一个传输协议。</p>
+<h3 id="jtag"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#jtag">JTAG</a></h3>
+<p>首先什么是 JTAG？简单来说，它工作流程是这样的：</p>
+<ol>
+<li>JTAG TAP 维护了一个状态机，由 TMS 信号控制</li>
+<li>当状态机进入 CaptureDR/CaptureIR 状态的时候，加载数据到 DR/IR 中</li>
+<li>在 ShiftDR/ShiftIR 状态下，寄存器从 TDI 移入，从 TDO 移出</li>
+<li>当进入 UpdateDR/UpdateIR 状态的时候，把 DR/IR 的结果输出到其他单元</li>
+</ol>
+<p>具体来说，JTAG 定义了两类寄存器：IR 和 DR。可以把 JTAG 理解成一个小的总线，我通过 IR 选择总线上的设备，通过 DR 向指定的设备上进行数据传输。比如在 RISC-V Debug Spec 里面，规定了以下的 5 位 IR 地址定义：</p>
+<ol>
+<li>0x00/0x1f: BYPASS</li>
+<li>0x01: IDCODE</li>
+<li>0x10: dtmcs</li>
+<li>0x11: dmi</li>
+</ol>
+<p>可以类比为有四个设备：BYPASS，IDCODE，dtmcs，dmi，对应了一些地址。如果要选择 dtmcs 这个设备，就在 ShiftIR 阶段向 TDI 输入二进制的 00001 即可。选择地址以后，再向 DR 写入时，操作的就是 dtmcs 设备。</p>
+<p>那么，每个设备是怎么操作的呢？假如我已经通过 IR 设置了当前设备是 dtmcs，然后进入 ShiftDR 模式时，JTAG 会同时输入和输出。输入的就是当前要输入的数据，输出的就是原来寄存器里的结果，这个结果可能是固定的，也可能是表示上一次输入对应的结果。</p>
+<p>举个例子：IDCODE 设备，在 CaptureDR 阶段的时候，DR 总会被设为一个固定的 IDCODE，表示设备的 ID；在 Shift 的时候，这个 IDCODE 就会一位一位从 TDO 中输出，而 TDI 输入的数据都会被忽略掉。BYPASS 设备则是一个 1 位的寄存器，直接从 TDI 到寄存器，寄存器到 TDO，数据就这么流过去了。</p>
+<p>那么，在 RISC-V Debug 里面，JTAG 是怎么用的呢？我们可以这么类比一下：CaptureDR 相当于读取寄存器到缓冲区，然后 ShiftDR 在读取缓冲区的同时写入缓冲区，最后 UpdateDR 则是把缓冲区中的数据写入到寄存器中。这和 MMIO 有点类似，只不过每次操作不是单独的写和读，而是一次操作等于先读后写。</p>
+<p>还是来看例子。dtmcs 这个设备表示的是 DTM 当前的状态，它有 32 位，读取的时候可以得到 DMI 的状态和配置，写入的时候可以 reset DMI。以 OpenOCD 代码 <code>dtmcontrol_scan</code> 为例子，它做了这么几个事情：</p>
+<ol>
+<li>首先设置 IR 为 0x10，对应 dtmcs。</li>
+<li>向 DR 中写入数据，同时读取数据。</li>
+<li>设置 IR 为 0x11，对应 dmi，因为 dmi 操作是比较多的，所以它默认恢复到 dmi。</li>
+</ol>
+<p>如果我只想读取 dtmcs 寄存器，那么只要设置写入数据为 0 即可，因为寄存器的设计里考虑到，如果写入全 0 是没有副作用的。同理，如果只想写入 dtmcs 寄存器，直接写入即可，因为设计的时候也保证读入寄存器的值是没有副作用的。这样，就在一个一读一写的操作中，实现了读或者写的功能。</p>
+<p>那么，dmi 寄存器的用途是什么呢？我们前面提到过，JTAG 其实是一个传输层，而 DMI 又定义了一系列的寄存器，这会让人有点混乱，为啥到处都是寄存器？又是 JTAG 的 IR/DR，又是 dmi，dmi 又有一堆寄存器，这是什么关系？</p>
+<p>首先我们来看 dmi 寄存器的定义。它由三部分组成：地址、数据和操作。由于 JTAG 每次操作是一读一写，虽然寄存器定义差不多，但是读和写的含义是不同的。</p>
+<p>比如读的时候，它表示的是上一次 dmi 请求的结果。地址还是上一次请求的地址，数据则是上一次请求的结果，操作字段 0 表示成功，2 表示失败，3 表示还没执行完。而写的时候，地址和数据表示了对哪个寄存器写入什么数据，操作字段 0 表示无操作，1 表示读，2 表示写。</p>
+<p>可以看到，如果想操作 dmi 定义的寄存器，需要如下几个步骤，这也是 OpenOCD <code>dmi_op_timeout</code> 要做的事情：</p>
+<ol>
+<li>设置 IR 为 0x11，对应 DMI。</li>
+<li>向 DR 写入请求的地址 + 数据 + 操作，丢弃读取的结果。</li>
+<li>等待若干个周期。</li>
+<li>向 DR 写入全 0，对应无操作，同时读取结果，这个结果就对应上面的请求。</li>
+</ol>
+<p>可以预期，如果首先写入了一个写操作，那么第二次 DR scan 得到的结果就是是否成功写入；如果首先写入了一个读操作，那么第二次 DR scan 得到的结果就是目标寄存器的值。</p>
+<p>可能看起来还是很绕，确实很绕，因为这里有一个封装的过程。首先，DMI 本身定义了一些寄存器，这些寄存器读/写都有一定的含义，比如控制某一个 RISC-V 核心暂停等等。接着，JTAG 需要传输 DMI 的读取和写入操作，同时还要考虑读写尚未完成的情况，怎么办？结论就是通过 DR 来实现，写入 DR 时，按照 DR 中的操作数，对应到 DMI 的写入/读取；然后读取 DR 的时候，按照 DMI 的状态，告诉 OpenOCD 目前是否已经完成了上一次 DMI 操作，和操作的结果。</p>
+<h3 id="dmi"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#dmi">DMI</a></h3>
+<p>讲完 JTAG 以后，终于来到了 DMI。其实 DMI 就是一系列的寄存器，类似于 MMIO 设备，只不过访问方式不是我们通常的内存读写，而是通过 JTAG 的方式进行。它有很多个寄存器，摘录如下：</p>
+<ol>
+<li>dmcontrol 0x10: Debug Module Control</li>
+<li>dmstatus 0x11: Debug Module Status</li>
+<li>hartinfo 0x12: Hart Info</li>
+<li>hartsum 0x13: Hart Summary</li>
+<li>command 0x16: Abstract Control and Status</li>
+<li>data0 0x04: Abstract Data 0</li>
+<li>progbuf0 0x20: Program Buffer 0</li>
+<li>sbcs 0x38: System Bus Access Control and Status</li>
+<li>sbaddress0 0x39: System Bus Address 31:0</li>
+<li>sbdata0 0x3c: System Bus Data 31:0</li>
+</ol>
+<p>OpenOCD 的 <code>examine</code> 函数对 DMI 初始化并进行一些参数的获取。它的操作如下：</p>
+<ol>
+<li>调用 dtmcontrol_scan，读取 JTAG 里的 dtmcs，可以得到 JTAG-DMI 的配置信息</li>
+<li>向 dmcontrol 写入，进行复位</li>
+<li>向 dmcontrol 写入，启用调试模块</li>
+<li>从 hartinfo 读取 hart 信息</li>
+<li>检查各个 hart 的状态</li>
+</ol>
+<p>类似地，其他各种调试操作都是对这些 DMI 寄存器的读和写进行。RISC-V Debug Spec 附录里还提到了如何实现调试器的一些功能。</p>
+<p>比如要读取 CPU 的寄存器（比如通用寄存器，CSR 等等）的话，有如下的方式：</p>
+<p>第一种是 Abstract Command，直接向 DMI 写入要寄存器编号，就可以实现读/写。</p>
+<p>第二种是 Program Buffer。它是一块小的代码存储，可以通过 DMI 向其中写入指令，比如 <code>csrw s0, mstatus; ebreak</code>，然后设置 s0 寄存器的值，再执行 Program Buffer 里的代码。</p>
+<p>以 OpenOCD 代码为例，<code>register_read_abstract</code> 做了以下操作：</p>
+<ol>
+<li>找到要读取的寄存器对应的 Abstract Register Number</li>
+<li>进行 transfer 命令，DM 会读取对应寄存器到 data0 中</li>
+<li>从 data0 中读取寄存器内容</li>
+</ol>
+<p>如果要读取内存的话，也有两种方法。一种是直接向 DMI 写入要读取的总线地址，然后再向指定的寄存器中读取数据。第二种还是利用 Program Buffer，写入一条 <code>lw s0, 0(s0)</code> 指令，然后先向 s0 写入地址，执行 Program Buffer 后，再把 s0 寄存器的值读出来。</p>
+<h3 id="abstract-command-实现"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#abstract-command-实现">Abstract Command 实现</a></h3>
+<p>那么，如何实现上面提到的 Abstract Command（比如读写寄存器，读写内存等）呢？Debug Spec 里面提到一种 Execution-Based 的方式，即在 Debug mode 下，核心依然在执行代码，只不过执行的是调试用的特殊代码。它做的就是轮询 Debug Module 等待命令，接受到命令以后，就去读写寄存器/内存，然后通过 data0-12 来传输数据。</p>
+<p>这里还有一个比较特别的点，就是读取寄存器的时候，寄存器的编号是直接记录在指令中的，所以可以让 Debug Module 动态生成指令，然后让核心刷新 ICache 然后跳转过去。另外，还可以利用 dscratch0/dscratch1 寄存器来保存 gpr，然后用 dret 退出的时候再恢复，这样就有两个 gpr 可以用来实现功能了，实际上这已经够用了（一个技巧是，把地址设为 0 附近，然后直接用 zero 寄存器加偏移来寻址）。</p>
+<h3 id="单步调试实现"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#单步调试实现">单步调试实现</a></h3>
+<p>在 dcsr 中，有一个值 step 表示是否在单步调试状态。设 step 为 1 的时候，如果不在 debug mode 中，只需要记录以及执行的指令数，当执行了一条指令后，视为下一个指令发生了进入 debug mode 的异常，这样就实现了单步调试。</p>
+<h3 id="软件断点实现"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#软件断点实现">软件断点实现</a></h3>
+<p>调试器为了打断点，一种简单的方式是，往断点处写入 ebreak 指令，然后设置 dcsr 的 ebreakm/s/u，表示在这些特权集里，ebreak 是进入 debug mode，而不是原来的处理过程。然后，程序运行到 ebreak 指令的时候，进入 debug mode，openocd 发现核心进入 halted 状态后，让 gdb 继续进行调试。</p>
+<p>硬件方面的实现方法就是，在遇到 ebreak 的时候，判断一下当前的特权集，结合 ebreakm/s/u 判断跳转到什么状态。此外，由于它会写入指令到内存，所以还需要执行 fence.i 指令，而 OpenOCD 需要依赖 progbuf 来执行 fence.i 指令，所以为了让这个方案工作，还得实现 Program Buffer。</p>
+<p>当然了，软件断点也有局限性，比如内存不可写，比如 ROM，不能覆盖里面的指令，这样就有可能出问题。而且硬件断点性能也更好，不需要来回这样写指令。</p>
+<h3 id="semihosting"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#semihosting">Semihosting</a></h3>
+<p>ARM 有一种 semihosting 机制，就是处理器执行一种特定的指令序列，然后调试器看到整个序列的时候，不是进入 GDB 调试状态，而是去进行一些操作，比如输出信息，读写文件等等，然后结果通过 JTAG 写回去。OpenOCD 给 RISC-V 也做了类似的 semihosting 机制，只不过触发的指令序列不大一样，但是机制是类似的。</p>
+<p>如果用过 Rocket Chip 仿真的或者以前的 ucb-bar/fpga-zynq 项目的话，会知道还有一个目的有些类似的东西：HTIF + fesvr，它是通过 fromhost/tohost 两组地址来进行通信，但是这个方法缺点是需要 poll tohost/fromhost 地址的内容，相对来说比较麻烦。</p>
+<h3 id="program-buffer"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#program-buffer">Program Buffer</a></h3>
+<p>此外，debug spec 还有一个可选的功能，就是 Program Buffer，调试器可以往里面插入自定义的指令，然后结合 abstract command 进行操作。这样就可以做一些比较高效的操作，比如 OpenOCD 实现的批量写入内存：</p>
+<div class="language-asm highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="nf">sw</span><span class="w"> </span><span class="no">s1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">(</span><span class="no">a0</span><span class="p">)</span>
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="nf">addi</span><span class="w"> </span><span class="no">a0</span><span class="p">,</span><span class="w"> </span><span class="no">a0</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="nf">ebreak</span>
+</span></code></pre></div>
+<p>并且设置 abstractauto，然后重复的操作是往 s1 里面写入新的数据，然后跳转到 program buffer，进行上面的 sw 操作，这样就可以一次 dmi 请求完成一次内存的写入，比较高效。</p>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2021/12/12/riscv-debug/#参考文档">参考文档</a></h3>
+<ol>
+<li>RISC-V Debug Spec 0.13</li>
+<li>IEEE Standard for JTAG 1149.1-2013</li>
+<li>OpenOCD 相关代码</li>
+</ol>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-12-06 00:00:00">2021年12月6日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="manycore-处理器架构分析"><a class="toclink" href="../../../../hardware/2021/12/06/manycore/">Manycore 处理器架构分析</a></h2>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2021/12/06/manycore/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://openlab-mu-internal.web.cern.ch/02_Press_Corner/Spotlights/Spotlights_items/Copies_of_Spotlights_items/2011/ManyIntegratedCore(MIC)ArchitectureAdvanced.pdf">Intel® Many Integrated Core Architecture (Intel® MIC Architecture) - Advanced</a></li>
+<li><a href="https://ieeexplore.ieee.org/abstract/document/7476487">Intel® Xeon Phi coprocessor (codename Knights Corner)</a></li>
+<li><a href="https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080">https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080</a></li>
+<li><a href="https://www.alcf.anl.gov/files/HC27.25.710-Knights-Landing-Sodani-Intel.pdf">Knights Landing (KNL): 2nd Generation Intel® Xeon Phi™ Processor</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Fujitsu_A64FX">Fujitsu A64FX</a></li>
+<li><a href="https://www.fujitsu.com/global/about/resources/news/press-releases/2018/0822-02.html">Fujitsu Presents Post-K CPU Specifications</a></li>
+<li><a href="https://web.archive.org/web/20201205202434/https://hotchips.org/hc30/2conf/2.13_Fujitsu_HC30.Fujitsu.Yoshida.rev1.2.pdf">Fujitsu High Performance CPU for the Post-K Computer</a></li>
+<li><a href="https://www.top500.org/system/179807/">SUPERCOMPUTER FUGAKU - SUPERCOMPUTER FUGAKU, A64FX 48C 2.2GHZ, TOFU INTERCONNECT D</a></li>
+<li><a href="https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=9229635">Preliminary Performance Evaluation of the Fujitsu A64FX Using HPC Applications</a></li>
+<li><a href="https://www.fujitsu.com/downloads/SUPER/a64fx/a64fx_datasheet.pdf">FUJITSU Processor A64FX</a></li>
+<li><a href="https://images.nvidia.cn/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf">NVIDIA A100 Tensor Core GPU Architecture</a></li>
+<li><a href="https://images.nvidia.cn/content/volta-architecture/pdf/volta-architecture-whitepaper.pdf">NVIDIA TESLA V100 GPU ARCHITECTURE</a></li>
+<li><a href="https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf">NVIDIA A100 TENSOR CORE GPU</a></li>
+</ul>
+<h3 id="xeon-phi---intel-mic"><a class="toclink" href="../../../../hardware/2021/12/06/manycore/#xeon-phi---intel-mic">Xeon Phi - Intel MIC</a></h3>
+<p>MIC: Many Integrated Core Architecture</p>
+<p>Knights Corner:</p>
+<p>4 路 SMT，AVX512 指令，32 KB L1I，32 KB L1D，每核心 512KB L2，乱序执行，一条 512 位计算流水线，每个周期双精度性能 <code>512 / 64 * 2 = 16 FLOP/cycle</code>。61 核 1.053GHz 双精度性能是 <code>16 * 61 * 1.053 = 1028 GFLOPS</code>。</p>
+<p>向量寄存器分为四组，每组 128 位，两个 DP/四个 SP。SP 和 DP 计算共享乘法器，来优化面积。</p>
+<p>Knights Landing:</p>
+<p>核心：4 路 SMT，AVX512 指令，乱序执行，两条 512 位计算流水线，每个周期双精度性能 <code>512 / 64 * 2 * 2 = 32 FLOP/cycle</code>，如果是 64 核 1.3 GHz，总双精度性能是 <code>32 * 64 * 1.3 = 2662 GFLOPS</code>。一共 36 个 Tile，每个 Tile 有 2 Core + 2 VPU/core + 1MB 16-way L2，最大 72 个核心。</p>
+<p>内存：6-channel 384GB DDR4 2400 RAM（理论 <code>2400 * 6 * 8 = 115.2 GB/s</code>），8-16GB 3D MCDRAM（400+ GB/s）。</p>
+<h3 id="fujitsu-a64fx"><a class="toclink" href="../../../../hardware/2021/12/06/manycore/#fujitsu-a64fx">Fujitsu A64FX</a></h3>
+<p>内存：4 组，每组 8GB HBM2，带宽 256 GB/s（<code>1024 bit * 2G</code>），总共 32GB HBM2，带宽 1TB/s。Cache Line 大小 256 B。</p>
+<p>核心：4 个 NUMA Node（Core Memory Group），每个 NUMA Node 包括 12 计算核，有 8MB 16 路的 L2 Cache。总共 48 计算核，4 辅助核。</p>
+<p>指令集：ARMv8.2+SVE，512 位向量宽度，乱序执行，两个浮点流水线和两个整数流水线，每个周期双精度性能 <code>512 / 64 * 2 * 2 = 32 FLOP/cycle</code>，主频 2.2 GHz，按主频算理论双精度浮点性能 <code>32 * 2.2 * 48 = 3.4 TFLOPS</code>。文档里写的是双精度浮点性能 2.7 TFLOPS，单精度 5.4 TFLOPS，半精度 10.8 TFLOPS，8 位整数 21.6 TOPS，应该是按照实际测出来的算。TOP 500 配置是 7630848 核，对应 <code>7630848 / 48 = 158976</code> 个节点，Rpeak 是 <code>537212 TFLOPS</code>，那么每个节点是 <code>537212 / 158976 = 3.38 TFLOPS</code>，和上面的 3.4 接近。Linpack 跑出来的 Rmax 是 442010 TFLOPS，每个节点是 <code>442010 / 158976 = 2.78 TFLOPS</code>，和文档里说的比较接近。</p>
+<p>部分主要特性：</p>
+<ul>
+<li>Four-operand FMA: ARM FMA 指令只能是 <code>R0=R0+R1*R2</code>，A64FX 可以合并 <code>R0=R3,R0=R0+R1*R2</code> 两条为一条 <code>R0=R3+R1*R2</code> 指令</li>
+<li>Gather/Scatter: 非连续访存，同一个 128B 内连续的 lane 可以合并访问，如果数据有局部性的话，可以得到两倍带宽</li>
+</ul>
+<h3 id="nvidia-gpu"><a class="toclink" href="../../../../hardware/2021/12/06/manycore/#nvidia-gpu">NVIDIA GPU</a></h3>
+<table>
+<thead>
+<tr>
+<th>型号</th>
+<th>工艺</th>
+<th>Peak DP(TFLOPS)</th>
+<th>功耗 (W)</th>
+<th>性能功耗比 (TFLOPS/W)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P100</td>
+<td>16 nm FinFET+</td>
+<td>4.7</td>
+<td>250</td>
+<td>0.019</td>
+</tr>
+<tr>
+<td>V100</td>
+<td>12 nm FFN</td>
+<td>7</td>
+<td>250-300</td>
+<td>0.023-0.028</td>
+</tr>
+<tr>
+<td>A100</td>
+<td>7 nm N7</td>
+<td>9.7</td>
+<td>250-400</td>
+<td>0.024-0.039</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>型号</th>
+<th>内存容量 (GB)</th>
+<th>内存带宽 (GB/s)</th>
+<th>内存类型</th>
+<th>L2 缓存大小</th>
+<th>寄存器堆大小</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P100</td>
+<td>12-16</td>
+<td>549-732</td>
+<td>4096 bit HBM2</td>
+<td>4096 KB</td>
+<td>14336 KB</td>
+</tr>
+<tr>
+<td>V100</td>
+<td>16-32</td>
+<td>900</td>
+<td>4096 bit HBM2</td>
+<td>6144 KB</td>
+<td>20480 KB</td>
+</tr>
+<tr>
+<td>A100</td>
+<td>40-80</td>
+<td>1555-2039</td>
+<td>5120 bit HBM2</td>
+<td>40960 KB</td>
+<td>27648 KB</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>型号</th>
+<th>SM 数量</th>
+<th>CUDA 核心数</th>
+<th>FP64 核心数</th>
+<th>SM 频率 (MHz)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P100</td>
+<td>56</td>
+<td>3584</td>
+<td>1792</td>
+<td>1328</td>
+</tr>
+<tr>
+<td>V100</td>
+<td>80</td>
+<td>5120</td>
+<td>2560</td>
+<td>1380</td>
+</tr>
+<tr>
+<td>A100</td>
+<td>108</td>
+<td>6912</td>
+<td>3456</td>
+<td>1410</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>CUDA 核心数 = SM 数量 * 64</li>
+<li>FP64 核心数 = SM 数量 * 32</li>
+<li>Peak DP = FP64 核心数 * SM 频率 * 2</li>
+<li>寄存器堆大小 = SM 数量 * 256 KB</li>
+</ul>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-12-04 00:00:00">2021年12月4日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="sunway-处理器架构分析"><a class="toclink" href="../../../../hardware/2021/12/04/sunway/">Sunway 处理器架构分析</a></h2>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2021/12/04/sunway/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://crad.ict.ac.cn/CN/10.7544/issn1000-1239.2021.20201041">高性能众核处理器申威 26010</a></li>
+<li><a href="https://cjc.ict.ac.cn/online/onlinepaper/lyy-202065163512.pdf">稀疏矩阵向量乘法在申威众核架构上的性能优化</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Sunway_SW26010">Sunway SW26010</a></li>
+<li><a href="https://link.springer.com/content/pdf/10.1007/s11432-016-5588-7.pdf">The Sunway TaihuLight supercomputer: system and applications</a></li>
+<li><a href="https://www.netlib.org/utk/people/JackDongarra/PAPERS/sunway-report-2016.pdf">Report on the Sunway TaihuLight System</a></li>
+<li><a href="https://dl.acm.org/doi/pdf/10.1145/3458817.3487399">Closing the “Quantum Supremacy” Gap: Achieving Real-Time Simulation of a Random Quantum Circuit Using a New Sunway Supercomputer</a></li>
+<li><a href="https://dl.acm.org/doi/pdf/10.1145/3458817.3476161">SW_Qsim: A Minimize-Memory Quantum Simulator with High-Performance on a New Sunway Supercomputer</a></li>
+<li><a href="https://dl.acm.org/doi/pdf/10.1145/3126908.3126910">18.9-Pflops Nonlinear Earthquake Simulation on Sunway TaihuLight: Enabling Depiction of 18-Hz and 8-Meter Scenarios</a></li>
+<li><a href="https://www.nextplatform.com/2021/02/10/a-sneak-peek-at-chinas-sunway-exascale-supercomputer/">A FIRST PEEK AT CHINA’S SUNWAY EXASCALE SUPERCOMPUTER</a></li>
+<li><a href="https://www.nextplatform.com/2021/03/10/the-nitty-gritty-of-the-sunway-exascale-system-network-and-storage/">THE NITTY GRITTY OF THE SUNWAY EXASCALE SYSTEM NETWORK AND STORAGE</a></li>
+<li><a href="https://www.sciengine.com/publisher/scp/journal/SCIS/64/4/10.1007/s11432-020-3104-7?slug=fulltext">Sunway supercomputer architecture towards exascale computing: analysis and practice</a></li>
+<li><a href="https://chipsandcheese.com/2023/11/20/chinas-newish-sw26010-pro-supercomputer-at-sc23/">China’s New(ish</a></li>
+<li><a href="https://dl.acm.org/doi/abs/10.1145/3581784.3607030">5 ExaFlop/s HPL-MxP Benchmark with Linear Scalability on the 40-Million-Core Sunway Supercomputer</a></li>
+</ul>
+<h3 id="sw26010"><a class="toclink" href="../../../../hardware/2021/12/04/sunway/#sw26010">SW26010</a></h3>
+<p>Sunway TaihuLight 的层次：</p>
+<ol>
+<li>1 Sunway TaihuLight = 40 Cabinet</li>
+<li>1 Cabinet = 4 Super nodes</li>
+<li>1 Super node = 256 nodes</li>
+<li>1 node = 4 core groups</li>
+<li>1 core group = 1 MPE(management processing element) + 8*8 CPE(computer processing element)</li>
+</ol>
+<p>MPE 双精度性能：<code>16 FLOP/cycle * 1.45 GHz = 23.2 GFlops</code>
+CPE 双精度性能：<code>8 FLOP/cycle * 1.45 GHz = 11.6 GFlops</code>
+CPE 单精度性能：<code>8 FLOP/cycle * 1.45 GHz = 11.6 GFlops</code>
+单节点双精度性能：<code>4 * 8 * 8 * 11.6 + 4 * 23.2 = 3.0624 TFlops</code>
+Sunway TaihuLight 双精度性能：<code>40 * 4 * 256 * 3.0624 = 125.435904 PFlops</code></p>
+<p>MPE: 32KB L1I, 32 KB L1D, 256 KB L2(中文文献里写的是 512 KB)。乱序执行，4 译码，7 发射（5 整数 2 浮点）。指令预取，分支预测，寄存器重命名，预测执行。5 条整数流水线，2 条 256 位 SIMD 浮点流水线。</p>
+<p>CPE：16KB L1I，无 DCache，有 64KB 可重构局部数据存储器（SPM scratch pad memory/LDM local data memory）。2 译码 2 发射，乱序执行，1 条 256 位 SIMD 流水线，1 条整数流水线。不同精度的 SIMD 宽度不同，单精度浮点运算 128 位（4 个单精度），双精度浮点运算 256 位（4 个双精度）。从 SPM 每个周期可以读取 32 字节的数据（正好一个 SIMD 寄存器）。</p>
+<p>每个 core group 中还有一个 MC（Memory Controller），连接 8GB DDR3 memory，每个 MC 内存带宽 <code>128 bit * 2133 MT/s = 34.128 GB/s</code>，单节点内存带宽 <code>4 * 34.128 = 136.512 GB/s</code>。在 Stream Triad 测试，每个 core group 用 DMA 从内存到 SPM 传输数据带宽为 22.6 GB/s，而全局读写 gload/gstore 带宽只有 1.5 GB/s。访问全局内存需要 120+ 个周期。</p>
+<p>8x8 矩阵中的从核可以在同行和同列方向上进行低延迟和高带宽的数据传递：2 个从核点对点通信延迟不超过 11 个周期，单个 core group 寄存器通信集合带宽达到 637 GB/s。</p>
+<p>28nm 工艺流片，芯片 die 面积超过 500 mm^2，峰值功耗 292.7W，峰值能效比达 10.559 GFLOPS∕W（HPL 6.05 GFLOPS/W）。</p>
+<h3 id="sw26010-pro"><a class="toclink" href="../../../../hardware/2021/12/04/sunway/#sw26010-pro">SW26010-Pro</a></h3>
+<p>SW26010-Pro 是升级版 SW26010，升级的内容在于：</p>
+<ol>
+<li>每个 node 从 4 个 core group 升级到 6 个，一共有 <code>6 * (8 * 8 + 1) = 390</code> 个核心。频率也提高了，MPE 频率 2.1GHz，CPE 频率 2.25 GHz。SIMD 宽度扩展到 512 位。</li>
+<li>每个 MC 连接了 16 GB DDR4 内存，带宽是 <code>128 bit * 3200 MT/s = 51.2 GB/s</code>；单节点总内存 96 GB，总内存带宽 <code>51.2 * 6 = 307.2 GB/s</code>。</li>
+<li>每个 CPE 的局部存储（LDM）从 64KB 升级到 256KB。</li>
+<li>CPE 之间的通信可以通过 RMA 进行，而之前的 SW26010 只能在同一行/列之间进行寄存器通信。</li>
+</ol>
+<h3 id="sw52020"><a class="toclink" href="../../../../hardware/2021/12/04/sunway/#sw52020">SW52020</a></h3>
+<p>在新闻稿和 Sunway supercomputer architecture towards exascale computing: analysis and practice 文章中出现，没有在今年发出来的论文里实际采用，名称可能是新闻稿自己编的，我猜可能没有实际采用，而是做了 SW26010P。和 SW26010 区别：</p>
+<ol>
+<li>Core Group 从 4 个提升到了 8 个，所以每个 node 有 <code>8 * (8 * 8 + 1) = 520</code> 个核心。</li>
+<li>MPE 和 CPE 向量宽度从 256 位扩展到了 512 位。添加了 16 位半精度浮点支持。</li>
+<li>每个 node 提供超过 12 TFlops 的双精度浮点性能。应该是靠两倍的 Core Group，乘上两倍的向量计算宽度，达到四倍的性能。</li>
+</ol>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -1483,72 +2004,29 @@ t_0 - t_{data} &lt; -t_{clk} - t_h
               <a class="md-meta__link" href="../../">hardware</a></li>
 <li class="md-meta__item">
             
-              需要 3 分钟阅读时间
+              需要 7 分钟阅读时间
             
           </li>
 </ul>
 </div>
 </header>
 <div class="md-post__content md-typeset">
-<h2 id="浅谈乱序执行-cpu"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU</a></h2>
+<h2 id="浅谈乱序执行-cpu一乱序"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU（一：乱序）</a></h2>
 <p>本文的内容已经整合到<a href="/kb/hardware/ooo_cpu.html">知识库</a>中。</p>
 <h3 id="背景"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/#背景">背景</a></h3>
 <p>最早学习乱序执行 CPU 的时候，是在 Wikipedia 上自学的，后来在计算机系统结构课上又学了一遍，但发现学的和现在实际采用的乱序执行 CPU 又有很大区别，后来又仔细研究了一下，觉得理解更多了，就想总结一下。</p>
-<h3 id="经典-tomasulo"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/#经典-tomasulo">经典 Tomasulo</a></h3>
-<p>参考 <a href="https://people.eecs.berkeley.edu/~pattrsn/252F96/Lecture04.pdf">Stanford 教材</a></p>
-<p>经典 Tomasulo，也是 Wikipedia 上描述的 Tomasulo 算法，它的核心是保留站。指令在 Decode 之后，会被分配到一个保留站中。保留站有以下的这些属性：</p>
-<ol>
-<li>Op：需要执行的操作</li>
-<li>Qj，Qk：操作数依赖的指令目前所在的保留站 ID</li>
-<li>Vj，Qk：操作数的值</li>
-<li>Rj，Rk：操作数是否 ready（或者用特殊的 Qj，Qk 值表示是否 ready）</li>
-<li>Busy：这个保留站被占用</li>
-</ol>
-<p>此外还有一个 mapping（Wikipedia 上叫做 RegisterStat），记录了寄存器是否会被某个保留站中的指令写入。</p>
-<p>指令分配到保留站的时候，会查询 RegisterStat，得知操作数寄存器是否 ready，如果不 ready，说明有一个先前的指令要写入这个寄存器，那就记录下对应的保留站 ID。当操作数都 ready 了，就可以进入计算单元计算。当一条指令在执行单元中完成的时候，未出现 WAW 时会把结果写入寄存器堆，并且通过 Common Data Bus 进行广播，目前在保留站中的指令如果发现，它所需要的操作数刚好计算出来了，就会把取值保存下来。</p>
-<p>这里有一些细节：因为保留站中的指令可能要等待其他指令的完成，为了保证计算单元利用率更高，对于同一个计算类型（比如 ALU），需要有若干个同类的保留站（比如 Add1，Add2，Add3）。在 Wikipedia 的表述中，每个保留站对应了一个计算单元，这样性能比较好，但自然面积也就更大。如果节省面积，也可以减少计算单元的数量，然后每个计算单元从多个保留站中获取计算的指令。</p>
-<p>可以思考一下，这种方法的瓶颈在什么地方。首先，每条指令都放在一个保留站中，当保留站满的时候就不能发射新的指令。其次，如果计算单元的吞吐跟不上保留站的填充速度，也会导致阻塞。</p>
-<p>这种方法的一个比较麻烦的点在于难以实现精确异常。精确异常的关键在于，异常之前的指令都生效，异常和异常之后的指令不生效，但这种方法无法进行区分。</p>
-<p>从寄存器重命名的角度来看，可以认为这种方法属于 Implicit Register Renaming，也就是说，把 Register 重命名为保留站的 ID。</p>
-<p>再分析一下寄存器堆需要哪些读写口。有一条规律是，寄存器堆的面积与读写口个数的平方成正比。对于每条发射的指令，都需要从寄存器堆读操作数，所以读口是操作数 x 指令发射数。当执行单元完成计算的时候，需要写入寄存器堆，所以每个执行单元都对应一个寄存器堆的写口。</p>
-<p>硬件实现的时候，为了性能，希望保留站可以做的比较多，这样可以容纳更多的指令。但是，保留站里面至少要保存操作数的值，会比较占用面积，并且时延也比较大。</p>
-<h3 id="rob-reorder-buffer"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/#rob-reorder-buffer">ROB (ReOrder Buffer)</a></h3>
-<p><a href="https://web.stanford.edu/class/cs349g/cs349g-speculation.pdf">参考教材</a></p>
-<p>为了实现精确异常，我们需要引入 ROB。在上面的 Tomasulo 算法中，计算单元计算完成的时候，就会把结果写入到寄存器堆中，因此精确异常时难以得到正确的寄存器堆取值。既然我们希望寄存器堆的状态与顺序执行的结果一致，我们需要引入 ROB。</p>
-<p>ROB 实际上就是一个循环队列，队列头尾指针之间就是正在执行的指令，每个 ROB 表项记录了指令的状态、目的寄存器和目的寄存器将要写入的值。ROB 会检查队列头的指令，如果已经执行完成，并且没有异常，就可以让结果生效，并把指令从队列头中删去，继续检查后面的。Decode 出来的指令则会插入到 ROB 的尾部，并且随着指令的执行过程更新状态。遇到异常的指令，就把队列中的指令、保留站和执行单元清空，从异常处理地址开始重新执行。</p>
-<p>为了保证寄存器堆的正确性，运算单元的运算结果会写入 ROB 项中，当这一项在 ROB 队列头部被删去时，就会写入寄存器堆。在经典 Tomasulo 中，寄存器重命名为保留站的 ID，但在这种设计中，应该重命名为 ROB 的 ID，也就是说，需要维护一个寄存器到 ROB ID 的映射，当指令进入保留站的时候，需要从寄存器堆或者 ROB 中去读取操作数的值。在 CDB 上广播的也是 ROB 的 ID，而不是保留站的 ID。</p>
-<p>这种方法中，ROB 的大小成为了一个新的瓶颈，因为每条在正在执行的指令都需要在 ROB 中记录一份。不过好处是实现了精确异常。</p>
-<h3 id="explicit-register-renaming"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/#explicit-register-renaming">Explicit Register Renaming</a></h3>
-<p>上面两种设计都是采用的 Implicit Register Renaming 的方法，第一种方法重命名到了保留站，第二种方法重命名到了 ROB。还有一种设计，把寄存器编号映射到物理的寄存器。把 ISA 中的寄存器称为架构寄存器（比如 32 个通用寄存器），CPU 中实际的寄存器称为物理寄存器，物理寄存器一般会比架构寄存器多很多（一两百个甚至更多）。</p>
-<p>Explicit Register Renaming 和 ReOrder Buffer 这两个设计方向可以同时使用，也可以单独使用。</p>
-<p>映射的方法和前面的类似，也是维护一个 mapping，从架构寄存器到物理寄存器。当一条指令 Dispatch 的时候，操作数在 mapping 中找到实际的物理寄存器编号。如果这条指令要写入新的架构寄存器，则从未分配的物理寄存器中分配一个新的物理寄存器，并且更新 mapping，即把写入的架构寄存器映射到新的物理寄存器上。然后，放到 Issue Queue 中。</p>
-<p>Issue Queue 可以理解为保留站的简化版，它不再保存操作数的取值，而仅仅维护操作数是否 ready。后面解释为什么不需要保存操作数的取值。在 Issue Queue 中的指令在所有操作数都 ready 的时候，则会 Issue 到不同的端口中。每个端口对应着一个执行单元，比如两个 ALU 端口分别对应两个 ALU 执行单元。指令首先通过寄存器堆，以物理寄存器为编号去读取数据，然后这个值直接传给执行单元，不会存下来。当执行单元执行完毕的时候，结果也是写到物理寄存器堆中，ROB 不保存数据。</p>
-<p>可以发现，这种设计中，值仅保存在寄存器堆中，Issue Queue 和 ROB 都只保存一些状态位，因此它们可以做的很大，典型的 Issue Queue 有几十项，ROB 则有几百项。</p>
-<p>接下来讨论一些细节。首先是，物理寄存器何时释放。当一条指令写入一个架构寄存器的时候，在下一次这个架构寄存器被写入之前，这个寄存器的值都有可能被读取，因此这个架构寄存器到物理寄存器的映射要保留。如果我们能保证读取这个值的指令都已经完成，我们就可以释放这个物理寄存器了。一个方法是，我在覆盖架构寄存器到物理寄存器的映射时，我还要记录原来的物理寄存器，当该指令在 ROB 中提交了（从队头出去了），说明之前可能依赖这个物理寄存器的所有指令都完成了，这时候就可以把原来的物理寄存器放到未映射的列表中。</p>
-<p>还有一个问题，就是在遇到异常的时候，如何恢复在异常指令处的架构寄存器到物理寄存器的映射呢？一个办法是，利用我在 ROB 中记录的被覆盖的物理寄存器编号，从 ROB 队尾往前回滚，当发现一条指令覆盖了一个架构寄存器映射的时候，就恢复为覆盖之前的值。这样，当回滚到异常指令的时候，就会得到正确的映射。<a href="https://ieeexplore.ieee.org/document/491460">MIPS R10K 的论文</a>中是这么描述的：</p>
-<div class="language-text highlight"><pre><span></span><code>The active list contains the logical-destination register number and its
-old physical-register number for each instruction. An instruction's
-graduation commits its new mapping, so the old physical register can
-return to the free list for reuse. When an exception occurs, however,
-subsequent instructions never graduate. Instead, the processor restores
-old mappings from the active list. The R1OOOO unmaps four instructions
-per cycle--in reverse order, in case it renamed the same logical
-register twice. Although this is slower than restoring a branch,
-exceptions are much rarer than mispredicted branches. The processor
-returns new physical registers to the free lists by restoring their read
-pointers.
-</code></pre></div>
-<p>和 @CircuitCoder 讨论并参考 <a href="https://docs.boom-core.org/en/latest/sections/reorder-buffer.html#parameterization-rollback-versus-single-cycle-reset">BOOM 文档</a> 后发现，另一种办法是记录一个 Committed Map Table，也就是，只有当 ROB Head 的指令被 Commit 的时候，才更新 Committed Map Table，可以认为是顺序执行的寄存器映射表。当发生异常的时候，把 Committed Map Table 覆盖到 Register Map Table 上。这样需要的周期比较少，但是时序可能比较差。</p>
-<h3 id="implicit-renamingrob-和-explicit-renaming-的比较"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/#implicit-renamingrob-和-explicit-renaming-的比较">Implicit Renaming(ROB) 和 Explicit Renaming 的比较</a></h3>
-<p>这两种方法主要区别：</p>
-<ol>
-<li>Implicit Renaming 在分发的时候，就会从寄存器堆读取数据，保存到保留站中；而 Explicit Renaming 是指令从 Issue Queue 到执行单元时候从寄存器堆读取数据</li>
-<li>Implicit Renaming 的寄存器堆读取口较少，只需要考虑发射数乘以操作数个数，但所有类型的寄存器堆（整数、浮点）都需要读取；Explicit Renaming 的寄存器堆读取口更多，对于每个 Issue Queue，都需要操作数个数个读取口，但好处是可以屏蔽掉不需要访问的读取口，比如浮点 FMA 流水不需要读取整数寄存器堆。写和读是类似的：Implicit Renaming 中，寄存器堆的写入是从 ROB 上提交；而 Explicit Renaming 则是执行单元计算完后写入寄存器堆。</li>
-</ol>
-<h3 id="其他优化的手段"><a class="toclink" href="../../../../hardware/2021/09/14/brief-into-ooo/#其他优化的手段">其他优化的手段</a></h3>
-<p>在第一和第二种设计中，当一条指令计算完成时，结果会直接通过 CDB 转发到其他指令的输入，这样可以提高运行效率。在第三种设计中，为了提高效率，也可以做类似的事情，但因为中间多了一级寄存器堆读取的流水线级，处理会更加复杂一点。比如，有一条 ALU 指令，可以确定它在一个周期后一定会得到计算结果，那么我就可以提前把依赖这条指令的其他指令 Dispatch 出去，然后在 ALU 之间连接一个 bypass 网络，这样就可以减少一些周期。</p>
-<p>此外，为了提高吞吐率，一般计算单元都被设计为每个周期可以接受一条指令，在内部实现流水线执行，每个周期完成一条指令的计算。当然了，很多时候由于数据依赖问题，可能并不能达到每个周期每个计算单元都满载的情况。</p>
-<p>有些时候，一些指令不方便后端实现，就会加一层转换，从指令转换为 uop，再由后端执行。这在 x86 处理器上很普遍，因为指令集太复杂了。像 AArch64 指令集，它在 Load/Store 的时候可以对地址进行计算，这种时候也是拆分为两条 uop 来执行。一些实用的指令需要三个操作数，比如 <code>D = A ? B : C</code>，在 Alpha 21264 中，这条指令会转换为两条 uop，这两条 uop 的操作数就只有两个，便于后端实现，否则在各个地方都允许三个操作数会导致一定的浪费。</p>
+<p>本文主要讨论乱序执行的部分。</p>
+<p>本系列的所有文章：</p>
+<ul>
+<li><a href="../../../../hardware/2021/09/14/brief-into-ooo/">浅谈乱序执行 CPU（一：乱序）</a></li>
+<li><a href="../../../../hardware/2022/03/31/brief-into-ooo-2/">浅谈乱序执行 CPU（二：访存）</a></li>
+<li><a href="../../../../hardware/2024/09/12/brief-into-ooo-3/">浅谈乱序执行 CPU（三：前端）</a></li>
+</ul>
+<nav class="md-post__action">
+<a href="../../../../hardware/2021/09/14/brief-into-ooo/">
+          继续阅读
+        </a>
+</nav>
 </div>
 </article>
 <article class="md-post md-post--excerpt">
@@ -3562,153 +4040,8 @@ in 1.4.
 <p>UPDATE-2019-04-27：It WORKS now. 不过也发现了之前写的 ARP 表有点问题。</p>
 </div>
 </article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2018-11-06 00:00:00">2018年11月6日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="向咸鱼派写入-archlinuxarm"><a class="toclink" href="../../../../hardware/2018/11/06/archlinuxarm-on-sfpi/">向咸鱼派写入 ArchlinuxARM</a></h2>
-<p>之前由于我的 macOS 上不知道为啥不能把我的 TF 卡设备放到我的虚拟机里，所以之前就没能刷 ArchLinuxARM 上去。今天我想到了一个方法，完成了这件时期：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>$ wget https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/os/ArchLinuxARM-armv7-latest.tar.gz
-</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a>$ dd if=/dev/zero of=archlinuxarm.img bs=1M count=1024
-</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a>$ mkfs.ext4 archlinuxarm.img
-</span><span id="__span-8-4"><a href="#__codelineno-8-4" id="__codelineno-8-4" name="__codelineno-8-4"></a>$ sudo mkdir -p /mnt/archlinuxarm
-</span><span id="__span-8-5"><a href="#__codelineno-8-5" id="__codelineno-8-5" name="__codelineno-8-5"></a>$ sudo mount -o loop archlinuxarm.img /mnt/archlinuxarm
-</span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a>$ sudo bsdtar -xpf ArchLinuxARM-armv7-latest.tar.gz -C /mnt/archlinuxarm
-</span><span id="__span-8-7"><a href="#__codelineno-8-7" id="__codelineno-8-7" name="__codelineno-8-7"></a>$ sudo umount /mnt/archlinuxarm
-</span></code></pre></div>
-<p>这样就获得了一个 ext4 的 ArchlinuxARM 镜像。刚好解压出来不到 1G，所以开了 1G 的镜像刚好放得下。然后把 archlinuxarm.img 拷回 macOS，然后用 dd 写进去：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>$ sudo dd if=archlinuxarm.img of=/dev/rdisk4s2 bs=1048576
-</span></code></pre></div>
-<p>这时候可以确认，我们确实是得到了一个正确的 ext4fs：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>$ sudo /usr/local/opt/e2fsprogs/sbin/tune2fs -l /dev/disk4s2
-</span></code></pre></div>
-<p>不过，我们实际的分区大小可能不止 1G，所以可以修改一下大小：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a>$ sudo /usr/local/opt/e2fsprogs/sbin/resize2fs -p /dev/disk4s2
-</span></code></pre></div>
-<p>这样就成功地把 ArchlinuxARM 写进去了。默认的用户名和密码都是 root，可以成功通过串口登录。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2018-11-05 00:00:00">2018年11月5日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="咸鱼派的启动配置"><a class="toclink" href="../../../../hardware/2018/11/05/salted-fish-pi/">咸鱼派的启动配置</a></h2>
-<p>最近刚拿到了一个<a href="https://github.com/sbc-fish/sfpi">咸鱼派</a>的测试板子，准备自己把 U-Boot 和 Linux 内核这一套东西跑通，都用主线的东西，尽量减少魔改的部分。首先是编译 u-boot，我用的是现在的 master 分支的最新版 99431c1c：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>$ # Archlinux
-</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>$ sudo pacman -Sy arm-none-eabi-gcc
-</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a>$ make LicheePi_Zero_defconfig
-</span><span id="__span-6-4"><a href="#__codelineno-6-4" id="__codelineno-6-4" name="__codelineno-6-4"></a>$ make ARCH=arm CROSS_COMPILE=arm-none-eabi- -j24
-</span></code></pre></div>
-<p>这时候会得到一个 u-boot-sunxi-with-spl.bin 的文件。我们只要把它写到 SD 卡的 8192 偏移处，就可以把 U-Boot 跑起来了：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a>$ diskutil unmountDisk /dev/disk4
-</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a>$ sudo dd if=u-boot-sunxi-with-spl.bin of=/dev/disk4 bs=1024 seek=8
-</span></code></pre></div>
-<p>接着我们做一下分区。我采用的是 MBR 分区，这样保证不会和 U-Boot 冲突。使用 fdisk 进行分区，我从 1M 处开始分了一个 10M 的 FAT-32 分区作为启动分区，然后之后都是 EXT4 的系统盘分区。接着就是编译内核。</p>
-<p>我用的是八月份时候的 4.18.2 内核，虽然不是很新但也足够新了。一番调整内核参数后，得到了一个可用的内核，然后把 zImage 和 sun8i-v3s-licheepi-zero.dtb 都复制到刚才创建的 FAT-32 启动分区，然后进入 U-Boot 进行启动：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>$ setenv bootcmd 'fatload mmc 0 0x41000000 zImage; fatload mmc 0 0x41800000 sun8i-v3s-licheepi-zero.dtb; setenv bootargs console=ttyS0,115200 root=/dev/mmcblk0p2 rw rootwait; bootz 0x41000000 - 0x41800000'
-</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a>$ saveenv # optional
-</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a>$ boot
-</span></code></pre></div>
-<p>这里一开始遇到了很多坑，比如一直看不到 console，这个是找了 <a href="https://github.com/gaoyichuan">@gaoyichuan</a> 拿到的一份 Kernel Config 进行修改修好的。另一个是进去以后找不到 root，我先是搞了一个有 busybox 的 initrd，进去看发现是能找到 mmc 的，但是有延迟，那么添加上 rootwait 就好了。进去以后就差 rootfs。由于我缺少一个写 ext4 的工具，又发现手上有一个 Raspbian 的镜像，它里面也正好是两个分区，而且架构也同样是 armv7l，我就直接把它烧到 SD 卡中，把 U-Boot 写进去，然后往 boot 分区里写内核和 dtb，然后就成功进去，并且跑起来了。最喜感的就是，进去以后是个 pi@raspberrypi，实际上确是另一个东西。不过，只有当我 <code>apt update</code> 发现用了半小时的时候，我才想起来这其实是是一个嵌入式系统。。</p>
-<p>进去以后发现，没有识别到网卡驱动。网上找了 LicheePi Zero 的一个解决方案，但是并不能用，还出现了神奇的 Kernel Oops，怀疑是内核版本太新的问题。我又找到 <a href="https://github.com/icenowy">@icenowy</a> 的一个 <a href="https://lore.kernel.org/patchwork/patch/884656/">Patch</a> ，它终于是解决了这个问题，成功地找到了网卡，并且愉快地 <code>ssh pi@raspberrypi.local</code> 。之后会在咸鱼派那边公布一下我们做的修改。</p>
-<p>现在的想法是，把 HomeBridge 搭建到它上面，不过目前来看硬件资源有点紧张，放着会有点慢。可能还是用树莓派做这个事情比较合适。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2018-10-07 00:00:00">2018年10月7日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="在荔枝糖lichee-tang上初次体验-fpga"><a class="toclink" href="../../../../hardware/2018/10/07/my-first-fpga-experience-on-lichee-tang/">在荔枝糖（Lichee Tang）上初次体验 FPGA</a></h2>
-<p>今天从张宇翔学长那拿到了 <a href="http://tang.lichee.pro/">荔枝糖（Lichee Tang）</a> 的 FPGA 板子，于是立即开始把前段时间学到的 Verilog 应用上来。不过想到现在我手上没有多少外设，然后又必须远程到 Windows 电脑上去操作，于是先实现了一下 UART 通信。</p>
-<p>在网上找到了 <a href="https://github.com/ben-marshall/uart">ben-marshall/uart</a> 一个简易的实现，很快做到了一直在串口上打印 <code>A</code> 字符。接着我开始尝试实现一个简单的串口回显。一开始，我直接把 UART 读到的数据直接输出，果然可以了，但是一旦传输速率跟不上了，就会丢失数据。于是我添加了 FIFO IP 核，然后把读入的数据存入 FIFO，又从 FIFO 中读取数据写入到 UART 中去。不过发现了一个小 BUG：每次打印的是倒数第二次输入的字符，即丢失了第一个字符。在张宇翔学长的帮助下找到了问题：当 FIFO 的读使能信号为高时，其数据在下一个时钟周期才来，于是解决方案就是等到数据来的时候再向 UART 中写数据：</p>
-<div class="language-verilog highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="k">always</span><span class="w"> </span><span class="p">@</span><span class="w"> </span><span class="p">(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_in</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
-</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="w">    </span><span class="n">uart_tx_en</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">uart_fifo_re</span><span class="p">;</span>
-</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="k">end</span>
-</span></code></pre></div>
-<p>这样就解决了这个问题。完整代码在 <a href="https://github.com/jiegec/learn_licheetang">jiegec/learn_licheetang</a> 中。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2018-09-07 00:00:00">2018年9月7日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="在-macos-上读取移动硬盘的-smart-信息"><a class="toclink" href="../../../../hardware/2018/09/07/reading-smart-info-of-external-drives-under-macOS/">在 macOS 上读取移动硬盘的 S.M.A.R.T. 信息</a></h2>
-<p>之前想看看自己各个盘的情况，但是发现只能看电脑内置的 SSD 的 S.M.A.R.T 信息，而移动硬盘的都显示：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>$ smartctl -a /dev/disk2
-</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>smartctl 6.6 2017-11-05 r4594 [Darwin 17.7.0 x86_64] (local build)
-</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org
-</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a>
-</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a>/dev/disk2: Unable to detect device type
-</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a>Please specify device type with the -d option.
-</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a>
-</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a>Use smartctl -h to get a usage summary
-</span></code></pre></div>
-<p>一开始我怀疑是个别盘不支持，但换了几个盘都不能工作，问题应该出现在了 USB 上。查了下资料，果然如此。根据 <a href="https://www.smartmontools.org/wiki/USB">USB devices and smartmontools</a> ，获取 S.M.A.R.T 信息需要直接发送 ATA 命令，但是由于经过了 USB，于是需要进行一个转换，导致无法直接发送 ATA 命令。这个问题自然是有解决方案，大概就是直接把 ATA 命令发送过去（pass-through）。上面这个地址里写到，如果需要在 macOS 上使用，需要安装一个内核驱动。可以找到，源码在 <a href="https://github.com/kasbert/OS-X-SAT-SMART-Driver">kasbert/OS-X-SAT-SMART-Driver</a> 并且有一个带签名的安装包在 <a href="https://binaryfruit.com/drivedx/usb-drive-support">External USB / FireWire drive diagnostics support</a> 中可以下载。丢到 VirusTotal 上没查出问题，用 v0.8 版本安装好后就成功地读取到了移动硬盘的 S.M.A.R.T 信息了。</p>
-<p>然后我又简单研究了一下各个 S.M.A.R.T 各个值的含义是什么。 <code>VALUE</code> 代表当前的值， <code>WORST</code> 代表目前检测到的最差的值， <code>THRESH</code> 代表损坏阈值。这些值都是从 <code>RAW_VALUE</code> 进行计算后归一化而来。然后 <code>TYPE</code> 分为两种，一是 <code>Pre-fail</code> ，代表如果这一项的值小于阈值，代表这个机器很危险了，赶紧拷数据丢掉吧。二是 <code>Old_age</code> ，代表如果这一项小于阈值，代表这个机器比较老了，但还没坏。真正要看是否坏了，可以看 <code>When_Failed</code> 一栏。</p>
-</div>
-</article>
 <nav class="md-pagination">
-<a class="md-pagination__link" href="../../">1</a> <a class="md-pagination__link" href="../2/">2</a> <span class="md-pagination__current">3</span>
+<a class="md-pagination__link" href="../../">1</a> <a class="md-pagination__link" href="../2/">2</a> <span class="md-pagination__current">3</span> <a class="md-pagination__link" href="../4/">4</a>
 </nav>
 </div>
 </div>
