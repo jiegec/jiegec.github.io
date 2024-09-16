@@ -1425,7 +1425,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 5 分钟阅读时间
+                              需要 6 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1730,10 +1730,15 @@
 <h3 id="取指">取指<a class="headerlink" href="#取指" title="Permanent link">&para;</a></h3>
 <p>官方信息：取指可以达到每周期最多 16 指令</p>
 <h3 id="l1-icache">L1 ICache<a class="headerlink" href="#l1-icache" title="Permanent link">&para;</a></h3>
-<p>官方信息：192KB 6-way L1 ICache</p>
+<p>官方信息：192KB 6-way L1 ICache, Fetches up to 16 instructions per cycle</p>
 <p>为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：</p>
 <p><img alt="" src="../../../../qualcomm_oryon_fetch_bandwidth.png" /></p>
 <p>可以看到 footprint 在 192 KB 之前时可以达到 8 IPC，之后则快速降到 2 IPC，这里的 192 KB 就对应了 L1 ICache 的容量。</p>
+<p>虽然 Fetch 可以每周期 16 条指令，也就是一条 64B 的缓存行，由于后端的限制，只能观察到 8 的 IPC。为了测试实际的 Fetch 宽度，参考 <a href="https://zhuanlan.zhihu.com/p/720136752">如何测量真正的取指带宽（I-fetch width） - JamesAslan</a> 构造了测试。</p>
+<p>其原理是当 Fetch 要跨页的时候，由于两个相邻页可能映射到不同的物理地址，如果要支持单周期跨页取指，需要查询两次 ITLB，或者 ITLB 需要把相邻两个页的映射存在一起。这个场景一般比较少，处理器很少会针对这种特殊情况做优化，但也不是没有。经过测试，把循环放在两个页的边界上，发现 Oryon 微架构遇到跨页的取指时确实会拆成两个周期来进行。在此基础上，构造一个循环，循环的第一条指令放在第一个页的最后四个字节，其余指令放第二个页上，那么每次循环的取指时间，就是一个周期（读取第一个页内的指令）加上第二个页内指令需要 Fetch 的周期数，多的这一个周期就足以把 Fetch 宽度从后端限制中区分开，实验结果如下：</p>
+<p><img alt="" src="../../../../qualcomm_oryon_if_width.png" /></p>
+<p>图中蓝线表示的就是上面所述的第一条指令放一个页，其余指令放第二个页的情况，可以看到每 16 条指令会多一个周期，因此 Oryon 的前端取指宽度确实是 16 条指令。</p>
+<p>为了确认这个瓶颈是由取指造成的，又构造了一组实验，把循环的所有指令都放到一个页中，这个时候 Fetch 不再成为瓶颈（图中 aligned），两个曲线的对比可以明确地得出上述结论。</p>
 <h3 id="l1-itlb">L1 ITLB<a class="headerlink" href="#l1-itlb" title="Permanent link">&para;</a></h3>
 <p>官方信息：256-entry 8-way L1 ITLB，支持 4KB 和 64KB 的页表大小</p>
 <p>构造一系列的 B 指令，使得 B 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：</p>
@@ -1871,7 +1876,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1-2.1-2M12.5 7v5.2l4 2.4-1 1L11 13V7h1.5M11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2v1.8Z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">September 12, 2024</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">September 14, 2024</span>
   </span>
 
     
