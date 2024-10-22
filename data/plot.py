@@ -44,6 +44,7 @@ def parse_data(flavor):
         parts = name.split("_")
         core = " ".join(parts[:-2])
         flag = parts[-2]
+        flag = flag.replace("-", " -")
         # index = parts[-1]
         name = f"{core} ({flag})"
 
@@ -137,3 +138,4 @@ for flavor in ["int", "fp"]:
     plot_perf(flavor, "ipc", "ipc", "IPC")
     plot_perf(flavor, "mispred", "misprediction", "Branch Misprediction Rate (%)")
     plot_perf(flavor, "freq", "clock", "Clock Freq (MHz)")
+    plot_perf(flavor, "inst", "instructions", "Instructions")
