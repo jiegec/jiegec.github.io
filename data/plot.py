@@ -60,7 +60,7 @@ def parse_data(flavor):
             if found_delim and "*" in line:
                 benchmark = parts[0]
                 ratio = float(parts[3])
-                data[name][benchmark].append(ratio)
+                data[name][f"{benchmark}/ratio"].append(ratio)
             if found_delim and f"SPECrate(R)2017_{flavor}_base" in line:
                 ratio = float(parts[-1])
                 data[name]["all"].append(ratio)
@@ -115,7 +115,7 @@ def plot_perf(flavor, file_name, key, display):
         # average
         y_data.insert(0, round(mean(y_data), 2))
         rects = ax.barh(x_data, y_data, width, label=name)
-        ax.bar_label(rects, labels=[f"{y:.2f} {name}" for y in y_data], padding=3)
+        ax.bar_label(rects, labels=[f"{y:.3g} {name}" for y in y_data], padding=3)
         max_value = max(max_value, *y_data)
 
     ax.set_xlim(0, max_value * 2.0)
@@ -140,3 +140,4 @@ for flavor in ["int", "fp"]:
     plot_perf(flavor, "mispred", "misprediction", "Branch Misprediction Rate (%)")
     plot_perf(flavor, "freq", "clock", "Clock Freq (MHz)")
     plot_perf(flavor, "inst", "instructions", "Instructions")
+    plot_perf(flavor, "ratio", "ratio", "Ratio")
