@@ -490,6 +490,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#高云-fpga-踩坑" class="md-nav__link">
+    <span class="md-ellipsis">
+      高云 FPGA 踩坑
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#每周分享第-17-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 17 期
@@ -700,15 +709,6 @@
   <a href="#域名已经迁移到-jiegech" class="md-nav__link">
     <span class="md-ellipsis">
       域名已经迁移到 jiege.ch
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-6-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      每周分享第 6 期
     </span>
   </a>
   
@@ -1674,6 +1674,72 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2019-04-01 00:00:00">2019年4月1日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/programming/" class="md-meta__link">programming</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="高云-fpga-踩坑"><a class="toclink" href="../../programming/2019/04/01/gowin-fpga/">高云 FPGA 踩坑</a></h2>
+<p>最近拿到了高云 FPGA GW2A-18 开发版，想在这上面做一些小工程。不过首先要配置好环境什么的。官方提供了 Linux 和 Windows 的两套工具，自然是拥抱 Linux 咯，但是由于官方适配的是 Redhat 系的操作系统，所以用 Debian 系的时候出现了若干问题，后面会谈到怎么解决的。</p>
+<p>首先是官网下载了它的软件，大概有 IDE，综合器，布线器和 Programmer 四个工具，然后开始跑，发现缺少了 libcrypt.so.1.0.0。上网搜了一下解决方案，需要重新编译 openssl-1.0.0，于是下载并且编译了 openssl-1.0.0t 并且把 .so 的路径调好了，这时候就可以打开 IDE 了。然后发现需要 License，这个很简单，去官网申请一下，一天邮件就下来了。</p>
+<p>接下来配置 License，IDE 很容易，直接选择邮件里发下来的 node-locked License 即可。不过 Synplify Pro 的 Linux 版本不支持直接单文件 node-locked 的 License，只允许跑 SCL … 不过高云也提供了 SCL 的下载，和 IDE 的 License Server 放在一起，安装完以后，在得到的 License 里加上两行：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>SERVER<span class="w"> </span><span class="si">${</span><span class="nv">hostname</span><span class="si">}</span><span class="w"> </span><span class="si">${</span><span class="nv">hostid</span><span class="si">}</span><span class="w"> </span><span class="si">${</span><span class="nv">port</span><span class="si">}</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>VENDER<span class="w"> </span>snpslmd<span class="w"> </span>/path/to/scl/2018.06/linux64/bin/snpslmd
+</span></code></pre></div>
+<p>然后把 $LM_LICENSE_FILE 指向这个文件路径，就可以了。这一部分感谢 @Jackey-Huo。</p>
+<p>随手写了一个简化版的点亮数字人生（没有数码管），得到了 bistream，准备往板子里刷，然后问题出现了：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>ImportError: /path/to/Gowin_YunYuan_V1.9.0Beta_linux/Programmer/bin/librt.so.1: symbol __vdso_clock_gettime version GLIBC_PRIVATE not defined in file libc.so.6 with link time reference
+</span></code></pre></div>
+<p>目测是 glibc 版本问题 … 这就很难处理了。另外又从官网下载了独立的 Programmer，仍然不行，检测不到设备。</p>
+<p>最后想了想，找到了终极办法，在 Docker 里运行 CentOS 的 Privileged Container，再跑 programmer：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>$<span class="w"> </span>docker<span class="w"> </span>pull<span class="w"> </span>centos
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>$<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--privileged<span class="w"> </span>-v<span class="w"> </span>/home:/home<span class="w"> </span>centos<span class="w"> </span>/bin/bash
+</span></code></pre></div>
+<p>CentOS 镜像出乎意料地小。进去以后，找到 Programmer 路径，然后 scan：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># ./programmer_cli --scan</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w"> </span>Scanning!
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>Current<span class="w"> </span>download-cable<span class="w"> </span>channel:0
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>Device<span class="w"> </span>Info:
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">        </span>Family:<span class="w"> </span>GW2A
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">        </span>Name:<span class="w"> </span>GW2A-18
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">        </span>ID:<span class="w"> </span>0xREDACTED
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>device<span class="o">(</span>s<span class="o">)</span><span class="w"> </span>found!
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w"> </span>Cost<span class="w"> </span><span class="m">0</span>.54<span class="w"> </span>second<span class="o">(</span>s<span class="o">)</span>
+</span></code></pre></div>
+<p>接着烧到 SRAM 中：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># ./programmer_cli -d GW2A-18 --fsFile /path/to/bitstream.fs --run 2</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w"> </span><span class="s2">&quot;SRAM Program&quot;</span><span class="w"> </span>starting<span class="w"> </span>on<span class="w"> </span>device-1...
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>Programming...:<span class="w"> </span><span class="o">[</span><span class="c1">#########################] 100%</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w"> </span>User<span class="w"> </span>Code:<span class="w"> </span>0xREDACTED
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w"> </span>Status<span class="w"> </span>Code:<span class="w"> </span>0xREDACTED
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w"> </span>Cost<span class="w"> </span><span class="m">4</span>.54<span class="w"> </span>second<span class="o">(</span>s<span class="o">)</span>
+</span></code></pre></div>
+<p>烧录成功，功能测试也没有问题。可以继续进行下一步工作了。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -2815,60 +2881,6 @@
     <h2 id="域名已经迁移到-jiegech"><a class="toclink" href="../../meta/2019/01/11/blog-host-migration/">域名已经迁移到 jiege.ch</a></h2>
 <p>从买新域名到迁移大概用了一个多小时，现在已经恢复访问。原有的地址也会直接 301 到新的域名上来。</p>
 <p>仍然 Host 在 Github Pages 上。还会继续更新，不会跑路的（逃</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-01-11 00:00:00">2019年1月11日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-6-期"><a class="toclink" href="../../misc/2019/01/11/weekly-sharing-6/">每周分享第 6 期</a></h2>
-<p>今天刚迁移了域名到 jiege.ch，原来的 jiegec.me 会自动跳转过来，链接什么的都不用变。</p>
-<ol>
-<li>Rust 的 cfg! 宏只是返回 bool 而不会影响内部是否被编译 如果需要 if constexpr 的效果需要用 <a href="https://github.com/alexcrichton/cfg-if">cfg-if</a></li>
-<li>基于 HTML5 canvas 的图表库 <a href="https://github.com/chartjs/Chart.js">Chart.js</a></li>
-<li>Endianness MATTERS! -- Harry Chen</li>
-<li>各数据库的带补全的 CLI https://www.dbcli.com/</li>
-<li>边开发边测试 k8s 部署 <a href="https://github.com/windmilleng/tilt">tilt</a></li>
-<li>Github unlimited free private repos 于是称为了 PRO 用户 https://blog.github.com/2019-01-07-new-year-new-github/</li>
-<li>Github 美食博主还行 https://github.com/hendricius/pizza-dough</li>
-<li>一个用于本地化的库 https://github.com/dustin/go-humanize</li>
-<li>Vim Verilog 补全 https://github.com/vhda/verilog_systemverilog.vim</li>
-<li>homebridge 网页前端 https://github.com/oznu/homebridge-config-ui-x</li>
-<li>Zigbee 2 MQTT Bridge 需要额外的设备 https://github.com/Koenkk/zigbee2mqtt</li>
-<li>gdb 的网页 gui https://github.com/cs01/gdbgui</li>
-<li>Rust 一键 par iter https://github.com/rayon-rs/rayon</li>
-<li>挺好看的 hex viewer https://github.com/sharkdp/hexyl 可以配合 bat 滚屏</li>
-<li>gitalk 基于 Github issues 的评论系统 类似 Disqus https://github.com/gitalk/gitalk</li>
-<li>根据蓝牙连接键盘与否改变键盘布局 https://github.com/jwilm/alacritty/wiki/Automatic-MacOS-Keyboard-layout-change-for-Bluetooth</li>
-<li>8.8.8.8 加入 DoT 家庭 https://security.googleblog.com/2019/01/google-public-dns-now-supports-dns-over.html</li>
-<li>恢复损坏的 QRCode 工具箱 https://merricx.github.io/qrazybox/</li>
-<li>通过同时修改两个芯片的 PLL 达成了非标准的 Wi-Fi 通信还行 https://hackaday.com/2019/01/04/underclocking-the-esp8266-leads-to-wifi-weirdness/</li>
-<li>inline x86 asm in go https://github.com/mmcloughlin/avo#readme</li>
-</ol>
     
   </div>
 </article>
