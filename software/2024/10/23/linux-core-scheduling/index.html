@@ -1460,7 +1460,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 5 分钟阅读时间
+                              需要 6 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1770,11 +1770,13 @@
 </span></code></pre></div>
 <p>发现后两个 P 核的 highest perf 是 77，其他 P 核的 highest perf 是 73，E 核的 highest perf 是 44。因此 Linux 的调度策略就出来了：先是后两个 P 核，再是其他 P 核，然后是 E 核，最后是 SMT 出来的逻辑核。</p>
 <h3 id="acpi-cppc">ACPI CPPC<a class="headerlink" href="#acpi-cppc" title="Permanent link">&para;</a></h3>
-<p>接下来，查看 ACPI 的 CPPC 信息保存了什么。<a href="https://uefi.org/specs/ACPI/6.5/08_Processor_Configuration_and_Control.html?highlight=cppc#collaborative-processor-performance-control">CPPC</a> 全称是 Collaborative Processor Performance Control，是对已有的 P State 的改进，原来的 P State 是分立的几个配置，可选项比较少，CPPC 对性能做了抽象，每个核心可以有 Highest Performance，Nominal Performance，Lowest Nonlinear Performance 和 Lowest Performance 这几个值，性能可以在这些值之间浮动。简单来说，Highest 对应单核 Boost 到的最高性能，Nominal 对应全核能达到的性能，Lowest 对应最低频下的性能，Lowest Nonlinear 代表性能功耗比线性的界限，往下性能核功耗是线性的，往上性能功耗比会下降。OS 可以设定想要的性能范围：Minimum 和 Maximum Perf，也可以指定一个想要的性能 Desired Performance。当然了，硬件也不一定能够达到 Highest Perf，当前能保证达到的最高性能叫做 Guaranteed Perf。</p>
+<p>接下来，查看 ACPI 的 CPPC 信息保存了什么。<a href="https://uefi.org/specs/ACPI/6.5/08_Processor_Configuration_and_Control.html?highlight=cppc#collaborative-processor-performance-control">CPPC</a> 全称是 Collaborative Processor Performance Control，是对已有的 P State 的改进，原来的 P State 是分立的几个配置，可选项比较少，CPPC 对性能做了抽象，每个核心可以有 Highest Performance，Nominal Performance，Lowest Nonlinear Performance 和 Lowest Performance 这几个值，性能可以在这些值之间浮动。简单来说，Highest 对应单核 Boost 到的最高性能，Nominal 对应全核能达到的性能，Lowest 对应最低频下的性能，Lowest Nonlinear 代表性能功耗比线性的界限，往下性能核功耗是线性的，往上性能功耗比会下降。OS 可以设定想要的性能范围：Minimum 和 Maximum Perf，也可以指定一个想要的性能 Desired Performance。当然了，硬件也不一定能够达到 Highest Perf，当前能保证达到的最高性能叫做 Guaranteed Perf。此外还有 Energy Performance Preference (EPP)，OS 告诉硬件，我想要能效还是性能，最小的 0 表示性能，最大的 255 表示能效。</p>
+<p>简单来说，硬件告诉 OS 五个值：Highest Perf，Nominal Perf，Lowest Nonlinear Perf，Lowest Perf 和 Guaranteed Perf，OS 通过三个值告诉硬件，我想要什么样的性能：Min Perf，Max Perf，Desired Perf，以及性能和功耗哪个更看重：EPP。</p>
 <h3 id="amd-cppc">AMD CPPC<a class="headerlink" href="#amd-cppc" title="Permanent link">&para;</a></h3>
 <p>在 AMD 平台上，CPPC 的这些性能值既可以通过 ACPI 获取，又可以通过 MSR 来读写（来源：<a href="https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/57254-PUB_3.00.zip">Processor Programming Reference (PPR) for AMD Family 1Ah Model 24h, Revision B0 Processors</a>）：</p>
 <p><img alt="" src="../../../../linux-core-scheduling-cppc-1.png" /></p>
 <p><img alt="" src="../../../../linux-core-scheduling-cppc-2.png" /></p>
+<p>在更早的 AMD 处理器中，没有这些 MSR，而是通过 MMIO 来控制，这些信息记录在 ACPI CPPC 当中。</p>
 <p>通过比对 <code>/sys/devices/system/cpu/cpu*/acpi_cppc/highest_perf</code> 和 <code>/sys/devices/system/cpu/cpu*/cpufreq/amd_pstate_prefcore_ranking</code>，我们会发现它们是一样的，说明 amd-pstate 驱动做的事情和 itmt 类似，根据 ACPI 的 Highest Perf 信息（或者从 MSR 0xC001_02B0 读出 Highest Perf），设置 Preferred Core Ranking 以及调度器的优先级。阅读代码，可以看到它确实是这么做的：</p>
 <ol>
 <li>初始化中，设置优先级为 <code>highest_perf</code>：<a href="https://github.com/torvalds/linux/blob/c2ee9f594da826bea183ed14f2cc029c719bf4da/drivers/cpufreq/amd-pstate.c#L796"><code>sched_set_itmt_core_prio((int)READ_ONCE(cpudata-&gt;highest_perf), cpudata-&gt;cpu);</code></a></li>
@@ -1782,6 +1784,28 @@
 <li>运行过程中，如果发现 <code>highest_perf</code> 出现变化，也更新到调度器的优先级当中：<a href="https://github.com/torvalds/linux/blob/master/drivers/cpufreq/amd-pstate.c#L822"><code>sched_set_itmt_core_prio((int)cur_high, cpu);</code></a></li>
 </ol>
 <p>剩下的就和 Intel 一样了。至于为什么调度器轮流从两个 CCD 取优先级最高的核心调度，应该是调度器考虑了这些核心的拓扑，进行了负载均衡，尽量保证每个 CCD 上的负载相当。</p>
+<p>而我们知道 Linux 的 cpufreq 设置了不同的 governor，例如 performance 和 powersave。那么它们是怎么映射到 Min/Max/Desired Perf 的呢？通过阅读代码，可以发现：</p>
+<ol>
+<li>powersave 对应的配置是：Min Perf 设置为 Lowest/Lowest Nonlinear Perf，Max Perf 设置为 Highest/Nominal Perf</li>
+<li>performance 对应的配置是：Min Perf 和 Max Perf 都设置为 Highest/Nominal Perf</li>
+</ol>
+<p>如果启用 boost（<code>echo 1 &gt; /sys/devices/system/cpu/cpufreq/policy0/boost</code>），那就把 Max Perf 设置到 Highest Perf；如果不启用 Boost，就设置到 Nominal Perf。</p>
+<p>下面给出几个例子，其中 Highest Perf 为 166，Nominal Perf 为 124，Lowest Perf 为 18：</p>
+<ol>
+<li>performance + boost=1: Min = 166, Max = 166</li>
+<li>performance + boost=0: Min = 124, Max = 124</li>
+<li>powersave + boost=1: Min = 18, Max = 166</li>
+<li>powersave + boost=0: Min = 18, Max = 124</li>
+</ol>
+<p>而其他由 Linux 实现变频的 governor：schedutil 和 ondemand，会通过 Desired Perf 来实现。</p>
+<p>amd-pstate 支持三个<a href="https://www.phoronix.com/news/AMD-P-State-Guided-Auto">运行模式</a>：</p>
+<ol>
+<li>active(默认): 软件就设置一下要性能还是能耗（通过 performance/powersave governor 和 EPP <code>/sys/devices/system/cpu/cpufreq/policy0/energy_performance_preference</code>），其他的都交给硬件自动调整</li>
+<li>guided：软件设置一个最低和最高的性能，其他都交给硬件</li>
+<li>passive：软件来负责调频，结果通过 Desired Perf 告诉硬件</li>
+</ol>
+<p>这里说的 active 和 passive 是从硬件的角度出发的，而不是 OS。</p>
+<p>注：虽然这里说是硬件调整，实际上大概率是由在一个片上的小 CPU 运行的固件（PMFW，Power Management Firmware）负责调整。</p>
 <h3 id="qualcomm_1">Qualcomm<a class="headerlink" href="#qualcomm_1" title="Permanent link">&para;</a></h3>
 <p>arm64 架构没有实现 arch_asym_cpu_priority 函数，因此用的不是上述 Intel/AMD 的机制，而是在 Device Tree 中用 <a href="https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt">capacity-dmips-mhz</a> 标记每个核心的性能，但是 X Elite 的 DTS 没有记录这个信息，因此 Linux 内核也就无法合理地调度了。因此一个可能的解决办法是，给后两个 Cluster 的一个核设置更高的 capacity-dmips-mhz，其他的核心都设置成一样，目前还没有进行实际的尝试。但其实通常来说，对于同一个核来说，提高频率以后，DMIPS/MHz 反而是下降的，内核用 DMIPS/MHz 这个指标，主要是用来区分大小核，而不是用来判断有没有 Boost。</p>
 <h2 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h2>
