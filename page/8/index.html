@@ -490,6 +490,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#在-k8s-内用-cert-manager-配合-nginx-ingress-controller-配置-lets-encrypt-https-证书" class="md-nav__link">
+    <span class="md-ellipsis">
+      在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let's Encrypt HTTPS 证书
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#在-tke-上配置不使用-lb-的-nginx-ingress-controller" class="md-nav__link">
     <span class="md-ellipsis">
       在 TKE 上配置不使用 LB 的 Nginx Ingress Controller
@@ -700,15 +709,6 @@
   <a href="#实现一个简单的-decaf-lsp" class="md-nav__link">
     <span class="md-ellipsis">
       实现一个简单的 Decaf LSP
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#用-rust-procedure-macro-实现-gll-parser" class="md-nav__link">
-    <span class="md-ellipsis">
-      用 Rust Procedure Macro 实现 GLL Parser
     </span>
   </a>
   
@@ -1674,6 +1674,87 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-04-17 00:00:00">2020年4月17日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-k8s-内用-cert-manager-配合-nginx-ingress-controller-配置-lets-encrypt-https-证书"><a class="toclink" href="../../devops/2020/04/17/k8s-nginx-cert-manager-le/">在 k8s 内用 Cert Manager 配合 Nginx Ingress Controller 配置 Let's Encrypt HTTPS 证书</a></h2>
+<p>上一篇博客讲了 nginx ingress 的配置，那自然第一步要配上 https。首先配置 cert-manager：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>cert-manager
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>--validate<span class="o">=</span><span class="nb">false</span><span class="w"> </span>-f<span class="w"> </span>https://github.com/jetstack/cert-manager/releases/download/v0.14.1/cert-manager.crds.yaml
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>add<span class="w"> </span>jetstack<span class="w"> </span>https://charts.jetstack.io
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>update
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>$<span class="w"> </span>helm<span class="w"> </span>install<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span>cert-manager<span class="w"> </span>jetstack/cert-manager<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span>--namespace<span class="w"> </span>cert-manager<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span>--version<span class="w"> </span>v0.14.1
+</span></code></pre></div>
+<p>然后，配置 Cluster Issuer，应用以下的 yaml：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>apiVersion: cert-manager.io/v1alpha2
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>kind: ClusterIssuer
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>metadata:
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  name: letsencrypt-prod
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>  namespace: cert-manager
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>spec:
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>  acme:
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    email: example@example.com
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    server: https://acme-v02.api.letsencrypt.org/directory
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    privateKeySecretRef:
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>      name: letsencrypt-prod
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    solvers:
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    - http01:
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>        ingress:
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>          class: nginx
+</span></code></pre></div>
+<p>然后在 ingress 里面进行配置：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>apiVersion: networking.k8s.io/v1beta1
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>kind: Ingress
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>metadata:
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>  name: ingress-example
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>  annotations:
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    kubernetes.io/ingress.class: &quot;nginx&quot;
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    cert-manager.io/cluster-issuer: &quot;letsencrypt-prod&quot;
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>spec:
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>  tls:
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>  - hosts:
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    - example.com
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    secretName: example-tls
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>  rules:
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>  - host: example.com
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    http:
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>      paths:
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>      - path: /
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>        backend:
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>          serviceName: example-service
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>          servicePort: 80
+</span></code></pre></div>
+<p>应用以后，用 <code>kubectl describe certificate</code> 查看证书获取进度。成功后，访问改域名的 HTTP，就会自动跳转到 HTTPS，并且提供了正确的证书。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3172,225 +3253,6 @@ P.P.S MacBookPro11,2 的网卡是 BCM4360，直接用 broadcom-wl 驱动就可�
 <h3 id="总结"><a class="toclink" href="../../programming/2019/11/17/rust-decaf-lsp/#总结">总结</a></h3>
 <p>感觉 LSP 是一个比较好实现的 Protocol，但 Protocol 承载的 Data 才是比较困难的东西。要实现一个完整的 completion 还需要很多东西，现在只能说是个 naive implementation 吧。</p>
 <p>刚写完就发现 Neovim 发布了 <a href="https://github.com/neovim/nvim-lsp">官方的 LSP client</a> 。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-11-15 00:00:00">2019年11月15日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/programming/" class="md-meta__link">programming</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 3 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="用-rust-procedure-macro-实现-gll-parser"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/">用 Rust Procedure Macro 实现 GLL Parser</a></h2>
-<h3 id="背景"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#背景">背景</a></h3>
-<p>在编译原理课上，PA 框架采用的是 <a href="https://github.com/MashPlant/lalr1">MashPlant/lalr1</a> ，是一个比较好用的 Lexer + Parser 的工具，它的大概语法见 <a href="https://mashplant.gitbook.io/decaf-doc/pa1a/lalr1-shi-yong-zhi-dao/yi-ge-wan-zheng-de-li-zi">一个完整的例子</a> 。然后之前看到了 GLL Parser，想着可不可以照着类似的语法也写一个 GLL 的 Parser Generator，也是用 Rust Procedure Macro 的方法，就开始了研究。</p>
-<h3 id="尝试"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#尝试">尝试</a></h3>
-<p>首先是阅读 GLL 的论文，它并不长，大概的意思就是，LL(1) 文法需要考虑 PS 冲突的情况，而 GLL 的解决方法就是“都试一下”，然后为了效率，用了 GSS 表示解析过程和 SPPF 表示解析结果。然后就开始照着论文手写了不同版本的实现，见 <a href="https://github.com/jiegec/gll-test">jiegec/gll-test</a> 。</p>
-<p>第一种就是按照论文里第一段实现直接抄过来，每个可能性作为一个 Continuation 存下来，它有自己的栈和执行位置（Label）。这样 Work 以后呢，我又想到了 async/await，用类似的方法又写了一遍，相对要简洁一些，也是很平常的递归下降的写法，而不是 Loop + Label 的形式。但这些都不能做到合并栈的目的，所以遇到十分有歧义的文法的时候会很糟糕。</p>
-<p>然后开始按照论文中的 GSS 进行编写，基本还是按照论文进行翻译，然后一步一步做，做好以后把 GSS 画出来，和论文的图可以对的上；然后照着 GLL parse-tree generation 的论文把 SPPF 实现了，这时候就可以从 recongizer 变成一个 parser 了。</p>
-<h3 id="宏"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#宏">宏</a></h3>
-<p>得到一份可行的代码以后，就要扩展到通用的情况上。学习了一下 MashPlant/lalr1 的实现，实现了一个 proc macro，它读取了用户的程序，从一个模板文件开始，往里面插入一些生成的代码，丢给编译器去编译。这时候就涉及到编译期和运行时的不同了，我把运行时一些通用的结构放到了 <code>gll-pg-core</code> 中，把编译期的代码放到了 <code>gll-pg-macros</code> 。</p>
-<p>代码生成的时候，基本按照之前自己写的样子抄，只不过这个时候要按照用户编写的产生式进行生成了，各种名字都要规范化，变得可以复用，然后尽量减少命名空间的污染等等这些常见的写宏需要注意的操作。</p>
-<p>不过，考虑到现在还没有实现 Lexer，所以先用了 Logos 库作为 Lexer。但我其实不大喜欢它，因为它太简单，也没有行号的信息，不过暂且先这样吧，以后可能会自己实现。</p>
-<p>然后 0.1.0 版本就诞生了，它的样例长这样：</p>
-<div class="language-rust highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="sd">//! This example is taken from MashPlant/lalr1</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">use</span><span class="w"> </span><span class="n">gll_pg_core</span><span class="p">::</span><span class="n">LogosToken</span><span class="p">;</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">use</span><span class="w"> </span><span class="n">gll_pg_macros</span><span class="p">::</span><span class="n">gll</span><span class="p">;</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">use</span><span class="w"> </span><span class="n">logos</span><span class="p">::</span><span class="n">Logos</span><span class="p">;</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="cp">#[derive(Logos, Debug, Eq, PartialEq, Clone)]</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="k">pub</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="nc">Token</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="cp">#[end]</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="n">End</span><span class="p">,</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="cp">#[error]</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="n">Error</span><span class="p">,</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot; &quot;</span><span class="cp">]</span>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="n">_Eps</span><span class="p">,</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;+&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">    </span><span class="n">Add</span><span class="p">,</span>
-</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;-&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">    </span><span class="n">Sub</span><span class="p">,</span>
-</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;*&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">    </span><span class="n">Mul</span><span class="p">,</span>
-</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;/&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">    </span><span class="n">Div</span><span class="p">,</span>
-</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;%&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">    </span><span class="n">Mod</span><span class="p">,</span>
-</span><span id="__span-4-25"><a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;(&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-26"><a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="w">    </span><span class="n">LPar</span><span class="p">,</span>
-</span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;)&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-28"><a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="w">    </span><span class="n">RPar</span><span class="p">,</span>
-</span><span id="__span-4-29"><a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="w">    </span><span class="cp">#[regex = </span><span class="s">&quot;[0-9]+&quot;</span><span class="cp">]</span>
-</span><span id="__span-4-30"><a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="w">    </span><span class="n">IntLit</span><span class="p">,</span>
-</span><span id="__span-4-31"><a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a><span class="p">}</span>
-</span><span id="__span-4-32"><a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>
-</span><span id="__span-4-33"><a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a><span class="cp">#[gll(Expr, Token)]</span>
-</span><span id="__span-4-34"><a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="k">impl</span><span class="w"> </span><span class="n">Parser</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-35"><a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Add Expr)]</span>
-</span><span id="__span-4-36"><a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_add</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-37"><a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a><span class="w">        </span><span class="n">l</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">r</span>
-</span><span id="__span-4-38"><a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-39"><a id="__codelineno-4-39" name="__codelineno-4-39" href="#__codelineno-4-39"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Sub Expr)]</span>
-</span><span id="__span-4-40"><a id="__codelineno-4-40" name="__codelineno-4-40" href="#__codelineno-4-40"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_sub</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-41"><a id="__codelineno-4-41" name="__codelineno-4-41" href="#__codelineno-4-41"></a><span class="w">        </span><span class="n">l</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">r</span>
-</span><span id="__span-4-42"><a id="__codelineno-4-42" name="__codelineno-4-42" href="#__codelineno-4-42"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-43"><a id="__codelineno-4-43" name="__codelineno-4-43" href="#__codelineno-4-43"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Mul Expr)]</span>
-</span><span id="__span-4-44"><a id="__codelineno-4-44" name="__codelineno-4-44" href="#__codelineno-4-44"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_mul</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-45"><a id="__codelineno-4-45" name="__codelineno-4-45" href="#__codelineno-4-45"></a><span class="w">        </span><span class="n">l</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">r</span>
-</span><span id="__span-4-46"><a id="__codelineno-4-46" name="__codelineno-4-46" href="#__codelineno-4-46"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-47"><a id="__codelineno-4-47" name="__codelineno-4-47" href="#__codelineno-4-47"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Div Expr)]</span>
-</span><span id="__span-4-48"><a id="__codelineno-4-48" name="__codelineno-4-48" href="#__codelineno-4-48"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_div</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-49"><a id="__codelineno-4-49" name="__codelineno-4-49" href="#__codelineno-4-49"></a><span class="w">        </span><span class="n">l</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">r</span>
-</span><span id="__span-4-50"><a id="__codelineno-4-50" name="__codelineno-4-50" href="#__codelineno-4-50"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-51"><a id="__codelineno-4-51" name="__codelineno-4-51" href="#__codelineno-4-51"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Mod Expr)]</span>
-</span><span id="__span-4-52"><a id="__codelineno-4-52" name="__codelineno-4-52" href="#__codelineno-4-52"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_mod</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-53"><a id="__codelineno-4-53" name="__codelineno-4-53" href="#__codelineno-4-53"></a><span class="w">        </span><span class="n">l</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">r</span>
-</span><span id="__span-4-54"><a id="__codelineno-4-54" name="__codelineno-4-54" href="#__codelineno-4-54"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-55"><a id="__codelineno-4-55" name="__codelineno-4-55" href="#__codelineno-4-55"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Sub Expr)]</span>
-</span><span id="__span-4-56"><a id="__codelineno-4-56" name="__codelineno-4-56" href="#__codelineno-4-56"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_neg</span><span class="p">(</span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-57"><a id="__codelineno-4-57" name="__codelineno-4-57" href="#__codelineno-4-57"></a><span class="w">        </span><span class="o">-</span><span class="n">r</span>
-</span><span id="__span-4-58"><a id="__codelineno-4-58" name="__codelineno-4-58" href="#__codelineno-4-58"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-59"><a id="__codelineno-4-59" name="__codelineno-4-59" href="#__codelineno-4-59"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; LPar Expr RPar)]</span>
-</span><span id="__span-4-60"><a id="__codelineno-4-60" name="__codelineno-4-60" href="#__codelineno-4-60"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_paren</span><span class="p">(</span><span class="n">_l</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="w"> </span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_r</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-61"><a id="__codelineno-4-61" name="__codelineno-4-61" href="#__codelineno-4-61"></a><span class="w">        </span><span class="n">i</span>
-</span><span id="__span-4-62"><a id="__codelineno-4-62" name="__codelineno-4-62" href="#__codelineno-4-62"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-63"><a id="__codelineno-4-63" name="__codelineno-4-63" href="#__codelineno-4-63"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; IntLit)]</span>
-</span><span id="__span-4-64"><a id="__codelineno-4-64" name="__codelineno-4-64" href="#__codelineno-4-64"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_int</span><span class="p">(</span><span class="n">i</span><span class="p">:</span><span class="w"> </span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-65"><a id="__codelineno-4-65" name="__codelineno-4-65" href="#__codelineno-4-65"></a><span class="w">        </span><span class="n">i</span><span class="p">.</span><span class="n">slice</span><span class="p">.</span><span class="n">parse</span><span class="p">().</span><span class="n">unwrap</span><span class="p">()</span>
-</span><span id="__span-4-66"><a id="__codelineno-4-66" name="__codelineno-4-66" href="#__codelineno-4-66"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-4-67"><a id="__codelineno-4-67" name="__codelineno-4-67" href="#__codelineno-4-67"></a><span class="p">}</span>
-</span><span id="__span-4-68"><a id="__codelineno-4-68" name="__codelineno-4-68" href="#__codelineno-4-68"></a>
-</span><span id="__span-4-69"><a id="__codelineno-4-69" name="__codelineno-4-69" href="#__codelineno-4-69"></a><span class="cp">#[test]</span>
-</span><span id="__span-4-70"><a id="__codelineno-4-70" name="__codelineno-4-70" href="#__codelineno-4-70"></a><span class="k">fn</span><span class="w"> </span><span class="nf">gll</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-71"><a id="__codelineno-4-71" name="__codelineno-4-71" href="#__codelineno-4-71"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">lexer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Token</span><span class="p">::</span><span class="n">lexer</span><span class="p">(</span><span class="s">&quot;1 + 2 * 3&quot;</span><span class="p">);</span>
-</span><span id="__span-4-72"><a id="__codelineno-4-72" name="__codelineno-4-72" href="#__codelineno-4-72"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Parser</span><span class="p">::</span><span class="n">parse</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">lexer</span><span class="p">);</span>
-</span><span id="__span-4-73"><a id="__codelineno-4-73" name="__codelineno-4-73" href="#__codelineno-4-73"></a><span class="w">    </span><span class="c1">// two ways to parse</span>
-</span><span id="__span-4-74"><a id="__codelineno-4-74" name="__codelineno-4-74" href="#__codelineno-4-74"></a><span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">]);</span>
-</span><span id="__span-4-75"><a id="__codelineno-4-75" name="__codelineno-4-75" href="#__codelineno-4-75"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>可以看到，它解析的结果是一个数组，对应所有可能出现的情况。这样比较简单，但是要求中间各种类型都是 Clone，因为同一个结点可能会被用多次。它的计算方法就是在最终的 SPPF 上递归找到所有可能性，然后调用用户代码，最后放到一个 Vec 中。</p>
-<h3 id="记忆化"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#记忆化">记忆化</a></h3>
-<p>但是，上面的做法有一个很大的问题，就是，虽然 SPPF 的空间复杂度是有限的，但所有可能的解析树可以有很多，如果把每一个情况都完整的存在一个 Vec 中，空间要求是很高的，中间也有很多重复计算的情况。所以需要做记忆化，然后每次给出一个。因为依赖自己内部的状态，所以不能是 Iterator 只能是 StreamingIterator。</p>
-<p>记忆化也花了我一番功夫，现在用了一个比较土的办法，在每个结点上记录了当前遇到过的所有可能，这个是逐渐构造的，意味着如果只需要第一种解析树，不需要额外的空间。然后逐渐扩张，如果有可以重用的结构就重用，把涉及的所有的结构都放在一个 Vec 中，用完之后一起 drop 掉。</p>
-<p>当然了，这个时候，各种东西都变成了引用：</p>
-<div class="language-rust highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="sd">//! This example is taken from MashPlant/lalr1</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">use</span><span class="w"> </span><span class="n">gll_pg_core</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">use</span><span class="w"> </span><span class="n">gll_pg_macros</span><span class="p">::</span><span class="n">gll</span><span class="p">;</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">use</span><span class="w"> </span><span class="n">logos</span><span class="p">::</span><span class="n">Logos</span><span class="p">;</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="cp">#[derive(Logos, Debug, Eq, PartialEq, Clone)]</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="k">enum</span><span class="w"> </span><span class="nc">Token</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="cp">#[end]</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="n">End</span><span class="p">,</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="cp">#[error]</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="n">Error</span><span class="p">,</span>
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot; &quot;</span><span class="cp">]</span>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">    </span><span class="n">_Eps</span><span class="p">,</span>
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;+&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">    </span><span class="n">Add</span><span class="p">,</span>
-</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;-&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">    </span><span class="n">Sub</span><span class="p">,</span>
-</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;*&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">    </span><span class="n">Mul</span><span class="p">,</span>
-</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;/&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">    </span><span class="n">Div</span><span class="p">,</span>
-</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;%&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">    </span><span class="n">Mod</span><span class="p">,</span>
-</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;(&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">    </span><span class="n">LPar</span><span class="p">,</span>
-</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">    </span><span class="cp">#[token = </span><span class="s">&quot;)&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="w">    </span><span class="n">RPar</span><span class="p">,</span>
-</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="w">    </span><span class="cp">#[regex = </span><span class="s">&quot;[0-9]+&quot;</span><span class="cp">]</span>
-</span><span id="__span-5-30"><a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a><span class="w">    </span><span class="n">IntLit</span><span class="p">,</span>
-</span><span id="__span-5-31"><a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a><span class="p">}</span>
-</span><span id="__span-5-32"><a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a>
-</span><span id="__span-5-33"><a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a><span class="cp">#[derive(Default)]</span>
-</span><span id="__span-5-34"><a id="__codelineno-5-34" name="__codelineno-5-34" href="#__codelineno-5-34"></a><span class="k">struct</span><span class="w"> </span><span class="nc">Parser</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-35"><a id="__codelineno-5-35" name="__codelineno-5-35" href="#__codelineno-5-35"></a><span class="w">    </span><span class="n">literals</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="kt">i32</span><span class="o">&gt;</span><span class="p">,</span>
-</span><span id="__span-5-36"><a id="__codelineno-5-36" name="__codelineno-5-36" href="#__codelineno-5-36"></a><span class="p">}</span>
-</span><span id="__span-5-37"><a id="__codelineno-5-37" name="__codelineno-5-37" href="#__codelineno-5-37"></a>
-</span><span id="__span-5-38"><a id="__codelineno-5-38" name="__codelineno-5-38" href="#__codelineno-5-38"></a><span class="cp">#[gll(Expr, Token)]</span>
-</span><span id="__span-5-39"><a id="__codelineno-5-39" name="__codelineno-5-39" href="#__codelineno-5-39"></a><span class="k">impl</span><span class="w"> </span><span class="n">Parser</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-40"><a id="__codelineno-5-40" name="__codelineno-5-40" href="#__codelineno-5-40"></a><span class="w">    </span><span class="c1">// you can omit self</span>
-</span><span id="__span-5-41"><a id="__codelineno-5-41" name="__codelineno-5-41" href="#__codelineno-5-41"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Add Expr)]</span>
-</span><span id="__span-5-42"><a id="__codelineno-5-42" name="__codelineno-5-42" href="#__codelineno-5-42"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_add</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-43"><a id="__codelineno-5-43" name="__codelineno-5-43" href="#__codelineno-5-43"></a><span class="w">        </span><span class="o">*</span><span class="n">l</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">*</span><span class="n">r</span>
-</span><span id="__span-5-44"><a id="__codelineno-5-44" name="__codelineno-5-44" href="#__codelineno-5-44"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-45"><a id="__codelineno-5-45" name="__codelineno-5-45" href="#__codelineno-5-45"></a><span class="w">    </span><span class="c1">// you can use &amp;self</span>
-</span><span id="__span-5-46"><a id="__codelineno-5-46" name="__codelineno-5-46" href="#__codelineno-5-46"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Sub Expr)]</span>
-</span><span id="__span-5-47"><a id="__codelineno-5-47" name="__codelineno-5-47" href="#__codelineno-5-47"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_sub</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-48"><a id="__codelineno-5-48" name="__codelineno-5-48" href="#__codelineno-5-48"></a><span class="w">        </span><span class="o">*</span><span class="n">l</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="o">*</span><span class="n">r</span>
-</span><span id="__span-5-49"><a id="__codelineno-5-49" name="__codelineno-5-49" href="#__codelineno-5-49"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-50"><a id="__codelineno-5-50" name="__codelineno-5-50" href="#__codelineno-5-50"></a><span class="w">    </span><span class="c1">// you can use &amp;mut self as well</span>
-</span><span id="__span-5-51"><a id="__codelineno-5-51" name="__codelineno-5-51" href="#__codelineno-5-51"></a><span class="w">    </span><span class="c1">// but all of these have &amp;mut self in fact</span>
-</span><span id="__span-5-52"><a id="__codelineno-5-52" name="__codelineno-5-52" href="#__codelineno-5-52"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Mul Expr)]</span>
-</span><span id="__span-5-53"><a id="__codelineno-5-53" name="__codelineno-5-53" href="#__codelineno-5-53"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_mul</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-54"><a id="__codelineno-5-54" name="__codelineno-5-54" href="#__codelineno-5-54"></a><span class="w">        </span><span class="o">*</span><span class="n">l</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="o">*</span><span class="n">r</span>
-</span><span id="__span-5-55"><a id="__codelineno-5-55" name="__codelineno-5-55" href="#__codelineno-5-55"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-56"><a id="__codelineno-5-56" name="__codelineno-5-56" href="#__codelineno-5-56"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Div Expr)]</span>
-</span><span id="__span-5-57"><a id="__codelineno-5-57" name="__codelineno-5-57" href="#__codelineno-5-57"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_div</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-58"><a id="__codelineno-5-58" name="__codelineno-5-58" href="#__codelineno-5-58"></a><span class="w">        </span><span class="o">*</span><span class="n">l</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="o">*</span><span class="n">r</span>
-</span><span id="__span-5-59"><a id="__codelineno-5-59" name="__codelineno-5-59" href="#__codelineno-5-59"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-60"><a id="__codelineno-5-60" name="__codelineno-5-60" href="#__codelineno-5-60"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Expr Mod Expr)]</span>
-</span><span id="__span-5-61"><a id="__codelineno-5-61" name="__codelineno-5-61" href="#__codelineno-5-61"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_mod</span><span class="p">(</span><span class="n">l</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-62"><a id="__codelineno-5-62" name="__codelineno-5-62" href="#__codelineno-5-62"></a><span class="w">        </span><span class="o">*</span><span class="n">l</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="o">*</span><span class="n">r</span>
-</span><span id="__span-5-63"><a id="__codelineno-5-63" name="__codelineno-5-63" href="#__codelineno-5-63"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-64"><a id="__codelineno-5-64" name="__codelineno-5-64" href="#__codelineno-5-64"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; Sub Expr)]</span>
-</span><span id="__span-5-65"><a id="__codelineno-5-65" name="__codelineno-5-65" href="#__codelineno-5-65"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_neg</span><span class="p">(</span><span class="n">_op</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-66"><a id="__codelineno-5-66" name="__codelineno-5-66" href="#__codelineno-5-66"></a><span class="w">        </span><span class="o">-*</span><span class="n">r</span>
-</span><span id="__span-5-67"><a id="__codelineno-5-67" name="__codelineno-5-67" href="#__codelineno-5-67"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-68"><a id="__codelineno-5-68" name="__codelineno-5-68" href="#__codelineno-5-68"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; LPar Expr RPar)]</span>
-</span><span id="__span-5-69"><a id="__codelineno-5-69" name="__codelineno-5-69" href="#__codelineno-5-69"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_paren</span><span class="p">(</span><span class="n">_l</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">i32</span><span class="p">,</span><span class="w"> </span><span class="n">_r</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-70"><a id="__codelineno-5-70" name="__codelineno-5-70" href="#__codelineno-5-70"></a><span class="w">        </span><span class="o">*</span><span class="n">i</span>
-</span><span id="__span-5-71"><a id="__codelineno-5-71" name="__codelineno-5-71" href="#__codelineno-5-71"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-72"><a id="__codelineno-5-72" name="__codelineno-5-72" href="#__codelineno-5-72"></a><span class="w">    </span><span class="c1">// so you can make your IDE happy with &amp;mut self here</span>
-</span><span id="__span-5-73"><a id="__codelineno-5-73" name="__codelineno-5-73" href="#__codelineno-5-73"></a><span class="w">    </span><span class="cp">#[rule(Expr -&gt; IntLit)]</span>
-</span><span id="__span-5-74"><a id="__codelineno-5-74" name="__codelineno-5-74" href="#__codelineno-5-74"></a><span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">expr_int</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">LogosToken</span><span class="o">&lt;</span><span class="n">Token</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">i32</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-75"><a id="__codelineno-5-75" name="__codelineno-5-75" href="#__codelineno-5-75"></a><span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">lit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">slice</span><span class="p">.</span><span class="n">parse</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span>
-</span><span id="__span-5-76"><a id="__codelineno-5-76" name="__codelineno-5-76" href="#__codelineno-5-76"></a><span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">literals</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">lit</span><span class="p">);</span>
-</span><span id="__span-5-77"><a id="__codelineno-5-77" name="__codelineno-5-77" href="#__codelineno-5-77"></a><span class="w">        </span><span class="n">lit</span>
-</span><span id="__span-5-78"><a id="__codelineno-5-78" name="__codelineno-5-78" href="#__codelineno-5-78"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-79"><a id="__codelineno-5-79" name="__codelineno-5-79" href="#__codelineno-5-79"></a><span class="p">}</span>
-</span><span id="__span-5-80"><a id="__codelineno-5-80" name="__codelineno-5-80" href="#__codelineno-5-80"></a>
-</span><span id="__span-5-81"><a id="__codelineno-5-81" name="__codelineno-5-81" href="#__codelineno-5-81"></a><span class="cp">#[test]</span>
-</span><span id="__span-5-82"><a id="__codelineno-5-82" name="__codelineno-5-82" href="#__codelineno-5-82"></a><span class="k">fn</span><span class="w"> </span><span class="nf">ambiguous</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-83"><a id="__codelineno-5-83" name="__codelineno-5-83" href="#__codelineno-5-83"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">lexer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Token</span><span class="p">::</span><span class="n">lexer</span><span class="p">(</span><span class="s">&quot;1 + 2 + 3&quot;</span><span class="p">);</span>
-</span><span id="__span-5-84"><a id="__codelineno-5-84" name="__codelineno-5-84" href="#__codelineno-5-84"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">parser</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Parser</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">literals</span><span class="p">:</span><span class="w"> </span><span class="nc">vec</span><span class="o">!</span><span class="p">[]</span><span class="w"> </span><span class="p">};</span>
-</span><span id="__span-5-85"><a id="__codelineno-5-85" name="__codelineno-5-85" href="#__codelineno-5-85"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parser</span><span class="p">.</span><span class="n">parse</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">lexer</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
-</span><span id="__span-5-86"><a id="__codelineno-5-86" name="__codelineno-5-86" href="#__codelineno-5-86"></a><span class="w">    </span><span class="c1">// two ways to parse</span>
-</span><span id="__span-5-87"><a id="__codelineno-5-87" name="__codelineno-5-87" href="#__codelineno-5-87"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">res</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">_</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">res</span><span class="p">.</span><span class="n">cloned</span><span class="p">().</span><span class="n">collect</span><span class="p">();</span>
-</span><span id="__span-5-88"><a id="__codelineno-5-88" name="__codelineno-5-88" href="#__codelineno-5-88"></a><span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">]);</span>
-</span><span id="__span-5-89"><a id="__codelineno-5-89" name="__codelineno-5-89" href="#__codelineno-5-89"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>这时候就是 0.3.0 版本，基本达到了我一开始想要的程度。</p>
-<h3 id="错误处理"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#错误处理">错误处理</a></h3>
-<p>在之前写编译原理 PA1 的时候，遇到的一个问题就是，如果自己的代码有错，因为宏展开以后丢失了位置信息，所以报错都会在错误的位置。一番查找以后，找到了解决方案：原样记录下原来的代码（syn::Block），然后通过 quote 宏直接拼接到最终的 TokenStream 中，这样在结果里，虽然代码还是那些代码，但部分的 Token 就有了正确的位置，这样就很方便用户代码的修改了。不过还是不方便找模板部分的代码错误，毕竟那部分确实在原来的代码中没有出现过。</p>
-<p>对于模板中的代码错误，我最终的解决方案是 <code>cargo-expand</code> ，把我的测试代码和展开后的代码拼接起来，然后在茫茫的无关报错下去找我的错误的地方。虽然不是很好用，但毕竟还是 work 的。另外，宏还需要对用户代码的一些类型进行检查，比如上面的 Expr 对应 i32，这个就需要在各处都保持一致，但这个就需要自己进行检查了。使用了一下 proc_macro_diagnostic 的 API，还不是很好用，等它 stable 吧。</p>
-<h3 id="总结"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#总结">总结</a></h3>
-<p>终于自己手写了一个 Procedure Macro，感觉现有的工具已经比较成熟了，有 syn quote 以后很多操作都很方便。但代码还有很多地方可以优化，慢慢搞吧。</p>
     
   </div>
 </article>
