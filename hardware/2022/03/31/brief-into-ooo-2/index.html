@@ -1769,7 +1769,7 @@ positives.
 <h2 id="memory-dependence-predictor">Memory Dependence Predictor<a class="headerlink" href="#memory-dependence-predictor" title="Permanent link">&para;</a></h2>
 <p>在 Load 指令要执行时，在它之前的 Store 指令可能还没有执行，此时如果要提前执行 Load，可能会读取到错误的数据。但是如果要等待 Load 之前的所有 Store 指令都就绪再执行 Load，性能会受限。因此处理器可以设计一个 Memory Dependence Predictor，预测 Load 和哪些 Store 会有数据依赖，如果有依赖，那就要等待依赖的 Store 完成，再去执行 Load；如果没有依赖，那就可以大胆提前执行 Load，当然了，为了保证正确性，Store 执行的时候，也要去看是否破坏了提前执行的 Load。总之，Memory Dependency Predictor 的目的是，找到一个尽量早的时间去执行 Load 指令，同时避免回滚。</p>
 <p><a href="https://ieeexplore.ieee.org/document/755465">Alpha 21264</a> 使用了一种简单的方法 Load Wait Table 来解决这个问题：对于那些出现过顺序违例的 Load 指令，打上一个标记，那么未来这个 Load 都要等到在它之前的所有 Store 执行才能执行。这个标记的方法也很简单，维护 Load 指令的 PC 到单 bit 的映射。香山处理器有对应的<a href="https://github.com/OpenXiangShan/XiangShan/blob/dd16cea72b92bcf8a87750b14458be82fda5cfff/src/main/scala/xiangshan/mem/mdp/WaitTable.scala#L27">实现</a>。</p>
-<p>一个实现方法叫做 <a href="https://dl.acm.org/doi/pdf/10.1145/279361.279378">Store Set</a>。Store Set 是相对 Load 说的，指的是一个 Load 依赖过的所有的 Store 的集合。如果一个 Load 的 Store Set 内的所有的 Store 都执行完了，那么这个 Load 就可以提前执行了，不用考虑别的 Store 指令。</p>
+<p>另一个实现方法叫做 <a href="https://dl.acm.org/doi/pdf/10.1145/279361.279378">Store Set</a>。Store Set 是相对 Load 说的，指的是一个 Load 依赖过的所有的 Store 的集合。如果一个 Load 的 Store Set 内的所有的 Store 都执行完了，那么这个 Load 就可以提前执行了，不用考虑别的 Store 指令。</p>
 <p>当然了，一开始并不知道 Load 依赖哪些 Store，所以 Store Set 是空的，此时 Load 可能会提前执行。当发现执行顺序错误，需要回滚时，就把导致回滚的 Store 添加到对应 Load 的 Store Set 当中。</p>
 <p>具体到硬件实现上，怎么去维护 Store Set 就是一个问题，因为 Store Set 可能会很大，同一个 Store 也可能会出现在很多个 Load 的 Store Set 当中。上述论文提出了一种硬件上的简化方式：</p>
 <ol>
@@ -1792,7 +1792,7 @@ positives.
 <li>Load B 的 Store Set 是 Store Z</li>
 </ul>
 <p>此时出现了 Load A 和 Store Z 之间的顺序错误，但是 Store Z 和 Load A 属于不同的 Store Set。为了解决这个问题，需要引入 Store Set 合并机制：如果一条 Store 要同时出现在两个 Store Set 当中，那就把这两个 Store Set 合并成一个：Load A、Load B 的 Store Set 都是 Store X、Store Y 和 Store Z。代价是可能引入了一些假的依赖。</p>
-<p>香山处理器也<a href="https://github.com/OpenXiangShan/XiangShan/blob/dd16cea72b92bcf8a87750b14458be82fda5cfff/src/main/scala/xiangshan/mem/mdp/StoreSet.scala">实现</a>了 Store Set 算法的变种。</p>
+<p>香山处理器也<a href="https://github.com/OpenXiangShan/XiangShan/blob/dd16cea72b92bcf8a87750b14458be82fda5cfff/src/main/scala/xiangshan/mem/mdp/StoreSet.scala">实现</a>了 Store Set 算法的变种，其区别可以参考香山的<a href="https://docs.xiangshan.cc/zh-cn/latest/memory/mdp/mdp/">访存依赖预测</a>文档。</p>
 <h2 id="store-to-load-forwarding">Store to Load Forwarding<a class="headerlink" href="#store-to-load-forwarding" title="Permanent link">&para;</a></h2>
 <p>对于那些依赖之前的 Store 的 Load 指令，如果 Store 还没有写进缓存，那么 Load 在执行的时候，就需要从 Store 要写入的数据里获取数据，这就是 Store to Load Forwarding。但实际情况可能会比较复杂，例如 Load 和 Store 只有一部分的重合，不重合的部分要从缓存中获取；或者 Load 和多个 Store 重合，要从多个 Store 分别取数据合并起来；或者前后有对同一个地址的 Store，那么要选取最晚的那一个。</p>
 <p>首先来看看 Intel 在 Intel® 64 and IA-32 Architectures Optimization Reference Manual 中对 Core（不是 Core 系列 CPU）微架构的表述：</p>
