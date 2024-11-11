@@ -1462,7 +1462,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 7 分钟阅读时间
+                              需要 8 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1505,10 +1505,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="处理器前端">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#short-forward-branch" class="md-nav__link">
     <span class="md-ellipsis">
       Short Forward Branch
@@ -1516,8 +1515,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#clustered-decode" class="md-nav__link">
     <span class="md-ellipsis">
       Clustered Decode
@@ -1525,8 +1524,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#btb-organization" class="md-nav__link">
     <span class="md-ellipsis">
       BTB Organization
@@ -1534,9 +1533,13 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#instruction-prefetcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instruction Prefetcher
+    </span>
+  </a>
   
 </li>
       
@@ -1617,7 +1620,7 @@
 <p>除了记录条件分支的跳与不跳以外，通常还可以维护 taken branch 的地址，记录这样的分支历史的 GHR 就叫做 PHR（Path History Register）。</p>
 <p>目前比较主流的分支预测算法就是 <a href="https://inria.hal.science/hal-03408381/document">TAGE</a> 了：维护多个表，每个表采取的历史长度不同，呈几何级数，使得需要比较短的历史就可以预测的分支可以更快的预热，需要比较长的历史才能预测的分支也可以有较好的准确度。比较有意思的是 TAGE 的表项分配和替换的算法，useful counter 和 altpred 的设计，以及 USE_ALT_ON_NA 的优化。为了预测间接分支，可以把目的地址放到 TAGE 的表项里，把预测方向变为预测目的地址，这种预测间接分支的 TAGE 就叫做 ITTAGE。部分实现还会给 TAGE 添加 Statistical Corrector 或者 Loop Predictor。这些算法基本统治了当今高性能的处理器设计。</p>
 <p>我在博客 <a href="../../10/samsung-exynos-cpu/">三星 Exynos CPU 微架构学习笔记</a> 中详细分析了 Exynos 微架构的前端设计，建议感兴趣的读者阅读。</p>
-<h3 id="short-forward-branch">Short Forward Branch<a class="headerlink" href="#short-forward-branch" title="Permanent link">&para;</a></h3>
+<h2 id="short-forward-branch">Short Forward Branch<a class="headerlink" href="#short-forward-branch" title="Permanent link">&para;</a></h2>
 <p>论文 <a href="https://carrv.github.io/2020/papers/CARRV2020_paper_15_Zhao.pdf">SonicBOOM: The 3rd Generation Berkeley Out-of-Order Machine</a> 提到了一个有意思的优化：Short Forward Branch。它面对的场景是一些小的 if 语句，在 if 的条件满足时，执行少量的指令。正常来说，这样的代码会被编译成一个 Forward 的分支，被跳过的就是 if 条件满足时要执行的代码对应的指令。如果分支比较好预测，那现有的分支预测器就可以得到很好的性能，但如果分支不好预测，例如它会依赖数据的值，并且具有一定的随机性，这时候性能就会下降。为了解决这个问题，可以用条件执行来代替分支：把分支指令替换为比较指令，然后根据比较的结果来条件执行本来可能会被跳过的指令。下面是论文中给的例子，说的比较的清晰：</p>
 <p><img alt="" src="../../../../brief-into-ooo-3-sfb.png" /></p>
 <p>比较有意思的是，这个优化是完全由硬件来做的，而不是编译器。当然了，如果编译器要做的前提是硬件支持这类标量的条件执行指令，虽然 Zicond 扩展确实提供了类似的功能，很多 RISC-V 实现还没有实现 Zicond。硬件上做的话，就不需要扩展指令集，直接在前端进行识别，当发现这种 Short Forward Branch 时，把分支指令本身改成一条 set-flag 指令，然后把分支到跳转目的地这一段的指令改为条件执行。这样就不需要进行分支预测了，无论原来的分支是否跳转，后续的这些指令都会进入流水线，看起来做了更多的事情，但很多时候反而比错误的分支预测还要快。</p>
@@ -1659,7 +1662,7 @@ about a 10% increase in coremark scores for this core.</p>
 <li>如果 Fetch Group 内有一条 call 指令，在原来的做法里，call 指令之后的指令就被丢弃了，等到未来 return 回来的时候，再重新 Fetch 一次；专利里的做法是，在 call 的时候，把 call 指令之后的指令保存下来，当未来 return 回来的时候，不再重新 Fetch，而是取出保存下来的 call 指令之后的指令，这样就节省了重新 Fetch 一次的时间。</li>
 </ul>
 <p>因此它的目的主要是解决重复 Fetch 的能耗问题，而不是分支预测错误率高的问题。</p>
-<h3 id="clustered-decode">Clustered Decode<a class="headerlink" href="#clustered-decode" title="Permanent link">&para;</a></h3>
+<h2 id="clustered-decode">Clustered Decode<a class="headerlink" href="#clustered-decode" title="Permanent link">&para;</a></h2>
 <p>推荐阅读：<a href="https://zhuanlan.zhihu.com/p/720301269">解码簇二三事（一）：为什么？&amp;加料！</a></p>
 <p>Intel 的 E 核从 Tremont 微架构开始实现了 Clustered Decode，从 Goldmont Plus 微架构的传统的 3-wide decode，变成了两条 3-wide decode 的流水线，加起来实现 6-wide decode 的效果。但是这两个流水线怎么协同工作呢？</p>
 <p>Intel 在 <a href="https://cdrdv2-public.intel.com/671488/248966-046A-software-optimization-manual.pdf">Software Optimization Manual</a> 中是这么描述的：</p>
@@ -1694,7 +1697,7 @@ about a 10% increase in coremark scores for this core.</p>
 </blockquote>
 <p>这个方法在 Intel 的专利 <a href="https://patents.google.com/patent/US20220100516A1/en">Circuitry and methods for power efficient generation of length markers for a variable length instruction set</a> 有比较详细的描述。</p>
 <p>Intel 在 Skymont 这一代 E-core 微架构在大大拓宽后端的同时，把 Decode 从两条 3-wide pipeline 改成了三条 3-wide pipeline，那么怎么把这三条 Decode pipeline 喂满，是继续延续上面的思路，只不过插入更多的 toggle point，还是有一些新的设计，让我们拭目以待。</p>
-<h3 id="btb-organization">BTB Organization<a class="headerlink" href="#btb-organization" title="Permanent link">&para;</a></h3>
+<h2 id="btb-organization">BTB Organization<a class="headerlink" href="#btb-organization" title="Permanent link">&para;</a></h2>
 <p>BTB 的目的是在分支预测阶段，提供哪些指令是分支指令，以及这些分支指令的目的地址的信息。那么 BTB 是怎么保存这些信息的呢？论文 <a href="https://dl.acm.org/doi/pdf/10.1145/3613424.3623774">Branch Target Buffer Organizations</a> 总结了几种常见的 BTB 组织方法：</p>
 <ol>
 <li>第一种方法：I-BTB，Instruction BTB，对于每个可能出现分支指令的地址，都进行一次 BTB 查询，看看这个地址是不是有分支指令。此时 BTB entry 只需要记录 tag（用于组相连的 Way 匹配）、branch type 和 branch target。以 ARMv8 为例，指令都是 4 字节，假如要对 32 字节的块进行预测，那么就要对这 32 字节的 8 个 4 字节都进行一次 BTB 查询，得到每一个位置上的分支信息。x86 的话每个字节都可能是一条分支指令，用这样的方法需要查询的次数过多。</li>
@@ -1721,6 +1724,16 @@ Predicting with BTB pairs allows two fetches to be predicted in one prediction c
 </blockquote>
 <p>可以看到第一种情况就是前面 Zen 3 的模式，一个 cacheline 内，条件分支 + 分支；第二种情况就是新的设计，它可以记录两条分支指令，第二条分支指令和第一条分支指令的目的地址在同一个 cacheline 中，也就是一个 BTB 记录两条分支指令，第一条跳到第二条，第二条再跳转，在这种情况下，可以一个周期给出两个 Fetch Bundle，也就是 2 taken predictions/cycle。论文中这种设计叫做 MB-BTB。</p>
 <p>推荐阅读：<a href="https://blog.eastonman.com/blog/2023/12/modern-branch-prediction-from-academy-to-industry/">现代分支预测：从学术界到工业界</a></p>
+<h2 id="instruction-prefetcher">Instruction Prefetcher<a class="headerlink" href="#instruction-prefetcher" title="Permanent link">&para;</a></h2>
+<p>随着程序的指令 footprint 增大，除了增大 L1 ICache 容量，也需要实现合理的 Instruction Prefetcher，把指令预取到 L1 ICache 当中。对于 Decoupled Frontend，目前比较常见的方法是使用 Fetch Directed Intruction Prefetching(FDIP)，利用 Decoupled Frontend 里分支预测可以在取指之前跑得更远的特性，使用分支预测的地址来进行预取。对于 Coupled Frontend，预测和取指紧密相连，FDIP 的方法就不好用了，需要寻找其他的方法。</p>
+<p>一种方法是 Call Graph Prefetching(CGP)，来自论文 <a href="https://ieeexplore.ieee.org/abstract/document/903270">Call graph prefetching for database applications</a>。从名字也可以看出，它针对的是数据库场景，而这个场景下，代码的规模很大，更加容易出现 ICache Miss。</p>
+<p>它的核心思路是，维护一个 Call Graph History Cache(CGHC) 来记录程序执行的调用图，根据历史信息来预取未来可能会执行的函数的指令，这针对的是频繁的函数调用；针对函数体比较大的情况，函数调用的比例比较小，利用 Next N-Line Prefetching，也就是在 miss 的时候把连续的几条缓存行预取进来。</p>
+<p>那么这个 Call Graph History Cache 是怎么维护函数调用的呢？它记录了两个 Array：Tag Array 和 Data Array。Tag Array 记录的是函数的入口地址，以及在这个函数内执行到了第几个函数（Index）；Data Array 则记录了被该函数调用的函数的入口地址，最多八个。例如函数 A 会调用函数 B 和 C，那么 CGHC 会保存这么一条记录：</p>
+<ul>
+<li>Tag Array：记录函数 A 的入口地址以及 Index，Index 初始化为 1</li>
+<li>Data Array：记录函数 B 和 C 的地址</li>
+</ul>
+<p>当前端通过分支预测，预测到要执行函数 A，那么就通过 A 的地址去查询 Tag Array，找到匹配，并且发现其 Index 等于 1；那么接着用 Index 访问 Data Array，取出第一个函数的地址，也就是 B，那就预取 B。当函数 B 被调用的时候，更新 Index 为 2，表示函数 B 已经被调用，下一个要被调用的是 C。当函数 B 返回的时候，用 Index 访问 Data Array，得到函数 C 的地址，预取 C。如果说 Call Graph 是个图，那么 Tag Array 和 Data Array 就组成了邻接表。</p>
 
 
 
@@ -1743,7 +1756,7 @@ Predicting with BTB pairs allows two fetches to be predicted in one prediction c
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2024年9月29日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2024年11月11日</span>
   </span>
 
     
