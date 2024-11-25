@@ -1725,7 +1725,9 @@ Predicting with BTB pairs allows two fetches to be predicted in one prediction c
 <p>可以看到第一种情况就是前面 Zen 3 的模式，一个 cacheline 内，条件分支 + 分支；第二种情况就是新的设计，它可以记录两条分支指令，第二条分支指令和第一条分支指令的目的地址在同一个 cacheline 中，也就是一个 BTB 记录两条分支指令，第一条跳到第二条，第二条再跳转，在这种情况下，可以一个周期给出两个 Fetch Bundle，也就是 2 taken predictions/cycle。论文中这种设计叫做 MB-BTB。</p>
 <p>推荐阅读：<a href="https://blog.eastonman.com/blog/2023/12/modern-branch-prediction-from-academy-to-industry/">现代分支预测：从学术界到工业界</a></p>
 <h2 id="instruction-prefetcher">Instruction Prefetcher<a class="headerlink" href="#instruction-prefetcher" title="Permanent link">&para;</a></h2>
-<p>随着程序的指令 footprint 增大，除了增大 L1 ICache 容量，也需要实现合理的 Instruction Prefetcher，把指令预取到 L1 ICache 当中。对于 Decoupled Frontend，目前比较常见的方法是使用 Fetch Directed Intruction Prefetching(FDIP)，利用 Decoupled Frontend 里分支预测可以在取指之前跑得更远的特性，使用分支预测的地址来进行预取。对于 Coupled Frontend，预测和取指紧密相连，FDIP 的方法就不好用了，需要寻找其他的方法。</p>
+<p>随着程序的指令 footprint 增大，除了增大 L1 ICache 容量，也需要实现合理的 Instruction Prefetcher，把指令预取到 L1 ICache 当中。对于 Decoupled Frontend，目前比较常见的方法是使用 <a href="https://ieeexplore.ieee.org/document/809439">Fetch Directed Intruction Prefetching(FDIP)</a>，利用 Decoupled Frontend 里分支预测可以在取指之前跑得更远的特性，使用分支预测的地址来进行预取。具体地，Decoupled Frontend 会把分支预测得到的地址写入 Fetch Target Queue(FTQ)，这些地址由 ICache 来消费。与此同时，FTQ 中的地址也会用于指令预取，结构如论文中的图 1：</p>
+<p><img alt="" src="../../../../brief-into-ooo-3-fdip.png" /></p>
+<p>对于 Coupled Frontend，预测和取指紧密相连，FDIP 的方法就不好用了，需要寻找其他的方法。</p>
 <p>一种方法是 Call Graph Prefetching(CGP)，来自论文 <a href="https://ieeexplore.ieee.org/abstract/document/903270">Call graph prefetching for database applications</a>。从名字也可以看出，它针对的是数据库场景，而这个场景下，代码的规模很大，更加容易出现 ICache Miss。</p>
 <p>它的核心思路是，维护一个 Call Graph History Cache(CGHC) 来记录程序执行的调用图，根据历史信息来预取未来可能会执行的函数的指令，这针对的是频繁的函数调用；针对函数体比较大的情况，函数调用的比例比较小，利用 Next N-Line Prefetching，也就是在 miss 的时候把连续的几条缓存行预取进来。</p>
 <p>那么这个 Call Graph History Cache 是怎么维护函数调用的呢？它记录了两个 Array：Tag Array 和 Data Array。Tag Array 记录的是函数的入口地址，以及在这个函数内执行到了第几个函数（Index）；Data Array 则记录了被该函数调用的函数的入口地址，最多八个。例如函数 A 会调用函数 B 和 C，那么 CGHC 会保存这么一条记录：</p>
@@ -1764,7 +1766,7 @@ Predicting with BTB pairs allows two fetches to be predicted in one prediction c
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2024年11月11日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2024年11月25日</span>
   </span>
 
     
