@@ -462,6 +462,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#分析-rocket-chip-中-diplomacy-系统">
+<span class="md-ellipsis">
+      分析 Rocket Chip 中 Diplomacy 系统
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#chisel3-cookbook">
 <span class="md-ellipsis">
       Chisel3 Cookbook
@@ -629,13 +636,6 @@
     </span>
 </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#用-pulseview-配合-dslogic-调试-spi-flash">
-<span class="md-ellipsis">
-      用 PulseView 配合 DSLogic 调试 SPI Flash
-    </span>
-</a>
-</li>
 </ul>
 </nav>
 </li>
@@ -743,6 +743,103 @@
 <header class="md-typeset">
 <h1 id="hardware">hardware<a class="headerlink" href="#hardware" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-01-05 00:00:00">2022年1月5日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="分析-rocket-chip-中-diplomacy-系统"><a class="toclink" href="../../../../hardware/2022/01/05/diplomacy/">分析 Rocket Chip 中 Diplomacy 系统</a></h2>
+<h3 id="概念"><a class="toclink" href="../../../../hardware/2022/01/05/diplomacy/#概念">概念</a></h3>
+<p>Diplomacy 主要实现了两个功能：</p>
+<ol>
+<li>把整个总线结构在代码中表现出来</li>
+<li>自动配置总线中各个端口的参数</li>
+</ol>
+<p>具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。</p>
+<p>Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，Node 和 Node 之间连接形成一个图。Node 的类型主要有以下几个：</p>
+<ol>
+<li>Client：对应 AXI 里面的 Master，发起请求</li>
+<li>Manager：对应 AXI 里面的 Slave，处理请求</li>
+<li>Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出</li>
+<li>Nexus：对应 AXI Crossbar，多个输入和多个输出</li>
+</ol>
+<p>每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。</p>
+<p>连接方式采用的是 <code>:=</code> <code>:=*</code> <code>:*=</code> <code>:*=*</code> 操作符，左侧是 Client，右侧是 Manager。</p>
+<h3 id="rocket-chip-总线结构"><a class="toclink" href="../../../../hardware/2022/01/05/diplomacy/#rocket-chip-总线结构">Rocket Chip 总线结构</a></h3>
+<p>Rocket Chip 主要有以下几个总线：</p>
+<ol>
+<li>sbus: System Bus</li>
+<li>mbus: Memory Bus</li>
+<li>cbus: Control Bus</li>
+<li>pbus: Periphery Bus</li>
+<li>fbus: Frontend Bus</li>
+</ol>
+<p>图示可以见参考文档中的链接，不过链接中的结构和实际的有一些区别。目前的 Rocket Chip 内存结构大致是这样：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>fbus -&gt; sbus -&gt; mbus
+</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>tile --/    \-&gt; cbus -&gt; pbus
+</span></code></pre></div>
+<p>主要是 pbus 的位置从连接 sbus 移动到了连接 cbus。</p>
+<p>相关代码：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="cm">/** Parameterization of a topology containing three additional, optional buses for attaching MMIO devices. */</span>
+</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="k">case</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">HierarchicalBusTopologyParams</span><span class="p">(</span>
+</span><span id="__span-7-3"><a href="#__codelineno-7-3" id="__codelineno-7-3" name="__codelineno-7-3"></a><span class="w">  </span><span class="n">pbus</span><span class="p">:</span><span class="w"> </span><span class="nc">PeripheryBusParams</span><span class="p">,</span>
+</span><span id="__span-7-4"><a href="#__codelineno-7-4" id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="w">  </span><span class="n">fbus</span><span class="p">:</span><span class="w"> </span><span class="nc">FrontBusParams</span><span class="p">,</span>
+</span><span id="__span-7-5"><a href="#__codelineno-7-5" id="__codelineno-7-5" name="__codelineno-7-5"></a><span class="w">  </span><span class="n">cbus</span><span class="p">:</span><span class="w"> </span><span class="nc">PeripheryBusParams</span><span class="p">,</span>
+</span><span id="__span-7-6"><a href="#__codelineno-7-6" id="__codelineno-7-6" name="__codelineno-7-6"></a><span class="w">  </span><span class="n">xTypes</span><span class="p">:</span><span class="w"> </span><span class="nc">SubsystemCrossingParams</span><span class="p">,</span>
+</span><span id="__span-7-7"><a href="#__codelineno-7-7" id="__codelineno-7-7" name="__codelineno-7-7"></a><span class="w">  </span><span class="n">driveClocksFromSBus</span><span class="p">:</span><span class="w"> </span><span class="nc">Boolean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-7-8"><a href="#__codelineno-7-8" id="__codelineno-7-8" name="__codelineno-7-8"></a><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">TLBusWrapperTopology</span><span class="p">(</span>
+</span><span id="__span-7-9"><a href="#__codelineno-7-9" id="__codelineno-7-9" name="__codelineno-7-9"></a><span class="w">  </span><span class="n">instantiations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-7-10"><a href="#__codelineno-7-10" id="__codelineno-7-10" name="__codelineno-7-10"></a><span class="w">    </span><span class="p">(</span><span class="nc">PBUS</span><span class="p">,</span><span class="w"> </span><span class="n">pbus</span><span class="p">),</span>
+</span><span id="__span-7-11"><a href="#__codelineno-7-11" id="__codelineno-7-11" name="__codelineno-7-11"></a><span class="w">    </span><span class="p">(</span><span class="nc">FBUS</span><span class="p">,</span><span class="w"> </span><span class="n">fbus</span><span class="p">),</span>
+</span><span id="__span-7-12"><a href="#__codelineno-7-12" id="__codelineno-7-12" name="__codelineno-7-12"></a><span class="w">    </span><span class="p">(</span><span class="nc">CBUS</span><span class="p">,</span><span class="w"> </span><span class="n">cbus</span><span class="p">)),</span>
+</span><span id="__span-7-13"><a href="#__codelineno-7-13" id="__codelineno-7-13" name="__codelineno-7-13"></a><span class="w">  </span><span class="n">connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-7-14"><a href="#__codelineno-7-14" id="__codelineno-7-14" name="__codelineno-7-14"></a><span class="w">    </span><span class="p">(</span><span class="nc">SBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">CBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">TLBusWrapperConnection</span><span class="w">  </span><span class="p">.</span><span class="n">crossTo</span><span class="p">(</span><span class="n">xTypes</span><span class="p">.</span><span class="n">sbusToCbusXType</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveClocksFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">)),</span>
+</span><span id="__span-7-15"><a href="#__codelineno-7-15" id="__codelineno-7-15" name="__codelineno-7-15"></a><span class="w">    </span><span class="p">(</span><span class="nc">CBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">PBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">TLBusWrapperConnection</span><span class="w">  </span><span class="p">.</span><span class="n">crossTo</span><span class="p">(</span><span class="n">xTypes</span><span class="p">.</span><span class="n">cbusToPbusXType</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveClocksFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">)),</span>
+</span><span id="__span-7-16"><a href="#__codelineno-7-16" id="__codelineno-7-16" name="__codelineno-7-16"></a><span class="w">    </span><span class="p">(</span><span class="nc">FBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">SBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">TLBusWrapperConnection</span><span class="p">.</span><span class="n">crossFrom</span><span class="p">(</span><span class="n">xTypes</span><span class="p">.</span><span class="n">fbusToSbusXType</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveClocksFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">)))</span>
+</span><span id="__span-7-17"><a href="#__codelineno-7-17" id="__codelineno-7-17" name="__codelineno-7-17"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>当然了，也有简化版的 JustOneBusTopology，那就只有 SystemBus 了。如果再配置了 CoherentBusTopology，那么 SBUS 和 MBUS 之间还有一层 L2:</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="cm">/** Parameterization of a topology containing a banked coherence manager and a bus for attaching memory devices. */</span>
+</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a><span class="k">case</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">CoherentBusTopologyParams</span><span class="p">(</span>
+</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a><span class="w">  </span><span class="n">sbus</span><span class="p">:</span><span class="w"> </span><span class="nc">SystemBusParams</span><span class="p">,</span><span class="w"> </span><span class="c1">// TODO remove this after better width propagation</span>
+</span><span id="__span-8-4"><a href="#__codelineno-8-4" id="__codelineno-8-4" name="__codelineno-8-4"></a><span class="w">  </span><span class="n">mbus</span><span class="p">:</span><span class="w"> </span><span class="nc">MemoryBusParams</span><span class="p">,</span>
+</span><span id="__span-8-5"><a href="#__codelineno-8-5" id="__codelineno-8-5" name="__codelineno-8-5"></a><span class="w">  </span><span class="n">l2</span><span class="p">:</span><span class="w"> </span><span class="nc">BankedL2Params</span><span class="p">,</span>
+</span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a><span class="w">  </span><span class="n">sbusToMbusXType</span><span class="p">:</span><span class="w"> </span><span class="nc">ClockCrossingType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">NoCrossing</span><span class="p">,</span>
+</span><span id="__span-8-7"><a href="#__codelineno-8-7" id="__codelineno-8-7" name="__codelineno-8-7"></a><span class="w">  </span><span class="n">driveMBusClockFromSBus</span><span class="p">:</span><span class="w"> </span><span class="nc">Boolean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-8-8"><a href="#__codelineno-8-8" id="__codelineno-8-8" name="__codelineno-8-8"></a><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">TLBusWrapperTopology</span><span class="p">(</span>
+</span><span id="__span-8-9"><a href="#__codelineno-8-9" id="__codelineno-8-9" name="__codelineno-8-9"></a><span class="w">  </span><span class="n">instantiations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l2</span><span class="p">.</span><span class="n">nBanks</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="nc">Nil</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-8-10"><a href="#__codelineno-8-10" id="__codelineno-8-10" name="__codelineno-8-10"></a><span class="w">    </span><span class="p">(</span><span class="nc">MBUS</span><span class="p">,</span><span class="w"> </span><span class="n">mbus</span><span class="p">),</span>
+</span><span id="__span-8-11"><a href="#__codelineno-8-11" id="__codelineno-8-11" name="__codelineno-8-11"></a><span class="w">    </span><span class="p">(</span><span class="nc">L2</span><span class="p">,</span><span class="w"> </span><span class="nc">CoherenceManagerWrapperParams</span><span class="p">(</span><span class="n">mbus</span><span class="p">.</span><span class="n">blockBytes</span><span class="p">,</span><span class="w"> </span><span class="n">mbus</span><span class="p">.</span><span class="n">beatBytes</span><span class="p">,</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="n">nBanks</span><span class="p">,</span><span class="w"> </span><span class="nc">L2</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">sbus</span><span class="p">.</span><span class="n">dtsFrequency</span><span class="p">)(</span><span class="n">l2</span><span class="p">.</span><span class="n">coherenceManager</span><span class="p">)))),</span>
+</span><span id="__span-8-12"><a href="#__codelineno-8-12" id="__codelineno-8-12" name="__codelineno-8-12"></a><span class="w">  </span><span class="n">connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l2</span><span class="p">.</span><span class="n">nBanks</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="nc">Nil</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-8-13"><a href="#__codelineno-8-13" id="__codelineno-8-13" name="__codelineno-8-13"></a><span class="w">    </span><span class="p">(</span><span class="nc">SBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">L2</span><span class="p">,</span><span class="w">   </span><span class="nc">TLBusWrapperConnection</span><span class="p">(</span><span class="n">driveClockFromMaster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span><span class="w"> </span><span class="n">nodeBinding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BIND_STAR</span><span class="p">)()),</span>
+</span><span id="__span-8-14"><a href="#__codelineno-8-14" id="__codelineno-8-14" name="__codelineno-8-14"></a><span class="w">    </span><span class="p">(</span><span class="nc">L2</span><span class="p">,</span><span class="w">  </span><span class="nc">MBUS</span><span class="p">,</span><span class="w">  </span><span class="nc">TLBusWrapperConnection</span><span class="p">.</span><span class="n">crossTo</span><span class="p">(</span>
+</span><span id="__span-8-15"><a href="#__codelineno-8-15" id="__codelineno-8-15" name="__codelineno-8-15"></a><span class="w">      </span><span class="n">xType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sbusToMbusXType</span><span class="p">,</span>
+</span><span id="__span-8-16"><a href="#__codelineno-8-16" id="__codelineno-8-16" name="__codelineno-8-16"></a><span class="w">      </span><span class="n">driveClockFromMaster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveMBusClockFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">,</span>
+</span><span id="__span-8-17"><a href="#__codelineno-8-17" id="__codelineno-8-17" name="__codelineno-8-17"></a><span class="w">      </span><span class="n">nodeBinding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BIND_QUERY</span><span class="p">))</span>
+</span><span id="__span-8-18"><a href="#__codelineno-8-18" id="__codelineno-8-18" name="__codelineno-8-18"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-8-19"><a href="#__codelineno-8-19" id="__codelineno-8-19" name="__codelineno-8-19"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2022/01/05/diplomacy/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html">TileLink and Diplomacy Reference</a></li>
+<li><a href="https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system">Rocket Chip - Memory System</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -4393,34 +4490,6 @@ in 1.4.
 <li>https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361</li>
 <li>UG740: 7 Series FPGAs Configuration</li>
 </ol>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2019-08-02 00:00:00">2019年8月2日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="用-pulseview-配合-dslogic-调试-spi-flash"><a class="toclink" href="../../../../hardware/2019/08/02/pulseview-dslogic/">用 PulseView 配合 DSLogic 调试 SPI Flash</a></h2>
-<p>最近需要用到逻辑分析仪来调试 SPI Flash，设备是 DreamSourceLab 的 DSLogic，最开始用的是官方的 DSView，确实能够抓到 SPI 的信号，也可以解析出一些 SPI Flash 的数据，但是很多是不完整的。</p>
-<p>后来把源码下载下来，发现是基于 sigrok 和 PulseView 做的一个魔改版，然后 sigrok 官网上最新的版本已经支持了 DSLogic，于是就用 PulseView 替代 DSView。一开始遇到的问题是没有 firmware，一番搜索找到了<a href="https://sigrok.org/wiki/DreamSourceLab_DSLogic">解决方案</a>，按照脚本下载好文件即可。</p>
-<p>进到 PulseView 以后，把 SPI 的四路信号接上，然后抓了一段信号，解析：</p>
-<p><img alt="" src="../../../../hardware/pulseview.png"/></p>
-<p>可以看到它正确地解析出来了 Fast Read 命令。由于 DSView 它 fork 自一个比较老的版本，所以它并不能正确解析出来。</p>
-<p>P.S. Linux 下它界面显示比 macOS 下好看一些，估计是没有适配好。</p>
 </div>
 </article>
 <nav class="md-pagination">
