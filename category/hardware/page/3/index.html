@@ -462,6 +462,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#通过-jtag-对-vcu128-上的-rocket-chip-进行调试">
+<span class="md-ellipsis">
+      通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#分析-rocket-chip-中-diplomacy-系统">
 <span class="md-ellipsis">
       分析 Rocket Chip 中 Diplomacy 系统
@@ -629,13 +636,6 @@
     </span>
 </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#研究-rocket-chip-的-bscan-调试原理">
-<span class="md-ellipsis">
-      研究 Rocket Chip 的 BSCAN 调试原理
-    </span>
-</a>
-</li>
 </ul>
 </nav>
 </li>
@@ -743,6 +743,201 @@
 <header class="md-typeset">
 <h1 id="hardware">hardware<a class="headerlink" href="#hardware" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-03-09 00:00:00">2022年3月9日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="通过-jtag-对-vcu128-上的-rocket-chip-进行调试"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/">通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试</a></h2>
+<h3 id="前言"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#前言">前言</a></h3>
+<p>两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。</p>
+<h3 id="寻找-jtag-接口"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#寻找-jtag-接口">寻找 JTAG 接口</a></h3>
+<p>前几天在研究别的问题的时候，看到 VCU128 文档中的这段话：</p>
+<div class="language-text highlight"><pre><span></span><code>The FT4232HL U8 multi-function USB-UART on the VCU128 board provides three level-shifted
+UART connections through the single micro-AB USB connector J2.
+• Channel A is configured in JTAG mode to support the JTAG chain
+• Channel B implements 4-wire UART0 (level-shifted) FPGA U1 bank 67 connections
+• Channel C implements 4-wire UART1 (level-shifted) FPGA U1 bank 67 connections
+• Channel D implements 2-wire (level-shifted) SYSCTLR U42 bank 501 connections
+</code></pre></div>
+<p>其中 Channel A 是到 FPGA 本身的 JTAG 接口，是给 Vivado 用的，如果是通过 BSCAN 的方式，也是在这个 Channel 上，但是需要经过 FPGA 自己的 TAP 再隧道到 BSCAN 上，比较麻烦。Channel B 和 C 是串口，Channel D 是连接 VCU128 上的 System Controller 的。之前的时候，都是直接用 Channel B 做串口，然后突发奇想：注意到这里是 4-wire UART，说明连接到 FPGA 是四条线，那是不是也可以拿来当 JTAG 用？</p>
+<p>查询了一下 FT4232H 的文档，发现它的 Channel A 和 Channel B 是支持 MPSSE 模式的，在 MPSSE 模式下，可以当成 JTAG 使用：</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Channel A</th>
+<th>Channel B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCK</td>
+<td>12</td>
+<td>22</td>
+</tr>
+<tr>
+<td>TDI</td>
+<td>13</td>
+<td>23</td>
+</tr>
+<tr>
+<td>TDO</td>
+<td>14</td>
+<td>24</td>
+</tr>
+<tr>
+<td>TMS</td>
+<td>15</td>
+<td>25</td>
+</tr>
+</tbody>
+</table>
+<p>对照 VCU128 的 Schematic 看，虽然引脚的编号不大一样，可以发现，Channel A 和 B 分别对应了 ADBUS0-4 和 BDBUS 0-4，对应到 schematic 上的名字是：</p>
+<ul>
+<li>ADBUS0 - FT4232_TCK</li>
+<li>ADBUS1 - FT4232_TDI</li>
+<li>ADBUS2 - FMCP_HSPC_TDO</li>
+<li>ADBUS3 - FT4232_TMS</li>
+</ul>
+<p>这一组是直接连到 FPGA 上专用的 JTAG 引脚，其中 TDO 是连接了额外的逻辑，可以把 FMC 接口上的 JTAG 连接成 daisy chain。</p>
+<ul>
+<li>ADBUS0 - FTDI_UART0_TXD_LS - UART0_RXD - BP26 -&gt; TCK</li>
+<li>ADBUS1 - FTDI_UART0_RXD_LS - UART0_TXD - BN26 -&gt; TDI</li>
+<li>ADBUS2 - FTDI_UART0_RTS_B_LS - UART0_RTS_B - BP22 -&gt; TDO</li>
+<li>ADBUS3 - FTDI_UART0_CTS_B_LS - UART0_CTS_B - BP23 -&gt; TMS</li>
+</ul>
+<p>这里的 RXD/TXD 名字交换也是很容易看错，要小心，只要记住 FT4232H 要求的顺序一定是 TCK-TDI-TDO-TMS 即可。对应到 vivado 内的 xdc 就是这么写：</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-18-1"><a href="#__codelineno-18-1" id="__codelineno-18-1" name="__codelineno-18-1"></a><span class="nv">set_property</span><span class="w"> </span><span class="o">-</span>dict<span class="w"> </span><span class="k">{</span><span class="nv">PACKAGE_PIN</span><span class="w"> </span>BP26<span class="w"> </span>IOSTANDARD<span class="w"> </span>LVCMOS18<span class="k">}</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TCK<span class="k">]</span>
+</span><span id="__span-18-2"><a href="#__codelineno-18-2" id="__codelineno-18-2" name="__codelineno-18-2"></a><span class="nv">set_property</span><span class="w"> </span><span class="o">-</span>dict<span class="w"> </span><span class="k">{</span><span class="nv">PACKAGE_PIN</span><span class="w"> </span>BN26<span class="w"> </span>IOSTANDARD<span class="w"> </span>LVCMOS18<span class="k">}</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TDI<span class="k">]</span>
+</span><span id="__span-18-3"><a href="#__codelineno-18-3" id="__codelineno-18-3" name="__codelineno-18-3"></a><span class="nv">set_property</span><span class="w"> </span><span class="o">-</span>dict<span class="w"> </span><span class="k">{</span><span class="nv">PACKAGE_PIN</span><span class="w"> </span>BP22<span class="w"> </span>IOSTANDARD<span class="w"> </span>LVCMOS18<span class="k">}</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TDO<span class="k">]</span>
+</span><span id="__span-18-4"><a href="#__codelineno-18-4" id="__codelineno-18-4" name="__codelineno-18-4"></a><span class="nv">set_property</span><span class="w"> </span><span class="o">-</span>dict<span class="w"> </span><span class="k">{</span><span class="nv">PACKAGE_PIN</span><span class="w"> </span>BP23<span class="w"> </span>IOSTANDARD<span class="w"> </span>LVCMOS18<span class="k">}</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TMS<span class="k">]</span>
+</span></code></pre></div>
+<p>接下来，我们要把 Rocket Chip 的 JTAG 信号接出来。</p>
+<h3 id="配置-rocket-chip-的-jtag"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#配置-rocket-chip-的-jtag">配置 Rocket Chip 的 JTAG</a></h3>
+<p>配置 Rocket Chip 的 JTAG，大概需要如下几步：</p>
+<ol>
+<li>给 Config 加上 WithJtagDTM，以 JTAG 作为 DTM 模块</li>
+<li>给 Subsystem 加上 HasPeripheryDebug</li>
+<li>给 SubsystemModuleImp 加上 HasPeripheryDebugModuleImp</li>
+<li>把 JTAG 信号连到自己的顶层模块上</li>
+</ol>
+<p>最后一步的相关代码，首先，按照 spec 要求，把 DM 输出的 ndreset 信号连到整个 Rocket 的 reset 上：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-19-1"><a href="#__codelineno-19-1" id="__codelineno-19-1" name="__codelineno-19-1"></a><span class="c1">// ndreset can reset all harts</span>
+</span><span id="__span-19-2"><a href="#__codelineno-19-2" id="__codelineno-19-2" name="__codelineno-19-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">childReset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">reset</span><span class="p">.</span><span class="n">asBool</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">debug</span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="n">_</span><span class="p">.</span><span class="n">ndreset</span><span class="p">).</span><span class="n">getOrElse</span><span class="p">(</span><span class="kc">false</span><span class="p">.</span><span class="nc">B</span><span class="p">)</span>
+</span><span id="__span-19-3"><a href="#__codelineno-19-3" id="__codelineno-19-3" name="__codelineno-19-3"></a><span class="n">target</span><span class="p">.</span><span class="n">reset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">childReset</span>
+</span></code></pre></div>
+<p>接着，把 JTAG 的信号连到顶层：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-20-1"><a href="#__codelineno-20-1" id="__codelineno-20-1" name="__codelineno-20-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">systemJtag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">debug</span><span class="p">.</span><span class="n">get</span><span class="p">.</span><span class="n">systemjtag</span><span class="p">.</span><span class="n">get</span>
+</span><span id="__span-20-2"><a href="#__codelineno-20-2" id="__codelineno-20-2" name="__codelineno-20-2"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TCK</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">io</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TCK</span>
+</span><span id="__span-20-3"><a href="#__codelineno-20-3" id="__codelineno-20-3" name="__codelineno-20-3"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TMS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">io</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TMS</span>
+</span><span id="__span-20-4"><a href="#__codelineno-20-4" id="__codelineno-20-4" name="__codelineno-20-4"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDI</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">io</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDI</span>
+</span><span id="__span-20-5"><a href="#__codelineno-20-5" id="__codelineno-20-5" name="__codelineno-20-5"></a><span class="n">io</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDO</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">systemJtag</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDO</span>
+</span></code></pre></div>
+<p>除了 JTAG 信号以外，还需要配置 IDCODE 相关的变量：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-21-1"><a href="#__codelineno-21-1" id="__codelineno-21-1" name="__codelineno-21-1"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">mfr_id</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">p</span><span class="p">(</span><span class="nc">JtagDTMKey</span><span class="p">).</span><span class="n">idcodeManufId</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="mi">11</span><span class="p">.</span><span class="nc">W</span><span class="p">)</span>
+</span><span id="__span-21-2"><a href="#__codelineno-21-2" id="__codelineno-21-2" name="__codelineno-21-2"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">part_number</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">p</span><span class="p">(</span><span class="nc">JtagDTMKey</span><span class="p">).</span><span class="n">idcodePartNum</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="mi">16</span><span class="p">.</span><span class="nc">W</span><span class="p">)</span>
+</span><span id="__span-21-3"><a href="#__codelineno-21-3" id="__codelineno-21-3" name="__codelineno-21-3"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">version</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">p</span><span class="p">(</span><span class="nc">JtagDTMKey</span><span class="p">).</span><span class="n">idcodeVersion</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="mi">4</span><span class="p">.</span><span class="nc">W</span><span class="p">)</span>
+</span></code></pre></div>
+<p>最后这一部分比较关键：首先，JTAG 部分的 reset 是独立于其余部分的，这里简单期间就连到了外部的 reset，其实可以改成 FPGA program 的时候进行 reset，然后等时钟来了就释放，实现方法可以参考文末的链接。resetctrl 是给 DM 知道哪些核心被 reset 了，最后是调用 rocket chip 自带的函数。这里踩的一个坑是，传给 systemJtag.reset 一定得是异步的，因为这个时钟域的时钟都是 jtag 的 TCK 信号，所以很可能错过一开始的 reset 信号，所以这里要用异步的 reset。</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-22-1"><a href="#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a><span class="c1">// MUST use async reset here</span>
+</span><span id="__span-22-2"><a href="#__codelineno-22-2" id="__codelineno-22-2" name="__codelineno-22-2"></a><span class="c1">// otherwise the internal logic(e.g. TLXbar) might not function</span>
+</span><span id="__span-22-3"><a href="#__codelineno-22-3" id="__codelineno-22-3" name="__codelineno-22-3"></a><span class="c1">// if reset deasserted before TCK rises</span>
+</span><span id="__span-22-4"><a href="#__codelineno-22-4" id="__codelineno-22-4" name="__codelineno-22-4"></a><span class="n">systemJtag</span><span class="p">.</span><span class="n">reset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">reset</span><span class="p">.</span><span class="n">asAsyncReset</span>
+</span><span id="__span-22-5"><a href="#__codelineno-22-5" id="__codelineno-22-5" name="__codelineno-22-5"></a><span class="n">target</span><span class="p">.</span><span class="n">resetctrl</span><span class="p">.</span><span class="n">foreach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-22-6"><a href="#__codelineno-22-6" id="__codelineno-22-6" name="__codelineno-22-6"></a><span class="w">  </span><span class="n">rc</span><span class="p">.</span><span class="n">hartIsInReset</span><span class="p">.</span><span class="n">foreach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">childReset</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-22-7"><a href="#__codelineno-22-7" id="__codelineno-22-7" name="__codelineno-22-7"></a><span class="p">}</span>
+</span><span id="__span-22-8"><a href="#__codelineno-22-8" id="__codelineno-22-8" name="__codelineno-22-8"></a><span class="nc">Debug</span><span class="p">.</span><span class="n">connectDebugClockAndReset</span><span class="p">(</span><span class="n">target</span><span class="p">.</span><span class="n">debug</span><span class="p">,</span><span class="w"> </span><span class="n">clock</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="配置-jtag-相关的约束"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#配置-jtag-相关的约束">配置 JTAG 相关的约束</a></h3>
+<p>这部分是参考了 pulp 的 VCU118 中 jtag 信号的约束文件。照着抄就行：</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a><span class="nv">create_clock</span><span class="w"> </span><span class="o">-</span>period<span class="w"> </span><span class="mf">100.000</span><span class="w"> </span><span class="o">-</span>name<span class="w"> </span>jtag_TCK<span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TCK<span class="k">]</span>
+</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a><span class="nv">set_input_jitter</span><span class="w"> </span>jtag_TCK<span class="w"> </span><span class="mf">1.000</span>
+</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a><span class="nv">set_property</span><span class="w"> </span>CLOCK_DEDICATED_ROUTE<span class="w"> </span>FALSE<span class="w"> </span><span class="k">[</span><span class="nv">get_nets</span><span class="w"> </span>jtag_TCK_IBUF_inst<span class="o">/</span>O<span class="k">]</span>
+</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="nv">set_input_delay</span><span class="w"> </span><span class="o">-</span>clock<span class="w"> </span>jtag_TCK<span class="w"> </span><span class="o">-</span>clock_fall<span class="w"> </span><span class="mf">5.000</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TDI<span class="k">]</span>
+</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a><span class="nv">set_input_delay</span><span class="w"> </span><span class="o">-</span>clock<span class="w"> </span>jtag_TCK<span class="w"> </span><span class="o">-</span>clock_fall<span class="w"> </span><span class="mf">5.000</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TMS<span class="k">]</span>
+</span><span id="__span-23-6"><a href="#__codelineno-23-6" id="__codelineno-23-6" name="__codelineno-23-6"></a><span class="nv">set_output_delay</span><span class="w"> </span><span class="o">-</span>clock<span class="w"> </span>jtag_TCK<span class="w"> </span><span class="mf">5.000</span><span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TDO<span class="k">]</span>
+</span><span id="__span-23-7"><a href="#__codelineno-23-7" id="__codelineno-23-7" name="__codelineno-23-7"></a><span class="nv">set_max_delay</span><span class="w"> </span><span class="o">-</span>to<span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TDO<span class="k">]</span><span class="w"> </span><span class="mf">20.000</span>
+</span><span id="__span-23-8"><a href="#__codelineno-23-8" id="__codelineno-23-8" name="__codelineno-23-8"></a><span class="nv">set_max_delay</span><span class="w"> </span><span class="o">-</span>from<span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TMS<span class="k">]</span><span class="w"> </span><span class="mf">20.000</span>
+</span><span id="__span-23-9"><a href="#__codelineno-23-9" id="__codelineno-23-9" name="__codelineno-23-9"></a><span class="nv">set_max_delay</span><span class="w"> </span><span class="o">-</span>from<span class="w"> </span><span class="k">[</span><span class="nv">get_ports</span><span class="w"> </span>jtag_TDI<span class="k">]</span><span class="w"> </span><span class="mf">20.000</span>
+</span><span id="__span-23-10"><a href="#__codelineno-23-10" id="__codelineno-23-10" name="__codelineno-23-10"></a><span class="nv">set_clock_groups</span><span class="w"> </span><span class="o">-</span>asynchronous<span class="w"> </span><span class="o">-</span>group<span class="w"> </span><span class="k">[</span><span class="nv">get_clocks</span><span class="w"> </span>jtag_TCK<span class="k">]</span><span class="w"> </span><span class="o">-</span>group<span class="w"> </span><span class="k">[</span><span class="nv">get_clocks</span><span class="w"> </span><span class="o">-</span>of_objects<span class="w"> </span><span class="k">[</span><span class="nv">get_pins</span><span class="w"> </span>system_i<span class="o">/</span>clk_wiz_0<span class="o">/</span>inst<span class="o">/</span>mmcme4_adv_inst<span class="o">/</span>CLKOUT1<span class="k">]]</span>
+</span><span id="__span-23-11"><a href="#__codelineno-23-11" id="__codelineno-23-11" name="__codelineno-23-11"></a><span class="nv">set_property</span><span class="w"> </span>ASYNC_REG<span class="w"> </span>TRUE<span class="w"> </span><span class="k">[</span><span class="nv">get_cells</span><span class="w"> </span><span class="o">-</span>hier<span class="w"> </span><span class="o">-</span>regexp<span class="w"> </span><span class="s2">"system_i/rocketchip_wrapper_0/.*/cdc_reg_reg.*"</span><span class="k">]</span>
+</span></code></pre></div>
+<p>和原版本稍微改了一下，一个区别是 <code>set_clock_groups</code> 的时候，第二个时钟参数用的是 Clocking Wizard 的输出，同时也是 Rocket Chip 自己的时钟输入；另一个区别是用的 ASYNC_REG 查询语句不大一样。我没有具体分析过这些约束为什么这么写，不确定这些约束是否都合理，是否都是需要的，没有测试过不带这些约束会不会出问题。</p>
+<h3 id="运行-openocd-和-gdb"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#运行-openocd-和-gdb">运行 OpenOCD 和 GDB</a></h3>
+<p>最后，采用如下的 OpenOCD 配置来连接：</p>
+<div class="language-tcl highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="c"># openocd config</span>
+</span><span id="__span-24-2"><a href="#__codelineno-24-2" id="__codelineno-24-2" name="__codelineno-24-2"></a><span class="c"># use ftdi channel 1</span>
+</span><span id="__span-24-3"><a href="#__codelineno-24-3" id="__codelineno-24-3" name="__codelineno-24-3"></a><span class="c"># vcu128 uart0 as jtag</span>
+</span><span id="__span-24-4"><a href="#__codelineno-24-4" id="__codelineno-24-4" name="__codelineno-24-4"></a><span class="nv">adapter</span><span class="w"> </span>speed<span class="w"> </span><span class="mi">10000</span>
+</span><span id="__span-24-5"><a href="#__codelineno-24-5" id="__codelineno-24-5" name="__codelineno-24-5"></a><span class="nv">adapter</span><span class="w"> </span>driver<span class="w"> </span>ftdi
+</span><span id="__span-24-6"><a href="#__codelineno-24-6" id="__codelineno-24-6" name="__codelineno-24-6"></a><span class="nv">ftdi_vid_pid</span><span class="w"> </span><span class="mh">0x0403</span><span class="w"> </span><span class="mh">0x6011</span><span class="w"> </span><span class="err">#</span><span class="w"> </span>FT4232H
+</span><span id="__span-24-7"><a href="#__codelineno-24-7" id="__codelineno-24-7" name="__codelineno-24-7"></a><span class="nv">ftdi_layout_init</span><span class="w"> </span><span class="mh">0x0008</span><span class="w"> </span><span class="mh">0x000b</span><span class="w"> </span><span class="err">#</span><span class="w"> </span>Output:<span class="w"> </span>TCK<span class="w"> </span>TDI<span class="w"> </span>TMS
+</span><span id="__span-24-8"><a href="#__codelineno-24-8" id="__codelineno-24-8" name="__codelineno-24-8"></a><span class="nv">ftdi_tdo_sample_edge</span><span class="w"> </span>falling
+</span><span id="__span-24-9"><a href="#__codelineno-24-9" id="__codelineno-24-9" name="__codelineno-24-9"></a><span class="nv">ftdi_channel</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="err">#</span><span class="w"> </span>channel<span class="w"> </span>B
+</span><span id="__span-24-10"><a href="#__codelineno-24-10" id="__codelineno-24-10" name="__codelineno-24-10"></a><span class="nv">reset_config</span><span class="w"> </span>none
+</span><span id="__span-24-11"><a href="#__codelineno-24-11" id="__codelineno-24-11" name="__codelineno-24-11"></a>
+</span><span id="__span-24-12"><a href="#__codelineno-24-12" id="__codelineno-24-12" name="__codelineno-24-12"></a><span class="k">set</span><span class="w"> </span>_CHIPNAME<span class="w"> </span>riscv
+</span><span id="__span-24-13"><a href="#__codelineno-24-13" id="__codelineno-24-13" name="__codelineno-24-13"></a><span class="nv">jtag</span><span class="w"> </span>newtap<span class="w"> </span><span class="nv">$_CHIPNAME</span><span class="w"> </span>cpu<span class="w"> </span><span class="o">-</span>irlen<span class="w"> </span><span class="mi">5</span>
+</span><span id="__span-24-14"><a href="#__codelineno-24-14" id="__codelineno-24-14" name="__codelineno-24-14"></a>
+</span><span id="__span-24-15"><a href="#__codelineno-24-15" id="__codelineno-24-15" name="__codelineno-24-15"></a><span class="k">set</span><span class="w"> </span>_TARGETNAME<span class="w"> </span><span class="nv">$_CHIPNAME.cpu</span>
+</span><span id="__span-24-16"><a href="#__codelineno-24-16" id="__codelineno-24-16" name="__codelineno-24-16"></a>
+</span><span id="__span-24-17"><a href="#__codelineno-24-17" id="__codelineno-24-17" name="__codelineno-24-17"></a><span class="nv">target</span><span class="w"> </span>create<span class="w"> </span><span class="nv">$_TARGETNAME.0</span><span class="w"> </span>riscv<span class="w"> </span><span class="o">-</span>chain-position<span class="w"> </span><span class="nv">$_TARGETNAME</span>
+</span><span id="__span-24-18"><a href="#__codelineno-24-18" id="__codelineno-24-18" name="__codelineno-24-18"></a><span class="nv">$_TARGETNAME.0</span><span class="w"> </span><span class="nv">configure</span><span class="w"> </span><span class="o">-</span>work-area-phys<span class="w"> </span><span class="mh">0x80000000</span><span class="w"> </span><span class="o">-</span>work-area-size<span class="w"> </span><span class="mi">10000</span><span class="w"> </span><span class="o">-</span>work-area-backup<span class="w"> </span><span class="mi">1</span>
+</span></code></pre></div>
+<p>然后就可以连接到 Rocket Chip 上：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-25-1"><a href="#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a>&gt;<span class="w"> </span>openocd<span class="w"> </span>-f<span class="w"> </span>openocd.cfg
+</span><span id="__span-25-2"><a href="#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a>Open<span class="w"> </span>On-Chip<span class="w"> </span>Debugger<span class="w"> </span><span class="m">0</span>.11.0-rc2
+</span><span id="__span-25-3"><a href="#__codelineno-25-3" id="__codelineno-25-3" name="__codelineno-25-3"></a>Licensed<span class="w"> </span>under<span class="w"> </span>GNU<span class="w"> </span>GPL<span class="w"> </span>v2
+</span><span id="__span-25-4"><a href="#__codelineno-25-4" id="__codelineno-25-4" name="__codelineno-25-4"></a>For<span class="w"> </span>bug<span class="w"> </span>reports,<span class="w"> </span><span class="nb">read</span>
+</span><span id="__span-25-5"><a href="#__codelineno-25-5" id="__codelineno-25-5" name="__codelineno-25-5"></a><span class="w">        </span>http://openocd.org/doc/doxygen/bugs.html
+</span><span id="__span-25-6"><a href="#__codelineno-25-6" id="__codelineno-25-6" name="__codelineno-25-6"></a>Info<span class="w"> </span>:<span class="w"> </span>auto-selecting<span class="w"> </span>first<span class="w"> </span>available<span class="w"> </span>session<span class="w"> </span>transport<span class="w"> </span><span class="s2">"jtag"</span>.<span class="w"> </span>To<span class="w"> </span>override<span class="w"> </span>use<span class="w"> </span><span class="s1">'transport select &lt;transport&gt;'</span>.
+</span><span id="__span-25-7"><a href="#__codelineno-25-7" id="__codelineno-25-7" name="__codelineno-25-7"></a>Info<span class="w"> </span>:<span class="w"> </span>Listening<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">6666</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>tcl<span class="w"> </span>connections
+</span><span id="__span-25-8"><a href="#__codelineno-25-8" id="__codelineno-25-8" name="__codelineno-25-8"></a>Info<span class="w"> </span>:<span class="w"> </span>Listening<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">4444</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>telnet<span class="w"> </span>connections
+</span><span id="__span-25-9"><a href="#__codelineno-25-9" id="__codelineno-25-9" name="__codelineno-25-9"></a>Info<span class="w"> </span>:<span class="w"> </span>clock<span class="w"> </span>speed<span class="w"> </span><span class="m">10000</span><span class="w"> </span>kHz
+</span><span id="__span-25-10"><a href="#__codelineno-25-10" id="__codelineno-25-10" name="__codelineno-25-10"></a>Info<span class="w"> </span>:<span class="w"> </span>JTAG<span class="w"> </span>tap:<span class="w"> </span>riscv.cpu<span class="w"> </span>tap/device<span class="w"> </span>found:<span class="w"> </span>0x10000913<span class="w"> </span><span class="o">(</span>mfg:<span class="w"> </span>0x489<span class="w"> </span><span class="o">(</span>SiFive<span class="w"> </span>Inc<span class="o">)</span>,<span class="w"> </span>part:<span class="w"> </span>0x0000,<span class="w"> </span>ver:<span class="w"> </span>0x1<span class="o">)</span>
+</span><span id="__span-25-11"><a href="#__codelineno-25-11" id="__codelineno-25-11" name="__codelineno-25-11"></a>Info<span class="w"> </span>:<span class="w"> </span><span class="nv">datacount</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="nv">progbufsize</span><span class="o">=</span><span class="m">16</span>
+</span><span id="__span-25-12"><a href="#__codelineno-25-12" id="__codelineno-25-12" name="__codelineno-25-12"></a>Info<span class="w"> </span>:<span class="w"> </span>Disabling<span class="w"> </span>abstract<span class="w"> </span><span class="nb">command</span><span class="w"> </span>reads<span class="w"> </span>from<span class="w"> </span>CSRs.
+</span><span id="__span-25-13"><a href="#__codelineno-25-13" id="__codelineno-25-13" name="__codelineno-25-13"></a>Info<span class="w"> </span>:<span class="w"> </span>Examined<span class="w"> </span>RISC-V<span class="w"> </span>core<span class="p">;</span><span class="w"> </span>found<span class="w"> </span><span class="m">1</span><span class="w"> </span>harts
+</span><span id="__span-25-14"><a href="#__codelineno-25-14" id="__codelineno-25-14" name="__codelineno-25-14"></a>Info<span class="w"> </span>:<span class="w">  </span>hart<span class="w"> </span><span class="m">0</span>:<span class="w"> </span><span class="nv">XLEN</span><span class="o">=</span><span class="m">64</span>,<span class="w"> </span><span class="nv">misa</span><span class="o">=</span>0x800000000094112d
+</span><span id="__span-25-15"><a href="#__codelineno-25-15" id="__codelineno-25-15" name="__codelineno-25-15"></a>Info<span class="w"> </span>:<span class="w"> </span>starting<span class="w"> </span>gdb<span class="w"> </span>server<span class="w"> </span><span class="k">for</span><span class="w"> </span>riscv.cpu.0<span class="w"> </span>on<span class="w"> </span><span class="m">3333</span>
+</span><span id="__span-25-16"><a href="#__codelineno-25-16" id="__codelineno-25-16" name="__codelineno-25-16"></a>Info<span class="w"> </span>:<span class="w"> </span>Listening<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">3333</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>gdb<span class="w"> </span>connections
+</span><span id="__span-25-17"><a href="#__codelineno-25-17" id="__codelineno-25-17" name="__codelineno-25-17"></a>&gt;<span class="w"> </span>riscv64-unknown-elf-gdb
+</span><span id="__span-25-18"><a href="#__codelineno-25-18" id="__codelineno-25-18" name="__codelineno-25-18"></a><span class="o">(</span>gdb<span class="o">)</span><span class="w"> </span>target<span class="w"> </span>remote<span class="w"> </span>localhost:3333
+</span><span id="__span-25-19"><a href="#__codelineno-25-19" id="__codelineno-25-19" name="__codelineno-25-19"></a>Remote<span class="w"> </span>debugging<span class="w"> </span>using<span class="w"> </span>localhost:3333
+</span><span id="__span-25-20"><a href="#__codelineno-25-20" id="__codelineno-25-20" name="__codelineno-25-20"></a>0x00000000800001a4<span class="w"> </span><span class="k">in</span><span class="w"> </span>??<span class="w"> </span><span class="o">()</span>
+</span></code></pre></div>
+<p>可以看到调试功能都正常了。</p>
+<h3 id="总结"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#总结">总结</a></h3>
+<p>调试这个功能大概花了一天的时间，主要遇到了下面这些问题：</p>
+<ol>
+<li>调试模块的 reset 信号需要是异步的，这个是通过仿真（Remote Bitbang 连接 OpenOCD）调试出来的</li>
+<li>看 schematic 的时候 rxd/txd 搞反了，后来仔细对比才找到了正确的对应关系</li>
+<li>OpenOCD 配置的 irlen 一开始写的不对，dmcontrol 读出来是 0，一直以为是有别的问题，结果改了 irlen 后立马就成功了，这个问题可以让 OpenOCD 自动推断 irlen 来发现</li>
+</ol>
+<h3 id="参考"><a class="toclink" href="../../../../hardware/2022/03/09/rocket-chip-jtag-debug/#参考">参考</a></h3>
+<ul>
+<li><a href="https://www.xilinx.com/support/documentation/boards_and_kits/vcu128/ug1302-vcu128-eval-bd.pdf">VCU128 User Guide</a></li>
+<li><a href="https://ftdichip.com/wp-content/uploads/2020/08/DS_FT4232H.pdf">FT4232H</a></li>
+<li><a href="https://github.com/sequencer/rocket-doc/blob/e55f7af549c5859b3c8f5a52c81c4c802153ed60/sanitytests/vcu118/src/DesignKeyWrapper.scala">DesignKeyWrapper from 中国 Chisel 之父 @sequencer</a></li>
+<li><a href="https://github.com/pulp-platform/pulp/blob/770b4e1d69baf7daceaadcb301ba7212a4310577/fpga/pulp-vcu118/constraints/vcu118.xdc">pulp VCU118 constraints</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -4305,191 +4500,6 @@ in 1.4.
 </span><span id="__span-11-12"><a href="#__codelineno-11-12" id="__codelineno-11-12" name="__codelineno-11-12"></a>Info<span class="w"> </span>:<span class="w"> </span>Listening<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">6666</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>tcl<span class="w"> </span>connections
 </span><span id="__span-11-13"><a href="#__codelineno-11-13" id="__codelineno-11-13" name="__codelineno-11-13"></a>Info<span class="w"> </span>:<span class="w"> </span>Listening<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">4444</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>telnet<span class="w"> </span>connections
 </span></code></pre></div>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2020-02-09 00:00:00">2020年2月9日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 2 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="研究-rocket-chip-的-bscan-调试原理"><a class="toclink" href="../../../../hardware/2020/02/09/rocket-chip-bscan-analysis/">研究 Rocket Chip 的 BSCAN 调试原理</a></h2>
-<h3 id="前言"><a class="toclink" href="../../../../hardware/2020/02/09/rocket-chip-bscan-analysis/#前言">前言</a></h3>
-<p>最近 <a href="https://github.com/KireinaHoro">@jsteward</a> 在研究如何通过 JTAG 对 FPGA 里的 Rocket Chip 进行调试。之前 <a href="https://github.com/sequencer">@sequencer</a> 已经做了一些实践，我们在重复他的工作，同时也研究了一下这是怎么工作的。</p>
-<h3 id="原理"><a class="toclink" href="../../../../hardware/2020/02/09/rocket-chip-bscan-analysis/#原理">原理</a></h3>
-<p>我们从 @sequencer 得到了一份可用的 <a href="https://github.com/sequencer/rocket-playground/blob/7fa3c51113be607add2034f3abe0ae973caac04a/playground/src/FPGA.scala#L83">Scala 代码</a> 和 <a href="https://github.com/sequencer/rocket-playground/blob/7fa3c51113be607add2034f3abe0ae973caac04a/playground/debugger/openocd.cfg#L16">OpenOCD 配置</a>，并且了解到：</p>
-<ol>
-<li>可以通过 openocd 找到并调试 Rocket Chip</li>
-<li>openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。</li>
-</ol>
-<p>这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的<a href="https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361">操作代码</a>：</p>
-<div class="language-cpp highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
-</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_zero</span><span class="p">;</span>
-</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-4-4"><a href="#__codelineno-4-4" id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_tunnel_ir_width</span><span class="p">;</span>
-</span><span id="__span-4-5"><a href="#__codelineno-4-5" id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ir_dtmcontrol</span><span class="p">;</span>
-</span><span id="__span-4-6"><a href="#__codelineno-4-6" id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-4-7"><a href="#__codelineno-4-7" id="__codelineno-4-7" name="__codelineno-4-7"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
-</span><span id="__span-4-8"><a href="#__codelineno-4-8" id="__codelineno-4-8" name="__codelineno-4-8"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tunneled_ir_width</span><span class="p">;</span>
-</span><span id="__span-4-9"><a href="#__codelineno-4-9" id="__codelineno-4-9" name="__codelineno-4-9"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span><span id="__span-4-10"><a href="#__codelineno-4-10" id="__codelineno-4-10" name="__codelineno-4-10"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-</span><span id="__span-4-11"><a href="#__codelineno-4-11" id="__codelineno-4-11" name="__codelineno-4-11"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_zero</span><span class="p">;</span>
-</span><span id="__span-4-12"><a href="#__codelineno-4-12" id="__codelineno-4-12" name="__codelineno-4-12"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
-</span></code></pre></div>
-<p>如果画成图，大概是这个样子（IR）：</p>
-<table>
-<thead>
-<tr>
-<th>3 bits</th>
-<th>IR Width bits</th>
-<th>7 bits</th>
-<th>1 bit</th>
-<th>TDI</th>
-<th>Data Register</th>
-<th>TDO</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>Payload</td>
-<td>Tunneled IR Width</td>
-<td>0</td>
-<td>-&gt;</td>
-<td>Rocket Chip TAP</td>
-<td>-&gt;</td>
-</tr>
-</tbody>
-</table>
-<p>DR：</p>
-<table>
-<thead>
-<tr>
-<th>3 bits</th>
-<th>DR Width bits</th>
-<th>7 bits</th>
-<th>1 bit</th>
-<th>TDI</th>
-<th>Data Register</th>
-<th>TDO</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>Payload</td>
-<td>Tunneled DR Width</td>
-<td>1</td>
-<td>-&gt;</td>
-<td>Rocket Chip TAP</td>
-<td>-&gt;</td>
-</tr>
-</tbody>
-</table>
-<p>这里 TDI 和 TDO 是直接接到 Rocket Chip 的 JTAG 中的，所以我们期望，当 Rocket Chip TAP 在 Shift-IR/Shift-DR 阶段的时候，刚好通过的是 Payload 部分。而控制 TAP 状态机，需要控制 TMS，这个则是通过一段 <a href="https://github.com/sifive/fpga-shells/blob/c099bd9b4f916bc0ba88030939a9614d0b0daf2d/src/main/scala/ip/xilinx/Xilinx.scala#L13">HDL</a> 来完成的：</p>
-<div class="language-verilog highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="k">always</span><span class="p">@(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
-</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mh">8'h04</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
-</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TDI_REG</span><span class="p">;</span><span class="w"> </span>
-</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mh">8'h05</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
-</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b1</span><span class="p">;</span><span class="w"> </span>
-</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mh">8'h08</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shiftreg_cnt</span><span class="p">))</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mh">8'h08</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shiftreg_cnt</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mh">8'h01</span><span class="p">)))</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
-</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b1</span><span class="p">;</span><span class="w"> </span>
-</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
-</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">'b0</span><span class="p">;</span><span class="w"> </span>
-</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span>
-</span><span id="__span-5-11"><a href="#__codelineno-5-11" id="__codelineno-5-11" name="__codelineno-5-11"></a><span class="k">end</span>
-</span></code></pre></div>
-<p>这里 <code>TDI_REG</code> 取的是第一个 bit 的反（也就是上面 IR 对应 0，DR 对应 1 的那一位），<code>shiftreg_cnf</code> 则是之后 7 个 bit，对应上面的 Tunneled IR/DR Width。那么，在选择 IR 时 TMS 的序列为：</p>
-<table>
-<thead>
-<tr>
-<th>4 cycles</th>
-<th>1 cycle</th>
-<th>1 cycle</th>
-<th>2 cycles</th>
-<th>shiftreg_cnt-1 cycles</th>
-<th>2 cycles</th>
-<th>rest cycles</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>1</td>
-<td>1</td>
-<td>0</td>
-<td>0</td>
-<td>1</td>
-<td>0</td>
-</tr>
-<tr>
-<td>Run-Test/Idle</td>
-<td>Select-DR-Scan</td>
-<td>Select-IR-Scan</td>
-<td>Capture-IR, Shift-IR</td>
-<td>Shift-IR</td>
-<td>Exit1-IR, Update-IR</td>
-<td>Run-Test/Idle</td>
-</tr>
-</tbody>
-</table>
-<p>类似地，如果是选择 DR：</p>
-<table>
-<thead>
-<tr>
-<th>4 cycles</th>
-<th>1 cycle</th>
-<th>1 cycle</th>
-<th>2 cycles</th>
-<th>shiftreg_cnt-1 cycles</th>
-<th>2 cycles</th>
-<th>rest cycles</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>0</td>
-<td>1</td>
-<td>0</td>
-<td>0</td>
-<td>1</td>
-<td>0</td>
-</tr>
-<tr>
-<td>Run-Test/Idle</td>
-<td>Run-Test/Idle</td>
-<td>Select-DR-Scan</td>
-<td>Capture-DR, Shift-DR</td>
-<td>Shift-DR</td>
-<td>Exit1-DR, Update-DR</td>
-<td>Run-Test/Idle</td>
-</tr>
-</tbody>
-</table>
-<p>这样，刚好在 Shift-IR/DR 状态下，Payload 会被写入 IR/DR，从而完成了期望的操作。通过规定一个特定格式的 Data Register，可以实现嵌套的 TAP 的 IR 和 DR 的操作。</p>
-<h3 id="参考"><a class="toclink" href="../../../../hardware/2020/02/09/rocket-chip-bscan-analysis/#参考">参考</a></h3>
-<ol>
-<li>JTAG Standard</li>
-<li><a href="https://github.com/sequencer/rocket-playground">sequencer/rocket-playground</a></li>
-<li>SiFive's JTAG Tunnel: https://github.com/sifive/fpga-shells/blob/c099bd9b4f916bc0ba88030939a9614d0b0daf2d/src/main/scala/ip/xilinx/Xilinx.scala#L13</li>
-<li>https://github.com/watz0n/arty_xjtag</li>
-<li>https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361</li>
-<li>UG740: 7 Series FPGAs Configuration</li>
-</ol>
 </div>
 </article>
 <nav class="md-pagination">
