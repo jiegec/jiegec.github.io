@@ -1462,7 +1462,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 14 分钟阅读时间
+                              需要 16 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1904,6 +1904,44 @@ store. Also, the data of the store is bypassed to the load.</p>
 <p><img alt="" src="../../../../brief-into-ooo-2-way-prediction.png" /></p>
 <p>（图源 <a href="https://ieeexplore.ieee.org/document/799456">Way-Predicting Set-Associative Cache for High Performance and Low Energy Consumption</a>）</p>
 <p>通过这样的方法，可以大大降低缓存读取的功耗。这样的设计在商用处理器中也有使用，见 <a href="https://dl.acm.org/doi/10.1145/3320269.3384746">Take A Way: Exploring the Security Implications of AMD’s Cache Way Predictors</a>。</p>
+<p><a href="https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/58455.zip">Zen5 的文档</a>里提到了它怎么在 L1 DCache 上做 Way/Tag Prediction：</p>
+<ol>
+<li>对于 VIPT 的 cache 来说，它的 tag 来自于物理地址，意味着如果要做 way 比对，需要等到虚实地址转换，才能知道实际的 tag</li>
+<li>Zen 5 为了避免等待虚实地址转换，基于虚拟地址计算出一个 tag，叫做 microtag(utag)，并且用虚拟地址来预测要访问的是 12 个 way 中的哪一个；读取出那一个 way 以后，用 utag 来提前做 tag 比对</li>
+<li>由于 utag 完全用的是虚拟地址，它可能会出错，把 miss 的预测为 hit（比如出现了 hash 冲突），或者把 hit 的预测为 miss（比如两个虚拟页映射到同一个物理页，数据确实在 L1 DCache 中，用物理地址算出来的 tag 相同，但用虚拟地址算出来的 utag 不同）。</li>
+</ol>
+<p>除了 Way Prediction，实际的 L1 DCache 为了每个周期可以处理多条 Load/Store 指令，还会分 Bank。那么每条访存指令要访问哪个 Bank，也需要预测，这和 Way Prediction 是类似的，比如 Zen5 的文档是这么说的：</p>
+<div class="language-text highlight"><pre><span></span><code>Address bits 5:3 and the size of an access along with its DC way determine
+which DC banks are needed for that access. DC way is determined using the
+linear-address-based utag/way-predictor.
+</code></pre></div>
+<p>论文 <a href="https://dl.acm.org/doi/10.1145/3320269.3384746">Take A Way: Exploring the Security Implications of AMD’s Cache Way Predictors</a> 是这么逆向 AMD 的 utag/way predictor 的：</p>
+<ol>
+<li>由于是 VIPT，所以 cache 的 index 位是 VA[11:6]，因此可以构造出不同的虚拟地址，让它对应同一个 set</li>
+<li>如果两个虚拟地址映射到同一个物理地址，并且出现了 utag 冲突，那么性能会下降；不断寻找有冲突的情况，发现最多可以得到 256 组地址，组内 utag 互相冲突，组间则不冲突；这暗示了 utag 冲突来源于 hash 出来的 8 个 bit 信息</li>
+<li>根据这 256 组地址，找到 AMD Zen/Zen+/Zen2 的 uTag 哈希函数：<ol>
+<li>uTag[7] = VA[19] xor VA[24]</li>
+<li>uTag[6] = VA[18] xor VA[23]</li>
+<li>uTag[5] = VA[17] xor VA[22]</li>
+<li>uTag[4] = VA[16] xor VA[21]</li>
+<li>uTag[3] = VA[15] xor VA[20]</li>
+<li>uTag[2] = VA[14] xor VA[25]</li>
+<li>uTag[1] = VA[13] xor VA[26]</li>
+<li>uTag[0] = VA[12] xor VA[27]</li>
+</ol>
+</li>
+<li>类似地，找到更早的 AMD Bulldozer/Piledriver/Streamroller 的 uTag 哈希函数：<ol>
+<li>uTag[7] = VA[19] xor VA[27]</li>
+<li>uTag[6] = VA[18] xor VA[26]</li>
+<li>uTag[5] = VA[17] xor VA[25]</li>
+<li>uTag[4] = VA[16] xor VA[24]</li>
+<li>uTag[3] = VA[15] xor VA[23]</li>
+<li>uTag[2] = VA[14] xor VA[22]</li>
+<li>uTag[1] = VA[13] xor VA[21]</li>
+<li>uTag[0] = VA[12] xor VA[20]</li>
+</ol>
+</li>
+</ol>
 <h2 id="load-value-prediction">Load Value Prediction<a class="headerlink" href="#load-value-prediction" title="Permanent link">&para;</a></h2>
 <p><a href="https://dl.acm.org/doi/pdf/10.1145/248209.237173">Value Locality and Load Value Prediction</a> 提出了 Load Value Prediction，就是对 Load 得到的值进行预测。它设计了一个 Load Value Prediction Table，根据 Load 指令的地址来索引，得到预测的读取的值。然后设计一个 Load Classification Table 来记录预测准确与否的历史，记录了 saturating counter，以此来判断是否要进行预测。预测时，可以提前把结果写入到目的寄存器内，但还要验证预测的正确性。验证的方式有两种：第一是依然完成正常的访存，把读出来的数据和预测的数据做比较；第二是针对预测正确率很高的 Load，从一个小的 Constant Verification Unit 确认这个值没有变过。</p>
 <p>如果要拿分支预测来类比，BTB 记录分支的目的地址，对应这里的 Load Value Prediction Table，记录 Load 指令得到的值；BHT 记录分支的跳转方向，对应这里的 Load Classification Table，判断 Load 的可预测性。</p>
@@ -1989,7 +2027,7 @@ store. Also, the data of the store is bypassed to the load.</p>
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2024年12月29日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2025年1月2日</span>
   </span>
 
     
