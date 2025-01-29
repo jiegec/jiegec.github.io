@@ -1462,7 +1462,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 16 分钟阅读时间
+                              需要 17 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1863,15 +1863,31 @@ Loads of size less than or equal to 8 bytes can get their data forwarded from on
 <td>Yes [6]</td>
 <td>Yes [6]</td>
 </tr>
+<tr>
+<td><a href="../../../../2025/01/10/intel_golden_cove/">Intel Golden Cove</a></td>
+<td>Yes [7]</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><a href="../../../../2025/01/12/intel_gracemont/">Intel Gracemont</a></td>
+<td>Yes [8]</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
 </tbody>
 </table>
 <ul>
 <li>[1]: 要求 st 完全包含 ld</li>
-<li>[2]: 要求 ld 和 st 地址相同或差出半个 st 宽度</li>
+<li>[2]: 要求 ld 和 st 地址相同或差半个 st 宽度</li>
 <li>[3]: 要求 ld 和 st 地址相同</li>
 <li>[4]: 要求不跨越 64B 边界</li>
 <li>[5]: 要求 ld 对齐到 4B 边界且不跨越 64B 边界</li>
 <li>[6]: 要求不跨越 64B 边界</li>
+<li>[7]: 要求 st 完全包含 ld；特别地，在 st 和 ld 访问相同地址时，无 Forwarding 性能损失</li>
+<li>[8]: 要求 st 完全包含 ld，ld 和 st 地址相同，不跨越 64B 边界；特别地，64b st 到 32b ld 转发允许 ld 地址和 st 地址差半个 st 宽度</li>
 </ul>
 <h2 id="memory-renaming">Memory Renaming<a class="headerlink" href="#memory-renaming" title="Permanent link">&para;</a></h2>
 <p>Register Renaming 把物理寄存器重命名为架构寄存器，那么 <a href="https://link.springer.com/article/10.1023/A:1018734923512">Memory Renaming: Fast, Early and Accurate Processing of Memory Communication</a> 类似地把内存重命名为寄存器。具体地，如果发现某个 Load 的数据总是来自于某个 Store，按照先前的做法，要等 Store 先执行，然后 Load 从 Store Queue 中拿到 Store 的结果，更进一步，不如直接把 Load 的目的寄存器复制为 Store 的源数据寄存器，相当于把内存重命名成了寄存器，Load 变成了简单的寄存器的 Move。</p>
@@ -1896,6 +1912,14 @@ store. Also, the data of the store is bypassed to the load.</p>
 <p>当 Load Prediction Learning Table 发现某条 Load 指令的预测错误次数多了，就会把对应的表项从 Load Prediction Table 和 Load Prediction Learning Table 中删除，此时就会回退到正常的执行过程，Load 指令需要等待地址计算完成才可以执行。</p>
 <p>为了避免浪费功耗，如果 Load 指令的地址很快就可以算出来，那么预测也就没有必要了，此时即使做了预测，也不会带来很高的性能提升。判断的依据是，计算从预测地址到计算出地址耗费的周期数，如果超过一个阈值，那么优化就有效果；如果没有超过阈值，那就不预测。</p>
 <p>那么，如果 Load 的地址需要比较长的时间去计算，但实际上又是可以预测的，那就可以通过 Load Address Prediction 的方法，来提升性能。</p>
+<p>根据论文 <a href="https://predictors.fail/files/SLAP.pdf">SLAP: Data Speculation Attacks via Load Address Prediction on Apple Silicon</a>，苹果在 M2/M3/M4/A15/A16/A17 等处理器上实装了 Load Address Prediction 预测器，它会观察 Load 指令的访存的规律，如果一条 Load 总是访问同一个地址，或者总是以相同的跨步访问地址，那么就会预测它的下一个访问地址，从而提升性能。它的各项参数如下：</p>
+<ul>
+<li>支持 Constant 和 Striding Address 两种访存模式</li>
+<li>支持 Stride 范围是正负 256B，过大的 Stride 则不会预测</li>
+<li>大概 500 次符合规律的 load 后使能地址预测以提升性能</li>
+<li>当下一次预测的地址要跨到下一个 page 的时候不预测，避免污染 DTLB</li>
+<li>用 load 指令的地址做 full tag，不同地址的 load 指令互不干扰，不会出现 alias</li>
+</ul>
 <h2 id="way-prediction">Way Prediction<a class="headerlink" href="#way-prediction" title="Permanent link">&para;</a></h2>
 <p>组相连结构在处理器的很多地方都有，例如各种缓存，那么在访问组相连结构的缓存的时候，首先需要用 Index 取出一个 Set，再进行 Way 的匹配。但缓存在硬件中通常是用 SRAM 实现的，读取有一个周期的延迟，因此读取的过程并没有这么简单，下面分析几种读取组相连缓存的设计：</p>
 <p>第一种最简单的办法是，第一个周期根据 Index 把整个 Set 所有 Way 的 Tag 和数据都读出来，第二个周期就可以拿到所有的 Tag 和数据，比较 Tag 后得到结果。这个方法比较简单，缺点是功耗比较大，实际只命中最多一个 Way，却要把所有的 Way 和 Tag 和数据都读出来。</p>
@@ -1959,8 +1983,23 @@ linear-address-based utag/way-predictor.
 <h2 id="load-value-prediction">Load Value Prediction<a class="headerlink" href="#load-value-prediction" title="Permanent link">&para;</a></h2>
 <p><a href="https://dl.acm.org/doi/pdf/10.1145/248209.237173">Value Locality and Load Value Prediction</a> 提出了 Load Value Prediction，就是对 Load 得到的值进行预测。它设计了一个 Load Value Prediction Table，根据 Load 指令的地址来索引，得到预测的读取的值。然后设计一个 Load Classification Table 来记录预测准确与否的历史，记录了 saturating counter，以此来判断是否要进行预测。预测时，可以提前把结果写入到目的寄存器内，但还要验证预测的正确性。验证的方式有两种：第一是依然完成正常的访存，把读出来的数据和预测的数据做比较；第二是针对预测正确率很高的 Load，从一个小的 Constant Verification Unit 确认这个值没有变过。</p>
 <p>如果要拿分支预测来类比，BTB 记录分支的目的地址，对应这里的 Load Value Prediction Table，记录 Load 指令得到的值；BHT 记录分支的跳转方向，对应这里的 Load Classification Table，判断 Load 的可预测性。</p>
-<p>Constant Verification Unit 类似一个小的针对 Load Value Prediction 的 L0 Cache，只记录那些预测正确率很高的 Load 的地址-值映射关系，可以在地址计算出来后查询，判断访存是否正确预测，如果正确，就不用访问缓存了。</p>
+<p>Constant Verification Unit 类似一个小的针对 Load Value Prediction 的 L0 Cache，只记录那些预测正确率很高的 Load 的地址 - 值映射关系，可以在地址计算出来后查询，判断访存是否正确预测，如果正确，就不用访问缓存了。</p>
 <p>可见这个优化主要解决的是打破了 Load 指令带来的依赖，但缓存带宽还是要耗费的（Constant Verification Unit 可以节省一些）。</p>
+<p>根据论文 <a href="https://predictors.fail/files/FLOP.pdf">FLOP: Breaking the Apple M3 CPU via False Load Output Predictions</a>，苹果在 M3/M4/A17 等处理器上实装了 Load Value Prediction 预测器，它会观察 Load 指令的访存的规律，如果一条 Load 总是读出来相同的数据，那就会预测它未来读出来还是相同的数据。它的各项参数如下：</p>
+<ul>
+<li>只支持 Constant value，即 load 指令读出来的数据不变</li>
+<li>不支持 Striding value，即 load 指令读出来的数据构成等差数列</li>
+<li>大概 240 次 load 相同的值后使能值预测以提升性能</li>
+<li>对于 1/2/4 字节 load，可以预测出所有可能的值，意味着这最多 4 字节的值会记录在预测器内部</li>
+<li>对于 8 字节 load，只能预测值等于 0 的情况，没有做 8 字节 load 的通用场景，背后的考虑可能是：<ul>
+<li>8 字节比较长，开销大</li>
+<li>8 字节且非零的 constant load 相对少见</li>
+<li>指针也是 8 字节，避免预测的 8 字节的值被当成指针来用</li>
+</ul>
+</li>
+<li>观察到可以预测最多 72 个 Load 的 Value，可能是 4 路组相连</li>
+<li>用 load 指令的地址做 full tag，不能跨越上下文共享</li>
+</ul>
 <h2 id="stable-load">Stable Load<a class="headerlink" href="#stable-load" title="Permanent link">&para;</a></h2>
 <p>论文 <a href="https://arxiv.org/pdf/2406.18786">Constable: Improving Performance and Power Efficiency by Safely Eliminating Load Instruction Execution</a> 指出，很多 Load 指令总是从相同的地址取出相同的值，对于这种 Load 指令（称为 Stable Load），可以通过硬件的扩展来优化，提升性能。它是这么做的：</p>
 <ol>
@@ -2041,7 +2080,7 @@ linear-address-based utag/way-predictor.
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2025年1月4日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2025年1月29日</span>
   </span>
 
     

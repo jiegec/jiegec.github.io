@@ -1462,7 +1462,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 11 分钟阅读时间
+                              需要 12 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1782,6 +1782,15 @@
   <a href="#l2-cache" class="md-nav__link">
     <span class="md-ellipsis">
       L2 Cache
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prefetcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prefetcher
     </span>
   </a>
   
@@ -2115,7 +2124,7 @@
 <ul>
 <li>4KB and 64KB translation granules</li>
 <li>1 cycle access for L1 ITLB &amp; L1 DTLB</li>
-<li>Unified L2 TLB, 8-way &gt;8K entry</li>
+<li>Unified L2 TLB, <strong>8-way</strong> &gt;8K entry</li>
 </ul>
 <h4 id="l2-tlb">L2 TLB<a class="headerlink" href="#l2-tlb" title="Permanent link">&para;</a></h4>
 <p>沿用之前测试 L1 DTLB 的方法，把规模扩大到 L2 Unified TLB 的范围，就可以测出来 L2 Unified TLB 的容量，下面是 Oryon 上的测试结果：</p>
@@ -2139,7 +2148,7 @@
 <ul>
 <li>每 4 个核心组成一个 Cluster，Cluster 内的核心共享一个 12MB 12-way L2 Cache</li>
 <li>MOESI</li>
-<li>17 cycle latency for L1 miss to L2 hit</li>
+<li><strong>17</strong> cycle latency for L1 miss to L2 hit</li>
 </ul>
 <p>构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：</p>
 <p><img alt="" src="../../../../qualcomm_oryon_l2.png" /></p>
@@ -2155,6 +2164,23 @@
 <li>footprint 达到 12 MB 时，每次访存的平均 L2D_CACHE_REFILL 约等于 0.23，假如一个核心可以用满整个 L2 Cache，此时应当没有这么高的缺失率，这符合第二点猜测</li>
 </ol>
 <p>因此可能上述两个猜测都是对的，当然了，也不排除还有别的解释。</p>
+<h3 id="prefetcher">Prefetcher<a class="headerlink" href="#prefetcher" title="Permanent link">&para;</a></h3>
+<p>为了测试预取器的行为，可以构造不同的 footprint 和不同访存模式的 pointer chasing 链，观察它的性能以及预取器介入次数的性能计数器。涉及到的访存模式如下：</p>
+<ul>
+<li>64B stride：按照固定的 stride 访存，地址模式是 0B -&gt; 64B -&gt; 128B -&gt; ...</li>
+<li>random cache line：把 64B cache line 打乱顺序，每个 cache line 轮流读取一次</li>
+<li>first cache line in random page：把 4K 大小的 page 打乱顺序，每个 page 轮流读取一次，读取的是各个页内的第一个 64B cache line；只读取每个页的第一个 64B cache line 是为了达到类似 L1 DCache 的容量用满的效果</li>
+<li>one random cache line in random page：把 4K 大小的 page 打乱顺序，每个 page 轮流读取一次，读取的是各个页内的随机但固定位置的一个 64B cache line</li>
+</ul>
+<p>注：上述的打乱顺序，只是在构建 pointer chasing 链时打乱，因此在访存过程中，不会再调整访存顺序。</p>
+<p>同时统计每次访存花费的时间以及 <code>0x8154, L1D_CACHE_HWPRF, Level 1 data cache hardware prefetch</code> 性能计数器的结果，得到测试结果如下：</p>
+<p><img alt="" src="../../../../qualcomm_oryon_prefetcher.png" /></p>
+<ul>
+<li>64B stride：可以看到在超出 96KB 的 L1 DCache 容量以后，访存延迟略微增加到 1ns，同时每次访存对对应一次硬件预取，此时主要是 Stride Prefetcher 在起作用</li>
+<li>random cache line：可以看到在超出 L1 DCache 容量后，访存延迟大幅上升，但并没有直接降低到 L2 Cache 的访问延迟，同时也可以看到预取的比例急剧上升；说明即使是随机的访问模式，预取器可以记录下部分访存过程，从而降低了缓存缺失率，此时主要是 Region/Spatial Prefetcher 在起作用</li>
+<li>first cache line in random page：可以看到在超出 L1 DCache 容量后，访存延迟快速降低到 L2 Cache 的访问延迟，同时硬件预取器并没有工作；说明硬件没有针对 L1 DCache 实现 Temporal Prefetcher</li>
+<li>one random cache line in random page：此时实际的缓存容量只有横座标的 <code>64/4096</code> 倍，所以这个时候测得的性能拐点 896KB 实际上对应的是 L1 DTLB 的容量</li>
+</ul>
 <h3 id="memory">Memory<a class="headerlink" href="#memory" title="Permanent link">&para;</a></h3>
 <p>官方信息：</p>
 <ul>
@@ -2201,7 +2227,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2025年1月10日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">2025年1月26日</span>
   </span>
 
     
