@@ -212,7 +212,7 @@
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../../archive/2024/">
+<a class="md-tabs__link" href="../../archive/2025/">
           
   
   归档
@@ -276,6 +276,13 @@
       目录
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#教学dram-结构和特性">
+<span class="md-ellipsis">
+      「教学」DRAM 结构和特性
+    </span>
+</a>
+</li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#教学risc-v-debug-协议">
 <span class="md-ellipsis">
@@ -444,13 +451,6 @@
     </span>
 </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#用-gitlab-ci-构建并部署应用到-k8s">
-<span class="md-ellipsis">
-      用 gitlab ci 构建并部署应用到 k8s
-    </span>
-</a>
-</li>
 </ul>
 </nav>
 </li>
@@ -549,6 +549,14 @@
             归档
           </label>
 <ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../archive/2025/">
+<span class="md-ellipsis">
+    2025
+    
+  </span>
+</a>
+</li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../../archive/2024/">
 <span class="md-ellipsis">
@@ -804,6 +812,156 @@
 <header class="md-typeset">
 <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-12-12 00:00:00+00:00">2021年12月12日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 5 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="教学dram-结构和特性"><a class="toclink" href="../../hardware/2021/12/12/dram/">「教学」DRAM 结构和特性</a></h2>
+<p>本文的内容已经整合到<a href="/kb/hardware/sdram.html">知识库</a>中。</p>
+<h3 id="dram-是如何组织的"><a class="toclink" href="../../hardware/2021/12/12/dram/#dram-是如何组织的">DRAM 是如何组织的</a></h3>
+<p>DRAM 分成很多层次：Bank Group，Bank，Row，Column，从大到小，容量也是各级别的乘积。</p>
+<p>举例子：</p>
+<ul>
+<li>4 Bank Group</li>
+<li>4 Bank per Bank Group</li>
+<li>32,768 Row per Bank</li>
+<li>1024 Column per Row</li>
+<li>4 Bits per Column</li>
+</ul>
+<p>那么总大小就是 <code>4*4*32768*1024*4=2 Gb</code>。</p>
+<h3 id="访问模式"><a class="toclink" href="../../hardware/2021/12/12/dram/#访问模式">访问模式</a></h3>
+<p>DRAM 的访问模式决定了访问内存的实际带宽。对于每次访问，需要这样的操作：</p>
+<ol>
+<li>用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe）</li>
+<li>用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。</li>
+<li>在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。</li>
+</ol>
+<p>可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。</p>
+<p>除了显式 PRE 以外，还可以在某次读写之后自动进行 PRE：WRA(Write with Auto-Precharge) 和 RDA(Read with Auto-Precharge)。</p>
+<p>总结一下上面提到的六种命令：</p>
+<ol>
+<li>ACT: Bank Activate，激活一个 Row，用于接下来的访问</li>
+<li>PRE: Single Bank Precharge，与 ACT 是逆操作，解除 Row 的激活状态</li>
+<li>RD: Read，读取当前 Row 的某个 Column 数据</li>
+<li>RDA: Read with Auto-Precharge，读取后执行 Precharge</li>
+<li>WR: Write，写入当前 Row 的某个 Column 数据</li>
+<li>WRA: Write with Auto-Precharge，写入后执行 Precharge</li>
+</ol>
+<p>除此之外，还有一些常用命令：</p>
+<ol>
+<li>REF: Refresh，需要定期执行，保证 DRAM 数据不会丢失。</li>
+</ol>
+<h3 id="参数"><a class="toclink" href="../../hardware/2021/12/12/dram/#参数">参数</a></h3>
+<p>DRAM 有很多参数，以服务器上的内存 <a href="https://in.micron.com/products/dram-modules/rdimm/part-catalog/mta36asf2g72pz-2g3">MTA36ASF2G72PZ-2G3A3</a> 为例子：</p>
+<ul>
+<li>16GB 容量，DDR4 SDRAM RDIMM</li>
+<li>PC4-2400</li>
+<li>Row address: 64K A[15:0]</li>
+<li>Column address: 1K A[9:0]</li>
+<li>Device bank group address: 4 BG[1:0]</li>
+<li>Device bank address per group: 4 BA[1:0]</li>
+<li>Device configuration: 4Gb (1Gig x 4), 16 banks</li>
+<li>Module rank address: 2 CS_n[1:0]</li>
+<li>Configuration: 2Gig x 72</li>
+<li>Module Bandwidth: 19.2 GB/s=2400 MT/s * 8B/T</li>
+<li>Memory Clock: 0.83ns(1200 MHz)</li>
+<li>Data Rate: 2400 MT/s</li>
+<li>Clock Cycles: CL-nRCD-nRP = 17-17-17</li>
+</ul>
+<p>容量：每个 DRAM 颗粒 <code>64K*1K*4*4*4=4Gb</code>，不考虑 ECC，一共有 <code>16*2=32</code> 个这样的颗粒，实际容量是 16 GB。32 个颗粒分为两组，每组 16 个颗粒，两组之间通过 CS_n 片选信号区分。每组 16 个颗粒，每个颗粒 4 位 DQ 数据信号，合并起来就是 64 位，如果考虑 ECC 就是 72 位。</p>
+<p>再举一个 FPGA 开发板上内存的例子：<a href="https://www.micron.com/products/dram/ddr4-sdram/part-catalog/mt40a512m16ly-075">MT40A512M16LY-075E</a>，参数如下：</p>
+<ol>
+<li>Data Rate: 2666 MT/s, Clock Frequency: 1333 MHz, tCK=0.750ns=750ps</li>
+<li>Target CL-nRCD-nRP: 18-18-18</li>
+<li>tAA(Internal READ command to first data)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRCD(ACTIVATE to internal READ or WRITE delay time)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRP(PRECHARGE command period)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRAS(ACTIVATE-to-PRECHARGE command period)=32ns</li>
+<li>512 Meg x 16</li>
+<li>Number of bank groups: 2</li>
+<li>Bank count per group: 4</li>
+<li>Row addressing: 64K</li>
+<li>Column addressing: 1K</li>
+<li>Page size: 2KB=2K*16b</li>
+</ol>
+<p>总大小：<code>2*4*64K*1K*16=1GB</code>。这个开发板用了 5 个 DRAM 芯片，只采用了其中的 4.5 个芯片：最后一个芯片只用了 8 位数据，这样就是 <code>4.5*16=72</code> 位的数据线，对应 64 位+ECC。</p>
+<h3 id="时序"><a class="toclink" href="../../hardware/2021/12/12/dram/#时序">时序</a></h3>
+<p>可以看到，上面的 DRAM Datasheet 里提到了三个时序参数：</p>
+<ol>
+<li>CL=17: CAS Latency，从发送读请求到第一个数据的延迟周期数</li>
+<li>RCD=17: ACT to internal read or write delay time，表示从 ACT 到读/写需要的延迟周期数</li>
+<li>RP=17: Row Precharge Time，表示 Precharge 后需要延迟周期数</li>
+</ol>
+<p>如果第一次访问一个 Row 中的数据，并且之前没有已经打开的 Row，那么要执行 ACT 和 RD 命令，需要的周期数是 RCD+CL；如果之前已经有打开了的 Row，那么要执行 PRE，ACT 和 RD 命令，需要的周期数是 RP+RCD+CL。但如果是连续访问，虽然还需要 CL 的延迟，但是可以流水线起来，充分利用 DDR 的带宽。</p>
+<p>如果把这个换算到 CPU 角度的内存访问延迟的话，如果每次访问都是最坏情况，那么需要 17+17+17=51 个 DRAM 时钟周期，考虑 DRAM 时钟是 1200MHz，那就是 42.5ns，这个相当于是 DRAM 内部的延迟，实际上测得的是 100ns 左右。</p>
+<p>更严格来说，读延迟 READ Latency = AL + CL + PL，其中 AL 和 PL 是可以配置的，CL 是固有的，所以简单可以认为 READ Latency = CL。同理 WRITE Latency = AL + CWL + PL，可以简单认为 WRITE Latency = CWL。CWL 也是可以配置的，不同的 DDR 速率对应不同的 CWL，范围从 1600 MT/s 的 CWL=9 到 3200 MT/s 的 CWL=20，具体见 JESD79-4B 标准的 Table 7 CWL (CAS Write Latency)。</p>
+<h3 id="波形"><a class="toclink" href="../../hardware/2021/12/12/dram/#波形">波形</a></h3>
+<p>用 Micron 提供的 <a href="https://media-www.micron.com/-/media/client/global/documents/products/sim-model/dram/ddr4/ddr4_verilog_models.zip?rev=caf27a5eaf6b4a9f81eb894a874a4492">Verilog Model</a> 进行仿真，可以看到如下的波形图：</p>
+<p><img alt="" src="../../hardware/ddr4_waveform.png"/></p>
+<p>首先看第一个命令，ACT_n=0, ADDR=0x009C, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=0, WE_n_A14=1，查阅标准可知这是 ACT(Bank Activate) 命令。接着第二个命令，ACT_n=1, ADDR=0x0400, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=1, WE_n_A14=1, A10=1, 这是 RDA(Read with Auto Precharge) 命令。若干个周期后，读取的数据从 DQ 上输出，一共 8 个字节的数据。</p>
+<h3 id="刷新"><a class="toclink" href="../../hardware/2021/12/12/dram/#刷新">刷新</a></h3>
+<p>DRAM 的一个特点是需要定期刷新。有一个参数 tREFI，表示刷新的时间周期，这个值通常是 7.8us，在温度大于 85 摄氏度时是 3.9 us（见 JESD79-4B Table 131）。在刷新之前，所有的 bank 都需要 Precharge 完成并等待 RP 的时间，这时候所有的 Bank 都是空闲的，再执行 REF(Refresh) 命令。等待 tRFC(Refresh Cycle) 时间后，可以继续正常使用。</p>
+<p>为了更好的性能，DDR4 标准允许推迟一定次数的刷新，但是要在之后补充，保证平均下来依然满足每过 tREFI 时间至少一次刷新。</p>
+<h3 id="地址映射"><a class="toclink" href="../../hardware/2021/12/12/dram/#地址映射">地址映射</a></h3>
+<p>如果研究 DRAM 内存控制器，比如 <a href="https://www.xilinx.com/support/documentation/ip_documentation/ultrascale_memory_ip/v1_4/pg150-ultrascale-memory-ip.pdf">FPGA 上的 MIG</a>，可以发现它可以配置不同的地址映射方式，例如：</p>
+<ul>
+<li>ROW_COLUMN_BANK</li>
+<li>ROW_BANK_COLUMN</li>
+<li>BANK_ROW_COLUMN</li>
+<li>ROW_COLUMN_LRANK_BANK</li>
+<li>ROW_LRANK_COLUMN_BANK</li>
+<li>ROW_COLUMN_BANK_INTLV</li>
+</ul>
+<p>就是将地址的不同部分映射到 DRAM 的几个地址：Row，Column，Bank。可以想象，不同的地址映射方式针对不同的访存模式会有不同的性能。对于连续的内存访问，ROW_COLUMN_BANK 方式是比较适合的，因为连续的访问会分布到不同的 Bank 上，这样性能就会更好。</p>
+<p>此外，如果访问会连续命中同一个 Page，那么直接读写即可；反之如果每次读写几乎都不会命中同一个 Page，那么可以设置 Auto Precharge，即读写以后自动 Precharge，减少了下一次访问前因为 Row 不同导致的 PRE 命令。一个思路是在对每个 Page 的最后一次访问采用 Auto Precharge。</p>
+<h3 id="传输速率"><a class="toclink" href="../../hardware/2021/12/12/dram/#传输速率">传输速率</a></h3>
+<p>DDR SDRAM 的传输速率计算方式如下：</p>
+<div class="language-text highlight"><pre><span></span><code>Memory Speed (MT/s) * 64 (bits/transfer)
+</code></pre></div>
+<p>例如一个 DDR4-3200 的内存，带宽就是 <code>3200 * 64 = 204.8 Gb/s = 25.6 GB/s</code>。但前面已经看到，除了传输数据，还需要进行很多命令，实际上很难达到 100% 的带宽。然后 CPU 可以连接多个 channel 的 DRAM，再考虑多个 CPU Socket，系统的总带宽就是</p>
+<div class="language-text highlight"><pre><span></span><code>Memory Speed (MT/s) * 64 (bits/transfer) * Channels * Sockets
+</code></pre></div>
+<p>使用 MLC 等工具进行测试，计算实际与理论的比值，我测试得到的大概在 70%-90% 之间。</p>
+<h3 id="hbm"><a class="toclink" href="../../hardware/2021/12/12/dram/#hbm">HBM</a></h3>
+<p>HBM 相比前面的 DDR SDRAM，它堆叠了多个 DRAM，提供多个 channel 并且提高了位宽。例如 <a href="https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/dram/hbm2e/8gb_and_16gb_hbm2e_dram.pdf">Micron HBM with ECC</a>，堆叠了 4/8 层 DRAM，提供 8 个 channel，每个 channel 的数据宽度是 128 位，以 3200 MT/s 计算，一个 HBM 芯片的传输速率最大是：</p>
+<div class="language-text highlight"><pre><span></span><code>3200 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 3276.8 Gb/s = 409.6 GB/s
+</code></pre></div>
+<p>所以一片 HBM 的传输速率就相当于 16 个传统的 DDR SDRAM：8 个 Channel 加双倍的位宽。128 位实际上就是把两片 64-bit DDR SDRAM 并起来了，可以当成一个 128 位的用，也可以在 Pseudo Channel 模式下，当成共享地址和命令信号的两个 DDR SDRAM 用。</p>
+<p>Xilinx 的 Virtex Ultrascale Plus HBM FPGA 提供了 <code>1800 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 230.4 GB/s</code> 的带宽，如果用了两片 HBM 就是 460.8 GB/s。暴露给 FPGA 逻辑的是 16 个 256 位的 AXI3 端口，AXI 频率 450 MHz，内存频率 900 MHz。可以看到，每个 AXI3 就对应了一个 HBM 的 pseudo channel。每个 pseudo channel 是 64 位，但是 AXI 端口是 256 位：在速率不变的情况下，从 450MHz 到 900MHz，再加上 DDR，相当于频率翻了四倍，所以位宽要从 64 位翻四倍到 256 位。</p>
+<p>当然了，HBM 的高带宽的代价就是引脚数量很多。根据 <a href="https://www.jedec.org/system/files/docs/JESD238A.pdf">HBM3 JESD238A</a>，每个 Channel 要 120 个 pin，一共 16 个 channel（HBM2 是 8 channel，每个 channel 128 位；HBM3 是 16 channel，每个 channel 64 位），然后还有其他的 52 个 pin，这些加起来就 1972 个 pin 了。所以一般在 Silicon Interposer 上连接，而不是传统的在 PCB 上走线（图源 <a href="https://picture.iczhiku.com/resource/ieee/WYifSuFTZuHLFcMV.pdf">A 1.2V 20nm 307GB/s HBM DRAM with At-Speed Wafer-Level I/O Test Scheme and Adaptive Refresh Considering Temperature Distribution</a>）：</p>
+<p><img alt="" src="../../hardware/hbm_stack.png"/></p>
+<p>所以在 HBM3 标准里，用 Microbump 来描述 HBM 的 pin。</p>
+<p>可以理解为把原来插在主板上的内存条，通过堆叠，变成一个 HBM Die，然后紧密地连接到 CPU 中。但是另一方面，密度上去了，价格也更贵了。</p>
+<p>A100 显卡 40GB PCIe 版本提供了 1555 GB/s 的内存带宽。根据倍数关系，可以猜测是 5 个 8GB 的 HBM，每个提供 <code>1555 / 5 = 311 GB/s</code> 的带宽，那么时钟频率就是 <code>311 (GB/s) * 8 (bits/byte) / 128 (bits/transfer) / 8 (channels) / 2 (DDR) = 1215 MHz</code>，这与 <code>nvidia-smi -q</code> 看到的结果是一致的。</p>
+<p>进一步，A100 80GB PCIe 版本提供了 1935 GB/s 的带宽，按照同样的方法计算，可得时钟频率是 <code>1935 (GB/s) / 5 * 8 (bits/byte) / 128 (bits/transfer) / 8 (channels) / 2(DDR) = 1512 MHz</code>，与 <a href="https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/PB-10577-001_v02.pdf">Product Brief</a> 一致。频率的提高是因为从 HBM2 升级到了 HBM2e。</p>
+<p>A100 文档中的 Memory bus width 5120 的计算方式也就清楚了：<code>128 (bits/transfer) * 8 (channels) * 5 (stacks) = 5120 (bits)</code>。</p>
+<p>H100 SXM5 升级到了 HBM3，内存容量依然是 80GB，但是时钟频率提高，内存带宽是 <code>2619 (MHz) * 2 (DDR) * 128 (bits/transfer) * 8 (channels) * 5 (stacks) / 8 (bits/byte) = 3352 GB/s</code>。</p>
+<h3 id="参考文档"><a class="toclink" href="../../hardware/2021/12/12/dram/#参考文档">参考文档</a></h3>
+<ul>
+<li>Memory systems: Cache, DRAM &amp; Disk</li>
+<li><a href="https://zhuanlan.zhihu.com/p/262052220">译文：DDR4 SDRAM - Understanding the Basics（上）</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/263080272">译文：DDR4 SDRAM - Understanding the Basics（下）</a></li>
+<li><a href="https://github.com/RAMGuide/TheRamGuide-WIP-/raw/main/DDR5%20Spec%20JESD79-5.pdf">JEDEC STANDARD DDR5 SDRAM JESD79-5</a></li>
+<li><a href="http://www.softnology.biz/pdf/JESD79-4B.pdf">JEDEC STANDARD DDR4 SDRAM JESD79-4B</a></li>
+<li><a href="https://documents.pub/document/jesd79-3e-ddr3-sdram-specification.html">JEDEC STANDARD DDR3 SDRAM JESD79-3E</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -3384,148 +3542,6 @@ https://github.com/ewenmcneill/docker-build-static-ipmitool</p>
 <p>注：实际上设置为 HE 开头的字符串即可，见 <a href="https://github.com/openwrt/openwrt/blob/8019c54d8a191cfb90c3bf06ff367f601f872fd1/package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh#L334">mac80211.sh</a>。</p>
 <p>再连接上 Wi-Fi 的时候就可以看到是 802.11ax 模式了。也在 <a href="https://forum.openwrt.org/t/got-802-11ax-working-in-linksys-e8450/91533">OpenWRT 论坛</a> 上分享了一下这个方案。</p>
 <p>更新（2021-07-31）：目前最新的 luci 版本已经可以在网页上配置 802.11ax 模式了。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2021-03-16 00:00:00+00:00">2021年3月16日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/devops/">devops</a></li>
-<li class="md-meta__item">
-            
-              需要 2 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="用-gitlab-ci-构建并部署应用到-k8s"><a class="toclink" href="../../devops/2021/03/16/gitlab-ci-k8s-integration/">用 gitlab ci 构建并部署应用到 k8s</a></h2>
-<h3 id="背景"><a class="toclink" href="../../devops/2021/03/16/gitlab-ci-k8s-integration/#背景">背景</a></h3>
-<p>在 k8s 集群中部署了 gitlab-runner，并且希望在 gitlab ci 构建完成后，把新的 docker image push 到 private repo，然后更新应用。</p>
-<p>参考文档：<a href="https://www.qikqiak.com/post/gitlab-ci-k8s-cluster-feature/">Gitlab CI 与 Kubernetes 的结合</a>，<a href="https://docs.gitlab.com/ee/ci/docker/using_docker_build.html">Using Docker to build Docker images</a>。</p>
-<h3 id="在-gitlab-ci-中构建-docker-镜像"><a class="toclink" href="../../devops/2021/03/16/gitlab-ci-k8s-integration/#在-gitlab-ci-中构建-docker-镜像">在 gitlab ci 中构建 docker 镜像</a></h3>
-<p>这一步需要 DinD 来实现在容器中构建容器。为了达到这个目的，首先要在 gitlab-runner 的配置中添加一个 volume 来共享 DinD 的证书路径：</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="nt">gitlabUrl</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REDACTED</span>
-</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="nt">rbac</span><span class="p">:</span>
-</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="w">  </span><span class="nt">create</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="nt">runnerRegistrationToken</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REDACTED</span>
-</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="nt">runners</span><span class="p">:</span>
-</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="w">    </span><span class="no">[[runners]]</span>
-</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a><span class="w">      </span><span class="no">[runners.kubernetes]</span>
-</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a><span class="w">        </span><span class="no">image = "ubuntu:20.04"</span>
-</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a><span class="w">        </span><span class="no">privileged = true</span>
-</span><span id="__span-5-11"><a href="#__codelineno-5-11" id="__codelineno-5-11" name="__codelineno-5-11"></a><span class="w">      </span><span class="no">[[runners.kubernetes.volumes.empty_dir]]</span>
-</span><span id="__span-5-12"><a href="#__codelineno-5-12" id="__codelineno-5-12" name="__codelineno-5-12"></a><span class="w">        </span><span class="no">name = "docker-certs"</span>
-</span><span id="__span-5-13"><a href="#__codelineno-5-13" id="__codelineno-5-13" name="__codelineno-5-13"></a><span class="w">        </span><span class="no">mount_path = "/certs/client"</span>
-</span><span id="__span-5-14"><a href="#__codelineno-5-14" id="__codelineno-5-14" name="__codelineno-5-14"></a><span class="w">        </span><span class="no">medium = "Memory"</span>
-</span><span id="__span-5-15"><a href="#__codelineno-5-15" id="__codelineno-5-15" name="__codelineno-5-15"></a><span class="w">  </span><span class="nt">privileged</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-</span></code></pre></div>
-<p>注意两点：1. privileged 2. 多出来的 volume</p>
-<p>用 helm 部署 gitlab runner 之后，按照下面的方式配置 gitlab-ci：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>image: docker:19.03.12
-</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>
-</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a>variables:
-</span><span id="__span-6-4"><a href="#__codelineno-6-4" id="__codelineno-6-4" name="__codelineno-6-4"></a>  DOCKER_HOST: tcp://docker:2376
-</span><span id="__span-6-5"><a href="#__codelineno-6-5" id="__codelineno-6-5" name="__codelineno-6-5"></a>  #
-</span><span id="__span-6-6"><a href="#__codelineno-6-6" id="__codelineno-6-6" name="__codelineno-6-6"></a>  # The 'docker' hostname is the alias of the service container as described at
-</span><span id="__span-6-7"><a href="#__codelineno-6-7" id="__codelineno-6-7" name="__codelineno-6-7"></a>  # https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#accessing-the-services.
-</span><span id="__span-6-8"><a href="#__codelineno-6-8" id="__codelineno-6-8" name="__codelineno-6-8"></a>  # If you're using GitLab Runner 12.7 or earlier with the Kubernetes executor and Kubernetes 1.6 or earlier,
-</span><span id="__span-6-9"><a href="#__codelineno-6-9" id="__codelineno-6-9" name="__codelineno-6-9"></a>  # the variable must be set to tcp://localhost:2376 because of how the
-</span><span id="__span-6-10"><a href="#__codelineno-6-10" id="__codelineno-6-10" name="__codelineno-6-10"></a>  # Kubernetes executor connects services to the job container
-</span><span id="__span-6-11"><a href="#__codelineno-6-11" id="__codelineno-6-11" name="__codelineno-6-11"></a>  # DOCKER_HOST: tcp://localhost:2376
-</span><span id="__span-6-12"><a href="#__codelineno-6-12" id="__codelineno-6-12" name="__codelineno-6-12"></a>  #
-</span><span id="__span-6-13"><a href="#__codelineno-6-13" id="__codelineno-6-13" name="__codelineno-6-13"></a>  # Specify to Docker where to create the certificates, Docker will
-</span><span id="__span-6-14"><a href="#__codelineno-6-14" id="__codelineno-6-14" name="__codelineno-6-14"></a>  # create them automatically on boot, and will create
-</span><span id="__span-6-15"><a href="#__codelineno-6-15" id="__codelineno-6-15" name="__codelineno-6-15"></a>  # `/certs/client` that will be shared between the service and job
-</span><span id="__span-6-16"><a href="#__codelineno-6-16" id="__codelineno-6-16" name="__codelineno-6-16"></a>  # container, thanks to volume mount from config.toml
-</span><span id="__span-6-17"><a href="#__codelineno-6-17" id="__codelineno-6-17" name="__codelineno-6-17"></a>  DOCKER_TLS_CERTDIR: "/certs"
-</span><span id="__span-6-18"><a href="#__codelineno-6-18" id="__codelineno-6-18" name="__codelineno-6-18"></a>  # These are usually specified by the entrypoint, however the
-</span><span id="__span-6-19"><a href="#__codelineno-6-19" id="__codelineno-6-19" name="__codelineno-6-19"></a>  # Kubernetes executor doesn't run entrypoints
-</span><span id="__span-6-20"><a href="#__codelineno-6-20" id="__codelineno-6-20" name="__codelineno-6-20"></a>  # https://gitlab.com/gitlab-org/gitlab-runner/-/issues/4125
-</span><span id="__span-6-21"><a href="#__codelineno-6-21" id="__codelineno-6-21" name="__codelineno-6-21"></a>  DOCKER_TLS_VERIFY: 1
-</span><span id="__span-6-22"><a href="#__codelineno-6-22" id="__codelineno-6-22" name="__codelineno-6-22"></a>  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-</span><span id="__span-6-23"><a href="#__codelineno-6-23" id="__codelineno-6-23" name="__codelineno-6-23"></a>  DOCKER_DAEMON_OPTIONS: "--insecure-registry=${REGISTRY}"
-</span><span id="__span-6-24"><a href="#__codelineno-6-24" id="__codelineno-6-24" name="__codelineno-6-24"></a>
-</span><span id="__span-6-25"><a href="#__codelineno-6-25" id="__codelineno-6-25" name="__codelineno-6-25"></a>services:
-</span><span id="__span-6-26"><a href="#__codelineno-6-26" id="__codelineno-6-26" name="__codelineno-6-26"></a>  - name: docker:19.03.12-dind
-</span><span id="__span-6-27"><a href="#__codelineno-6-27" id="__codelineno-6-27" name="__codelineno-6-27"></a>    entrypoint: ["sh", "-c", "dockerd-entrypoint.sh $DOCKER_DAEMON_OPTIONS"]
-</span><span id="__span-6-28"><a href="#__codelineno-6-28" id="__codelineno-6-28" name="__codelineno-6-28"></a>
-</span><span id="__span-6-29"><a href="#__codelineno-6-29" id="__codelineno-6-29" name="__codelineno-6-29"></a>before_script:
-</span><span id="__span-6-30"><a href="#__codelineno-6-30" id="__codelineno-6-30" name="__codelineno-6-30"></a>  # Wait until client certs are generated
-</span><span id="__span-6-31"><a href="#__codelineno-6-31" id="__codelineno-6-31" name="__codelineno-6-31"></a>  # https://gitlab.com/gitlab-org/gitlab-runner/-/issues/27384
-</span><span id="__span-6-32"><a href="#__codelineno-6-32" id="__codelineno-6-32" name="__codelineno-6-32"></a>  - until docker info; do sleep 1; done
-</span><span id="__span-6-33"><a href="#__codelineno-6-33" id="__codelineno-6-33" name="__codelineno-6-33"></a>  - echo "$REGISTRY_PASS" | docker login $REGISTRY --username $REGISTRY_USER --password-stdin
-</span><span id="__span-6-34"><a href="#__codelineno-6-34" id="__codelineno-6-34" name="__codelineno-6-34"></a>
-</span><span id="__span-6-35"><a href="#__codelineno-6-35" id="__codelineno-6-35" name="__codelineno-6-35"></a>build:
-</span><span id="__span-6-36"><a href="#__codelineno-6-36" id="__codelineno-6-36" name="__codelineno-6-36"></a>  stage: build
-</span><span id="__span-6-37"><a href="#__codelineno-6-37" id="__codelineno-6-37" name="__codelineno-6-37"></a>  script: ./build.sh
-</span></code></pre></div>
-<p>这里有很多细节，包括 DinD 的访问方式，等待 client cert，设置 docker 的 insecure registry 和 login 等等。经过 <a href="https://github.com/CircuitCoder">@CircuitCoder</a> 的不断摸索，终于写出了可以用的配置。</p>
-<p>如此配置以后，就可以在 gitlab ci 的构建脚本里用 docker 来 build 并且 push 到自己的 registry 了。为了防止泄露密钥，建议把这些变量放到 gitlab ci 设置的 secrets 中。</p>
-<h3 id="自动部署到-k8s"><a class="toclink" href="../../devops/2021/03/16/gitlab-ci-k8s-integration/#自动部署到-k8s">自动部署到 k8s</a></h3>
-<p>为了让 k8s 重启一个 deployment，一般的做法是：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a>kubectl -n NAMESPACE rollout restart deployment/NAME
-</span></code></pre></div>
-<p>我们希望 gitlab ci 在 build 之后，去执行这一个命令，但又不希望提供太多的权限给 gitlab。所以，我们创建 Service Account 并设置最小权限：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>---
-</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a>apiVersion: v1
-</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a>kind: ServiceAccount
-</span><span id="__span-8-4"><a href="#__codelineno-8-4" id="__codelineno-8-4" name="__codelineno-8-4"></a>metadata:
-</span><span id="__span-8-5"><a href="#__codelineno-8-5" id="__codelineno-8-5" name="__codelineno-8-5"></a>  name: gitlab
-</span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a>  namespace: default
-</span><span id="__span-8-7"><a href="#__codelineno-8-7" id="__codelineno-8-7" name="__codelineno-8-7"></a>
-</span><span id="__span-8-8"><a href="#__codelineno-8-8" id="__codelineno-8-8" name="__codelineno-8-8"></a>---
-</span><span id="__span-8-9"><a href="#__codelineno-8-9" id="__codelineno-8-9" name="__codelineno-8-9"></a>apiVersion: rbac.authorization.k8s.io/v1
-</span><span id="__span-8-10"><a href="#__codelineno-8-10" id="__codelineno-8-10" name="__codelineno-8-10"></a>kind: Role
-</span><span id="__span-8-11"><a href="#__codelineno-8-11" id="__codelineno-8-11" name="__codelineno-8-11"></a>metadata:
-</span><span id="__span-8-12"><a href="#__codelineno-8-12" id="__codelineno-8-12" name="__codelineno-8-12"></a>  name: gitlab-test
-</span><span id="__span-8-13"><a href="#__codelineno-8-13" id="__codelineno-8-13" name="__codelineno-8-13"></a>  namespace: test
-</span><span id="__span-8-14"><a href="#__codelineno-8-14" id="__codelineno-8-14" name="__codelineno-8-14"></a>rules:
-</span><span id="__span-8-15"><a href="#__codelineno-8-15" id="__codelineno-8-15" name="__codelineno-8-15"></a>- verbs:
-</span><span id="__span-8-16"><a href="#__codelineno-8-16" id="__codelineno-8-16" name="__codelineno-8-16"></a>    - get
-</span><span id="__span-8-17"><a href="#__codelineno-8-17" id="__codelineno-8-17" name="__codelineno-8-17"></a>    - patch
-</span><span id="__span-8-18"><a href="#__codelineno-8-18" id="__codelineno-8-18" name="__codelineno-8-18"></a>  apiGroups:
-</span><span id="__span-8-19"><a href="#__codelineno-8-19" id="__codelineno-8-19" name="__codelineno-8-19"></a>    - 'apps'
-</span><span id="__span-8-20"><a href="#__codelineno-8-20" id="__codelineno-8-20" name="__codelineno-8-20"></a>  resources:
-</span><span id="__span-8-21"><a href="#__codelineno-8-21" id="__codelineno-8-21" name="__codelineno-8-21"></a>    - 'deployments'
-</span><span id="__span-8-22"><a href="#__codelineno-8-22" id="__codelineno-8-22" name="__codelineno-8-22"></a>  resourceNames:
-</span><span id="__span-8-23"><a href="#__codelineno-8-23" id="__codelineno-8-23" name="__codelineno-8-23"></a>    - 'test-deployment'
-</span><span id="__span-8-24"><a href="#__codelineno-8-24" id="__codelineno-8-24" name="__codelineno-8-24"></a>
-</span><span id="__span-8-25"><a href="#__codelineno-8-25" id="__codelineno-8-25" name="__codelineno-8-25"></a>---
-</span><span id="__span-8-26"><a href="#__codelineno-8-26" id="__codelineno-8-26" name="__codelineno-8-26"></a>apiVersion: rbac.authorization.k8s.io/v1
-</span><span id="__span-8-27"><a href="#__codelineno-8-27" id="__codelineno-8-27" name="__codelineno-8-27"></a>kind: RoleBinding
-</span><span id="__span-8-28"><a href="#__codelineno-8-28" id="__codelineno-8-28" name="__codelineno-8-28"></a>metadata:
-</span><span id="__span-8-29"><a href="#__codelineno-8-29" id="__codelineno-8-29" name="__codelineno-8-29"></a>  name: gitlab
-</span><span id="__span-8-30"><a href="#__codelineno-8-30" id="__codelineno-8-30" name="__codelineno-8-30"></a>  namespace: test
-</span><span id="__span-8-31"><a href="#__codelineno-8-31" id="__codelineno-8-31" name="__codelineno-8-31"></a>subjects:
-</span><span id="__span-8-32"><a href="#__codelineno-8-32" id="__codelineno-8-32" name="__codelineno-8-32"></a>  - kind: ServiceAccount
-</span><span id="__span-8-33"><a href="#__codelineno-8-33" id="__codelineno-8-33" name="__codelineno-8-33"></a>    name: gitlab
-</span><span id="__span-8-34"><a href="#__codelineno-8-34" id="__codelineno-8-34" name="__codelineno-8-34"></a>    namespace: default
-</span><span id="__span-8-35"><a href="#__codelineno-8-35" id="__codelineno-8-35" name="__codelineno-8-35"></a>roleRef:
-</span><span id="__span-8-36"><a href="#__codelineno-8-36" id="__codelineno-8-36" name="__codelineno-8-36"></a>  apiGroup: rbac.authorization.k8s.io
-</span><span id="__span-8-37"><a href="#__codelineno-8-37" id="__codelineno-8-37" name="__codelineno-8-37"></a>  kind: Role
-</span><span id="__span-8-38"><a href="#__codelineno-8-38" id="__codelineno-8-38" name="__codelineno-8-38"></a>  name: gitlab-test
-</span></code></pre></div>
-<p>要特别注意这几个配置的 namespace 的对应关系：Role 和 RoleBinding 需要放在同一个 ns 下。</p>
-<p>接着，到 GitLab 的 Operations-&gt;Kubernetes 创建 cluster，把 service account 的 token 和 ca.crt 从 secret 里找到并贴到网页上。GitLab 会按照 Environment scope 匹配到 environment，如果某个 stage 的 environment 匹配上了，就会把 kube credentials 配置好。修改 gitlab-ci.yml：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>deploy:
-</span><span id="__span-9-2"><a href="#__codelineno-9-2" id="__codelineno-9-2" name="__codelineno-9-2"></a>  stage: deploy
-</span><span id="__span-9-3"><a href="#__codelineno-9-3" id="__codelineno-9-3" name="__codelineno-9-3"></a>  image: bitnami/kubectl:1.20
-</span><span id="__span-9-4"><a href="#__codelineno-9-4" id="__codelineno-9-4" name="__codelineno-9-4"></a>  environment:
-</span><span id="__span-9-5"><a href="#__codelineno-9-5" id="__codelineno-9-5" name="__codelineno-9-5"></a>    name: production
-</span><span id="__span-9-6"><a href="#__codelineno-9-6" id="__codelineno-9-6" name="__codelineno-9-6"></a>  only:
-</span><span id="__span-9-7"><a href="#__codelineno-9-7" id="__codelineno-9-7" name="__codelineno-9-7"></a>    - master
-</span><span id="__span-9-8"><a href="#__codelineno-9-8" id="__codelineno-9-8" name="__codelineno-9-8"></a>  script:
-</span><span id="__span-9-9"><a href="#__codelineno-9-9" id="__codelineno-9-9" name="__codelineno-9-9"></a>    - kubectl -n test rollout restart deployment/test
-</span></code></pre></div>
-<p>这样就完成配置了。</p>
 </div>
 </article>
 <nav class="md-pagination">

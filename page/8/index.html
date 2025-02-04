@@ -377,7 +377,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../archive/2024/" class="md-tabs__link">
+        <a href="../../archive/2025/" class="md-tabs__link">
           
   
   归档
@@ -514,6 +514,15 @@
       目录
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#usbip-模拟-usb-设备" class="md-nav__link">
+    <span class="md-ellipsis">
+      USB/IP 模拟 USB 设备
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#mifare-classic-上配置-ndef" class="md-nav__link">
@@ -726,15 +735,6 @@
   <a href="#每周分享第-54-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 54 期
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-53-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      每周分享第 53 期
     </span>
   </a>
   
@@ -998,6 +998,30 @@
             归档
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../archive/2025/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1740,6 +1764,68 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-05-15 00:00:00+00:00">2020年5月15日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/software/" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="usbip-模拟-usb-设备"><a class="toclink" href="../../software/2020/05/15/usb-ip-simulation/">USB/IP 模拟 USB 设备</a></h2>
+<h3 id="背景"><a class="toclink" href="../../software/2020/05/15/usb-ip-simulation/#背景">背景</a></h3>
+<p>2018 年的时候发过一篇博客，讲如何用 USB/IP 协议在两台 Linux 电脑之间共享 USB 设备。最近刚好有一个需求，就是针对一个现成的 USB device 的代码，通过 USB/IP 模拟出一个 USB 设备，然后进行调试。</p>
+<h3 id="usbip-协议"><a class="toclink" href="../../software/2020/05/15/usb-ip-simulation/#usbip-协议">USB/IP 协议</a></h3>
+<p>USB/IP 只有一个简略的<a href="https://github.com/realthunder/usbip/blob/master/usbip_protocol.txt">文档</a>，为数不多的使用 USB/IP 的代码，所以有一些细节没有说的很清楚，只能一点点去尝试。</p>
+<p>首先，USB/IP 基于 TCP，端口号 3240。客户端向服务端发送请求，服务端向客户端进行回应。</p>
+<p>请求的类型：OP_REQ_DEVLIST OP_REQ_IMPORT USBIP_CMD_SUBMIT 和 USBIP_CMD_UNLINK</p>
+<p>回应的类型：OP_REP_DEVLIST OP_REP_IMPORT USBIP_RET_SUBMIT USBIP_RET_UNLINK</p>
+<p>工作的过程大概如下：</p>
+<ol>
+<li>OP_REQ_DEVLIST 请求获取设备列表</li>
+<li>OP_REP_DEVLIST 返回设备列表</li>
+<li>OP_REQ_IMPORT 请求 USB 设备</li>
+<li>OP_REP_IMPORT 返回 USB 设备</li>
+<li>USBIP_CMD_SUBMIT 发送 URB</li>
+<li>USBIP_RET_SUBMIT 返回 URB</li>
+</ol>
+<p>（先不考虑 CMD_UNLINK 和 RET_UNLINK）</p>
+<p>其中前面四个比较简单清晰，所需要的字段也都是 Descriptor 中对应的字段。后面两个就相对复杂一些：URB data 的长度需要根据 endpoint 类型和 direction 共同决定。URB 实际上是 Linux 内核里的一个数据结构。</p>
+<h3 id="usb-协议"><a class="toclink" href="../../software/2020/05/15/usb-ip-simulation/#usb-协议">USB 协议</a></h3>
+<p>那么，USB 协议的几种 transfer 怎么对应到 URB 的数据呢？首先看最常见的三种（[ref](https://www.beyondlogic.org/usbnutshell/usb4.shtml）：</p>
+<ol>
+<li>Control Transfer</li>
+<li>第一种是 Control IN，一共有三个阶段，第一个阶段是 Setup，Host 发送给 Device 一个八字节的 Setup Packet；第二个阶段是 Data，Device 发送给 Host 一段数据；第三个阶段是 Status，Host 发送给 Device 一个 Zero Length Packet。此时 Setup Packet 对应 urb 中的 setup，Data 就对应 RET_SUBMIT 里面的 URB data 了，自然 CMD_SUBMIT 中是没有 URB data 的</li>
+<li>第二种是 Control OUT，一共有三个阶段，第一个阶段是 Setup，Host 发送给 Device 一个吧字节的 Setup Packet；第二个阶段是 Data，Host 给 Device 发送一段数据；第三个阶段是 Status，Device 给 Host 发送一个 Zero Length Packet。此时 Setup Packet 对应 urb 中的 setup，Data 对应 CMD_SUBMIT 末尾的 URB data，长度由 transfer_buffer_length 指定。返回的 RET_SUBMIT 不带 URB data，但依然需要有 RET_SUBMIT。</li>
+<li>Interrupt/Bulk Transfer</li>
+<li>第一种是 Interrupt/Bulk IN，由 Device 给 Host 发送一段数据，附在 RET_SUBMIT 中。</li>
+<li>第二种是 Interrupt/Bulk OUT，由 Host 给 Device 发送一段数据，中 CMD_SUBMIT 的 URB data 中。返回的 RET_SUBMIT 不带 URB data，但不能不发 RET_SUBMIT。</li>
+</ol>
+<p>可见，Interrupt 和 Bulk 是比较简单的，而 Control 和 Isochronous（没有提到）则比较复杂。</p>
+<h3 id="回到-usbip-协议"><a class="toclink" href="../../software/2020/05/15/usb-ip-simulation/#回到-usbip-协议">回到 USB/IP 协议</a></h3>
+<p>其实补充了这些信息以后，就可以实现一个 USB/IP 协议的服务器了。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3756,44 +3842,6 @@ P.P.S MacBookPro11,2 的网卡是 BCM4360，直接用 broadcom-wl 驱动就可�
 <li>嵌入式 Rust 的 fmt 优化 https://jamesmunns.com/blog/fmt-unreasonably-expensive/</li>
 <li>Docker base image 更新工具 https://github.com/containrrr/watchtower</li>
 <li>运行 Linux 的名片 https://www.thirtythreeforty.net/posts/2019/12/my-business-card-runs-linux/</li>
-</ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-12-08 00:00:00+00:00">2019年12月8日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-53-期"><a class="toclink" href="../../misc/2019/12/08/weekly-sharing-53/">每周分享第 53 期</a></h2>
-<ol>
-<li>GDB Enhanced Features https://github.com/hugsy/gef</li>
-<li>Lisp on Lua https://fennel-lang.org/</li>
-<li>Django 3.0 https://docs.djangoproject.com/en/3.0/releases/3.0/</li>
-<li>Rust Constant Propagation https://blog.rust-lang.org/inside-rust/2019/12/02/const-prop-on-by-default.html</li>
-<li>ES2019 features https://javascript.christmas/2019/7</li>
 </ol>
     
   </div>
