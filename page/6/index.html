@@ -277,6 +277,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#dram-在-kintex-7-fpga-上内部-vref-的性能问题">
+<span class="md-ellipsis">
+      DRAM 在 Kintex 7 FPGA 上内部 Vref 的性能问题
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#教学dram-结构和特性">
 <span class="md-ellipsis">
       「教学」DRAM 结构和特性
@@ -441,13 +448,6 @@
 <a class="md-nav__link" href="#esxi-网络配置">
 <span class="md-ellipsis">
       ESXi 网络配置
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#linksys-e8450-openwrt-配置-w-80211ax">
-<span class="md-ellipsis">
-      Linksys E8450 OpenWRT 配置 w/ 802.11ax
     </span>
 </a>
 </li>
@@ -812,6 +812,69 @@
 <header class="md-typeset">
 <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-12-13 00:00:00+00:00">2021年12月13日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="dram-在-kintex-7-fpga-上内部-vref-的性能问题"><a class="toclink" href="../../hardware/2021/12/13/dram-fpga-vref-problem/">DRAM 在 Kintex 7 FPGA 上内部 Vref 的性能问题</a></h2>
+<h3 id="背景"><a class="toclink" href="../../hardware/2021/12/13/dram-fpga-vref-problem/#背景">背景</a></h3>
+<p>最近我们设计的 Kintex 7 FPGA 开发板在测试 DDR SDRAM 的时候遇到了一个问题，因为采用了 Internel VREF，MIG 在配置的时候限制了频率只能是 400 MHz，对应 800 MT/s，这样无法达到 DDR 的最好性能。</p>
+<h3 id="原理"><a class="toclink" href="../../hardware/2021/12/13/dram-fpga-vref-problem/#原理">原理</a></h3>
+<p>首先，VREF 在 DDR 中是用来区分低电平和高电平的。在 JESD79-4B 标准中，可以看到，对于直流信号，电压不小于 VREF+0.075V 时表示高电平，而电压不高于 VREF-0.075V 时表示低电平。VREF 本身应该介于 VDD 的 0.49 倍到 0.51 倍之间。</p>
+<p>在连接 FPGA 的时候，有两种选择：</p>
+<ul>
+<li>Internal VREF: 从 FPGA 输出 VREF 信号到 DRAM</li>
+<li>External VREF：接入 FPGA 以外的 VREF</li>
+</ul>
+<p>对于 7 Series 的 FPGA，Xilinx 要求如下：</p>
+<div class="language-text highlight"><pre><span></span><code>For DDR3 SDRAM interfaces running at or below 800 Mb/s (400 MHz),
+users have the option of selecting Internal VREF to save two I/O
+pins or using external VREF. VREF is required for banks containing
+DDR3 interface input pins (DQ/DQS).
+</code></pre></div>
+<p>进一步，Xilinx 在 UltraScale 文档下解释了背后的原因：</p>
+<div class="language-text highlight"><pre><span></span><code>The UltraScale internal VREF circuit includes enhancements compared
+to the 7 Series internal VREF circuit. Whereas 7 Series MIG had datarate
+limitations on internal VREF usage (see (Xilinx Answer 42036)), internal
+VREF is recommended in UltraScale. The VREF for 7 Series had coarse steps
+of VREF value that were based on VCCAUX. This saved pins but limited the
+performance because VCCAUX did not track with VCCO as voltage went up and
+down. Not being able to track with VCCO enforced the performance
+limitations of internal VREF in MIG 7 Series. UltraScale includes several
+changes to internal VREF including a much finer resolution of VREF for DDR4
+read VREF training. Additionally, internal VREF is based on the VCCO supply
+enabling it to track with VCCO. Internal VREF is not subject to PCB and
+Package inductance and capacitance. These changes in design now give internal
+VREF the highest performance.
+</code></pre></div>
+<p>用中文简单来说：</p>
+<ol>
+<li>7 Series FPGA 中，Internal VREF 可以节省引脚，代价是 VREF 不会随着 VCCO 变化而变化（而是随着 VCCAUX 变化而变化），当 DRAM 频率提高的时候，可能无法满足 VREF 约等于 VDD 一半的要求</li>
+<li>UltraScale FPGA 中，Internal VREF 是随着 VCCO 变化而变化的，并且会比 External VREF 性能更好；因此 UltraScale FPGA 的 DDR4 只支持 Internal VREF。</li>
+</ol>
+<p>以 MA703FA-35T 开发板为例，它使用的 FPGA 是 Artix7 35T，内存是 DDR3，采用的是 External VREF。它采用了 <a href="https://www.ti.com/lit/ds/symlink/tps51200.pdf">TPS51200 Sink and Source DDR Termination Regulator</a> 芯片，将芯片的 REFOUT 芯片接到 DRAM 的 VREFDQ 和 VREFCA 引脚上。</p>
+<h3 id="参考文档"><a class="toclink" href="../../hardware/2021/12/13/dram-fpga-vref-problem/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://support.xilinx.com/s/article/42036?language=en_US">MIG 7 Series - Internal/External VREF Guidelines</a></li>
+<li><a href="https://support.xilinx.com/s/article/64410?language=en_US">UltraScale/UltraScale+ Memory IP - Can either external or internal VREF be used?</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -3471,77 +3534,6 @@ https://github.com/ewenmcneill/docker-build-static-ipmitool</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="o">[</span>root@esxi:~<span class="o">]</span>esxcli<span class="w"> </span>network<span class="w"> </span>ip<span class="w"> </span>interface<span class="w"> </span>ipv6<span class="w"> </span>address<span class="w"> </span>remove<span class="w"> </span>-i<span class="w"> </span><span class="nv">$VMKERNEL</span><span class="w"> </span>-I<span class="w"> </span><span class="nv">$IPV6</span>/<span class="nv">$PREFIX</span>
 </span></code></pre></div>
 <p>参考：https://kb.vmware.com/s/article/1002662</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2021-03-18 00:00:00+00:00">2021年3月18日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 2 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="linksys-e8450-openwrt-配置-w-80211ax"><a class="toclink" href="../../hardware/2021/03/18/linksys-e8450-openwrt/">Linksys E8450 OpenWRT 配置 w/ 802.11ax</a></h2>
-<h3 id="背景"><a class="toclink" href="../../hardware/2021/03/18/linksys-e8450-openwrt/#背景">背景</a></h3>
-<p>之前用的 newifi 路由器（Lenovo y1s）无线网总是出问题，于是换了一个新的支持 802.11ax 的路由器 Linksys E8450，目前在 openwrt snapshot 支持。Openwrt 的支持页面：<a href="https://openwrt.org/toh/linksys/linksys_e8450">Linksys E8450</a>。</p>
-<h3 id="过程"><a class="toclink" href="../../hardware/2021/03/18/linksys-e8450-openwrt/#过程">过程</a></h3>
-<p>按照支持页面，下载固件：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>$<span class="w"> </span>wget<span class="w"> </span>https://downloads.openwrt.org/snapshots/targets/mediatek/mt7622/openwrt-mediatek-mt7622-linksys_e8450-squashfs-sysupgrade.bin
-</span></code></pre></div>
-<p>更新（2023-02-27）：固件已经从 snapshot 进入正式版，下载链接为 <a href="https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-squashfs-sysupgrade.bin">https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-squashfs-sysupgrade.bin</a>。如果已经替换为 UBI，则使用 <a href="https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-ubi-squashfs-sysupgrade.itb">https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-ubi-squashfs-sysupgrade.itb</a> 固件。</p>
-<p>然后访问固件升级页面：http://192.168.1.1/config-admin-firmware.html#firmware，选择下载的 bin 文件。点击“开始升级”，然后等待。一段时间后，ssh 到路由器：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>$<span class="w"> </span>ssh<span class="w"> </span>root@192.168.1.1
-</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>The<span class="w"> </span>authenticity<span class="w"> </span>of<span class="w"> </span>host<span class="w"> </span><span class="s1">'192.168.1.1 (192.168.1.1)'</span><span class="w"> </span>can<span class="s1">'t be established.</span>
-</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="s1">ED25519 key fingerprint is SHA256:REDACTED.</span>
-</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="s1">No matching host key fingerprint found in DNS.</span>
-</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="s1">This key is not known by any other names</span>
-</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="s1">Are you sure you want to continue connecting (yes/no/[fingerprint])? yes</span>
-</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="s1">Warning: Permanently added '</span><span class="m">192</span>.168.1.1<span class="err">'</span><span class="w"> </span><span class="o">(</span>ED25519<span class="o">)</span><span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>list<span class="w"> </span>of<span class="w"> </span>known<span class="w"> </span>hosts.
-</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a>
-</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a>
-</span><span id="__span-1-10"><a href="#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a>BusyBox<span class="w"> </span>v1.33.0<span class="w"> </span><span class="o">()</span><span class="w"> </span>built-in<span class="w"> </span>shell<span class="w"> </span><span class="o">(</span>ash<span class="o">)</span>
-</span><span id="__span-1-11"><a href="#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a>
-</span><span id="__span-1-12"><a href="#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="w">  </span>_______<span class="w">                     </span>________<span class="w">        </span>__
-</span><span id="__span-1-13"><a href="#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="w"> </span><span class="p">|</span><span class="w">       </span><span class="p">|</span>.-----.-----.-----.<span class="p">|</span><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>.----.<span class="p">|</span><span class="w">  </span><span class="p">|</span>_
-</span><span id="__span-1-14"><a href="#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="w"> </span><span class="p">|</span><span class="w">   </span>-<span class="w">   </span><span class="o">||</span><span class="w">  </span>_<span class="w">  </span><span class="p">|</span><span class="w">  </span>-__<span class="p">|</span><span class="w">     </span><span class="o">||</span><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="o">||</span><span class="w">   </span>_<span class="o">||</span><span class="w">   </span>_<span class="p">|</span>
-</span><span id="__span-1-15"><a href="#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="w"> </span><span class="p">|</span>_______<span class="o">||</span><span class="w">   </span>__<span class="p">|</span>_____<span class="p">|</span>__<span class="p">|</span>__<span class="o">||</span>________<span class="o">||</span>__<span class="p">|</span><span class="w">  </span><span class="p">|</span>____<span class="p">|</span>
-</span><span id="__span-1-16"><a href="#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a><span class="w">          </span><span class="p">|</span>__<span class="p">|</span><span class="w"> </span>W<span class="w"> </span>I<span class="w"> </span>R<span class="w"> </span>E<span class="w"> </span>L<span class="w"> </span>E<span class="w"> </span>S<span class="w"> </span>S<span class="w">   </span>F<span class="w"> </span>R<span class="w"> </span>E<span class="w"> </span>E<span class="w"> </span>D<span class="w"> </span>O<span class="w"> </span>M
-</span><span id="__span-1-17"><a href="#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a><span class="w"> </span>-----------------------------------------------------
-</span><span id="__span-1-18"><a href="#__codelineno-1-18" id="__codelineno-1-18" name="__codelineno-1-18"></a><span class="w"> </span>OpenWrt<span class="w"> </span>SNAPSHOT,<span class="w"> </span>r16242-41af8735d4
-</span><span id="__span-1-19"><a href="#__codelineno-1-19" id="__codelineno-1-19" name="__codelineno-1-19"></a><span class="w"> </span>-----------------------------------------------------
-</span><span id="__span-1-20"><a href="#__codelineno-1-20" id="__codelineno-1-20" name="__codelineno-1-20"></a><span class="o">===</span><span class="w"> </span>WARNING!<span class="w"> </span><span class="o">=====================================</span>
-</span><span id="__span-1-21"><a href="#__codelineno-1-21" id="__codelineno-1-21" name="__codelineno-1-21"></a>There<span class="w"> </span>is<span class="w"> </span>no<span class="w"> </span>root<span class="w"> </span>password<span class="w"> </span>defined<span class="w"> </span>on<span class="w"> </span>this<span class="w"> </span>device!
-</span><span id="__span-1-22"><a href="#__codelineno-1-22" id="__codelineno-1-22" name="__codelineno-1-22"></a>Use<span class="w"> </span>the<span class="w"> </span><span class="s2">"passwd"</span><span class="w"> </span><span class="nb">command</span><span class="w"> </span>to<span class="w"> </span><span class="nb">set</span><span class="w"> </span>up<span class="w"> </span>a<span class="w"> </span>new<span class="w"> </span>password
-</span><span id="__span-1-23"><a href="#__codelineno-1-23" id="__codelineno-1-23" name="__codelineno-1-23"></a><span class="k">in</span><span class="w"> </span>order<span class="w"> </span>to<span class="w"> </span>prevent<span class="w"> </span>unauthorized<span class="w"> </span>SSH<span class="w"> </span>logins.
-</span><span id="__span-1-24"><a href="#__codelineno-1-24" id="__codelineno-1-24" name="__codelineno-1-24"></a>--------------------------------------------------
-</span><span id="__span-1-25"><a href="#__codelineno-1-25" id="__codelineno-1-25" name="__codelineno-1-25"></a>root@OpenWrt:~#<span class="w"> </span>uname<span class="w"> </span>-a
-</span><span id="__span-1-26"><a href="#__codelineno-1-26" id="__codelineno-1-26" name="__codelineno-1-26"></a>Linux<span class="w"> </span>OpenWrt<span class="w"> </span><span class="m">5</span>.10.23<span class="w"> </span><span class="c1">#0 SMP Wed Mar 17 19:55:38 2021 aarch64 GNU/Linux</span>
-</span></code></pre></div>
-<p>配置 luci:</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>$<span class="w"> </span>opkg<span class="w"> </span>update
-</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>$<span class="w"> </span>opkg<span class="w"> </span>install<span class="w"> </span>luci
-</span></code></pre></div>
-<p>然后就可以网页访问看到 luci 了：Powered by LuCI Master (git-21.060.51374-cd06e70) / OpenWrt SNAPSHOT r16242-41af8735d4。</p>
-<p>由于目前 luci 不支持 802.11ax 的配置，可以直接修改 uci 配置来达到效果：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>root@OpenWrt:/#<span class="w"> </span>uci<span class="w"> </span>show<span class="w"> </span>wireless
-</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a>root@OpenWrt:/#<span class="w"> </span>uci<span class="w"> </span><span class="nb">set</span><span class="w"> </span>wireless.radio1.htmode<span class="o">=</span><span class="s1">'HE80'</span>
-</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a>root@OpenWrt:/#<span class="w"> </span>/etc/init.d/network<span class="w"> </span>restart
-</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a><span class="s1">'radio0'</span><span class="w"> </span>is<span class="w"> </span>disabled
-</span></code></pre></div>
-<p>注：实际上设置为 HE 开头的字符串即可，见 <a href="https://github.com/openwrt/openwrt/blob/8019c54d8a191cfb90c3bf06ff367f601f872fd1/package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh#L334">mac80211.sh</a>。</p>
-<p>再连接上 Wi-Fi 的时候就可以看到是 802.11ax 模式了。也在 <a href="https://forum.openwrt.org/t/got-802-11ax-working-in-linksys-e8450/91533">OpenWRT 论坛</a> 上分享了一下这个方案。</p>
-<p>更新（2021-07-31）：目前最新的 luci 版本已经可以在网页上配置 802.11ax 模式了。</p>
 </div>
 </article>
 <nav class="md-pagination">

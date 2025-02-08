@@ -516,6 +516,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#利用-upnp-协议进行-mosh-nat-穿透的研究" class="md-nav__link">
+    <span class="md-ellipsis">
+      利用 UPnP 协议进行 mosh NAT 穿透的研究
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#在-archlinux-上用-winbind-配合-pam-配置-windows-ad-认证登录" class="md-nav__link">
     <span class="md-ellipsis">
       在 Archlinux 上用 winbind 配合 pam 配置 Windows AD 认证登录
@@ -726,15 +735,6 @@
   <a href="#用-cpuid-获取评测机器的-cpu" class="md-nav__link">
     <span class="md-ellipsis">
       用 CPUID 获取评测机器的 CPU
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#一个代替-pulse-secure-客户端的工具" class="md-nav__link">
-    <span class="md-ellipsis">
-      一个代替 Pulse Secure 客户端的工具
     </span>
   </a>
   
@@ -1764,6 +1764,75 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2018-05-05 00:00:00+00:00">2018年5月5日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/networking/" class="md-meta__link">networking</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="利用-upnp-协议进行-mosh-nat-穿透的研究"><a class="toclink" href="../../networking/2018/05/05/mosh-behind-nat-with-upnp/">利用 UPnP 协议进行 mosh NAT 穿透的研究</a></h2>
+<p>由于经常要从宿舍、教室等不同的 Wi-Fi 之间切换，但是 ssh 连接又总是断，所以想用 mosh 代替 ssh。但是 mosh 也有它的问题：</p>
+<ol>
+<li>不能滚动。这个可以在 mosh 中嵌套一层 tmux 解决。我目前写了一些自动 mosh 后打开 tmux 并且开启鼠标支持的脚本，但还是有缺陷。</li>
+<li>在高端口 60000+ 监听 UDP，这使得 NAT 后的服务器难以直接通过端口转发。如果直接转发到 NAT 后的机器，那么 NAT 后面如果有多台机器，这又失效了。</li>
+</ol>
+<p>于是找了找网上的 NAT 穿透的一些文章，看到了 UPnP 的方法。大致就是，用户可以向路由器注册一个临时的转发规则，路由会自动在 iptables 上配置转发。但是，这样也会遇到一个问题：路由上的 mosh-server 不知道这个转发的存在，所以它可能会尝试监听同样的端口。解决方案下面会提到。</p>
+<p>需求：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Server &lt;---&gt; NAT Router &lt;---&gt; My Laptop
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>On NAT Router, port 8022 is forwarded to Server:22
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>1. mosh router # works
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>2. mosh --ssh=&quot;ssh -p 8022&quot; router # works
+</span></code></pre></div>
+<p>首先在 NAT Router 上配置 miniupnpd（以 Debian 为例）</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>miniupnpd
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># you will get a dialog upon installation</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># input your wan interface and listening ip accordingly</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>sudo<span class="w"> </span>vim<span class="w"> </span>/etc/default/miniupnpd
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># edit START_DAEMON=0 to START_DAEMON=1</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>sudo<span class="w"> </span>vim<span class="w"> </span>/etc/miniupnpd/miniupnpd.conf
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># edit ext_ifname, listening_ip accordingly</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># set secure_mode=yes</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># add &#39;allow 60000-60023 internal_ip/prefix 60000-60023&#39;</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># before the last line &#39;deny 0-65535 0.0.0.0/0 0-65535&#39;</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>miniupnpd
+</span></code></pre></div>
+<p>现在，复制 <a href="https://github.com/jiegec/mosh-upnp-hole-puncher/blob/master/mosh-wrapper.js">我修改的 mosh-wrapper.js</a> 到用户的 home 目录下，在 Server 安装 <code>miniupnpc</code> 然后通过：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>mosh<span class="w"> </span>--ssh<span class="o">=</span><span class="s2">&quot;ssh -p 8022&quot;</span><span class="w"> </span>--server<span class="o">=</span>~/mosh-wrapper.js<span class="w"> </span>user@router
+</span></code></pre></div>
+<p>这样，mosh 首先会通过 ssh 和 Server 协商一个 AES 的密钥和 UDP 端口（如 60001），之后的通信都通过 UDP 端口走加密后的流量。我的 <code>mosh-wrapper.js</code> 通过 <code>miniupnpc</code> 向路由器请求把该 UDP 端口转发到 Server 上，这样， <code>mosh-server</code> 就能通过 NAT 路由穿透到后面的 Server 上。</p>
+<p>等会！问题来了：</p>
+<p><code>mosh</code> 默认的 IP 范围是 <code>60000-61000</code> ，根据我的观察，它会从 60001 开始尝试监听本机地址，如果已经被占用，则 60002, 60003, ... 但是！Router 和 Server 实际上占用了相同的端口空间，并且 <code>mosh</code> 只知道本机哪些端口被占用了，而不知道 Router 和 Server 共同占用了多少端口。</p>
+<p>我想到了一些可能的解决方案：</p>
+<ol>
+<li>在 Router 上让 miniupnpd 监听对应的端口，占住这个坑。这样，Router 上的 <code>mosh-server</code> 就不会用和 Server 相同的端口</li>
+<li>如果有多个 Server，则会出现抢夺相同端口的情况。我目前的想法是，让 <code>upnpc</code> 去询问 Router 找空闲的端口，然后再传给 <code>mosh-server</code> 使用。另一种方法则是，给不同的 Server 划分不同的端口范围，比如 Router 用 60001-60005, 然后 Server1 用 60006-60010, Server2 用 60011-60015 如此下去。</li>
+</ol>
+<p>然后，新的问题又发现了：</p>
+<p>当我在和 Server 同一个子网的时候，由于 <code>miniupnpd</code> 配置的 <code>iptables</code> 规则中来源只有 WAN interface，所以我在内网发的包是不会被转发的。当然，既然在内网了，为啥不直接用内网 IP 呢，不知道 <code>mosh</code> 有没有提供设置备用 IP 的功能。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3381,42 +3450,6 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Intel(R) Core(TM) i3-2120 CPU @ 3.30GHz
 </span></code></pre></div>
 <p>相比之下，还是比 BZOJ 好哈哈哈（又黑 BZOJ）。后来有大神在群里建议，可以用字符串比较的方式，对了就让题目 AC，不对就 WA。这个方法更加适合手里已经知道了一些常见 CPUID 的返回字符串，这里就是这样。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2017-10-26 00:00:00+00:00">2017年10月26日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/others/" class="md-meta__link">others</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="一个代替-pulse-secure-客户端的工具"><a class="toclink" href="../../others/2017/10/26/alternative-to-pulse-secure/">一个代替 Pulse Secure 客户端的工具</a></h2>
-<p><a href="http://sslvpn.tsinghua.edu.cn">清华的校外 VPN 服务</a>使用的是 Pulse Secure，所以在外网我们需要在客户端上安装 Pulse Secure 才能使用内网的 info 和网络学堂等网站。但是 Pulse Secure 一是非自由软件二界面难看，所以我找到了一个代替它的工具：<a href="http://www.infradead.org/openconnect/">OpenConnect</a>.</p>
-<p>安装后，输入以下命令：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>sudo<span class="w"> </span>openconnect<span class="w"> </span>--user<span class="w"> </span>你的学号<span class="w"> </span>sslvpn.tsinghua.edu.cn<span class="w"> </span>--juniper<span class="w"> </span>--reconnect-timeout<span class="w"> </span><span class="m">60</span><span class="w"> </span>--servercert<span class="w"> </span>sha256:398c6bccf414f7d71b6dc8d59b8e3b16f6d410f305aed7e30ce911c3a4064b31
-</span></code></pre></div>
-<p>然后输入你的 info 密码即可。</p>
     
   </div>
 </article>
