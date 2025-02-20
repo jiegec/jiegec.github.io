@@ -1652,18 +1652,41 @@
 </span><span id="__span-50-5"><a href="#__codelineno-50-5" id="__codelineno-50-5" name="__codelineno-50-5"></a>ceph<span class="w"> </span>orch<span class="w"> </span>ps
 </span></code></pre></div>
 <p>然后就可以访问 Grafana 看到集群的状态。</p>
+<h4 id="单机集群"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#单机集群">单机集群</a></h4>
+<p>在集群只有单机的时候，由于默认 MGR 每个 host 只能有一个，所以会导致无法升级。</p>
+<p>一种方法是在创建 cluster 的时候，传入 <code>--single-host-defaults</code> 参数，详见 <a href="https://github.com/ceph/ceph/blob/main/doc/cephadm/install.rst#single-host">Single host deployment</a></p>
+<p>另一种方法是，动态修改 MGR 的 <code>mgr_standby_modules</code> 选项为 <code>false</code>：</p>
+<ol>
+<li>运行 <code>ceph config set mgr mgr_standby_modules false</code></li>
+<li>
+<p>创建一个 <code>mgr.yaml</code> 文件：</p>
+<div class="language-text highlight"><pre><span></span><code>```yaml
+service_type: mgr
+service_name: mgr
+placement:
+  hosts:
+    - YOUR_HOSTNAME_HERE
+  count_per_host: 2
+```
+</code></pre></div>
+</li>
+<li>
+<p>告诉 cephadm，让它在 <code>YOUR_HOSTNAME_HERE</code> 机器上部署两个 MGR：<code>ceph orch apply -i mgr.yaml</code></p>
+</li>
+<li>这样就成功了，可以用 <code>ceph orch ps</code> 确认有两个 MGR，这样就可以升级 ceph 了</li>
+</ol>
 <h3 id="更新"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#更新">更新</a></h3>
 <p>使用容器编排器来升级：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-51-1"><a href="#__codelineno-51-1" id="__codelineno-51-1" name="__codelineno-51-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--ceph-version<span class="w"> </span>x.x.x
-</span><span id="__span-51-2"><a href="#__codelineno-51-2" id="__codelineno-51-2" name="__codelineno-51-2"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--image<span class="w"> </span>quay.io/ceph/ceph:vx.x.x
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-52-1"><a href="#__codelineno-52-1" id="__codelineno-52-1" name="__codelineno-52-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--ceph-version<span class="w"> </span>x.x.x
+</span><span id="__span-52-2"><a href="#__codelineno-52-2" id="__codelineno-52-2" name="__codelineno-52-2"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>start<span class="w"> </span>--image<span class="w"> </span>quay.io/ceph/ceph:vx.x.x
 </span></code></pre></div>
 <p>如果 docker hub 上找不到 image，就从 quay.io 拉取。</p>
 <p>查看升级状态：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-52-1"><a href="#__codelineno-52-1" id="__codelineno-52-1" name="__codelineno-52-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>status
-</span><span id="__span-52-2"><a href="#__codelineno-52-2" id="__codelineno-52-2" name="__codelineno-52-2"></a>ceph<span class="w"> </span>-s
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-53-1"><a href="#__codelineno-53-1" id="__codelineno-53-1" name="__codelineno-53-1"></a>ceph<span class="w"> </span>orch<span class="w"> </span>upgrade<span class="w"> </span>status
+</span><span id="__span-53-2"><a href="#__codelineno-53-2" id="__codelineno-53-2" name="__codelineno-53-2"></a>ceph<span class="w"> </span>-s
 </span></code></pre></div>
 <p>查看 cephadm 日志：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-53-1"><a href="#__codelineno-53-1" id="__codelineno-53-1" name="__codelineno-53-1"></a>ceph<span class="w"> </span>-W<span class="w"> </span>cephadm
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-54-1"><a href="#__codelineno-54-1" id="__codelineno-54-1" name="__codelineno-54-1"></a>ceph<span class="w"> </span>-W<span class="w"> </span>cephadm
 </span></code></pre></div>
 <h3 id="参考文档"><a class="toclink" href="../../devops/2022/07/16/ceph-cookbook/#参考文档">参考文档</a></h3>
 <ul>
@@ -2372,6 +2395,7 @@ July 2019.)
 </span></code></pre></div>
 <p>显示各个配置可能的选项和内容：<code>sudo mlxconfig -d /dev/mst/mtxxxx_pciconf0 show_confs</code></p>
 <p>整个安装流程在仓库 <a href="https://github.com/jiegec/mft-debian-bookworm">https://github.com/jiegec/mft-debian-bookworm</a> 中用脚本实现。</p>
+<p>UPDATE: 太新的 MFT 版本不支持比较旧的网卡，例如 4.22.1-LTS 支持 ConnectX-3，但 4.26.1-LTS 就不支持了。</p>
 <h3 id="vmware-esxi"><a class="toclink" href="../../software/2022/07/02/connectx-4-switch-to-ethernet/#vmware-esxi">VMware ESXi</a></h3>
 <p>如果要在 ESXi 上把网卡改成以太网模式，可以参考下面的文档：</p>
 <ul>
