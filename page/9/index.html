@@ -516,6 +516,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#jielabs-是如何工作的" class="md-nav__link">
+    <span class="md-ellipsis">
+      JieLabs 是如何工作的
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#每周分享第-54-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 54 期
@@ -726,15 +735,6 @@
   <a href="#macos-下读取并解析-edid" class="md-nav__link">
     <span class="md-ellipsis">
       macOS 下读取并解析 EDID
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#在-linux-下捕获-framebuffer" class="md-nav__link">
-    <span class="md-ellipsis">
-      在 Linux 下捕获 Framebuffer
     </span>
   </a>
   
@@ -1764,6 +1764,69 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-01-01 00:00:00+00:00">2020年1月1日</time></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="jielabs-是如何工作的"><a class="toclink" href="../../2020/01/01/jielabs/">JieLabs 是如何工作的</a></h2>
+<h3 id="简介"><a class="toclink" href="../../2020/01/01/jielabs/#简介">简介</a></h3>
+<p>JieLabs 是陈嘉杰、高一川、刘晓义（按姓氏拼音首字母排序）于 2020 年新型冠状病毒疫情期间开发的在线数字逻辑电路实验系统，用于清华大学 2020 年春季学期数字逻辑电路实验课程。其包括前端、后端和固件三部分，分别主要由刘晓义、陈嘉杰和高一川负责开发。核心功能实现用时一周，后续界面和稳定性优化用时两周。本文会详细地介绍 JieLabs 的工作原理和一些技术细节，希望对各位同学有所帮助。</p>
+<h4 id="太长不看"><a class="toclink" href="../../2020/01/01/jielabs/#太长不看">太长；不看。</a></h4>
+<p>采用了如下的技术方案：</p>
+<p>前端：React 框架 + Redux 状态管理 + Monaco 编辑器 + WebAssembly 运行 Rust 代码 + WebSocket 实时通信 + SASS 样式</p>
+<p>后端：Actix-Web 框架 + Diesel/PostgreSQL 数据库 + Redis 消息队列 + Quartus 构建 + Kubernetes 构建容器编排</p>
+<p>固件：Xilinx FPGA 控制 + Buildroot 系统 + Linux 内核</p>
+<h3 id="前端"><a class="toclink" href="../../2020/01/01/jielabs/#前端">前端</a></h3>
+<p>前端大部分都是刘晓义同学编写的，也是这个项目工作量最大的一部分。除了本文，还可以阅读<a href="https://meow.c-3.moe/sth-about-jielabs">刘晓义同学自己写的总结</a>。主要分以下几部分来谈前端的技术实现：</p>
+<h4 id="第三方库"><a class="toclink" href="../../2020/01/01/jielabs/#第三方库">第三方库</a></h4>
+<p>整体上采用了时下比较流行的 React 框架，配合 Redux 进行状态管理，用 React Hooks 编写组件的逻辑。为了实现 VHDL/Verilog 代码的编辑，采用了来自 VSCode 的独立编辑器空间 Monaco，并自行编写了 VHDL 和 Verilog 语言的支持，一部分在 JS 实现，另一部分在 Rust 中实现，通过 wasm-pack 打包到 JS 中执行。另外为了实现 gzip 格式的解压缩也引入了 pako 库。</p>
+<p>在这些第三方库里，Monaco 的体积最大，后面我们针对 JS 体积做了许多优化，在下面会再提。</p>
+<h4 id="rust-在前端的应用"><a class="toclink" href="../../2020/01/01/jielabs/#rust-在前端的应用">Rust 在前端的应用</a></h4>
+<p>由于开发者里刘晓义和陈嘉杰都是 Rust 语言的爱好者，考虑到目前 Rust to WASM 的技术比较成熟，WebAssembly 的可用程度也很高，我们把一些功能挪到了 Rust 中执行：</p>
+<p>一是布线的计算。这是一个比较纯粹的算法问题，一方面对性能有一定的要求，一方面开发者比较喜欢 Rust，所以就用 Rust 实现了。这里要特别感谢刘光哲同学对布线算法的指点。在此基础上，我们用 Rust <a href="https://github.com/jiegec/maze-routing">实现</a>了几个论文中的布线算法（Maze Router），并且通过和 JS 代码的配合得到了一个比较优秀的效果。</p>
+<p>二是 VHDL/Verilog 的语言支持。学过编译原理的同学应该知道，如果要实现一个能够解析代码里的信号的程序，一般是不能通过正则表达式来解决的，况且我们还实现了一些错误信息的显示。VHDL 语言支持采用了已有的比较完善的库，Verilog 由于现有的库都比较庞大，不适合放于前端，于是我们编写了一个最小的 Verilog（实际上算是 SystemVerilog）的解析，仅仅足够满足我们的需求。如果同学们遇到了一些语法上功能的缺少，欢迎提出。</p>
+<h4 id="canvas-的应用"><a class="toclink" href="../../2020/01/01/jielabs/#canvas-的应用">Canvas 的应用</a></h4>
+<p>连线部分因为是动态生成的，所以也是动态绘制的，Canvas 就可以派上用场了。我们也利用了 Canvas 的特性，针对每一个网络都画在一个 Canvas 上，那么在检测鼠标位置的时候，只要检查 Canvas 在鼠标所在的点上是否颜色，就知道鼠标是否在它上面了。</p>
+<h4 id="前端加载速度的优化"><a class="toclink" href="../../2020/01/01/jielabs/#前端加载速度的优化">前端加载速度的优化</a></h4>
+<p>优化前前端 JS 和 WASM 总大小大约是 4MB，对于网络不好的用户来说，它的加载时间是不能容忍的。于是我们采用了以下的措施：</p>
+<ol>
+<li>打开 gzip：有很显著的效果，但因为一些未知的原因，在实际部署的时候未能打开</li>
+<li>缩小 JS 体积：通过 Webpack Analyzer 分析程序各个部分的大小，删掉了 Monaco 中一些没有用到的功能</li>
+<li>缩小 WASM 体积：打开 LTO 和 -Os 选项</li>
+<li>代码分割：把不同功能的代码分割开，先让一部分代码加载进来，可以绘制一个部分功能的界面，然后再继续加载剩下的组件</li>
+<li>CDN：把一部分外部的依赖放到国内，后续如果有需求的话也可以把内部的依赖也放到国内的 CDN 上</li>
+</ol>
+<h3 id="后端"><a class="toclink" href="../../2020/01/01/jielabs/#后端">后端</a></h3>
+<p>后端用 Rust 语言编写，采用了目前比较成熟的 actix-web 框架，大量使用了 async/await。除此之外，用 Redis 作为消息队列，在 Docker 容器中运行 Quartus，用 Kubernetes 进行容器的动态调度。</p>
+<h4 id="任务调度"><a class="toclink" href="../../2020/01/01/jielabs/#任务调度">任务调度</a></h4>
+<p>对于用户提交的代码和约束，后端需要进行任务的调度，生成一个新的任务，放入到 Redis 消息队列中。另一方面，Docker 中运行的 python 脚本会从 Redis 中取任务，任务完成后把结果上传并回传给后端表示确认。如果一个任务一直没有完成，后端会进行回收并重新分配一个任务到队列中。为了防止这个过程中出现重复任务的提交，为每个提交设置了一个足够长的随机 ID。Docker 容器一开始是通过 docker-compose 进行配置，后来考虑到这个场景比较适合 kubernetes，于是使用了一下，还挺好用的。一开始用的是 minikube，搭好 docker registry，然后往里面部署几个 pod 并设置 hpa，具体可以看我的另一篇博客，后来迁移到了 kubeadm 直接配置。现在迁移到了一个 k3s 搭建的 k8s 集群上。</p>
+<h4 id="板子通信"><a class="toclink" href="../../2020/01/01/jielabs/#板子通信">板子通信</a></h4>
+<p>第二个主要功能是进行板子的分配和通信。每个用户会创建一个 WebSocket 连接到后端，每个板子也是一个 WebSocket。当一个用户分配到一个板子的时候，它可以通过后端发送命令给对应的板子，板子的回复也会原路返回，相当于一个 WebSocket Proxy。另外为了保证资源的利用率，添加了一些限制、心跳包和认证。</p>
+<h4 id="状态监控"><a class="toclink" href="../../2020/01/01/jielabs/#状态监控">状态监控</a></h4>
+<p>为了可以直观地看到各个数据，实现了一个简单的监控接口，接入 Telegraf+InfluxDB+Grafana 的监控系统，可以实时看到各个资源的情况，如用户、板子和任务等等，也方便我们在在线用户比较少的时候进行更新。</p>
+<h3 id="板子"><a class="toclink" href="../../2020/01/01/jielabs/#板子">板子</a></h3>
+<p>这个平台虽然是用于数字逻辑实验课程，但实际用的板子来自数字逻辑设计课程。我们把其上一个 Altera FPGA 作为实验 FPGA，在控制的 Xilinx FPGA 上运行我们的固件，负责读取和写入 GPIO、下载 bitstream 等等功能。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3051,74 +3114,6 @@
 </span></code></pre></div>
 <p>就可以看到很详细的 EDID 数据解析了。</p>
 <p>ref: https://gist.github.com/OneSadCookie/641549 https://www.avsforum.com/forum/115-htpc-mac-chat/1466910-ability-dump-display-s-edid-mac.html</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-08-12 00:00:00+00:00">2019年8月12日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/software/" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-linux-下捕获-framebuffer"><a class="toclink" href="../../software/2019/08/12/framebuffer-capture/">在 Linux 下捕获 Framebuffer</a></h2>
-<p>最近需要在 linux 下抓取 Framebuffer 的内容，在网上找到了两种方法，在我这里只有第二、第三种可以成功，没有细究具体原因，可能与我的 Framebuffer 配置有关。方法如下：</p>
-<ol>
-<li><code>fbgrab</code> ：命令就是 fbgrab image.png，直接得到 png 文件，格式是对的，但是用软件打开就是一片空白。用 ImageMagick 转换为 jpg 可以看到一些内容，但是和实际有些不一样。</li>
-<li><code>fbdump</code> ：命令就是 fbdump &gt; image.ppm，得到裸的 ppm 文件，图像是正确的，也可以转换为别的格式正常打开。</li>
-<li>cat+脚本处理：直接 cat /dev/fb0 &gt; image.rgb，然后用下面的脚本转换为 png。由于 Framebuffer 格式为 RGB，本来 A 所在的 channel 都为 0，所以用一些软件直接打开都是空白，只好写了脚本直接跳过 Alpha Channel。</li>
-</ol>
-<p>Framebuffer 配置（ <code>fbset</code> 输出）：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mode &quot;640x480-0&quot;
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>        # D: 0.000 MHz, H: 0.000 kHz, V: 0.000 Hz
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        geometry 640 480 1024 480 32
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        timings 0 0 0 0 0 0 0
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        accel false
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        rgba 8/16,8/8,8/0,0/0
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>endmode
-</span></code></pre></div>
-<p>转换脚本（参考 <a href="https://owen-hsu.blogspot.com/2016/06/tips-framebuffer.html">[Tips] 擷取 framebuffer 畫面</a>）：</p>
-<div class="language-perl highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="ch">#!/usr/bin/perl -w</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">$w</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mi">240</span><span class="p">;</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nv">$h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mi">320</span><span class="p">;</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">$pixels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$w</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nv">$h</span><span class="p">;</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nb">open</span><span class="w"> </span><span class="n">OUT</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;|pnmtopng&quot;</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="nb">die</span><span class="w"> </span><span class="s">&quot;Can&#39;t pipe pnmtopng: $!\n&quot;</span><span class="p">;</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="nb">printf</span><span class="w"> </span><span class="n">OUT</span><span class="w"> </span><span class="s">&quot;P6%d %d\n255\n&quot;</span><span class="p">,</span><span class="w"> </span><span class="nv">$w</span><span class="p">,</span><span class="w"> </span><span class="nv">$h</span><span class="p">;</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">while</span><span class="w"> </span><span class="p">((</span><span class="nb">read</span><span class="w"> </span><span class="bp">STDIN</span><span class="p">,</span><span class="w"> </span><span class="nv">$raw</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="nv">$pixels</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">   </span><span class="nv">$short</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">unpack</span><span class="p">(</span><span class="s">&#39;I&#39;</span><span class="p">,</span><span class="w"> </span><span class="nv">$raw</span><span class="p">);</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">   </span><span class="k">print</span><span class="w"> </span><span class="n">OUT</span><span class="w"> </span><span class="nb">pack</span><span class="p">(</span><span class="s">&quot;C3&quot;</span><span class="p">,</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="p">(</span><span class="nv">$short</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xff0000</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">16</span><span class="p">,</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="p">(</span><span class="nv">$short</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xff00</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="p">(</span><span class="nv">$short</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xff</span><span class="p">));</span>
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="p">}</span>
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
-</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="nb">close</span><span class="w"> </span><span class="n">OUT</span><span class="p">;</span>
-</span></code></pre></div>
-<p>用法： <code>cat image.rgb | perl script.pl 1024 480 &gt; console.png</code></p>
     
   </div>
 </article>
