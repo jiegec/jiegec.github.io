@@ -1,0 +1,2473 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="杰哥的{运维，编程，调板子}小笔记">
+      
+      
+      
+        <link rel="canonical" href="https://jia.je/software/2025/03/01/v8-ignition-internals/">
+      
+      
+        <link rel="prev" href="../../../02/04/feishu-dump-calendar/">
+      
+      
+        <link rel="next" href="../../06/android-runtime-interpreter/">
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.7">
+    
+    
+      
+        <title>V8 Ignition 解释器的内部实现探究 - 杰哥的{运维，编程，调板子}小笔记</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.8608ea7d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-3109FRSVTT"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-3109FRSVTT",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#v8-ignition-解释器的内部实现探究" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-header__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            杰哥的{运维，编程，调板子}小笔记
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              V8 Ignition 解释器的内部实现探究
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jiegec/blog-source" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+    
+  
+  博客
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+    
+  
+  关于
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../open-source-contributions/" class="md-tabs__link">
+        
+  
+    
+  
+  开源
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tags/" class="md-tabs__link">
+        
+  
+    
+  
+  标签
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/kb/" class="md-tabs__link">
+        
+  
+    
+  
+  知识库
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/cpu/" class="md-tabs__link">
+        
+  
+    
+  
+  CPU
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../series/" class="md-tabs__link">
+        
+  
+    
+  
+  系列
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../projects/" class="md-tabs__link">
+        
+  
+    
+  
+  项目
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tools/" class="md-tabs__link">
+        
+  
+    
+  
+  工具
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/feed.xml" class="md-tabs__link">
+        
+  
+    
+  
+  订阅
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../benchmark/" class="md-tabs__link">
+        
+  
+    
+  
+  SPEC
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../archive/2025/" class="md-tabs__link">
+          
+  
+  归档
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../category/crypto/" class="md-tabs__link">
+          
+  
+  分类
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-nav__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    杰哥的{运维，编程，调板子}小笔记
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jiegec/blog-source" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    博客
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    关于
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../open-source-contributions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    开源
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tags/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    标签
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/kb/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    知识库
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/cpu/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CPU
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../series/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    系列
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../projects/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    项目
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    工具
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/feed.xml" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    订阅
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../benchmark/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    SPEC
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    归档
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2025/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2024/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2024
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2023/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2023
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2022/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2022
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2021/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2021
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2020/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2020
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2019/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2019
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2018/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2018
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2017/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2017
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2016/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2016
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2014/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2014
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    分类
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/crypto/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    crypto
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/csdn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    csdn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/ctf/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ctf
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/devops/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    devops
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/hardware/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    hardware
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/life/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    life
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/logo/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    logo
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/meta/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    meta
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/misc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    misc
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/networking/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    networking
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/news/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    news
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/os/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    os
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/others/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    others
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/programming/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    programming
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/software/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    software
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/speech/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    speech
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/system/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    system
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/unboxing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    unboxing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                  <span class="md-ellipsis">
+                    回到主页
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    元数据
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
+                        <time datetime="2025-03-01 00:00:00+00:00" class="md-ellipsis">2025年3月1日</time>
+                      </div>
+                    </li>
+                    
+                    
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3zm3 2 4 13 3-1-4-13zM5 5v13h3V5zM3 19v2h18v-2z"/></svg>
+                          <span class="md-ellipsis">
+                            分类于
+                            
+                              <a href="../../../../../category/software/">software</a></span>
+                        </div>
+                      </li>
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              需要 13 分钟阅读时间
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+            
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#背景" class="md-nav__link">
+    <span class="md-ellipsis">
+      背景
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#编译-v8" class="md-nav__link">
+    <span class="md-ellipsis">
+      编译 V8
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#解释器和编译器" class="md-nav__link">
+    <span class="md-ellipsis">
+      解释器和编译器
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ignition-解释器" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ignition 解释器
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ignition 解释器">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#分析样例-js-代码" class="md-nav__link">
+    <span class="md-ellipsis">
+      分析样例 JS 代码
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#解释执行" class="md-nav__link">
+    <span class="md-ellipsis">
+      解释执行
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#参考" class="md-nav__link">
+    <span class="md-ellipsis">
+      参考
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:aot" class="md-tag">aot</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:javascript" class="md-tag">javascript</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:jit" class="md-tag">jit</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:js" class="md-tag">js</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:linux" class="md-tag">linux</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:v8" class="md-tag">v8</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="v8-ignition-解释器的内部实现探究">V8 Ignition 解释器的内部实现探究<a class="headerlink" href="#v8-ignition-解释器的内部实现探究" title="Permanent link">&para;</a></h1>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
+<p>V8 是一个很常见的 JavaScript 引擎，运行在很多的设备上，因此想探究一下它内部的部分实现。本博客在 ARM64 Ubuntu 24.04 平台上针对 <a href="https://chromium.googlesource.com/v8/v8.git/+/6f774f929205be0a49cf861b8d73a92655e1dd36">V8 12.8.374.31</a> 版本进行分析。本博客主要分析了 V8 的 Ignition 解释器的解释执行部分。</p>
+<!-- more -->
+
+<h2 id="编译-v8">编译 V8<a class="headerlink" href="#编译-v8" title="Permanent link">&para;</a></h2>
+<p>首先简单过一下 v8 的源码获取以及编译流程，主要参考了 <a href="https://v8.dev/docs/source-code">Checking out the V8 source code</a> 和 <a href="https://v8.dev/docs/compile-arm64">Compiling on Arm64 Linux</a>:</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># setup depot_tools</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>git<span class="w"> </span>clone<span class="w"> </span>https://chromium.googlesource.com/chromium/tools/depot_tools.git
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/depot_tools:<span class="nv">$PATH</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># clone v8 repos</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>mkdir<span class="w"> </span>~/v8
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nb">cd</span><span class="w"> </span>~/v8
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>fetch<span class="w"> </span>v8
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">cd</span><span class="w"> </span>v8
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># switch to specified tag</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>git<span class="w"> </span>checkout<span class="w"> </span><span class="m">12</span>.8.374.31
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>gclient<span class="w"> </span>sync<span class="w"> </span>--verbose
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># install dependencies</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>./build/install-build-deps.sh
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># install llvm 19</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>wget<span class="w"> </span>https://mirrors.tuna.tsinghua.edu.cn/llvm-apt/llvm.sh
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>chmod<span class="w"> </span>+x<span class="w"> </span>llvm.sh
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>sudo<span class="w"> </span>./llvm.sh<span class="w"> </span><span class="m">19</span><span class="w"> </span>-m<span class="w"> </span>https://mirrors.tuna.tsinghua.edu.cn/llvm-apt
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>rm<span class="w"> </span>llvm.sh
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>lld<span class="w"> </span>clang-19
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="c1"># fix incompatibilities with system clang 19</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>sed<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;s/-Wno-missing-template-arg-list-after-template-kw//&quot;</span><span class="w"> </span>build/config/compiler/BUILD.gn
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="c1"># compile v8 using system clang 19</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="c1"># for amd64: use x64.optdebug instead of arm64.optdebug</span>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>tools/dev/gm.py<span class="w"> </span>arm64.optdebug<span class="w"> </span>--progress<span class="o">=</span>verbose
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="c1"># d8 is compiled successfully at</span>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>./out/arm64.optdebug/d8
+</span></code></pre></div>
+<p>如果不想编译 V8，也可以直接用 Node.JS 来代替 <code>d8</code>。不过 Node.JS 会加载很多 JS 代码，使得输出更加复杂，此时就需要手动过滤一些输出，或者通过命令行设置一些打印日志的过滤器。另外，后面有一些深入的调试信息，需要手动编译 V8 才能打开，因此还是建议读者上手自己编译一个 V8。</p>
+<p>在 AMD64 上，默认会使用 V8 自带的 LLVM 版本来编译，此时就不需要额外安装 LLVM 19，也不需要修改 <code>v8/build/config/compiler/BUILD.gn</code>。</p>
+<h2 id="解释器和编译器">解释器和编译器<a class="headerlink" href="#解释器和编译器" title="Permanent link">&para;</a></h2>
+<p>通过 V8 的文档可以看到，V8 一共有这些解释器或编译器，按照其优化等级从小到大的顺序：</p>
+<ol>
+<li><a href="https://v8.dev/docs/ignition">Ignition</a>: 解释器</li>
+<li><a href="https://v8.dev/blog/sparkplug">SparkPlug</a>: 不优化的快速编译器，追求快的编译速度</li>
+<li><a href="https://v8.dev/blog/maglev">Maglev</a>：做优化的编译器，寻求编译速度和编译质量的平衡</li>
+<li><a href="https://v8.dev/docs/turbofan">TurboFan</a>：做优化的编译器，寻求更好的编译质量</li>
+</ol>
+<p>在 JS 的使用场景，不同代码被调用的次数以及对及时性的需求差别很大，为了适应不同的场景，V8 设计了这些解释器和编译器来提升整体的性能：执行次数少的代码，倾向于用更低优化等级的解释器或编译器，追求更低的优化开销；执行次数多的代码，当编译优化时间不再成为瓶颈，则倾向于用更高优化等级的编译器，追求更高的执行性能。</p>
+<h2 id="ignition-解释器">Ignition 解释器<a class="headerlink" href="#ignition-解释器" title="Permanent link">&para;</a></h2>
+<h3 id="分析样例-js-代码">分析样例 JS 代码<a class="headerlink" href="#分析样例-js-代码" title="Permanent link">&para;</a></h3>
+<p>首先来观察一下 Ignition 解释器的工作流程。写一段简单的 JS 代码：</p>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">function</span><span class="w"> </span><span class="nx">add</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span><span class="w"> </span><span class="nx">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">b</span><span class="p">;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">}</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nx">add</span><span class="p">(</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">);</span>
+</span></code></pre></div>
+<p>保存为 <code>test.js</code>，运行 <code>./out/arm64.optdebug/d8 --print-ast --print-bytecode test.js</code> 以打印它的 AST 以及 Bytecode:</p>
+<p>首先开始的是 top level 的 AST 以及 Bytecode，它做的事情就是：声明一个函数 add，然后以参数 <code>(1, 2)</code> 来调用它。</p>
+<p>top level AST:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[generating bytecode for function: ]
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>--- AST ---
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>FUNC at 0
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>. KIND 0
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>. LITERAL ID 0
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>. SUSPEND COUNT 0
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>. NAME &quot;&quot;
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>. INFERRED NAME &quot;&quot;
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>. DECLS
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>. . FUNCTION &quot;add&quot; = function add
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>. EXPRESSION STATEMENT at 42
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>. . kAssign at -1
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>. . . VAR PROXY local[0] (0xc28698556308) (mode = TEMPORARY, assigned = true) &quot;.result&quot;
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>. . . CALL
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>. . . . VAR PROXY unallocated (0xc28698556200) (mode = VAR, assigned = true) &quot;add&quot;
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>. . . . LITERAL 1
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>. . . . LITERAL 2
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>. RETURN at -1
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>. . VAR PROXY local[0] (0xc28698556308) (mode = TEMPORARY, assigned = true) &quot;.result&quot;
+</span></code></pre></div>
+<p>首先声明了一个 <code>add</code> 函数，然后以 <code>1</code> 和 <code>2</code> 两个参数调用 <code>add</code> 函数，把结果绑定给局部变量 <code>.result</code>，最后以 <code>.result</code> 为结果返回。接下来看它会被翻译成什么字节码：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[generated bytecode for function:  (0x1f8e002988f5 &lt;SharedFunctionInfo&gt;)]
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Bytecode length: 28
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Parameter count 1
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>Register count 4
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Frame size 32
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>         0x304700040048 @    0 : 13 00             LdaConstant [0]
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>         0x30470004004a @    2 : c9                Star1
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>         0x30470004004b @    3 : 19 fe f7          Mov &lt;closure&gt;, r2
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>         0x30470004004e @    6 : 68 63 01 f8 02    CallRuntime [DeclareGlobals], r1-r2
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>         0x304700040053 @   11 : 21 01 00          LdaGlobal [1], [0]
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>         0x304700040056 @   14 : c9                Star1
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>         0x304700040057 @   15 : 0d 01             LdaSmi [1]
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>         0x304700040059 @   17 : c8                Star2
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>         0x30470004005a @   18 : 0d 02             LdaSmi [2]
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>         0x30470004005c @   20 : c7                Star3
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>         0x30470004005d @   21 : 66 f8 f7 f6 02    CallUndefinedReceiver2 r1, r2, r3, [2]
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>         0x304700040062 @   26 : ca                Star0
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>         0x304700040063 @   27 : af                Return
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>Constant pool (size = 2)
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>0x304700040011: [TrustedFixedArray]
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a> - map: 0x1f8e00000595 &lt;Map(TRUSTED_FIXED_ARRAY_TYPE)&gt;
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a> - length: 2
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>           0: 0x1f8e00298945 &lt;FixedArray[2]&gt;
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>           1: 0x1f8e000041dd &lt;String[3]: #add&gt;
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>Handler Table (size = 0)
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>Source Position Table (size = 0)
+</span></code></pre></div>
+<p>V8 的字节码采用的是基于寄存器的执行模型，而非其他很多字节码会采用的栈式。换句话说，每个函数有自己的若干个寄存器可供操作。每条字节码分为 Opcode（表示这条字节码要进行的操作）和操作数两部分。函数开头的 <code>Register count 4</code> 表明该函数有四个寄存器：<code>r0-r3</code>，此外还有一个特殊的 <code>accumulator</code> 寄存器，它一般不会出现在操作数列表中，而是隐含在 Opcode 内（<code>Lda/Sta</code>）。</p>
+<p>完整的 Opcode 列表可以在 <code>v8/src/interpreter/bytecodes.h</code> 中找到，对应的实现可以在 <code>v8/src/interpreter/interpreter-generator.cc</code> 中找到。</p>
+<p>上述字节码分为两部分，第一部分是声明 <code>add</code> 函数：</p>
+<ol>
+<li><code>LdaConstant [0]</code>: 把 Constant Pool 的第 0 项也就是 <code>FixedArray[2]</code> 写入 <code>accumulator</code> 寄存器当中</li>
+<li><code>Star1</code>: 把 <code>accumulator</code> 寄存器的值拷贝到 <code>r1</code> 寄存器，结合上一条字节码，就是设置 <code>r1 = FixedArray[2]</code></li>
+<li><code>Mov &lt;closure&gt;, r2</code>: 把 <code>&lt;closure&gt;</code> 拷贝到 <code>r2</code> 寄存器，猜测这里的 <code>&lt;closure&gt;</code> 对应的是 <code>add</code> 函数</li>
+<li><code>CallRuntime [DeclareGlobals], r1-r2</code>: 调用运行时的 <code>DeclareGlobals</code> 函数，并传递两个参数，分别是 <code>r1</code> 和 <code>r2</code>；有意思的是，<code>CallRuntime</code> 的参数必须保存在连续的寄存器当中，猜测是为了节省编码空间</li>
+</ol>
+<p>至此，<code>add</code> 函数就声明完成了。接下来，就要实现 <code>add(1, 2)</code> 的调用：</p>
+<ol>
+<li><code>LdaGlobal [1], [0]</code>: 把 Constant Pool 的第 1 项也就是 <code>"add"</code> 这个字符串写入 <code>accumulator</code>，最后的 <code>[0]</code> 和 FeedBackVector 有关，目前先忽略</li>
+<li><code>Star1</code>:  把 <code>accumulator</code> 寄存器的值拷贝到 <code>r1</code> 寄存器，结合上一条字节码，就是设置 <code>r1 = "add"</code></li>
+<li><code>LdaSmi [1]</code>: 把小整数（Small integer, Smi）<code>1</code> 写入 <code>accumulator</code></li>
+<li><code>Star2</code>:  把 <code>accumulator</code> 寄存器的值拷贝到 <code>r2</code> 寄存器，结合上一条字节码，就是设置 <code>r2 = 1</code></li>
+<li><code>LdaSmi [2]</code>: 把小整数（Small integer, Smi）<code>2</code> 写入 <code>accumulator</code></li>
+<li><code>Star3</code>:  把 <code>accumulator</code> 寄存器的值拷贝到 <code>r3</code> 寄存器，结合上一条字节码，就是设置 <code>r3 = 2</code></li>
+<li><code>CallUndefinedReceiver2 r1, r2, r3, [2]</code>: 根据 <code>r1</code> 调用一个函数，并传递两个参数 <code>r2, r3</code>（函数名称最后的 <code>2</code> 表示有两个参数），最后的 <code>[2]</code> 也和 FeedBackVector 有关</li>
+</ol>
+<p>这样就完成了函数调用。</p>
+<p>接下来观察 <code>add</code> 函数的 AST：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[generating bytecode for function: add]
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>--- AST ---
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>FUNC at 12
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>. KIND 0
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>. LITERAL ID 1
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>. SUSPEND COUNT 0
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>. NAME &quot;add&quot;
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>. INFERRED NAME &quot;&quot;
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>. PARAMS
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>. . VAR (0xc50512445280) (mode = VAR, assigned = false) &quot;a&quot;
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>. . VAR (0xc50512445300) (mode = VAR, assigned = false) &quot;b&quot;
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>. DECLS
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>. . VARIABLE (0xc50512445280) (mode = VAR, assigned = false) &quot;a&quot;
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>. . VARIABLE (0xc50512445300) (mode = VAR, assigned = false) &quot;b&quot;
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>. RETURN at 25
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>. . kAdd at 34
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>. . . VAR PROXY parameter[0] (0xc50512445280) (mode = VAR, assigned = false) &quot;a&quot;
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>. . . VAR PROXY parameter[1] (0xc50512445300) (mode = VAR, assigned = false) &quot;b&quot;
+</span></code></pre></div>
+<p><code>add</code> 函数的 AST 比较直接，<code>a + b</code> 直接对应了 <code>kAdd</code> 结点，直接作为返回值。</p>
+<p>接下来观察 <code>add</code> 的 Bytecode：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[generated bytecode for function: add (0x10c700298955 &lt;SharedFunctionInfo add&gt;)]
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>Bytecode length: 6
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>Parameter count 3
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>Register count 0
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>Frame size 0
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>         0x6ed0004008c @    0 : 0b 04             Ldar a1
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>         0x6ed0004008e @    2 : 3b 03 00          Add a0, [0]
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>         0x6ed00040091 @    5 : af                Return
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>Constant pool (size = 0)
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>Handler Table (size = 0)
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>Source Position Table (size = 0)
+</span></code></pre></div>
+<ol>
+<li><code>Ldar a1</code>: 把第二个参数 <code>a1</code> 也就是 <code>b</code> 写入 <code>accumulator</code> 寄存器</li>
+<li><code>Add a0, [0]</code>: 求第一个参数 <code>a0</code> 也就是 <code>a</code> 与 <code>accumulator</code> 寄存器的和，写入到 <code>accumulator</code> 寄存器当中，结合上一条 Bytecode，就是 <code>accumulator = a0 + a1</code>；<code>[0]</code> 和 FeedBackVector 有关</li>
+<li><code>Return</code>: 把 <code>accumulator</code> 中的值作为返回值，结束函数调用</li>
+</ol>
+<p>简单小结一下 V8 的字节码：</p>
+<ol>
+<li>有若干个局部的寄存器，在操作数中以 <code>rn</code> 的形式出现，<code>n</code> 是寄存器编号</li>
+<li>有 <code>accumulator</code> 局部寄存器，作为部分字节码的隐含输入或输出（<code>Add</code>）</li>
+<li>有若干个参数，在操作数中以 <code>an</code> 的形式出现，<code>n</code> 是参数编号</li>
+<li>操作数还可以出现立即数参数 <code>[imm]</code>，可能是整数字面量（<code>LdaSmi</code>），可能是下标（<code>LdaConstant</code>），也可能是 FeedBackVector 的 slot</li>
+</ol>
+<p>有了字节码以后，接下来观察 Ignition 具体是怎么解释执行这些字节码的。</p>
+<h3 id="解释执行">解释执行<a class="headerlink" href="#解释执行" title="Permanent link">&para;</a></h3>
+<p>为了实际执行这些字节码，Ignition 的做法是：</p>
+<ol>
+<li>给每种可能的 Opcode 生成一段二进制代码，这段代码会实现这个 Opcode 的功能</li>
+<li>在运行时维护一个 dispatch table，维护了 Opcode 到二进制代码地址的映射关系</li>
+<li>在每段代码的结尾，找到下一个 Opcode 对应的代码的地址，然后跳转过去</li>
+<li>调用函数时，先做一系列的准备，找到函数第一个字节码的 Opcode 对应的代码的地址，跳转过去</li>
+</ol>
+<p>由于 Opcode 的种类是固定的，所以实际运行 V8 的时候，这些代码已经编译好了，只需要在运行时初始化对应的数据结构即可。这个代码的生成和编译过程，也不是由 C++ 编译器做的，而是有一个 <code>mksnapshot</code> 命令来完成初始化，你可以认为它把这些 Opcode 对应的汇编指令都预先生成好，运行时直接加载即可。</p>
+<p>首先来看 Ignition 的怎么实现各种 Opcode 的，以 <code>LdaSmi</code> 为例，它的作用是小的把立即数（Smi=Small integer）写入到 <code>accumulator</code> 当中，这段在 <code>v8/src/interpreter/interpreter-generator.cc</code> 的代码实现了这个逻辑：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">// LdaSmi &lt;imm&gt;</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1">//</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1">// Load an integer literal into the accumulator as a Smi.</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">IGNITION_HANDLER</span><span class="p">(</span><span class="n">LdaSmi</span><span class="p">,</span><span class="w"> </span><span class="n">InterpreterAssembler</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="n">TNode</span><span class="o">&lt;</span><span class="n">Smi</span><span class="o">&gt;</span><span class="w"> </span><span class="n">smi_int</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BytecodeOperandImmSmi</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="n">SetAccumulator</span><span class="p">(</span><span class="n">smi_int</span><span class="p">);</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="n">Dispatch</span><span class="p">();</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>可以看到，逻辑并不复杂，就是取了第一个立即数操作数，设置到了 <code>accumulator</code>，最后调用 <code>Dispatch</code>，也就是读取下一个 Opcode 对应的汇编指令然后跳转。接下来看这几个步骤在汇编上是怎么实现的。</p>
+<p>为了查看 Ignition 对各种 Opcode 具体生成了什么样的汇编指令，可以用 <code>./out/arm64.optdebug/mksnapshot --trace-ignition-codegen --code-comments</code> 命令查看，下面列出了 <code>LdaSmi</code> 这个 Opcode 对应的汇编，由于这段汇编有点长，具体做的事情和对应的源码已经通过注释标注出来：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>kind = BYTECODE_HANDLER
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>name = LdaSmi
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>compiler = turbofan
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>address = 0x31a000906fd
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>Instructions (size = 324)
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a># 在代码的开头，检查寄存器是否正确，即 x2 是否保存了当前代码段的开始地址，对应的源码：
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a># v8/src/compiler/backend/arm64/code-generator-arm64.cc CodeGenerator::AssembleCodeStartRegisterCheck():
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>#   UseScratchRegisterScope temps(masm());
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>#   Register scratch = temps.AcquireX();
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>#   __ ComputeCodeStartAddress(scratch); // becomes x16 in the following code
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>#   __ cmp(scratch, kJavaScriptCallCodeStartRegister);
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>#   __ Assert(eq, AbortReason::kWrongFunctionCodeStart);
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a># 其中 kJavaScriptCallCodeStartRegister 定义在 v8/src/codegen/arm64/register-arm64.h：
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a># constexpr Register kJavaScriptCallCodeStartRegister = x2;
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>                  [ Frame: MANUAL
+</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>                  -- Prologue: check code start register -- - AssembleCode@../../src/compiler/backend/code-generator.cc:232
+</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>0xc6ccfe4a8b00     0  10000010       adr x16, #+0x0 (addr 0xc6ccfe4a8b00)
+</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>0xc6ccfe4a8b04     4  eb02021f       cmp x16, x2
+</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>0xc6ccfe4a8b08     8  54000080       b.eq #+0x10 (addr 0xc6ccfe4a8b18)
+</span><span id="__span-7-23"><a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>                    [  - Abort@../../src/codegen/arm64/macro-assembler-arm64.cc:4008
+</span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>                  Abort message:  - Abort@../../src/codegen/arm64/macro-assembler-arm64.cc:4010
+</span><span id="__span-7-25"><a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>                  Wrong value in code start register passed - Abort@../../src/codegen/arm64/macro-assembler-arm64.cc:4011
+</span><span id="__span-7-26"><a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>0xc6ccfe4a8b0c     c  d2801081       movz x1, #0x84
+</span><span id="__span-7-27"><a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>                      [ Frame: NO_FRAME_TYPE
+</span><span id="__span-7-28"><a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>                        [  - EntryFromBuiltinAsOperand@../../src/codegen/arm64/macro-assembler-arm64.cc:2377
+</span><span id="__span-7-29"><a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>                        ]
+</span><span id="__span-7-30"><a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>0xc6ccfe4a8b10    10  f96a3750       ldr x16, [x26, #21608]
+</span><span id="__span-7-31"><a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>0xc6ccfe4a8b14    14  d63f0200       blr x16
+</span><span id="__span-7-32"><a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a>                      ]
+</span><span id="__span-7-33"><a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a>                    ]
+</span><span id="__span-7-34"><a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>
+</span><span id="__span-7-35"><a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a># 栈对齐检查，定义在：
+</span><span id="__span-7-36"><a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a># v8/src/codegen/arm64/macro-assembler-arm64.cc MacroAssembler::AssertSpAligned():
+</span><span id="__span-7-37"><a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a>#   if (!v8_flags.debug_code) return;
+</span><span id="__span-7-38"><a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a>#   ASM_CODE_COMMENT(this);
+</span><span id="__span-7-39"><a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a>#   HardAbortScope hard_abort(this);  // Avoid calls to Abort.
+</span><span id="__span-7-40"><a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a>#   // Arm64 requires the stack pointer to be 16-byte aligned prior to address
+</span><span id="__span-7-41"><a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a>#   // calculation.
+</span><span id="__span-7-42"><a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a>#   UseScratchRegisterScope scope(this);
+</span><span id="__span-7-43"><a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a>#   Register temp = scope.AcquireX(); // becomes x16 in the following code
+</span><span id="__span-7-44"><a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a>#   Mov(temp, sp);
+</span><span id="__span-7-45"><a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a>#   Tst(temp, 15);
+</span><span id="__span-7-46"><a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a>#   Check(eq, AbortReason::kUnexpectedStackPointer);
+</span><span id="__span-7-47"><a id="__codelineno-7-47" name="__codelineno-7-47" href="#__codelineno-7-47"></a>
+</span><span id="__span-7-48"><a id="__codelineno-7-48" name="__codelineno-7-48" href="#__codelineno-7-48"></a>                  -- B0 start (construct frame) --
+</span><span id="__span-7-49"><a id="__codelineno-7-49" name="__codelineno-7-49" href="#__codelineno-7-49"></a>                    [  - AssertSpAligned@../../src/codegen/arm64/macro-assembler-arm64.cc:1590
+</span><span id="__span-7-50"><a id="__codelineno-7-50" name="__codelineno-7-50" href="#__codelineno-7-50"></a>0xc6ccfe4a8b18    18  910003f0       mov x16, sp
+</span><span id="__span-7-51"><a id="__codelineno-7-51" name="__codelineno-7-51" href="#__codelineno-7-51"></a>                      [  - LogicalMacro@../../src/codegen/arm64/macro-assembler-arm64.cc:197
+</span><span id="__span-7-52"><a id="__codelineno-7-52" name="__codelineno-7-52" href="#__codelineno-7-52"></a>0xc6ccfe4a8b1c    1c  f2400e1f       tst x16, #0xf
+</span><span id="__span-7-53"><a id="__codelineno-7-53" name="__codelineno-7-53" href="#__codelineno-7-53"></a>                      ]
+</span><span id="__span-7-54"><a id="__codelineno-7-54" name="__codelineno-7-54" href="#__codelineno-7-54"></a>0xc6ccfe4a8b20    20  54000080       b.eq #+0x10 (addr 0xc6ccfe4a8b30)
+</span><span id="__span-7-55"><a id="__codelineno-7-55" name="__codelineno-7-55" href="#__codelineno-7-55"></a>                      [  - Abort@../../src/codegen/arm64/macro-assembler-arm64.cc:4008
+</span><span id="__span-7-56"><a id="__codelineno-7-56" name="__codelineno-7-56" href="#__codelineno-7-56"></a>                  Abort message:  - Abort@../../src/codegen/arm64/macro-assembler-arm64.cc:4010
+</span><span id="__span-7-57"><a id="__codelineno-7-57" name="__codelineno-7-57" href="#__codelineno-7-57"></a>                  The stack pointer is not the expected value - Abort@../../src/codegen/arm64/macro-assembler-arm64.cc:4011
+</span><span id="__span-7-58"><a id="__codelineno-7-58" name="__codelineno-7-58" href="#__codelineno-7-58"></a>                        [ Frame: NO_FRAME_TYPE
+</span><span id="__span-7-59"><a id="__codelineno-7-59" name="__codelineno-7-59" href="#__codelineno-7-59"></a>0xc6ccfe4a8b24    24  52800780       movz w0, #0x3c
+</span><span id="__span-7-60"><a id="__codelineno-7-60" name="__codelineno-7-60" href="#__codelineno-7-60"></a>0xc6ccfe4a8b28    28  f94e7750       ldr x16, [x26, #7400]
+</span><span id="__span-7-61"><a id="__codelineno-7-61" name="__codelineno-7-61" href="#__codelineno-7-61"></a>0xc6ccfe4a8b2c    2c  d63f0200       blr x16
+</span><span id="__span-7-62"><a id="__codelineno-7-62" name="__codelineno-7-62" href="#__codelineno-7-62"></a>                        ]
+</span><span id="__span-7-63"><a id="__codelineno-7-63" name="__codelineno-7-63" href="#__codelineno-7-63"></a>                      ]
+</span><span id="__span-7-64"><a id="__codelineno-7-64" name="__codelineno-7-64" href="#__codelineno-7-64"></a>                    ]
+</span><span id="__span-7-65"><a id="__codelineno-7-65" name="__codelineno-7-65" href="#__codelineno-7-65"></a>
+</span><span id="__span-7-66"><a id="__codelineno-7-66" name="__codelineno-7-66" href="#__codelineno-7-66"></a># 构建栈帧
+</span><span id="__span-7-67"><a id="__codelineno-7-67" name="__codelineno-7-67" href="#__codelineno-7-67"></a># 构建完成后会得到：sp = prev sp - 64, fp = sp + 48
+</span><span id="__span-7-68"><a id="__codelineno-7-68" name="__codelineno-7-68" href="#__codelineno-7-68"></a>#
+</span><span id="__span-7-69"><a id="__codelineno-7-69" name="__codelineno-7-69" href="#__codelineno-7-69"></a># 栈帧的示意图, 每一个方框表示 8 字节的内存:
+</span><span id="__span-7-70"><a id="__codelineno-7-70" name="__codelineno-7-70" href="#__codelineno-7-70"></a># sp + 64   +------------+
+</span><span id="__span-7-71"><a id="__codelineno-7-71" name="__codelineno-7-71" href="#__codelineno-7-71"></a>#           | lr         |  &lt;= lr 是 link register 的缩写，表示返回地址
+</span><span id="__span-7-72"><a id="__codelineno-7-72" name="__codelineno-7-72" href="#__codelineno-7-72"></a># sp + 56   +------------+
+</span><span id="__span-7-73"><a id="__codelineno-7-73" name="__codelineno-7-73" href="#__codelineno-7-73"></a>#           | prev fp    |  &lt;= 保存了调用前的 fp (frame pointer)
+</span><span id="__span-7-74"><a id="__codelineno-7-74" name="__codelineno-7-74" href="#__codelineno-7-74"></a># sp + 48   +------------+  &lt;= 新的 fp (frame pointer) 指向这里
+</span><span id="__span-7-75"><a id="__codelineno-7-75" name="__codelineno-7-75" href="#__codelineno-7-75"></a>#           | x16 (0x22) |
+</span><span id="__span-7-76"><a id="__codelineno-7-76" name="__codelineno-7-76" href="#__codelineno-7-76"></a># sp + 40   +------------+
+</span><span id="__span-7-77"><a id="__codelineno-7-77" name="__codelineno-7-77" href="#__codelineno-7-77"></a>#           | x20        |  &lt;= bytecode array register
+</span><span id="__span-7-78"><a id="__codelineno-7-78" name="__codelineno-7-78" href="#__codelineno-7-78"></a># sp + 32   +------------+
+</span><span id="__span-7-79"><a id="__codelineno-7-79" name="__codelineno-7-79" href="#__codelineno-7-79"></a>#           | x21        |  &lt;= dispatch table register
+</span><span id="__span-7-80"><a id="__codelineno-7-80" name="__codelineno-7-80" href="#__codelineno-7-80"></a># sp + 24   +------------+
+</span><span id="__span-7-81"><a id="__codelineno-7-81" name="__codelineno-7-81" href="#__codelineno-7-81"></a>#           | x19        |  &lt;= bytecode offset register，记录当前正在执行的 bytecode 在 bytecode array 中的偏移
+</span><span id="__span-7-82"><a id="__codelineno-7-82" name="__codelineno-7-82" href="#__codelineno-7-82"></a># sp + 16   +------------+
+</span><span id="__span-7-83"><a id="__codelineno-7-83" name="__codelineno-7-83" href="#__codelineno-7-83"></a>#           | x0         |  &lt;= accumulator register
+</span><span id="__span-7-84"><a id="__codelineno-7-84" name="__codelineno-7-84" href="#__codelineno-7-84"></a># sp + 8    +------------+
+</span><span id="__span-7-85"><a id="__codelineno-7-85" name="__codelineno-7-85" href="#__codelineno-7-85"></a>#           |            |
+</span><span id="__span-7-86"><a id="__codelineno-7-86" name="__codelineno-7-86" href="#__codelineno-7-86"></a># sp        +------------+  &lt;= 新的 sp (stack pointer) 指向这里
+</span><span id="__span-7-87"><a id="__codelineno-7-87" name="__codelineno-7-87" href="#__codelineno-7-87"></a>#
+</span><span id="__span-7-88"><a id="__codelineno-7-88" name="__codelineno-7-88" href="#__codelineno-7-88"></a># 这些寄存器定义在 v8/src/codegen/arm64/register-arm64.h 当中：
+</span><span id="__span-7-89"><a id="__codelineno-7-89" name="__codelineno-7-89" href="#__codelineno-7-89"></a># constexpr Register kInterpreterAccumulatorRegister = x0;
+</span><span id="__span-7-90"><a id="__codelineno-7-90" name="__codelineno-7-90" href="#__codelineno-7-90"></a># constexpr Register kInterpreterBytecodeOffsetRegister = x19;
+</span><span id="__span-7-91"><a id="__codelineno-7-91" name="__codelineno-7-91" href="#__codelineno-7-91"></a># constexpr Register kInterpreterBytecodeArrayRegister = x20;
+</span><span id="__span-7-92"><a id="__codelineno-7-92" name="__codelineno-7-92" href="#__codelineno-7-92"></a># constexpr Register kInterpreterDispatchTableRegister = x21;
+</span><span id="__span-7-93"><a id="__codelineno-7-93" name="__codelineno-7-93" href="#__codelineno-7-93"></a>
+</span><span id="__span-7-94"><a id="__codelineno-7-94" name="__codelineno-7-94" href="#__codelineno-7-94"></a>0xc6ccfe4a8b30    30  d2800450       movz x16, #0x22
+</span><span id="__span-7-95"><a id="__codelineno-7-95" name="__codelineno-7-95" href="#__codelineno-7-95"></a>0xc6ccfe4a8b34    34  a9be43ff       stp xzr, x16, [sp, #-32]!
+</span><span id="__span-7-96"><a id="__codelineno-7-96" name="__codelineno-7-96" href="#__codelineno-7-96"></a>0xc6ccfe4a8b38    38  a9017bfd       stp fp, lr, [sp, #16]
+</span><span id="__span-7-97"><a id="__codelineno-7-97" name="__codelineno-7-97" href="#__codelineno-7-97"></a>0xc6ccfe4a8b3c    3c  910043fd       add fp, sp, #0x10 (16)
+</span><span id="__span-7-98"><a id="__codelineno-7-98" name="__codelineno-7-98" href="#__codelineno-7-98"></a>0xc6ccfe4a8b40    40  d10083ff       sub sp, sp, #0x20 (32)
+</span><span id="__span-7-99"><a id="__codelineno-7-99" name="__codelineno-7-99" href="#__codelineno-7-99"></a>0xc6ccfe4a8b44    44  f90013f4       str x20, [sp, #32]
+</span><span id="__span-7-100"><a id="__codelineno-7-100" name="__codelineno-7-100" href="#__codelineno-7-100"></a>0xc6ccfe4a8b48    48  f9000ff5       str x21, [sp, #24]
+</span><span id="__span-7-101"><a id="__codelineno-7-101" name="__codelineno-7-101" href="#__codelineno-7-101"></a>0xc6ccfe4a8b4c    4c  f90007e0       str x0, [sp, #8]
+</span><span id="__span-7-102"><a id="__codelineno-7-102" name="__codelineno-7-102" href="#__codelineno-7-102"></a>0xc6ccfe4a8b50    50  f9000bf3       str x19, [sp, #16]
+</span><span id="__span-7-103"><a id="__codelineno-7-103" name="__codelineno-7-103" href="#__codelineno-7-103"></a>
+</span><span id="__span-7-104"><a id="__codelineno-7-104" name="__codelineno-7-104" href="#__codelineno-7-104"></a># 调用了未知的 C 函数
+</span><span id="__span-7-105"><a id="__codelineno-7-105" name="__codelineno-7-105" href="#__codelineno-7-105"></a>0xc6ccfe4a8b54    54  d28042c1       movz x1, #0x216
+</span><span id="__span-7-106"><a id="__codelineno-7-106" name="__codelineno-7-106" href="#__codelineno-7-106"></a>                    [  - LoadFromConstantsTable@../../src/codegen/arm64/macro-assembler-arm64.cc:2166
+</span><span id="__span-7-107"><a id="__codelineno-7-107" name="__codelineno-7-107" href="#__codelineno-7-107"></a>                      [  - LoadRoot@../../src/codegen/arm64/macro-assembler-arm64.cc:1954
+</span><span id="__span-7-108"><a id="__codelineno-7-108" name="__codelineno-7-108" href="#__codelineno-7-108"></a>0xc6ccfe4a8b58    58  f94d5f42       ldr x2, [x26, #6840]
+</span><span id="__span-7-109"><a id="__codelineno-7-109" name="__codelineno-7-109" href="#__codelineno-7-109"></a>                      ]
+</span><span id="__span-7-110"><a id="__codelineno-7-110" name="__codelineno-7-110" href="#__codelineno-7-110"></a>                      [  - DecompressTagged@../../src/codegen/arm64/macro-assembler-arm64.cc:3448
+</span><span id="__span-7-111"><a id="__codelineno-7-111" name="__codelineno-7-111" href="#__codelineno-7-111"></a>0xc6ccfe4a8b5c    5c  d28bcef0       movz x16, #0x5e77
+</span><span id="__span-7-112"><a id="__codelineno-7-112" name="__codelineno-7-112" href="#__codelineno-7-112"></a>0xc6ccfe4a8b60    60  b8706842       ldr w2, [x2, x16]
+</span><span id="__span-7-113"><a id="__codelineno-7-113" name="__codelineno-7-113" href="#__codelineno-7-113"></a>0xc6ccfe4a8b64    64  8b020382       add x2, x28, x2
+</span><span id="__span-7-114"><a id="__codelineno-7-114" name="__codelineno-7-114" href="#__codelineno-7-114"></a>                      ]
+</span><span id="__span-7-115"><a id="__codelineno-7-115" name="__codelineno-7-115" href="#__codelineno-7-115"></a>                    ]
+</span><span id="__span-7-116"><a id="__codelineno-7-116" name="__codelineno-7-116" href="#__codelineno-7-116"></a>0xc6ccfe4a8b68    68  aa1403e0       mov x0, x20
+</span><span id="__span-7-117"><a id="__codelineno-7-117" name="__codelineno-7-117" href="#__codelineno-7-117"></a>0xc6ccfe4a8b6c    6c  f94ecf50       ldr x16, [x26, #7576]
+</span><span id="__span-7-118"><a id="__codelineno-7-118" name="__codelineno-7-118" href="#__codelineno-7-118"></a>                    [  - CallCFunction@../../src/codegen/arm64/macro-assembler-arm64.cc:2106
+</span><span id="__span-7-119"><a id="__codelineno-7-119" name="__codelineno-7-119" href="#__codelineno-7-119"></a>0xc6ccfe4a8b70    70  10000068       adr x8, #+0xc (addr 0xc6ccfe4a8b7c)
+</span><span id="__span-7-120"><a id="__codelineno-7-120" name="__codelineno-7-120" href="#__codelineno-7-120"></a>0xc6ccfe4a8b74    74  a93f235d       stp fp, x8, [x26, #-16]
+</span><span id="__span-7-121"><a id="__codelineno-7-121" name="__codelineno-7-121" href="#__codelineno-7-121"></a>0xc6ccfe4a8b78    78  d63f0200       blr x16
+</span><span id="__span-7-122"><a id="__codelineno-7-122" name="__codelineno-7-122" href="#__codelineno-7-122"></a>0xc6ccfe4a8b7c    7c  f81f035f       stur xzr, [x26, #-16]
+</span><span id="__span-7-123"><a id="__codelineno-7-123" name="__codelineno-7-123" href="#__codelineno-7-123"></a>                    ]
+</span><span id="__span-7-124"><a id="__codelineno-7-124" name="__codelineno-7-124" href="#__codelineno-7-124"></a>0xc6ccfe4a8b80    80  d2800001       movz x1, #0x0
+</span><span id="__span-7-125"><a id="__codelineno-7-125" name="__codelineno-7-125" href="#__codelineno-7-125"></a>                    [  - LoadFromConstantsTable@../../src/codegen/arm64/macro-assembler-arm64.cc:2166
+</span><span id="__span-7-126"><a id="__codelineno-7-126" name="__codelineno-7-126" href="#__codelineno-7-126"></a>                      [  - LoadRoot@../../src/codegen/arm64/macro-assembler-arm64.cc:1954
+</span><span id="__span-7-127"><a id="__codelineno-7-127" name="__codelineno-7-127" href="#__codelineno-7-127"></a>0xc6ccfe4a8b84    84  f94d5f42       ldr x2, [x26, #6840]
+</span><span id="__span-7-128"><a id="__codelineno-7-128" name="__codelineno-7-128" href="#__codelineno-7-128"></a>                      ]
+</span><span id="__span-7-129"><a id="__codelineno-7-129" name="__codelineno-7-129" href="#__codelineno-7-129"></a>                      [  - DecompressTagged@../../src/codegen/arm64/macro-assembler-arm64.cc:3448
+</span><span id="__span-7-130"><a id="__codelineno-7-130" name="__codelineno-7-130" href="#__codelineno-7-130"></a>0xc6ccfe4a8b88    88  d28bcf70       movz x16, #0x5e7b
+</span><span id="__span-7-131"><a id="__codelineno-7-131" name="__codelineno-7-131" href="#__codelineno-7-131"></a>0xc6ccfe4a8b8c    8c  b8706842       ldr w2, [x2, x16]
+</span><span id="__span-7-132"><a id="__codelineno-7-132" name="__codelineno-7-132" href="#__codelineno-7-132"></a>0xc6ccfe4a8b90    90  8b020382       add x2, x28, x2
+</span><span id="__span-7-133"><a id="__codelineno-7-133" name="__codelineno-7-133" href="#__codelineno-7-133"></a>                      ]
+</span><span id="__span-7-134"><a id="__codelineno-7-134" name="__codelineno-7-134" href="#__codelineno-7-134"></a>                    ]
+</span><span id="__span-7-135"><a id="__codelineno-7-135" name="__codelineno-7-135" href="#__codelineno-7-135"></a>0xc6ccfe4a8b94    94  f94007e0       ldr x0, [sp, #8]
+</span><span id="__span-7-136"><a id="__codelineno-7-136" name="__codelineno-7-136" href="#__codelineno-7-136"></a>0xc6ccfe4a8b98    98  f94ecf50       ldr x16, [x26, #7576]
+</span><span id="__span-7-137"><a id="__codelineno-7-137" name="__codelineno-7-137" href="#__codelineno-7-137"></a>                    [  - CallCFunction@../../src/codegen/arm64/macro-assembler-arm64.cc:2106
+</span><span id="__span-7-138"><a id="__codelineno-7-138" name="__codelineno-7-138" href="#__codelineno-7-138"></a>0xc6ccfe4a8b9c    9c  10000068       adr x8, #+0xc (addr 0xc6ccfe4a8ba8)
+</span><span id="__span-7-139"><a id="__codelineno-7-139" name="__codelineno-7-139" href="#__codelineno-7-139"></a>0xc6ccfe4a8ba0    a0  a93f235d       stp fp, x8, [x26, #-16]
+</span><span id="__span-7-140"><a id="__codelineno-7-140" name="__codelineno-7-140" href="#__codelineno-7-140"></a>0xc6ccfe4a8ba4    a4  d63f0200       blr x16
+</span><span id="__span-7-141"><a id="__codelineno-7-141" name="__codelineno-7-141" href="#__codelineno-7-141"></a>0xc6ccfe4a8ba8    a8  f81f035f       stur xzr, [x26, #-16]
+</span><span id="__span-7-142"><a id="__codelineno-7-142" name="__codelineno-7-142" href="#__codelineno-7-142"></a>                    ]
+</span><span id="__span-7-143"><a id="__codelineno-7-143" name="__codelineno-7-143" href="#__codelineno-7-143"></a>
+</span><span id="__span-7-144"><a id="__codelineno-7-144" name="__codelineno-7-144" href="#__codelineno-7-144"></a># 从这里开始实现 LdaSmi 的语义
+</span><span id="__span-7-145"><a id="__codelineno-7-145" name="__codelineno-7-145" href="#__codelineno-7-145"></a># 从前面的分析可以看到 LdaSmi 由两个字节组成：
+</span><span id="__span-7-146"><a id="__codelineno-7-146" name="__codelineno-7-146" href="#__codelineno-7-146"></a># 1. 第一个字节是 0x0d，表示这是一条 LdaSmi
+</span><span id="__span-7-147"><a id="__codelineno-7-147" name="__codelineno-7-147" href="#__codelineno-7-147"></a># 2. 第二个字节就是要加载到 `accumulator` 的小整数
+</span><span id="__span-7-148"><a id="__codelineno-7-148" name="__codelineno-7-148" href="#__codelineno-7-148"></a># 如：0d 01 对应 LdaSmi [1]，0d 02 对应 LdaSmi [2]
+</span><span id="__span-7-149"><a id="__codelineno-7-149" name="__codelineno-7-149" href="#__codelineno-7-149"></a># 所以，为了实现 LdaSmi，需要从 bytecode array 中读取 LdaSmi 字节码的第二个字节，
+</span><span id="__span-7-150"><a id="__codelineno-7-150" name="__codelineno-7-150" href="#__codelineno-7-150"></a># 保存到 `accumulator` 寄存器当中
+</span><span id="__span-7-151"><a id="__codelineno-7-151" name="__codelineno-7-151" href="#__codelineno-7-151"></a># 下面一条一条地分析指令在做的事情：
+</span><span id="__span-7-152"><a id="__codelineno-7-152" name="__codelineno-7-152" href="#__codelineno-7-152"></a># 1. 从 sp + 16 地址读取 bytecode offset 寄存器的值到 x3，
+</span><span id="__span-7-153"><a id="__codelineno-7-153" name="__codelineno-7-153" href="#__codelineno-7-153"></a>#    它记录了 LdaSmi 相对 bytecode array 的偏移
+</span><span id="__span-7-154"><a id="__codelineno-7-154" name="__codelineno-7-154" href="#__codelineno-7-154"></a>0xc6ccfe4a8bac    ac  f9400be3       ldr x3, [sp, #16]
+</span><span id="__span-7-155"><a id="__codelineno-7-155" name="__codelineno-7-155" href="#__codelineno-7-155"></a># 2. 计算 x3 + 1 的值并写入 x4，得到 LdaSmi 的第二个字节相对 bytecode array 的偏移
+</span><span id="__span-7-156"><a id="__codelineno-7-156" name="__codelineno-7-156" href="#__codelineno-7-156"></a>0xc6ccfe4a8bb0    b0  91000464       add x4, x3, #0x1 (1)
+</span><span id="__span-7-157"><a id="__codelineno-7-157" name="__codelineno-7-157" href="#__codelineno-7-157"></a># 3. 从 sp + 32 地址读取 bytecode array 寄存器的值到 x20
+</span><span id="__span-7-158"><a id="__codelineno-7-158" name="__codelineno-7-158" href="#__codelineno-7-158"></a>0xc6ccfe4a8bb4    b4  f94013f4       ldr x20, [sp, #32]
+</span><span id="__span-7-159"><a id="__codelineno-7-159" name="__codelineno-7-159" href="#__codelineno-7-159"></a># 4. 从 x20 + x4 地址读取 LdaSmi 的第二个字节到 x4，也就是要加载到 `accumulator` 的值，
+</span><span id="__span-7-160"><a id="__codelineno-7-160" name="__codelineno-7-160" href="#__codelineno-7-160"></a>#    之后 x4 的值会写入到 x0，也就是 `accumulator` 对应的寄存器
+</span><span id="__span-7-161"><a id="__codelineno-7-161" name="__codelineno-7-161" href="#__codelineno-7-161"></a>0xc6ccfe4a8bb8    b8  38e46a84       ldrsb w4, [x20, x4]
+</span><span id="__span-7-162"><a id="__codelineno-7-162" name="__codelineno-7-162" href="#__codelineno-7-162"></a>
+</span><span id="__span-7-163"><a id="__codelineno-7-163" name="__codelineno-7-163" href="#__codelineno-7-163"></a># Dispatch: 找到下一个 Opcode 对应的代码的入口，然后跳转过去
+</span><span id="__span-7-164"><a id="__codelineno-7-164" name="__codelineno-7-164" href="#__codelineno-7-164"></a>                  ========= Dispatch - Dispatch@../../src/interpreter/interpreter-assembler.cc:1278 - AssembleArchInstruction@../../src/compiler/backend/arm64/code-generator-arm64.cc:978
+</span><span id="__span-7-165"><a id="__codelineno-7-165" name="__codelineno-7-165" href="#__codelineno-7-165"></a># x3 是 LdaSmi 当前所在的 bytecode offset，加 2 是因为 LdaSmi 占用了两个字节
+</span><span id="__span-7-166"><a id="__codelineno-7-166" name="__codelineno-7-166" href="#__codelineno-7-166"></a># x19 = x3 + 2，就是 bytecode offset 前进两个字节，指向下一个字节码
+</span><span id="__span-7-167"><a id="__codelineno-7-167" name="__codelineno-7-167" href="#__codelineno-7-167"></a>0xc6ccfe4a8bbc    bc  91000873       add x19, x3, #0x2 (2)
+</span><span id="__span-7-168"><a id="__codelineno-7-168" name="__codelineno-7-168" href="#__codelineno-7-168"></a># x20 是 bytecode array，从 bytecode array 读取下一个字节码的第一个字节到 x3 寄存器
+</span><span id="__span-7-169"><a id="__codelineno-7-169" name="__codelineno-7-169" href="#__codelineno-7-169"></a>0xc6ccfe4a8bc0    c0  38736a83       ldrb w3, [x20, x19]
+</span><span id="__span-7-170"><a id="__codelineno-7-170" name="__codelineno-7-170" href="#__codelineno-7-170"></a>
+</span><span id="__span-7-171"><a id="__codelineno-7-171" name="__codelineno-7-171" href="#__codelineno-7-171"></a># 接下来检查在 x3 寄存器当中的字节码的第一个字节（Opcode），如果它：
+</span><span id="__span-7-172"><a id="__codelineno-7-172" name="__codelineno-7-172" href="#__codelineno-7-172"></a># 1. 小于 187(kFirstShortStar)，说明它不是特殊的 Short Star (Star0-Star15) 字节码
+</span><span id="__span-7-173"><a id="__codelineno-7-173" name="__codelineno-7-173" href="#__codelineno-7-173"></a># 2. 介于 187(kFirstShortStar) 和 202(kLastShortStar) 之间，说明它是特殊的 Short Star (Star0-Star15) 字节码
+</span><span id="__span-7-174"><a id="__codelineno-7-174" name="__codelineno-7-174" href="#__codelineno-7-174"></a># 3. 如果大于 202(kLastShortStar)，说明它是非法的字节码
+</span><span id="__span-7-175"><a id="__codelineno-7-175" name="__codelineno-7-175" href="#__codelineno-7-175"></a>
+</span><span id="__span-7-176"><a id="__codelineno-7-176" name="__codelineno-7-176" href="#__codelineno-7-176"></a># 如果 x3 寄存器大于或等于 187，说明这个字节码可能是 Short Star 字节码，就跳转到后面的 B2
+</span><span id="__span-7-177"><a id="__codelineno-7-177" name="__codelineno-7-177" href="#__codelineno-7-177"></a>0xc6ccfe4a8bc4    c4  7102ec7f       cmp w3, #0xbb (187)
+</span><span id="__span-7-178"><a id="__codelineno-7-178" name="__codelineno-7-178" href="#__codelineno-7-178"></a>0xc6ccfe4a8bc8    c8  54000102       b.hs #+0x20 (addr 0xc6ccfe4a8be8)
+</span><span id="__span-7-179"><a id="__codelineno-7-179" name="__codelineno-7-179" href="#__codelineno-7-179"></a>                  -- B1 start --
+</span><span id="__span-7-180"><a id="__codelineno-7-180" name="__codelineno-7-180" href="#__codelineno-7-180"></a># 此时 x3 小于 187
+</span><span id="__span-7-181"><a id="__codelineno-7-181" name="__codelineno-7-181" href="#__codelineno-7-181"></a># 从栈上读取 x21 即 dispatch table register
+</span><span id="__span-7-182"><a id="__codelineno-7-182" name="__codelineno-7-182" href="#__codelineno-7-182"></a>0xc6ccfe4a8bcc    cc  f9400ff5       ldr x21, [sp, #24]
+</span><span id="__span-7-183"><a id="__codelineno-7-183" name="__codelineno-7-183" href="#__codelineno-7-183"></a># 从 dispatch table，以 x3 为下标，读取下一个字节码对应的代码的地址
+</span><span id="__span-7-184"><a id="__codelineno-7-184" name="__codelineno-7-184" href="#__codelineno-7-184"></a>0xc6ccfe4a8bd0    d0  f8637aa2       ldr x2, [x21, x3, lsl #3]
+</span><span id="__span-7-185"><a id="__codelineno-7-185" name="__codelineno-7-185" href="#__codelineno-7-185"></a># 把之前 LdaSmi 计算得到的 x4 寄存器写到 `accumulator` 即 x0 寄存器当中
+</span><span id="__span-7-186"><a id="__codelineno-7-186" name="__codelineno-7-186" href="#__codelineno-7-186"></a># 这里 x0 = 2 * x4，是因为 v8 用最低位表示这是一个 Smi（用 0 表示）还是一个指针（用 1 表示）
+</span><span id="__span-7-187"><a id="__codelineno-7-187" name="__codelineno-7-187" href="#__codelineno-7-187"></a>0xc6ccfe4a8bd4    d4  0b040080       add w0, w4, w4
+</span><span id="__span-7-188"><a id="__codelineno-7-188" name="__codelineno-7-188" href="#__codelineno-7-188"></a># 恢复调用函数前的旧 fp 和 lr
+</span><span id="__span-7-189"><a id="__codelineno-7-189" name="__codelineno-7-189" href="#__codelineno-7-189"></a>0xc6ccfe4a8bd8    d8  a9407bbd       ldp fp, lr, [fp]
+</span><span id="__span-7-190"><a id="__codelineno-7-190" name="__codelineno-7-190" href="#__codelineno-7-190"></a># 恢复调用函数前的旧 sp
+</span><span id="__span-7-191"><a id="__codelineno-7-191" name="__codelineno-7-191" href="#__codelineno-7-191"></a>0xc6ccfe4a8bdc    dc  910103ff       add sp, sp, #0x40 (64)
+</span><span id="__span-7-192"><a id="__codelineno-7-192" name="__codelineno-7-192" href="#__codelineno-7-192"></a># 下一个字节码对应的代码的地址已经保存在 x2 寄存器当中，跳转过去
+</span><span id="__span-7-193"><a id="__codelineno-7-193" name="__codelineno-7-193" href="#__codelineno-7-193"></a>0xc6ccfe4a8be0    e0  aa0203f1       mov x17, x2
+</span><span id="__span-7-194"><a id="__codelineno-7-194" name="__codelineno-7-194" href="#__codelineno-7-194"></a>0xc6ccfe4a8be4    e4  d61f0220       br x17
+</span><span id="__span-7-195"><a id="__codelineno-7-195" name="__codelineno-7-195" href="#__codelineno-7-195"></a>
+</span><span id="__span-7-196"><a id="__codelineno-7-196" name="__codelineno-7-196" href="#__codelineno-7-196"></a>                  -- B2 start --
+</span><span id="__span-7-197"><a id="__codelineno-7-197" name="__codelineno-7-197" href="#__codelineno-7-197"></a>                  [ Assert: UintPtrGreaterThanOrEqual(opcode, UintPtrConstant(static_cast&lt;int&gt;( Bytecode::kFirstShortStar))) - StoreRegisterForShortStar@../../src/interpreter/interpreter-assembler.cc:310 - AssembleArchInstruction@../../src/compiler/backend/arm64/code-generator-arm64.cc:978
+</span><span id="__span-7-198"><a id="__codelineno-7-198" name="__codelineno-7-198" href="#__codelineno-7-198"></a>                  ] Assert - AssembleArchInstruction@../../src/compiler/backend/arm64/code-generator-arm64.cc:978
+</span><span id="__span-7-199"><a id="__codelineno-7-199" name="__codelineno-7-199" href="#__codelineno-7-199"></a>                  [ Assert: UintPtrLessThanOrEqual( opcode, UintPtrConstant(static_cast&lt;int&gt;(Bytecode::kLastShortStar))) - StoreRegisterForShortStar@../../src/interpreter/interpreter-assembler.cc:314 - AssembleArchInstruction@../../src/compiler/backend/arm64/code-generator-arm64.cc:978
+</span><span id="__span-7-200"><a id="__codelineno-7-200" name="__codelineno-7-200" href="#__codelineno-7-200"></a># 此时 x3 大于或等于 187
+</span><span id="__span-7-201"><a id="__codelineno-7-201" name="__codelineno-7-201" href="#__codelineno-7-201"></a># 进一步判断 x3 是否大于 202，如果大于，则跳转到后面的 B3
+</span><span id="__span-7-202"><a id="__codelineno-7-202" name="__codelineno-7-202" href="#__codelineno-7-202"></a>0xc6ccfe4a8be8    e8  7103287f       cmp w3, #0xca (202)
+</span><span id="__span-7-203"><a id="__codelineno-7-203" name="__codelineno-7-203" href="#__codelineno-7-203"></a>0xc6ccfe4a8bec    ec  540001c8       b.hi #+0x38 (addr 0xc6ccfe4a8c24)
+</span><span id="__span-7-204"><a id="__codelineno-7-204" name="__codelineno-7-204" href="#__codelineno-7-204"></a>
+</span><span id="__span-7-205"><a id="__codelineno-7-205" name="__codelineno-7-205" href="#__codelineno-7-205"></a>                  -- B4 start --
+</span><span id="__span-7-206"><a id="__codelineno-7-206" name="__codelineno-7-206" href="#__codelineno-7-206"></a># 此时 x3 介于 187 和 202 之间，是一个 Short Star
+</span><span id="__span-7-207"><a id="__codelineno-7-207" name="__codelineno-7-207" href="#__codelineno-7-207"></a># Short Star 做的事情就是把 `accumulator` 寄存器的值复制到 r0-r15 当中指定的寄存器
+</span><span id="__span-7-208"><a id="__codelineno-7-208" name="__codelineno-7-208" href="#__codelineno-7-208"></a># 所以直接在这里实现了 Short Star 的语义，而不是单独跑一段代码去执行它
+</span><span id="__span-7-209"><a id="__codelineno-7-209" name="__codelineno-7-209" href="#__codelineno-7-209"></a># 由于 r0-r15 寄存器保存在栈上，所以通过 x3 计算出 Short Star 要写到哪个寄存器
+</span><span id="__span-7-210"><a id="__codelineno-7-210" name="__codelineno-7-210" href="#__codelineno-7-210"></a># 进而直接计算要写到的栈的地址的偏移
+</span><span id="__span-7-211"><a id="__codelineno-7-211" name="__codelineno-7-211" href="#__codelineno-7-211"></a># 寻找一个通项公式，找到 Star0-Star15 要写入的地址：
+</span><span id="__span-7-212"><a id="__codelineno-7-212" name="__codelineno-7-212" href="#__codelineno-7-212"></a># Star0(202): r0 的位置在栈顶再往下的 8 字节，即 fp 减去 56
+</span><span id="__span-7-213"><a id="__codelineno-7-213" name="__codelineno-7-213" href="#__codelineno-7-213"></a># Star0(187): r15 的位置在栈顶再往下的 8*16 字节，即 fp 减去 176
+</span><span id="__span-7-214"><a id="__codelineno-7-214" name="__codelineno-7-214" href="#__codelineno-7-214"></a># 相对 fp 的偏移量就等于 x3 * 8 - 1672
+</span><span id="__span-7-215"><a id="__codelineno-7-215" name="__codelineno-7-215" href="#__codelineno-7-215"></a># 从而得到下面的代码：
+</span><span id="__span-7-216"><a id="__codelineno-7-216" name="__codelineno-7-216" href="#__codelineno-7-216"></a># 计算 x3 = x3 * 8
+</span><span id="__span-7-217"><a id="__codelineno-7-217" name="__codelineno-7-217" href="#__codelineno-7-217"></a>0xc6ccfe4a8bf0    f0  d37df063       lsl x3, x3, #3
+</span><span id="__span-7-218"><a id="__codelineno-7-218" name="__codelineno-7-218" href="#__codelineno-7-218"></a># 把之前 LdaSmi 计算得到的 x4 寄存器写到 `accumulator` 即 x0 寄存器当中
+</span><span id="__span-7-219"><a id="__codelineno-7-219" name="__codelineno-7-219" href="#__codelineno-7-219"></a># 这里 x0 = 2 * x4，是因为 v8 用最低位表示这是一个 Smi（用 0 表示）还是一个指针（用 1 表示）
+</span><span id="__span-7-220"><a id="__codelineno-7-220" name="__codelineno-7-220" href="#__codelineno-7-220"></a>0xc6ccfe4a8bf4    f4  0b040080       add w0, w4, w4
+</span><span id="__span-7-221"><a id="__codelineno-7-221" name="__codelineno-7-221" href="#__codelineno-7-221"></a>                  ] Assert - AssembleArchInstruction@../../src/compiler/backend/arm64/code-generator-arm64.cc:978
+</span><span id="__span-7-222"><a id="__codelineno-7-222" name="__codelineno-7-222" href="#__codelineno-7-222"></a># 计算 x3 = x3 - 1672，就得到了相对 fp 的偏移量
+</span><span id="__span-7-223"><a id="__codelineno-7-223" name="__codelineno-7-223" href="#__codelineno-7-223"></a>0xc6ccfe4a8bf8    f8  d11a2063       sub x3, x3, #0x688 (1672)
+</span><span id="__span-7-224"><a id="__codelineno-7-224" name="__codelineno-7-224" href="#__codelineno-7-224"></a># 从 fp 的地址读取函数调用前的 fp
+</span><span id="__span-7-225"><a id="__codelineno-7-225" name="__codelineno-7-225" href="#__codelineno-7-225"></a>0xc6ccfe4a8bfc    fc  f94003a4       ldr x4, [fp]
+</span><span id="__span-7-226"><a id="__codelineno-7-226" name="__codelineno-7-226" href="#__codelineno-7-226"></a># 把 `accumulator` 写入到相对函数调用前的 fp 的对应位置
+</span><span id="__span-7-227"><a id="__codelineno-7-227" name="__codelineno-7-227" href="#__codelineno-7-227"></a>0xc6ccfe4a8c00   100  f8236880       str x0, [x4, x3]
+</span><span id="__span-7-228"><a id="__codelineno-7-228" name="__codelineno-7-228" href="#__codelineno-7-228"></a>
+</span><span id="__span-7-229"><a id="__codelineno-7-229" name="__codelineno-7-229" href="#__codelineno-7-229"></a># 下面就是 Dispatch 逻辑，只不过这次是执行完 Short Star 字节码后的 Dispatch
+</span><span id="__span-7-230"><a id="__codelineno-7-230" name="__codelineno-7-230" href="#__codelineno-7-230"></a># x19 = x3 + 1，就是 bytecode offset 前进一个字节，指向下一个字节码
+</span><span id="__span-7-231"><a id="__codelineno-7-231" name="__codelineno-7-231" href="#__codelineno-7-231"></a>0xc6ccfe4a8c04   104  91000673       add x19, x19, #0x1 (1)
+</span><span id="__span-7-232"><a id="__codelineno-7-232" name="__codelineno-7-232" href="#__codelineno-7-232"></a># x20 是 bytecode array，从 bytecode array 读取下一个字节码的第一个字节到 x3 寄存器
+</span><span id="__span-7-233"><a id="__codelineno-7-233" name="__codelineno-7-233" href="#__codelineno-7-233"></a>0xc6ccfe4a8c08   108  38736a83       ldrb w3, [x20, x19]
+</span><span id="__span-7-234"><a id="__codelineno-7-234" name="__codelineno-7-234" href="#__codelineno-7-234"></a># 从栈上读取 x21 即 dispatch table register
+</span><span id="__span-7-235"><a id="__codelineno-7-235" name="__codelineno-7-235" href="#__codelineno-7-235"></a>0xc6ccfe4a8c0c   10c  f9400ff5       ldr x21, [sp, #24]
+</span><span id="__span-7-236"><a id="__codelineno-7-236" name="__codelineno-7-236" href="#__codelineno-7-236"></a># 从 dispatch table，以 x3 为下标，读取下一个字节码对应的代码的地址
+</span><span id="__span-7-237"><a id="__codelineno-7-237" name="__codelineno-7-237" href="#__codelineno-7-237"></a>0xc6ccfe4a8c10   110  f8637aa2       ldr x2, [x21, x3, lsl #3]
+</span><span id="__span-7-238"><a id="__codelineno-7-238" name="__codelineno-7-238" href="#__codelineno-7-238"></a># 恢复调用函数前的旧 fp 和 lr
+</span><span id="__span-7-239"><a id="__codelineno-7-239" name="__codelineno-7-239" href="#__codelineno-7-239"></a>0xc6ccfe4a8c14   114  a9407bbd       ldp fp, lr, [fp]
+</span><span id="__span-7-240"><a id="__codelineno-7-240" name="__codelineno-7-240" href="#__codelineno-7-240"></a># 恢复调用函数前的旧 sp
+</span><span id="__span-7-241"><a id="__codelineno-7-241" name="__codelineno-7-241" href="#__codelineno-7-241"></a>0xc6ccfe4a8c18   118  910103ff       add sp, sp, #0x40 (64)
+</span><span id="__span-7-242"><a id="__codelineno-7-242" name="__codelineno-7-242" href="#__codelineno-7-242"></a># 下一个字节码对应的代码的地址已经保存在 x2 寄存器当中，跳转过去
+</span><span id="__span-7-243"><a id="__codelineno-7-243" name="__codelineno-7-243" href="#__codelineno-7-243"></a>0xc6ccfe4a8c1c   11c  aa0203f1       mov x17, x2
+</span><span id="__span-7-244"><a id="__codelineno-7-244" name="__codelineno-7-244" href="#__codelineno-7-244"></a>0xc6ccfe4a8c20   120  d61f0220       br x17
+</span><span id="__span-7-245"><a id="__codelineno-7-245" name="__codelineno-7-245" href="#__codelineno-7-245"></a>                  -- B5 start (no frame) --
+</span><span id="__span-7-246"><a id="__codelineno-7-246" name="__codelineno-7-246" href="#__codelineno-7-246"></a>
+</span><span id="__span-7-247"><a id="__codelineno-7-247" name="__codelineno-7-247" href="#__codelineno-7-247"></a>                  -- B3 start (deferred) --
+</span><span id="__span-7-248"><a id="__codelineno-7-248" name="__codelineno-7-248" href="#__codelineno-7-248"></a># 此时 x3 大于 202，为非法字节码，跳转到错误处理的逻辑
+</span><span id="__span-7-249"><a id="__codelineno-7-249" name="__codelineno-7-249" href="#__codelineno-7-249"></a>                    [  - LoadFromConstantsTable@../../src/codegen/arm64/macro-assembler-arm64.cc:2166
+</span><span id="__span-7-250"><a id="__codelineno-7-250" name="__codelineno-7-250" href="#__codelineno-7-250"></a>                      [  - LoadRoot@../../src/codegen/arm64/macro-assembler-arm64.cc:1954
+</span><span id="__span-7-251"><a id="__codelineno-7-251" name="__codelineno-7-251" href="#__codelineno-7-251"></a>0xc6ccfe4a8c24   124  f94d5f41       ldr x1, [x26, #6840]
+</span><span id="__span-7-252"><a id="__codelineno-7-252" name="__codelineno-7-252" href="#__codelineno-7-252"></a>                      ]
+</span><span id="__span-7-253"><a id="__codelineno-7-253" name="__codelineno-7-253" href="#__codelineno-7-253"></a>                      [  - DecompressTagged@../../src/codegen/arm64/macro-assembler-arm64.cc:3448
+</span><span id="__span-7-254"><a id="__codelineno-7-254" name="__codelineno-7-254" href="#__codelineno-7-254"></a>0xc6ccfe4a8c28   128  d28bd170       movz x16, #0x5e8b
+</span><span id="__span-7-255"><a id="__codelineno-7-255" name="__codelineno-7-255" href="#__codelineno-7-255"></a>0xc6ccfe4a8c2c   12c  b8706821       ldr w1, [x1, x16]
+</span><span id="__span-7-256"><a id="__codelineno-7-256" name="__codelineno-7-256" href="#__codelineno-7-256"></a>0xc6ccfe4a8c30   130  8b010381       add x1, x28, x1
+</span><span id="__span-7-257"><a id="__codelineno-7-257" name="__codelineno-7-257" href="#__codelineno-7-257"></a>                      ]
+</span><span id="__span-7-258"><a id="__codelineno-7-258" name="__codelineno-7-258" href="#__codelineno-7-258"></a>                    ]
+</span><span id="__span-7-259"><a id="__codelineno-7-259" name="__codelineno-7-259" href="#__codelineno-7-259"></a>                    [ Frame: NO_FRAME_TYPE
+</span><span id="__span-7-260"><a id="__codelineno-7-260" name="__codelineno-7-260" href="#__codelineno-7-260"></a>                      [ Inlined  Trampoline for call to AbortCSADcheck - CallBuiltin@../../src/codegen/arm64/macro-assembler-arm64.cc:2391
+</span><span id="__span-7-261"><a id="__codelineno-7-261" name="__codelineno-7-261" href="#__codelineno-7-261"></a>0xc6ccfe4a8c34   134  96a4e10b       bl #-0x56c7bd4 (addr 0xc6ccf8de1060)    ;; code: Builtin::AbortCSADcheck
+</span><span id="__span-7-262"><a id="__codelineno-7-262" name="__codelineno-7-262" href="#__codelineno-7-262"></a>                      ]
+</span><span id="__span-7-263"><a id="__codelineno-7-263" name="__codelineno-7-263" href="#__codelineno-7-263"></a>                    ]
+</span><span id="__span-7-264"><a id="__codelineno-7-264" name="__codelineno-7-264" href="#__codelineno-7-264"></a>0xc6ccfe4a8c38   138  d4200000       brk #0x0
+</span><span id="__span-7-265"><a id="__codelineno-7-265" name="__codelineno-7-265" href="#__codelineno-7-265"></a>0xc6ccfe4a8c3c   13c  d4200000       brk #0x0
+</span><span id="__span-7-266"><a id="__codelineno-7-266" name="__codelineno-7-266" href="#__codelineno-7-266"></a>0xc6ccfe4a8c40   140  d503201f       nop
+</span><span id="__span-7-267"><a id="__codelineno-7-267" name="__codelineno-7-267" href="#__codelineno-7-267"></a>                  ;;; Safepoint table. - Emit@../../src/codegen/safepoint-table.cc:187
+</span><span id="__span-7-268"><a id="__codelineno-7-268" name="__codelineno-7-268" href="#__codelineno-7-268"></a>                  ]
+</span><span id="__span-7-269"><a id="__codelineno-7-269" name="__codelineno-7-269" href="#__codelineno-7-269"></a>
+</span><span id="__span-7-270"><a id="__codelineno-7-270" name="__codelineno-7-270" href="#__codelineno-7-270"></a>External Source positions:
+</span><span id="__span-7-271"><a id="__codelineno-7-271" name="__codelineno-7-271" href="#__codelineno-7-271"></a> pc offset  fileid  line
+</span><span id="__span-7-272"><a id="__codelineno-7-272" name="__codelineno-7-272" href="#__codelineno-7-272"></a>        b4       380        72
+</span><span id="__span-7-273"><a id="__codelineno-7-273" name="__codelineno-7-273" href="#__codelineno-7-273"></a>
+</span><span id="__span-7-274"><a id="__codelineno-7-274" name="__codelineno-7-274" href="#__codelineno-7-274"></a>
+</span><span id="__span-7-275"><a id="__codelineno-7-275" name="__codelineno-7-275" href="#__codelineno-7-275"></a>Safepoints (entries = 2, byte size = 12)
+</span><span id="__span-7-276"><a id="__codelineno-7-276" name="__codelineno-7-276" href="#__codelineno-7-276"></a>0xc6ccfe4a8b7c     7c  slots (sp-&gt;fp): 01001000
+</span><span id="__span-7-277"><a id="__codelineno-7-277" name="__codelineno-7-277" href="#__codelineno-7-277"></a>0xc6ccfe4a8ba8     a8  slots (sp-&gt;fp): 00001000
+</span><span id="__span-7-278"><a id="__codelineno-7-278" name="__codelineno-7-278" href="#__codelineno-7-278"></a>
+</span><span id="__span-7-279"><a id="__codelineno-7-279" name="__codelineno-7-279" href="#__codelineno-7-279"></a>RelocInfo (size = 3)
+</span><span id="__span-7-280"><a id="__codelineno-7-280" name="__codelineno-7-280" href="#__codelineno-7-280"></a>0xc6ccfe4a8c34  code target (BUILTIN AbortCSADcheck)  (0xc6ccf8de1060)
+</span></code></pre></div>
+<p>为了简化代码，关闭了 control flow integrity 相关的代码生成，具体方法是运行 <code>gn args out/arm64.optdebug</code>，追加一行 <code>v8_control_flow_integrity = false</code>，再重新 <code>autoninja -C out/arm64.optdebug d8</code>。</p>
+<p>以上是 debug 模式下生成的代码，多了很多检查；如果在 release 模式下，可以观察到更优的指令：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>kind = BYTECODE_HANDLER
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>name = LdaSmi
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>compiler = turbofan
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>address = 0x31a000462bd
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>Instructions (size = 80)
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a># 从这里开始实现 LdaSmi 的语义
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a># 计算 x19 + 1 的值并写入 x1，得到 LdaSmi 的第二个字节相对 bytecode array 的偏移
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>0xc903f8193400     0  91000661       add x1, x19, #0x1 (1)
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a># 从 x20 + x1 地址读取 LdaSmi 的第二个字节到 x1，也就是要加载到 `accumulator` 的值，
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a># 之后 x1 的值会写入到 x0，也就是 `accumulator` 对应的寄存器
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>0xc903f8193404     4  38e16a81       ldrsb w1, [x20, x1]
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a># Dispatch: 找到下一个 Opcode 对应的代码的入口，然后跳转过去
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a># x19 = x19 + 2，就是 bytecode offset 前进两个字节，指向下一个字节码
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>0xc903f8193408     8  91000a73       add x19, x19, #0x2 (2)
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a># x20 是 bytecode array，从 bytecode array 读取下一个字节码的第一个字节到 x3 寄存器
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>0xc903f819340c     c  38736a83       ldrb w3, [x20, x19]
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a># 计算 x4 = x3 * 8，也就是 dispatch table 中下一个字节码对应的代码地址的字节偏移
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>0xc903f8193410    10  d37df064       lsl x4, x3, #3
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a># 把之前 LdaSmi 计算得到的 x1 寄存器写到 `accumulator` 即 x0 寄存器当中
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a># 这里 x0 = 2 * x1，是因为 v8 用最低位表示这是一个 Smi（用 0 表示）还是一个指针（用 1 表示）
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>0xc903f8193414    14  0b010020       add w0, w1, w1
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a># 如果 x3 寄存器大于或等于 187，说明这个字节码可能是 Short Star 字节码，就跳转到后面的 0xc903f819342c 地址
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>0xc903f8193418    18  7102ec7f       cmp w3, #0xbb (187)
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>0xc903f819341c    1c  54000082       b.hs #+0x10 (addr 0xc903f819342c)
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a># 如果没有跳转，此时 x3 寄存器小于 187
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a># 从 dispatch table，以 x3 为下标（x4 = x3 * 8），读取下一个字节码对应的代码的地址
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>0xc903f8193420    20  f8646aa2       ldr x2, [x21, x4]
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a># 跳转到下一个字节码对应的代码的地址
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a>0xc903f8193424    24  aa0203f1       mov x17, x2
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a>0xc903f8193428    28  d61f0220       br x17
+</span><span id="__span-8-34"><a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a>
+</span><span id="__span-8-35"><a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a># 实现 Short Star 字节码
+</span><span id="__span-8-36"><a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a># 计算出要写入的 r0-r15 寄存器相对 fp 的偏移量 x3 * 8 - 1672
+</span><span id="__span-8-37"><a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a># 这个偏移量的计算公式在前面推导过，此时 x4 等于 x3 * 8
+</span><span id="__span-8-38"><a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a>0xc903f819342c    2c  d11a2081       sub x1, x4, #0x688 (1672)
+</span><span id="__span-8-39"><a id="__codelineno-8-39" name="__codelineno-8-39" href="#__codelineno-8-39"></a>0xc903f8193430    30  aa1d03e3       mov x3, fp
+</span><span id="__span-8-40"><a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a># 把 `accumulator` 写入到相对 fp 的对应位置
+</span><span id="__span-8-41"><a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a>0xc903f8193434    34  f8216860       str x0, [x3, x1]
+</span><span id="__span-8-42"><a id="__codelineno-8-42" name="__codelineno-8-42" href="#__codelineno-8-42"></a>
+</span><span id="__span-8-43"><a id="__codelineno-8-43" name="__codelineno-8-43" href="#__codelineno-8-43"></a># 下面就是 Dispatch 逻辑，只不过这次是执行完 Short Star 字节码后的 Dispatch
+</span><span id="__span-8-44"><a id="__codelineno-8-44" name="__codelineno-8-44" href="#__codelineno-8-44"></a># x19 = x19 + 1，就是 bytecode offset 前进一个字节，指向下一个字节码
+</span><span id="__span-8-45"><a id="__codelineno-8-45" name="__codelineno-8-45" href="#__codelineno-8-45"></a>0xc903f8193438    38  91000673       add x19, x19, #0x1 (1)
+</span><span id="__span-8-46"><a id="__codelineno-8-46" name="__codelineno-8-46" href="#__codelineno-8-46"></a># x20 是 bytecode array，从 bytecode array 读取下一个字节码的第一个字节到 x1 寄存器
+</span><span id="__span-8-47"><a id="__codelineno-8-47" name="__codelineno-8-47" href="#__codelineno-8-47"></a>0xc903f819343c    3c  38736a81       ldrb w1, [x20, x19]
+</span><span id="__span-8-48"><a id="__codelineno-8-48" name="__codelineno-8-48" href="#__codelineno-8-48"></a># 从 dispatch table，以 x1 为下标，读取下一个字节码对应的代码的地址
+</span><span id="__span-8-49"><a id="__codelineno-8-49" name="__codelineno-8-49" href="#__codelineno-8-49"></a>0xc903f8193440    40  f8617aa2       ldr x2, [x21, x1, lsl #3]
+</span><span id="__span-8-50"><a id="__codelineno-8-50" name="__codelineno-8-50" href="#__codelineno-8-50"></a># 跳转到下一个字节码对应的代码的地址
+</span><span id="__span-8-51"><a id="__codelineno-8-51" name="__codelineno-8-51" href="#__codelineno-8-51"></a>0xc903f8193444    44  aa0203f1       mov x17, x2
+</span><span id="__span-8-52"><a id="__codelineno-8-52" name="__codelineno-8-52" href="#__codelineno-8-52"></a>0xc903f8193448    48  d61f0220       br x17
+</span><span id="__span-8-53"><a id="__codelineno-8-53" name="__codelineno-8-53" href="#__codelineno-8-53"></a>0xc903f819344c    4c  d503201f       nop
+</span></code></pre></div>
+<p>可见 release 模式下的代码还是简单了许多，保证了性能。</p>
+<p>有的 Opcode 后面不会紧接着出现 Short Star，此时 Dispatch 会减少一次特判，代码更加简单，以 <code>Ldar</code> 为例：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>kind = BYTECODE_HANDLER
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>name = Ldar
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>compiler = turbofan
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>address = 0x31a00046245
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>Instructions (size = 44)
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a># Ldar 的语义是，把指定参数寄存器的值写入到 `accumulator` 当中
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a># 参数寄存器的位置记录在 Ldar 字节码的第二个字节中
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a># 如：0b 04 对应 Ldar a1
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a># 计算 x19 + 1 的值并写入 x1，得到 Ldar 的第二个字节相对 bytecode array 的偏移
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>0xc903f8193320     0  91000661       add x1, x19, #0x1 (1)
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a># 从 x20 + x1 地址读取 Ldar 的第二个字节到 x1，也就是参数寄存器相对 fp 的下标
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>0xc903f8193324     4  38a16a81       ldrsb x1, [x20, x1]
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a># 相对 fp 以 x1 为下标，读取参数寄存器的值到 x1 寄存器
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>0xc903f8193328     8  aa1d03e3       mov x3, fp
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>0xc903f819332c     c  f8617861       ldr x1, [x3, x1, lsl #3]
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a># Dispatch: 找到下一个 Opcode 对应的代码的入口，然后跳转过去
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a># x19 = x19 + 2，就是 bytecode offset 前进两个字节，指向下一个字节码
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>0xc903f8193330    10  91000a73       add x19, x19, #0x2 (2)
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a># x20 是 bytecode array，从 bytecode array 读取下一个字节码的第一个字节到 x3 寄存器
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>0xc903f8193334    14  38736a83       ldrb w3, [x20, x19]
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a># 从 dispatch table，以 x3 为下标，读取下一个字节码对应的代码的地址
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a>0xc903f8193338    18  f8637aa2       ldr x2, [x21, x3, lsl #3]
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a># 把参数寄存器的值写入到 `accumulator` 也就是 x0 当中
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>0xc903f819333c    1c  aa0103e0       mov x0, x1
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a># 跳转到下一个字节码对应的代码的地址
+</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a>0xc903f8193340    20  aa0203f1       mov x17, x2
+</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>0xc903f8193344    24  d61f0220       br x17
+</span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a>0xc903f8193348    28  d503201f       nop
+</span></code></pre></div>
+<p>小结一下：</p>
+<ol>
+<li>Ignition 给每种可能的 Opcode 类型生成一段代码</li>
+<li>这段代码会进行一些检查（仅 Debug 模式下），然后在汇编里实现这个字节码的功能</li>
+<li>执行完字节码后，进入 Dispatch 逻辑，寻找下一个字节码对应的代码的地址</li>
+<li>特别地，如果下一个字节码是 Short Star (Star0-Star15)，因为它比较简单和常见，就直接执行它，执行完再重新寻找再下一个字节码对应的代码的地址</li>
+<li>这些 Opcode 对应的代码会在 v8 编译过程中通过 <code>mksnapshot</code> 命令一次性生成好，运行时直接复用，不用重新生成</li>
+<li>V8 的值的最低位标识了它的类型：0 表示 Smi，1 表示指针，因此在存储 Smi 的时候，寄存器里保存的是实际值的两倍，这样最低位就是 0</li>
+</ol>
+<h2 id="参考">参考<a class="headerlink" href="#参考" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://v8.dev/blog/ignition-interpreter">Firing up the Ignition interpreter</a></li>
+<li><a href="https://stackoverflow.com/questions/73337772/how-to-get-node-js-to-trace-ignition-within-v8-with-trace-ignition">How to get Node.js to trace ignition within v8? with --trace-ignition</a></li>
+<li><a href="https://dynamic-languages-symposium.org/dls-16/program/media/McIlroy_2016_IgnitionJumpStartingAnInterpreterForV8_Dls.pdf">Ignition: Jump-starting an Interpreter for V8</a></li>
+<li><a href="https://docs.google.com/document/d/11T2CRex9hXxoJwbYqVQ32yIPMh0uouUZLdyrtmMoL44">Ignition: V8 Interpreter</a></li>
+<li><a href="https://doar-e.github.io/blog/2019/01/28/introduction-to-turbofan/">Introduction to TurboFan</a></li>
+<li><a href="https://www.alibabacloud.com/blog/javascript-bytecode-v8-ignition-instructions_599188">JavaScript Bytecode – v8 Ignition Instructions</a></li>
+<li><a href="https://medium.com/dailyjs/understanding-v8s-bytecode-317d46c94775">Understanding V8’s Bytecode</a></li>
+<li><a href="Documentation">V8 Documentation</a></li>
+<li><a href="https://v8.dev/docs/ignition">V8 Ignition</a></li>
+<li><a href="https://v8.dev/docs/turbofan">V8 TurboFan</a></li>
+<li><a href="https://v8.github.io/tools/v13.4/turbolizer/index.html">V8 Turbolizer v13.4</a></li>
+<li><a href="https://benediktmeurer.de/2017/03/01/v8-behind-the-scenes-february-edition">V8: Behind the Scenes (February Edition feat. A tale of TurboFan)</a></li>
+<li><a href="https://github.com/danbev/learning-v8">danbev/learning-v8</a></li>
+<li><a href="https://medium.com/fhinkel/v8-internals-how-small-is-a-small-integer-e0badc18b6da">V8 Internals: How Small is a “Small Integer?”</a></li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="最后更新">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年3月8日 08:00:33">2025年3月8日</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="创建日期">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年3月5日 07:32:50">2025年3月5日</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+  
+
+
+  
+
+
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<script src="https://giscus.app/client.js"
+  data-repo="jiegec/blog-source"
+  data-repo-id="MDEwOlJlcG9zaXRvcnk1MTgyMTUzMQ=="
+  data-category="General"
+  data-category-id="DIC_kwDOAxa7284CkIjI"
+  data-mapping="pathname"
+  data-strict="0"
+  data-reactions-enabled="1"
+  data-emit-metadata="0"
+  data-input-position="top"
+  data-theme="light"
+  data-lang="zh-CN"
+  crossorigin="anonymous"
+  async>
+</script>
+      
+    </article>
+  </div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../../02/04/feishu-dump-calendar/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 导出飞书日历为 iCalendar 格式">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                导出飞书日历为 iCalendar 格式
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../06/android-runtime-interpreter/" class="md-footer__link md-footer__link--next" aria-label="下一页: Android Runtime 解释器的实现探究">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                Android Runtime 解释器的实现探究
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jiegec" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

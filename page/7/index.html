@@ -516,6 +516,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#通过-ipmitool-配置-ilo-4-管理端口" class="md-nav__link">
+    <span class="md-ellipsis">
+      通过 ipmitool 配置 iLO 4 管理端口
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#静态编译-ipmitool" class="md-nav__link">
+    <span class="md-ellipsis">
+      静态编译 ipmitool
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#esxi-网络配置" class="md-nav__link">
     <span class="md-ellipsis">
       ESXi 网络配置
@@ -717,24 +735,6 @@
   <a href="#在-rpi4-上用-pxe-运行-alpine-linux" class="md-nav__link">
     <span class="md-ellipsis">
       在 rpi4 上用 PXE 运行 Alpine Linux
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#用-certbot-申请-route53-上的域名的-letsencrypt-证书并上传到-iam" class="md-nav__link">
-    <span class="md-ellipsis">
-      用 certbot 申请 route53 上的域名的 LetsEncrypt 证书并上传到 IAM
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#在-k8s-中部署-prometheus" class="md-nav__link">
-    <span class="md-ellipsis">
-      在 k8s 中部署 Prometheus
     </span>
   </a>
   
@@ -1764,6 +1764,138 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-03-29 00:00:00+00:00">2021年3月29日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/system/" class="md-meta__link">system</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="通过-ipmitool-配置-ilo-4-管理端口"><a class="toclink" href="../../system/2021/03/29/ilo-nic-selection-ipmitool/">通过 ipmitool 配置 iLO 4 管理端口</a></h2>
+<p>ipmitool 自带了对 iDRAC 的支持，可以通过 <code>ipmitool delloem</code> 设置 iDRAC 的管理端口。但是对 iLO 的支持并没有实现。研究了一番，找到了通过 raw command 配置 iLO 4 管理端口的方法。</p>
+<p><a href="https://computercheese.blogspot.com/2013/05/ipmi-lan-commands.html">这篇文章</a> 讲述了 <code>ipmitool lan</code> 命令实际会发送的命令：</p>
+<p>读取配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$<span class="w"> </span>ipmitool<span class="w"> </span>raw<span class="w"> </span>0x0c<span class="w"> </span>0x02<span class="w"> </span>CHANNEL<span class="w"> </span>KEY<span class="w"> </span>SET<span class="w"> </span>BLOCK
+</span></code></pre></div>
+<p>一般来说 SET 和 BLOCK 都是 0。KEY 的常见取值：</p>
+<ul>
+<li>3: IP 地址</li>
+<li>4: IP 地址来源</li>
+<li>5: MAC 地址</li>
+<li>6: 子网掩码</li>
+<li>12: 默认网关</li>
+</ul>
+<p>返回的数据中，第一个字节忽略，剩下的就是数据了。</p>
+<p>写入配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$<span class="w"> </span>ipmitool<span class="w"> </span>raw<span class="w"> </span>0x0c<span class="w"> </span>0x01<span class="w"> </span>CHANNEL<span class="w"> </span>KEY<span class="w"> </span>DATA...
+</span></code></pre></div>
+<p>知道如何读取配置后，接下来就是找到 iLO 4 配置 NIC 的地方了。一番搜索，找到了 <a href="https://support.hpe.com/hpesc/public/docDisplay?docId=c04530505&amp;docLocale=en_US">HPE iLO IPMI User Guide</a>。在第 101 页，可以找到一个用于配置 iLO NIC 选择的设置：</p>
+<div class="language-text highlight"><pre><span></span><code>Index: 224
+iLO Dedicated/Shared NIC Selection.
+data 3:
+• Selected iLO NIC.
+◦ 0h = iLO Dedicated NIC is selected.
+◦ 1h = iLO Shared NIC is selected.
+◦ All others = reserved
+• To switch to another iLO NIC:
+1. Write this (and possibly parameter 197) to the desired NIC selection
+2. Configure all other relevant network parameters for the desin
+3. Reset iLO. The desired NIC will be in use after iLO reset.
+• When writing changes to data 3, NIC selection:
+◦ data 1 must be AAh
+◦ data 2 must be 55h
+◦ data 4 must be FFh
+</code></pre></div>
+<p>有这样的信息以后，可以通过下面的命令来设置 Shared NIC：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>$<span class="w"> </span>ipmitool<span class="w"> </span>raw<span class="w"> </span>0x0c<span class="w"> </span>0x01<span class="w"> </span>0x01<span class="w"> </span><span class="m">224</span><span class="w"> </span>0xAA<span class="w"> </span>0x55<span class="w"> </span>0x01<span class="w"> </span>0xFF
+</span></code></pre></div>
+<p>再读出来 224，发现它的 data 4 表示 <code>iLO reset needed for some settings changes that have been made</code>。于是，执行 <code>ipmitool mc reset warm</code> 之后，就可以看到 NIC 选择已经更新：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$<span class="w"> </span>ipmitool<span class="w"> </span>raw<span class="w"> </span>0x0c<span class="w"> </span>0x02<span class="w"> </span>0x01<span class="w"> </span><span class="m">197</span><span class="w"> </span>0x00<span class="w"> </span>0x00
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="m">11</span><span class="w"> </span><span class="m">02</span><span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="m">02</span>
+</span></code></pre></div>
+<p>数据分别表示：</p>
+<ul>
+<li>0x02: Shared NIC Selection = ALOM</li>
+<li>0x01: Shared NIC Port Number = Port 1</li>
+<li>0x02: Platform supports ALOM shared NIC</li>
+</ul>
+<p>如果想要的端口和默认选择不一样，可以写入 197 来更新。详见上面的文档链接。</p>
+<p>超微的机器也有类似的办法：https://www.supermicro.org.cn/support/faqs/faq.cfm?faq=15868，可以用 <code>ipmiutil smcoem lanport</code> 命令来读取/修改。</p>
+<p>Update：我给 IPMITOOL 提交了 <a href="https://github.com/ipmitool/ipmitool/pull/278">PR</a>，来简化这个过程</p>
+    
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-03-29 00:00:00+00:00">2021年3月29日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/system/" class="md-meta__link">system</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="静态编译-ipmitool"><a class="toclink" href="../../system/2021/03/29/static-ipmitool/">静态编译 ipmitool</a></h2>
+<p>为了在 ESXi 上运行 ipmitool，需要静态编译 ipmitool。网上已经有一些解决方案：</p>
+<p>https://github.com/ryanbarrie/ESXI-ipmitool
+https://github.com/hobbsh/static-ipmitool
+https://github.com/ewenmcneill/docker-build-static-ipmitool</p>
+<p>我稍微修改了一下，用来编译最新 ipmitool：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="ch">#!/bin/bash</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">set</span><span class="w"> </span>-x
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span><span class="m">1</span>.8.19
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>rm<span class="w"> </span>-rf<span class="w"> </span>ipmitool_<span class="nv">$VERSION</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>ipmitool_<span class="nv">$VERSION</span>.tar.gz<span class="w"> </span>http://deb.debian.org/debian/pool/main/i/ipmitool/ipmitool_<span class="nv">$VERSION</span>.orig.tar.gz
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>tar<span class="w"> </span>xvf<span class="w"> </span>ipmitool_<span class="nv">$VERSION</span>.tar.gz
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">cd</span><span class="w"> </span>ipmitool-IPMITOOL_<span class="si">${</span><span class="nv">VERSION</span><span class="p">//./_</span><span class="si">}</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>./bootstrap
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nv">CC</span><span class="o">=</span>gcc<span class="w"> </span><span class="nv">CFLAGS</span><span class="o">=</span>-m64<span class="w"> </span><span class="nv">LDFLAGS</span><span class="o">=</span>-static<span class="w"> </span>./configure<span class="w"> </span>--disable-ipmishell
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>make<span class="w"> </span>-j24
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nb">cd</span><span class="w"> </span>src
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>../libtool<span class="w"> </span>--silent<span class="w"> </span>--tag<span class="o">=</span>CC<span class="w"> </span>--mode<span class="o">=</span>link<span class="w"> </span>gcc<span class="w"> </span>-m64<span class="w"> </span>-fno-strict-aliasing<span class="w"> </span>-Wreturn-type<span class="w"> </span>-all-static<span class="w"> </span>-o<span class="w"> </span>ipmitool.static<span class="w"> </span>ipmitool.o<span class="w"> </span>ipmishell.o<span class="w"> </span>../lib/libipmitool.la<span class="w"> </span>plugins/libintf.la
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>file<span class="w"> </span><span class="nv">$PWD</span>/ipmitool.static
+</span></code></pre></div>
+<p>复制下来，编译完成后 scp 到 esxi 中即可使用。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -4263,138 +4395,6 @@ in 1.4.
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>&gt;<span class="w"> </span>find<span class="w"> </span>.<span class="w"> </span>-print0<span class="w"> </span><span class="p">|</span><span class="w"> </span>cpio<span class="w"> </span>--null<span class="w"> </span>-ov<span class="w"> </span>--format<span class="o">=</span>newc<span class="w"> </span><span class="p">|</span><span class="w"> </span>gzip<span class="w"> </span>&gt;<span class="w"> </span>../initramfs-rpi4
 </span></code></pre></div>
 <p>把自带的 initramfs 替换掉。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2020-08-12 00:00:00+00:00">2020年8月12日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="用-certbot-申请-route53-上的域名的-letsencrypt-证书并上传到-iam"><a class="toclink" href="../../devops/2020/08/12/certbot-route53-letsencrypt-iam/">用 certbot 申请 route53 上的域名的 LetsEncrypt 证书并上传到 IAM</a></h2>
-<p>最近遇到了 AWS Certificate Manager 的一些限制，所以只能用 IAM 证书。于是上网找到了通过 certbot 申请 LE 证书，通过 route53 API 验证的方法。</p>
-<p>首先配置 aws 的 credential。然后，按照 certbot：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip3<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span>certbot<span class="w"> </span>certbot_dns_route53
-</span></code></pre></div>
-<p>然后，就可以申请证书了：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>certbot<span class="w"> </span>certonly<span class="w"> </span>--dns-route53<span class="w"> </span>--config-dir<span class="w"> </span><span class="s2">&quot;./letsencrypt&quot;</span><span class="w"> </span>--work-dir<span class="w"> </span><span class="s2">&quot;./letsencrypt&quot;</span><span class="w"> </span>--logs-dir<span class="w"> </span><span class="s2">&quot;./letsencrypt&quot;</span><span class="w">  </span>-d<span class="w"> </span>example.com<span class="w"> </span>--email<span class="w"> </span>a@b.com<span class="w"> </span>--agree-tos
-</span></code></pre></div>
-<p>如果申请成功，在当前目录下可以找到证书。然后上传到 IAM：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>aws<span class="w"> </span>iam<span class="w"> </span>upload-server-certificate<span class="w"> </span>--server-certificate-name<span class="w"> </span>NameHere<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span>--certificate-body<span class="w"> </span>file://letsencrypt/live/example.com/cert.pem<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span>--private-key<span class="w"> </span>file://letsencrypt/live/example.com/privkey.pem<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span>--certificate-chain<span class="w"> </span>file://letsencrypt/live/example.com/chain.pem<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span>--path<span class="w"> </span>/cloudfront/
-</span></code></pre></div>
-<p>如果要用于 cloudfront，才需要最后的路径参数；否则可以去掉。这样就完成了 IAM 证书的上传。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2020-07-10 00:00:00+00:00">2020年7月10日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-k8s-中部署-prometheus"><a class="toclink" href="../../devops/2020/07/10/k8s-prometheus/">在 k8s 中部署 Prometheus</a></h2>
-<p>实验了一下在 k8s 中部署 Prometheus，因为它和 k8s 有比较好的集成，很多 App 能在 k8s 里通过 service discovery 被 Prometheus 找到并且抓取数据。实践了一下，其实很简单。</p>
-<p>用 helm 进行配置：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>prometheus<span class="w"> </span>stable/prometheus
-</span></code></pre></div>
-<p>这样就可以了，如果已经有 StorageClass（比如腾讯云的话，CBS 和 CFS），它就能自己起来了，然后在 Lens 里面也可以看到各种 metrics 的可视化。</p>
-<p>如果是自建的单结点的 k8s 集群，那么还需要自己创造 PV，并且把 PVC 绑定上去。我采用的是 local 类型的 PV：</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PersistentVolume</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nt">metadata</span><span class="p">:</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pv-volume-1</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="nt">spec</span><span class="p">:</span>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manual</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">  </span><span class="nt">capacity</span><span class="p">:</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10Gi</span>
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">  </span><span class="nt">accessModes</span><span class="p">:</span>
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ReadWriteOnce</span>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">  </span><span class="nt">hostPath</span><span class="p">:</span>
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/srv/k8s-data-1&quot;</span>
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
-</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="nn">---</span>
-</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
-</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PersistentVolume</span>
-</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="nt">metadata</span><span class="p">:</span>
-</span><span id="__span-11-20"><a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pv-volume-2</span>
-</span><span id="__span-11-21"><a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a><span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
-</span><span id="__span-11-22"><a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
-</span><span id="__span-11-23"><a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="nt">spec</span><span class="p">:</span>
-</span><span id="__span-11-24"><a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a><span class="w">  </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manual</span>
-</span><span id="__span-11-25"><a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a><span class="w">  </span><span class="nt">capacity</span><span class="p">:</span>
-</span><span id="__span-11-26"><a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a><span class="w">    </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10Gi</span>
-</span><span id="__span-11-27"><a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a><span class="w">  </span><span class="nt">accessModes</span><span class="p">:</span>
-</span><span id="__span-11-28"><a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ReadWriteOnce</span>
-</span><span id="__span-11-29"><a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a><span class="w">  </span><span class="nt">hostPath</span><span class="p">:</span>
-</span><span id="__span-11-30"><a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/srv/k8s-data-2&quot;</span>
-</span></code></pre></div>
-<p>这样，结点上的两个路径分别对应两个 PV，然后只要让 PVC 也用 manual 的 StorageClass 就可以了：</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">server</span><span class="p">:</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="nt">persistentVolume</span><span class="p">:</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">        </span><span class="nt">storageClass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manual</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nt">alertmanager</span><span class="p">:</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="nt">persistentVolume</span><span class="p">:</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">        </span><span class="nt">storageClass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">manual</span>
-</span></code></pre></div>
-<p>把这个文件保存为 values.yaml 然后：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>prometheus<span class="w"> </span>stable/prometheus<span class="w"> </span>-f<span class="w"> </span>values.yaml
-</span></code></pre></div>
-<p>这样就可以了。不过 PVC 不能在线改，可能需要删掉重来。</p>
-<p>然后，由于权限问题，还需要在结点上修改一下两个目录的权限：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>sudo<span class="w"> </span>chown<span class="w"> </span>-R<span class="w"> </span><span class="m">65534</span>:65534<span class="w"> </span>/srv/k8s-data-1
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>sudo<span class="w"> </span>chown<span class="w"> </span>-R<span class="w"> </span><span class="m">65534</span>:65534<span class="w"> </span>/srv/k8s-data-2
-</span></code></pre></div>
-<p>这样容器内就可以正常访问了。</p>
     
   </div>
 </article>

@@ -516,6 +516,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#给-rocket-chip-挂接串口外设" class="md-nav__link">
+    <span class="md-ellipsis">
+      给 Rocket Chip 挂接串口外设
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#每周分享第-22-期" class="md-nav__link">
+    <span class="md-ellipsis">
+      每周分享第 22 期
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#把博客生成器从-jekyll-迁移到-hugo" class="md-nav__link">
     <span class="md-ellipsis">
       把博客生成器从 Jekyll 迁移到 Hugo
@@ -717,24 +735,6 @@
   <a href="#预告-learn-project-40-版" class="md-nav__link">
     <span class="md-ellipsis">
       预告 Learn-Project 4.0 版
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-11-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      每周分享第 11 期
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#近来做-stanford-cs140e-的一些进展和思考9" class="md-nav__link">
-    <span class="md-ellipsis">
-      近来做 Stanford CS140e 的一些进展和思考（9）
     </span>
   </a>
   
@@ -1764,6 +1764,178 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2019-05-08 00:00:00+00:00">2019年5月8日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/os/" class="md-meta__link">os</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="给-rocket-chip-挂接串口外设"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/">给 Rocket Chip 挂接串口外设</a></h2>
+<h3 id="前言"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#前言">前言</a></h3>
+<p>最近在给 rCore 添加 Rocket Chip 支持。下面讲讲最近做了哪些工作，遇到了哪些坑，都是怎么解决的。</p>
+<h3 id="踩坑过程"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#踩坑过程">踩坑过程</a></h3>
+<h4 id="rocket-chip-运行代码"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#rocket-chip-运行代码">Rocket Chip 运行代码</a></h4>
+<p>首先分析了一下已有的代码和工作方式，这个 Rocket Chip（ucb-bar/fpga-zynq）的设计大概是这样的：在 PS 上通过 fesvr 向 Rocket Chip 写入程序。Rocket Chip 本身暴露出一个 TSI，一个串口的调试接口，通过 Zynq Adapter 挂到了 PS 下的 AXI 总线，暴露出若干个寄存器，大概如下：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="w">  </span><span class="cm">/**</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="cm">   * Address Map</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="cm">   * 0x00 - serial out FIFO data</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="cm">   * 0x04 - serial out FIFO data available (words)</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="cm">   * 0x08 - serial in  FIFO data</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="cm">   * 0x0C - serial in  FIFO space available (words)</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="cm">   * 0x10 - system reset</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="cm">   * 0x20 - req FIFO data</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="cm">   * 0x24 - req FIFO data available (words)</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="cm">   * 0x28 - data FIFO data</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="cm">   * 0x2C - data FIFO data available (words)</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="cm">   * 0x30 - resp FIFO data</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="cm">   * 0x34 - resp FIFO space available (words)</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="cm">   * 0x38 - nsectors</span>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="cm">   * 0x3C - max request length</span>
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="cm">   */</span>
+</span></code></pre></div>
+<p>前面的是调试接口，后面的是 block device 和 network，我们暂时还没有用到这些 UCB BAR 做的私货。在 Vivado 中，地址 Offset 是 0x43C00000，所以代码中就这样访问对应的物理地址：</p>
+<div class="language-c++ highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="cp">#define ZYNQ_BASE_PADDR 0x43C00000L</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">fd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">open</span><span class="p">(</span><span class="s">&quot;/dev/mem&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">O_RDWR</span><span class="o">|</span><span class="n">O_SYNC</span><span class="p">);</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">assert</span><span class="p">(</span><span class="n">fd</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">-1</span><span class="p">);</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">dev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">mmap</span><span class="p">(</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">sysconf</span><span class="p">(</span><span class="n">_SC_PAGESIZE</span><span class="p">),</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="n">PROT_READ</span><span class="o">|</span><span class="n">PROT_WRITE</span><span class="p">,</span><span class="w"> </span><span class="n">MAP_SHARED</span><span class="p">,</span><span class="w"> </span><span class="n">fd</span><span class="p">,</span><span class="w"> </span><span class="n">ZYNQ_BASE_PADDR</span><span class="p">);</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">assert</span><span class="p">(</span><span class="n">dev</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">MAP_FAILED</span><span class="p">);</span>
+</span></code></pre></div>
+<p>这块地址在 Device Tree 里也有对应的项，于是 PS 在访问的时候就会找到总线上的 Rocket Chip 的 Slave，也就对应到了上面的那个寄存器的 Map。接着就是由 fesvr 向 Rocket Chip 里写程序，然后跑起来了。</p>
+<h4 id="opensbi-输出"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#opensbi-输出">OpenSBI 输出</a></h4>
+<p>接着就需要先把输入输出做起来，需要移植一个 bootloader。相比之下，OpenSBI 明显比 bbl 更适合于这个用途，于是拿着 OpenSBI 就拿来改了。考虑到 fesvr 采用的是 htif 进行输入输出，于是从 bbl 里抄了相关代码过来，得到了正确的输出：</p>
+<p><img alt="" src="../../os/opensbi_uart.jpg" /></p>
+<h4 id="rcore启动"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#rcore启动">rCore，启动！</a></h4>
+<p>接下来，就想着怎么把 rCore 丢进去跑。把 payload 替换掉，丢进去，gg 了。一直出现一个玄学的问题，只要我修改页表，就出现 instruction access fault。也一直没有找到真实的原因，最后把 PMP 保护关了就好了。。怀疑是 Rocket Chip 实现有误。</p>
+<p>又做了一些小的修改和适配，用户态也可以正常跑起来了。但是，现在串口只能轮询读取，而 htif 是通过读写内存进行的，也没有类似 MSI 的机制（现在想了想，其实可以，给 PS 挂一个 AXI Interrupt Controller，采用软件产生中断模式，然后接到 Rocket Chip 上，其实也是可以的），另外 Rocket Chip 原来的 Config 还没有向外暴露中断，我想挂一个串口也得让 Rocket Chip 访问得到。于是就开始了阅读 Chisel 代码然后魔改的过程了。</p>
+<h4 id="魔改-rocket-chip"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#魔改-rocket-chip">魔改 Rocket Chip</a></h4>
+<p>其实算不上魔改，克服了对 Rocket Chip 的恐惧，仔细阅读代码以后，发现还是比较容易理解的。譬如，我要添加一个外部总线，只需要添加一句：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="nc">ExtBus</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">up</span><span class="p">(</span><span class="nc">ExtBus</span><span class="p">,</span><span class="w"> </span><span class="n">site</span><span class="p">).</span><span class="n">copy</span><span class="p">(</span><span class="n">idBits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span><span class="p">)</span>
+</span></code></pre></div>
+<p>那么对应地，就多了一片地址映射：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>60000000 - 80000000  RWX  mmio-port-axi4@60000000
+</span></code></pre></div>
+<p>意味着，只要我在 Rocket Chip 里访问这片地址，那么就会访问这个 AXI 总线上的外设了。但是事情没有这么简单，在踩了很久的坑以后才最终解决。。</p>
+<h5 id="axi-总线地址的计算方式"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#axi-总线地址的计算方式">AXI 总线地址的计算方式</a></h5>
+<p>首先谈谈 AXI 总线上地址是怎么计算的。AXI 总线是一个星形结构，一个 Master 多个 Slave，在这里出现的例子是：</p>
+<ol>
+<li>PS 是 Master，Rocket Chip 是 Slave — 刚才谈到过的那片 register space</li>
+<li>Rocket Chip 是 Master，PS 是 Slave — 让 Rocket Chip 访问 DDR 控制器</li>
+<li>Rocket Chip 是 Master，外设 是 Slave — 这就是现在要做的事情</li>
+</ol>
+<p>之前省略没说的是上面的第二点，就是让 Rocket Chip 也可以拿到内存用。那问题来了，怎么让 Rocket Chip 和 ARM 上的 Linux 不要打架？把地址空间分成两块就好了：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kt">wire</span><span class="w"> </span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">mem_araddr</span><span class="p">;</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kt">wire</span><span class="w"> </span><span class="p">[</span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">mem_awaddr</span><span class="p">;</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1">// Memory given to Rocket is the upper 256 MB of the 512 MB DRAM</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">assign</span><span class="w"> </span><span class="n">S_AXI_araddr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mh">4</span><span class="mi">&#39;d1</span><span class="p">,</span><span class="w"> </span><span class="n">mem_araddr</span><span class="p">[</span><span class="mh">27</span><span class="o">:</span><span class="mh">0</span><span class="p">]};</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="k">assign</span><span class="w"> </span><span class="n">S_AXI_awaddr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mh">4</span><span class="mi">&#39;d1</span><span class="p">,</span><span class="w"> </span><span class="n">mem_awaddr</span><span class="p">[</span><span class="mh">27</span><span class="o">:</span><span class="mh">0</span><span class="p">]};</span>
+</span></code></pre></div>
+<p>这样做，就透明地把 Rocket Chip 看到的内存空间都映射到了实际内存的 [256MB, 512MB) 这片空间上了。</p>
+<p>注：我实验用的板子实际上有 1GB 的 DRAM，但实际上已经足够用了，所以就没有改原来 zedboard 的配置。</p>
+<p>我在前面也提到，在 PS 上访问 0x43C00000 就是对应了 Zynq Adapter 的 0x0 地址。这里也是，在 Rocket Chip 上访问 0x0 的地址，我强行改成了 0x10000000，然后 Offset 是 0，所以最后到内存就是 0x10000000 的地址了。</p>
+<p>所以 AXI 总线上 Slave Register 的地址 = Master 地址 - 匹配到的 Slave 的 Offset 地址。但是，<strong>如果只有单个 Slave 的时候，AXI Interconnect 可能不检查地址范围，而是直接截断，但在有多个 Slave 的时候，会先检查地址范围，如果找不到就返回错误。</strong>这个问题让我困惑了许久，直到我挂上了 <code>System ILA</code> 看。。</p>
+<h5 id="axi-uartlite"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#axi-uartlite">AXI Uartlite</a></h5>
+<p>既然有了外设总线，第一个想到的外设就是 UART 咯，于是加了一个 AXI Uartlite，用 AXI Interconnect 连到外设总线上。写了程序简单测试了一下，确实读取到了数据，然后也很快就可以成功地从串口读数据，写数据。于是我又加了一个串口，拉到 AXI Interconnect 第二个接口上，结果就不工作了。</p>
+<p>细心的读者可能已经从我上面讲到的一些内容上猜到了问题所在。。但这一点直到后面我才明白发生了什么，后面会再讲到这里的问题。</p>
+<h5 id="axi-interrupt-controller"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#axi-interrupt-controller">AXI Interrupt Controller</a></h5>
+<p>接着，回到我们最初的目标，既然可以输入输出了，还要真的串口干啥？添加中断或者拉一路 JTAG 出来，脱离 PS 来进行调试。所以接下来需要从 Rocket Chip 中暴露外部中断。在原来的代码中，是直接关掉了的：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">target</span><span class="p">.</span><span class="n">tieOffInterrupts</span><span class="p">()</span>
+</span></code></pre></div>
+<p>它的功能很简单，直接把中断置 0。但我要的是拉到外面，经过了一番挣扎：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">io</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">IO</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="nc">Bundle</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">ps_axi_slave</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Flipped</span><span class="p">(</span><span class="n">adapter</span><span class="p">.</span><span class="n">axi</span><span class="p">.</span><span class="n">cloneType</span><span class="p">)</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">mem_axi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">mem_axi4</span><span class="p">.</span><span class="n">head</span><span class="p">.</span><span class="n">cloneType</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">mmio_axi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">mmio_axi4</span><span class="p">.</span><span class="n">head</span><span class="p">.</span><span class="n">cloneType</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">interrupts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">})</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="n">io</span><span class="p">.</span><span class="n">mem_axi</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">mem_axi4</span><span class="p">.</span><span class="n">head</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="n">io</span><span class="p">.</span><span class="n">mmio_axi</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">mmio_axi4</span><span class="p">.</span><span class="n">head</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="n">target</span><span class="p">.</span><span class="n">interrupts</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">io</span><span class="p">.</span><span class="n">interrupts</span>
+</span></code></pre></div>
+<p>终于找到了正确的方法，拉出来两路中断信号。于是很开心地直接接到了 Uartlite 上，但是事情肯定不会这么简单：</p>
+<p>Uartlite 是正边沿触发的中断，但是 Rocket Chip 期望的是高电平触发的中断。所以我们需要一个中断控制器来实现这个，加了一个 AXI Interrupt  Controller。但是问题来了，我们还没解决那个只要加俩 Slave 就都访问不到的问题呢！于是到处挂 System ILA 调试，发现了问题所在：</p>
+<p>我们之前提到，0x60000000 - 0x80000000 地址段是对应到了外部 AXI 总线的，这没错，但是，如果在 Rocket Chip 上读 0x60000000 的地址，到总线上还是 0x60000000 的地址而不是 0x0，而之前只有一个 Slave 的时候，没有真的去检查这个地址范围，所以找到了正确的寄存器，现在不行了，于是出错了。</p>
+<p>解决方法也很简单，乖乖地把 Offset 调成 0x60000000 和 0x61200000，然后再映射到 rCore 的内核态里。一番挣扎，又参照了 Linux 的 Uartlite 驱动（发现了遗忘设置的 MER 寄存器，不认真阅读文档的后果），终于在 ILA 上看到 uartlite 的输出上有一个脉冲，紧接着看到中断控制器输出了一个 irq，然后 Rocket Chip 收到了 external interrupt。Cheers！</p>
+<h4 id="中断处理"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#中断处理">中断处理</a></h4>
+<p>事情虽然差不多解决了，但是还没有结束。收到了一个 interrupt 以后，打印了一下寄存器状态，马上又来下一个 interrupt 了。现在不仅要在 Rocket Chip 的 PLIC 上把中断给确认了（吐槽一下，Rocket 的 PLIC 文档也比较欠缺，我是照着 U54 核的地址找到，但是 U54 呢是一个 4+1 的组合，hart0 没有 M 态，所以我为了打开 hart0 的 S 态中断，要找 hart1 的 M 态地址，详见 SiFive 文档），在 AXI Interrupt Controller 上也得把中断给确认了。但还是不行，每次 interrupt controller 输出的 irq 拉低不久，uartlite 又出现了新的一次中断。</p>
+<p>这次的问题很有戏剧性：处理中断的时候输出调试信息，调试信息把 tx fifo 写满了，uartlite 也会产生一个中断。。于是没完了。解决方法很简单，牺牲一些性能，每次输出的时候都等到 tx fifo 空了才写，然后在处理串口中断的时候不要输出调试信息。</p>
+<p>这下没有新的问题了，串口中断终于是工作了。</p>
+<h3 id="总结和致谢"><a class="toclink" href="../../os/2019/05/08/axi-uart-interrupt/#总结和致谢">总结和致谢</a></h3>
+<p>这么一番搞下来，对 Vivado 和 AXI 的相关知识都比较熟悉了吧，也踩了很多的坑。需要特别感谢 @cq_z4yx 提供的技术支持。</p>
+<p>相关文档和链接：</p>
+<ol>
+<li>PG099 AXI Interrupt Controller</li>
+<li>PG142 AXI Uartlite</li>
+<li><a href="https://github.com/rcore-os/opensbi/compare/c1d01b0c2efea86348235a1c7f83382e53f87e0e...7fe82c135e394bc6e6dca610f3771344449568ed">OpenSBI 适配</a></li>
+<li><a href="https://github.com/rcore-os/rCore/commit/2e599b0bab2ee522bd11d0c665207841939d2711">rCore 适配</a></li>
+</ol>
+    
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2019-05-03 00:00:00+00:00">2019年5月3日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="每周分享第-22-期"><a class="toclink" href="../../misc/2019/05/03/weekly-sharing-22/">每周分享第 22 期</a></h2>
+<ol>
+<li>AXI-Stream Components https://github.com/alexforencich/verilog-axis</li>
+<li>go self update 库 https://github.com/rhysd/go-github-selfupdate</li>
+<li>Atomic Pi https://www.cnx-software.com/2019/04/26/buy-atomic-pi-cherry-trail-sbc/</li>
+<li>静态网站生成器 Hugo https://github.com/gohugoio/hugo</li>
+<li>C++ enum 的反射 https://github.com/Neargye/magic_enum</li>
+<li>又一个开源的反编译器 https://github.com/BoomerangDecompiler/boomerang</li>
+</ol>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -2809,88 +2981,6 @@
 <p>不知道大家听没听说过 Google Chrome 有个插件，叫做 Learn Project，是一个网络学堂的改良前端。不过，随着网络学堂的不断更（xia）新（gao），它已经不再适用于现在的版本。于是，哈利橙（<a href="https://github.com/Harry-Chen">@Harry-Chen</a>）决定利用寒假时间，在今天（2.17）之前完成 Learn Project 4.0 的开发。为什么叫 4.0 呢，因为哈利橙课程的 GPA 众数是 4.0。这个版本采用先进的 React 框架编写（Vue 塞高），使用了 Material Ui 作为界面框架（这我觉得可以），目前的一个参考图（图源哈利橙）：</p>
 <p><img alt="" src="../../misc/learn_project.png" /></p>
 <p>看那满眼的高分数，希望 Learn Project 4.0 能在 flag 倒下之前完成。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-02-16 00:00:00+00:00">2019年2月16日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-11-期"><a class="toclink" href="../../misc/2019/02/16/weekly-sharing-11/">每周分享第 11 期</a></h2>
-<p>对不起迟到了（</p>
-<ol>
-<li>Google 的 fuzzing 家族又来了个新成员 太喜欢造轮子了 https://github.com/google/clusterfuzz</li>
-<li>有趣的文本生成工具 https://github.com/TheBerkin/rant</li>
-<li>又一个 side channel attack https://www.nccgroup.trust/us/about-us/newsroom-and-events/blog/2019/february/downgrade-attack-on-tls-1.3-and-vulnerabilities-in-major-tls-libraries/</li>
-<li>来自 Prof Fan 的一个 cf dns 权限限制分发的工具 https://github.com/ProfFan/cloudflare-proxy-rs</li>
-<li>部署到了我的博客的小工具 大家体会到了吗 https://instant.page/</li>
-<li>教育性质的 C on web https://vasyop.github.io/miniC-hosting/</li>
-<li>激活清华教育版 win10? --&gt; dig +short TXT win10.harrychen.xyz</li>
-<li>windows95 v2.0 发布（误 https://github.com/felixrieseberg/windows95/releases/tag/v2.0.0</li>
-<li>已经部署到 tuna 的 rustup-mirror crate https://github.com/jiegec/rustup-mirror</li>
-<li>Forth 也能有 http 服务端框架 http://www.1-9-9-1.com/</li>
-<li>bartender 的开源替代 实测可用 https://github.com/Mortennn/Dozer</li>
-<li>给不支持 pac 的客户端在 http proxy 上套一层 https://github.com/williambailey/pacproxy</li>
-</ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-02-12 00:00:00+00:00">2019年2月12日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/programming/" class="md-meta__link">programming</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="近来做-stanford-cs140e-的一些进展和思考9"><a class="toclink" href="../../programming/2019/02/12/thoughts-on-stanford-cs140e-9/">近来做 Stanford CS140e 的一些进展和思考（9）</a></h2>
-<p>距离<a href="../../programming/2018/04/10/thoughts-on-stanford-cs140e-8/">上一篇 CS140e 系列文章</a>已经过去了很久，距离第一篇文章过了一年零几天。在后来这一段时间内，CS140e 结束了课程，又开始了新一年的 winter 2019 课程，迎来的却是 C 版本的 CS140e，不禁让人感到失望。还好，Sergio Benitez 放出了原来的 CS140e 的<a href="https://cs140e.sergio.bz">镜像</a>，如果大家仍然想回去查看原版优质的 CS140e，可以点进去参考。</p>
-<p>后来因为机缘巧合参与到了清华的 Rust OS 课程，又想到回来把原来的 CS140e 进行更新，于是顺带把跑在 QEMU 下的一些需要的工作给做了，另外把 Rust nightly 版本更新了（一年前的 nightly 还能叫 nightly？），才发现标准库变化还是蛮大的，由于 nightly 版本变了，而且原来是内嵌了一个阉割过的 std，所以主要是从新的 std 里抄代码到内嵌的 std 中。另外，原来的 xargo 也不再维护了，转而使用 rust-xbuild 进行交叉编译。</p>
-<p>然后又顺手实现了 backtrace 和从 backtrace 中配合 dward symbols 找函数名的功能，不过实践证明，这些东西还是 addr2line 做得更好，所以也就没有做下去，在 relocation 上也是遇到了各种问题。这个经验也是应用到了 rCore 那边。</p>
-<p>再之后也就是寒假写驱动了，见之前的一个博文，我就没有在 CS140e 上去实现它了。有时间有兴趣的时候再考虑做一下 Raspberry Pi 的网卡驱动吧。</p>
-<p>写于迪拜雨天。</p>
     
   </div>
 </article>
