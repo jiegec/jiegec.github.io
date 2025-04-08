@@ -1803,7 +1803,7 @@
 <p>而之前提到的可执行程序本身的 TLS 空间以及程序启动时加载的动态库的 TLS 空间，实际上是保存在 <code>struct thread</code> 也就是 TCB 前面的部分，从高地址往低地址分配（图片来源：<a href="https://www.akkadia.org/drepper/tls.pdf">ELF Handling For Thread-Local Storage</a>）：</p>
 <p><img alt="" src="../../../../tls-internals-ds.png" /></p>
 <p>图中 <span class="arithmatex">\(tp_t\)</span> 在 amd64 下就是 <code>%fs</code> 段寄存器，它直接指向的就是 <code>struct thread</code> 也就是 TCB；从 <code>%fs</code> 开始往低地址，先分配可执行程序本身的 TLS 空间（图中 <span class="arithmatex">\(tlsoffset_1\)</span> 到 <span class="arithmatex">\(tp_t\)</span> 的范围），后分配程序启动时加载的动态库的 TLS 空间（图中 <span class="arithmatex">\(tlsoffset_1\)</span> 到 <span class="arithmatex">\(tlsoffset_2\)</span> 以及 <span class="arithmatex">\(tlsoffset_3\)</span> 到 <span class="arithmatex">\(tlsoffset_2\)</span> 的范围）。注意这些偏移对于每个线程都是相同的，只是不同线程的 <code>%fs</code> 寄存器不同。</p>
-<p>而对于 dlopen 动态加载的动态库，则 TLS 空间需要动态分配，然后通过 <code>dtv</code> 数组来索引（图中 <span class="arithmatex">\(dtv_{t,4}\)</span> 和 <span class="arithmatex">\(dtv_{t,5}\)</span>），因此无法通过重定位修正，而是要在运行时通过 <code>__tls_get_addr</code> 函数获取地址。为了让 <code>__tls_get_addr</code> 更具有通用性，<code>dtv</code> 数组也记录了分配在 <code>%fs</code> 指向的 TCB 更低地址的可执行程序和程序启动时加载的动态库的 TLS 空间，此时 <code>__tls_get_addr</code> 可以查到所有 TLS 变量的地址。</p>
+<p>而对于 dlopen 动态加载的动态库，则 TLS 空间需要动态分配，然后通过 <code>dtv</code> 数组来索引（图中 <span class="arithmatex">\(dtv_{t,4}\)</span> 和 <span class="arithmatex">\(dtv_{t,5}\)</span>），因此无法通过重定位修正，而是要在运行时通过 <code>__tls_get_addr</code> 函数获取地址。为了让 <code>__tls_get_addr</code> 更具有通用性，<code>dtv</code> 数组也记录了分配在 <code>%fs</code> 指向的 TCB 更低地址的可执行程序和程序启动时加载的动态库的 TLS 空间，此时 <code>__tls_get_addr</code> 可以查到所有 TLS 变量的地址。每个动态库在 <code>dtv</code> 数组中都记录了信息，那么这个动态库在 <code>dtv</code> 数组中的下标，记为这个动态库的编号（module id），后面会多次出现这个概念。</p>
 <p>知道了 TLS 的组织方式后，接下来观察编译器、链接器和动态链接器是如何配合着让代码可以找到正确的 TLS 变量的地址。</p>
 <h2 id="可执行程序">可执行程序<a class="headerlink" href="#可执行程序" title="Permanent link">&para;</a></h2>
 <p>首先来看一个简单的场景：可执行程序直接访问自己定义的 TLS 变量。前面提到，可执行程序的 TLS 空间直接保存到 <code>%fs</code> 往下的地址，因此可执行程序的 TLS 变量相对 <code>%fs</code> 的偏移，是可以提前计算得到的。下面看一个例子：</p>
@@ -2507,7 +2507,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月8日 02:27:43">2025年4月8日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月8日 02:36:31">2025年4月8日</span>
   </span>
 
     
