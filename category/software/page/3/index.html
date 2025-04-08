@@ -1443,6 +1443,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#在-spack-中用-external-的-slurm-依赖编译-openmpi" class="md-nav__link">
+    <span class="md-ellipsis">
+      在 Spack 中用 external 的 Slurm 依赖编译 OpenMPI
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usbip-模拟-usb-设备" class="md-nav__link">
+    <span class="md-ellipsis">
+      USB/IP 模拟 USB 设备
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#在-sbt-中-fork-并且并行运行测试" class="md-nav__link">
     <span class="md-ellipsis">
       在 sbt 中 fork 并且并行运行测试
@@ -1649,24 +1667,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#使用-homebridge-把小米空气净化器加入到-homekit-中" class="md-nav__link">
-    <span class="md-ellipsis">
-      使用 HomeBridge 把小米空气净化器加入到 HomeKit 中
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#部署-adminmongo-的-docker-镜像" class="md-nav__link">
-    <span class="md-ellipsis">
-      部署 adminMongo 的 Docker 镜像
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1722,6 +1722,133 @@
       <header class="md-typeset">
         <h1 id="software">software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-11-08 00:00:00+00:00">2020年11月8日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-spack-中用-external-的-slurm-依赖编译-openmpi"><a class="toclink" href="../../../../software/2020/11/08/spack-openmpi-slurm-external/">在 Spack 中用 external 的 Slurm 依赖编译 OpenMPI</a></h2>
+<p>最近在一个集群上，需要用一个自己编译的 openmpi，但并没有 root 权限，所以需要自己搞一个 spack，在 spack 里面装 openmpi。但默认的安装选项下，它没有打开 slurm 支持，所以 srun 的话会出问题，只能 sbatch 然后指定 host 去做。于是我研究了一下怎么在 spack 里引入 external 的 slurm，然后用它来编译 openmpi</p>
+<p>首先，编译 <code>~/.spack/packages.yaml</code>：</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">packages</span><span class="p">:</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">slurm</span><span class="p">:</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">buildable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">paths</span><span class="p">:</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">      </span><span class="s">&quot;slurm@15-08-7-1%gcc@8.3.0</span><span class="nv"> </span><span class="s">arch=linux-ubuntu16.04-haswell&quot;</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr</span>
+</span></code></pre></div>
+<p>这里 slurm 版本是 <code>15.08.7</code>，我就按照 spack 里面 slurm 的版本号来写了。可以用 <code>spack spec openmpi schedulers=slurm +pmi</code> 来确认一下外部的 slurm 确实出现在了依赖之中。</p>
+<p>这一步配好的话，安装的时候就会直接跳过 spack 里面 slurm 的安装。但又出现了 configure 错误，找不到 pmi 的库。于是，先用 external 的 mpirun 看一下配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$<span class="w"> </span>module<span class="w"> </span>load<span class="w"> </span>openmpi-3.0.0
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>$<span class="w"> </span>ompi_info
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>...
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>--with-pmi<span class="o">=</span>/usr
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>--with-pmi-libdir<span class="o">=</span>/usr/lib/x86_64-linux-gnu
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>...
+</span></code></pre></div>
+<p>可以看到，需要两个 config 参数。然后，在 spack 的 openmpi package.py 中：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;schedulers=slurm&#39;</span><span class="p">):</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--with-pmi=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s1">&#39;slurm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.1.3:&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.0.3&#39;</span><span class="p">):</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="k">if</span> <span class="s1">&#39;+static&#39;</span> <span class="ow">in</span> <span class="n">spec</span><span class="p">:</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>      <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--enable-static&#39;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>所以，需要加一个小 patch：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;schedulers=slurm&#39;</span><span class="p">):</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--with-pmi=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s1">&#39;slurm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  <span class="c1"># patched here</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--with-pmi-libdir=</span><span class="si">{0}</span><span class="s1">/lib/x86_64-linux-gnu&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s1">&#39;slurm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.1.3:&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.0.3&#39;</span><span class="p">):</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="k">if</span> <span class="s1">&#39;+static&#39;</span> <span class="ow">in</span> <span class="n">spec</span><span class="p">:</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>      <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--enable-static&#39;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>然后，就可以编译通过了。</p>
+    
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-05-15 00:00:00+00:00">2020年5月15日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="usbip-模拟-usb-设备"><a class="toclink" href="../../../../software/2020/05/15/usb-ip-simulation/">USB/IP 模拟 USB 设备</a></h2>
+<h3 id="背景"><a class="toclink" href="../../../../software/2020/05/15/usb-ip-simulation/#背景">背景</a></h3>
+<p>2018 年的时候发过一篇博客，讲如何用 USB/IP 协议在两台 Linux 电脑之间共享 USB 设备。最近刚好有一个需求，就是针对一个现成的 USB device 的代码，通过 USB/IP 模拟出一个 USB 设备，然后进行调试。</p>
+<h3 id="usbip-协议"><a class="toclink" href="../../../../software/2020/05/15/usb-ip-simulation/#usbip-协议">USB/IP 协议</a></h3>
+<p>USB/IP 只有一个简略的<a href="https://github.com/realthunder/usbip/blob/master/usbip_protocol.txt">文档</a>，为数不多的使用 USB/IP 的代码，所以有一些细节没有说的很清楚，只能一点点去尝试。</p>
+<p>首先，USB/IP 基于 TCP，端口号 3240。客户端向服务端发送请求，服务端向客户端进行回应。</p>
+<p>请求的类型：OP_REQ_DEVLIST OP_REQ_IMPORT USBIP_CMD_SUBMIT 和 USBIP_CMD_UNLINK</p>
+<p>回应的类型：OP_REP_DEVLIST OP_REP_IMPORT USBIP_RET_SUBMIT USBIP_RET_UNLINK</p>
+<p>工作的过程大概如下：</p>
+<ol>
+<li>OP_REQ_DEVLIST 请求获取设备列表</li>
+<li>OP_REP_DEVLIST 返回设备列表</li>
+<li>OP_REQ_IMPORT 请求 USB 设备</li>
+<li>OP_REP_IMPORT 返回 USB 设备</li>
+<li>USBIP_CMD_SUBMIT 发送 URB</li>
+<li>USBIP_RET_SUBMIT 返回 URB</li>
+</ol>
+<p>（先不考虑 CMD_UNLINK 和 RET_UNLINK）</p>
+<p>其中前面四个比较简单清晰，所需要的字段也都是 Descriptor 中对应的字段。后面两个就相对复杂一些：URB data 的长度需要根据 endpoint 类型和 direction 共同决定。URB 实际上是 Linux 内核里的一个数据结构。</p>
+<h3 id="usb-协议"><a class="toclink" href="../../../../software/2020/05/15/usb-ip-simulation/#usb-协议">USB 协议</a></h3>
+<p>那么，USB 协议的几种 transfer 怎么对应到 URB 的数据呢？首先看最常见的三种（[ref](https://www.beyondlogic.org/usbnutshell/usb4.shtml）：</p>
+<ol>
+<li>Control Transfer</li>
+<li>第一种是 Control IN，一共有三个阶段，第一个阶段是 Setup，Host 发送给 Device 一个八字节的 Setup Packet；第二个阶段是 Data，Device 发送给 Host 一段数据；第三个阶段是 Status，Host 发送给 Device 一个 Zero Length Packet。此时 Setup Packet 对应 urb 中的 setup，Data 就对应 RET_SUBMIT 里面的 URB data 了，自然 CMD_SUBMIT 中是没有 URB data 的</li>
+<li>第二种是 Control OUT，一共有三个阶段，第一个阶段是 Setup，Host 发送给 Device 一个吧字节的 Setup Packet；第二个阶段是 Data，Host 给 Device 发送一段数据；第三个阶段是 Status，Device 给 Host 发送一个 Zero Length Packet。此时 Setup Packet 对应 urb 中的 setup，Data 对应 CMD_SUBMIT 末尾的 URB data，长度由 transfer_buffer_length 指定。返回的 RET_SUBMIT 不带 URB data，但依然需要有 RET_SUBMIT。</li>
+<li>Interrupt/Bulk Transfer</li>
+<li>第一种是 Interrupt/Bulk IN，由 Device 给 Host 发送一段数据，附在 RET_SUBMIT 中。</li>
+<li>第二种是 Interrupt/Bulk OUT，由 Host 给 Device 发送一段数据，中 CMD_SUBMIT 的 URB data 中。返回的 RET_SUBMIT 不带 URB data，但不能不发 RET_SUBMIT。</li>
+</ol>
+<p>可见，Interrupt 和 Bulk 是比较简单的，而 Control 和 Isochronous（没有提到）则比较复杂。</p>
+<h3 id="回到-usbip-协议"><a class="toclink" href="../../../../software/2020/05/15/usb-ip-simulation/#回到-usbip-协议">回到 USB/IP 协议</a></h3>
+<p>其实补充了这些信息以后，就可以实现一个 USB/IP 协议的服务器了。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -2940,73 +3067,6 @@
 </span></code></pre></div>
 <p>尝试 mount 什么的，也都没有问题。以后可以考虑把本地的 LicheeTang 通过这种方式穿透到远端，然后在远端用它的 IDE 进行编程。</p>
 <p>UPDATE: LicheeTang 烧写有一些问题，直接 JTAG 写上去没有作用，但是 SPI Flash 是可以成功写入并且有作用的，虽然需要强制打断。感觉还是网络延迟导致了一些问题。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2018-11-04 00:00:00+00:00">2018年11月4日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="使用-homebridge-把小米空气净化器加入到-homekit-中"><a class="toclink" href="../../../../software/2018/11/04/mi-air-purifier-homekit/">使用 HomeBridge 把小米空气净化器加入到 HomeKit 中</a></h2>
-<p>受 @NSBlink 安利，自己部署了一下 <a href="https://github.com/nfarina/homebridge">HomeBridge</a> ，然后在 iOS 的家庭上就可以看到它。然后，通过 <a href="https://www.npmjs.com/package/homebridge-mi-airpurifier">homebrdige-mi-airpurifier</a> 和 <a href="https://github.com/aholstenson/miio">miio</a> 按照教程进行配置。然后就可以在家庭里看到小米空气净化器，包括空气质量，湿度，睡眠模式，温度，打开状态。然后我就可以做一些配置，如离开宿舍的时候自动关闭空气净化器，回来的时候自动打开。不过由于自己没有一个一直放在宿舍的 iPad、Apple TV 或者 HomePod，失去了中枢，这个功能可能会打折扣。</p>
-<p>后续想买一些智能的灯啊，然后就可以用 Siri 进行打开 / 关闭了。</p>
-<p>此外，我又试了下，可以用 <a href="https://github.com/KhaosT/homebridge-camera-ffmpeg">homebridge-camera-ffmpeg</a> 把摄像头配置到 HomeKit 中。这样，就可以远程查看视频流了。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2018-10-23 00:00:00+00:00">2018年10月23日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="部署-adminmongo-的-docker-镜像"><a class="toclink" href="../../../../software/2018/10/23/admin-mongo-docker/">部署 adminMongo 的 Docker 镜像</a></h2>
-<p>之前在软工的平台上部署了一个 MongoDB，但是自然是仅内网访问，想要浏览内容只能通过网页上的 Console 进去看，体验特别不好。所以想着能不能找一个在线的 MongoDB 浏览器。由于软工平台只能部署 Docker 镜像，所以我找到了<a href="https://hub.docker.com/_/mongo-express/">mongo-express</a>和<a href="https://hub.docker.com/r/adicom/admin-mongo/">adicom/admin-mongo</a>。但软工平台现在还没实现环境变量的配置，所以我选了后者。</p>
-<p>首先本地创建一个 app.json，让它监听 0.0.0.0:80，通过 deployer 传到平台上的配置，然后再把配置 mount 到 /app/config 路径上。现在就可以成功地在网页上浏览 MongoDB 了。</p>
     
   </div>
 </article>

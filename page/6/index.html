@@ -290,6 +290,20 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#分析-rocket-chip-中-diplomacy-系统">
+<span class="md-ellipsis">
+      分析 Rocket Chip 中 Diplomacy 系统
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#chisel3-cookbook">
+<span class="md-ellipsis">
+      Chisel3 Cookbook
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#升级-linksys-e8450-的-openwrt-系统到-ubi">
 <span class="md-ellipsis">
       升级 Linksys E8450 的 OpenWRT 系统到 UBI
@@ -447,20 +461,6 @@
 <a class="md-nav__link" href="#c-11-的-abi-问题">
 <span class="md-ellipsis">
       C++ 11 的 ABI 问题
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#硬盘相关的概念">
-<span class="md-ellipsis">
-      硬盘相关的概念
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#在-esxi-中用-perccli-换-raid-中的盘">
-<span class="md-ellipsis">
-      在 ESXi 中用 PERCCli 换 RAID 中的盘
     </span>
 </a>
 </li>
@@ -785,6 +785,364 @@
 <header class="md-typeset">
 <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-01-05 00:00:00+00:00">2022年1月5日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="分析-rocket-chip-中-diplomacy-系统"><a class="toclink" href="../../hardware/2022/01/05/diplomacy/">分析 Rocket Chip 中 Diplomacy 系统</a></h2>
+<h3 id="概念"><a class="toclink" href="../../hardware/2022/01/05/diplomacy/#概念">概念</a></h3>
+<p>Diplomacy 主要实现了两个功能：</p>
+<ol>
+<li>把整个总线结构在代码中表现出来</li>
+<li>自动配置总线中各个端口的参数</li>
+</ol>
+<p>具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。</p>
+<p>Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，Node 和 Node 之间连接形成一个图。Node 的类型主要有以下几个：</p>
+<ol>
+<li>Client：对应 AXI 里面的 Master，发起请求</li>
+<li>Manager：对应 AXI 里面的 Slave，处理请求</li>
+<li>Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出</li>
+<li>Nexus：对应 AXI Crossbar，多个输入和多个输出</li>
+</ol>
+<p>每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。</p>
+<p>连接方式采用的是 <code>:=</code> <code>:=*</code> <code>:*=</code> <code>:*=*</code> 操作符，左侧是 Client，右侧是 Manager。</p>
+<h3 id="rocket-chip-总线结构"><a class="toclink" href="../../hardware/2022/01/05/diplomacy/#rocket-chip-总线结构">Rocket Chip 总线结构</a></h3>
+<p>Rocket Chip 主要有以下几个总线：</p>
+<ol>
+<li>sbus: System Bus</li>
+<li>mbus: Memory Bus</li>
+<li>cbus: Control Bus</li>
+<li>pbus: Periphery Bus</li>
+<li>fbus: Frontend Bus</li>
+</ol>
+<p>图示可以见参考文档中的链接，不过链接中的结构和实际的有一些区别。目前的 Rocket Chip 内存结构大致是这样：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>fbus -&gt; sbus -&gt; mbus
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>tile --/    \-&gt; cbus -&gt; pbus
+</span></code></pre></div>
+<p>主要是 pbus 的位置从连接 sbus 移动到了连接 cbus。</p>
+<p>相关代码：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="cm">/** Parameterization of a topology containing three additional, optional buses for attaching MMIO devices. */</span>
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="k">case</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">HierarchicalBusTopologyParams</span><span class="p">(</span>
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="w">  </span><span class="n">pbus</span><span class="p">:</span><span class="w"> </span><span class="nc">PeripheryBusParams</span><span class="p">,</span>
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="w">  </span><span class="n">fbus</span><span class="p">:</span><span class="w"> </span><span class="nc">FrontBusParams</span><span class="p">,</span>
+</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="w">  </span><span class="n">cbus</span><span class="p">:</span><span class="w"> </span><span class="nc">PeripheryBusParams</span><span class="p">,</span>
+</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="w">  </span><span class="n">xTypes</span><span class="p">:</span><span class="w"> </span><span class="nc">SubsystemCrossingParams</span><span class="p">,</span>
+</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a><span class="w">  </span><span class="n">driveClocksFromSBus</span><span class="p">:</span><span class="w"> </span><span class="nc">Boolean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">TLBusWrapperTopology</span><span class="p">(</span>
+</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a><span class="w">  </span><span class="n">instantiations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-1-10"><a href="#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a><span class="w">    </span><span class="p">(</span><span class="nc">PBUS</span><span class="p">,</span><span class="w"> </span><span class="n">pbus</span><span class="p">),</span>
+</span><span id="__span-1-11"><a href="#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="w">    </span><span class="p">(</span><span class="nc">FBUS</span><span class="p">,</span><span class="w"> </span><span class="n">fbus</span><span class="p">),</span>
+</span><span id="__span-1-12"><a href="#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a><span class="w">    </span><span class="p">(</span><span class="nc">CBUS</span><span class="p">,</span><span class="w"> </span><span class="n">cbus</span><span class="p">)),</span>
+</span><span id="__span-1-13"><a href="#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a><span class="w">  </span><span class="n">connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-1-14"><a href="#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="w">    </span><span class="p">(</span><span class="nc">SBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">CBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">TLBusWrapperConnection</span><span class="w">  </span><span class="p">.</span><span class="n">crossTo</span><span class="p">(</span><span class="n">xTypes</span><span class="p">.</span><span class="n">sbusToCbusXType</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveClocksFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">)),</span>
+</span><span id="__span-1-15"><a href="#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a><span class="w">    </span><span class="p">(</span><span class="nc">CBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">PBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">TLBusWrapperConnection</span><span class="w">  </span><span class="p">.</span><span class="n">crossTo</span><span class="p">(</span><span class="n">xTypes</span><span class="p">.</span><span class="n">cbusToPbusXType</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveClocksFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">)),</span>
+</span><span id="__span-1-16"><a href="#__codelineno-1-16" id="__codelineno-1-16" name="__codelineno-1-16"></a><span class="w">    </span><span class="p">(</span><span class="nc">FBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">SBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">TLBusWrapperConnection</span><span class="p">.</span><span class="n">crossFrom</span><span class="p">(</span><span class="n">xTypes</span><span class="p">.</span><span class="n">fbusToSbusXType</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveClocksFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">)))</span>
+</span><span id="__span-1-17"><a href="#__codelineno-1-17" id="__codelineno-1-17" name="__codelineno-1-17"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>当然了，也有简化版的 JustOneBusTopology，那就只有 SystemBus 了。如果再配置了 CoherentBusTopology，那么 SBUS 和 MBUS 之间还有一层 L2:</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="cm">/** Parameterization of a topology containing a banked coherence manager and a bus for attaching memory devices. */</span>
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="k">case</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">CoherentBusTopologyParams</span><span class="p">(</span>
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="w">  </span><span class="n">sbus</span><span class="p">:</span><span class="w"> </span><span class="nc">SystemBusParams</span><span class="p">,</span><span class="w"> </span><span class="c1">// TODO remove this after better width propagation</span>
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">  </span><span class="n">mbus</span><span class="p">:</span><span class="w"> </span><span class="nc">MemoryBusParams</span><span class="p">,</span>
+</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">  </span><span class="n">l2</span><span class="p">:</span><span class="w"> </span><span class="nc">BankedL2Params</span><span class="p">,</span>
+</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a><span class="w">  </span><span class="n">sbusToMbusXType</span><span class="p">:</span><span class="w"> </span><span class="nc">ClockCrossingType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">NoCrossing</span><span class="p">,</span>
+</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a><span class="w">  </span><span class="n">driveMBusClockFromSBus</span><span class="p">:</span><span class="w"> </span><span class="nc">Boolean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">TLBusWrapperTopology</span><span class="p">(</span>
+</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a><span class="w">  </span><span class="n">instantiations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l2</span><span class="p">.</span><span class="n">nBanks</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="nc">Nil</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-2-10"><a href="#__codelineno-2-10" id="__codelineno-2-10" name="__codelineno-2-10"></a><span class="w">    </span><span class="p">(</span><span class="nc">MBUS</span><span class="p">,</span><span class="w"> </span><span class="n">mbus</span><span class="p">),</span>
+</span><span id="__span-2-11"><a href="#__codelineno-2-11" id="__codelineno-2-11" name="__codelineno-2-11"></a><span class="w">    </span><span class="p">(</span><span class="nc">L2</span><span class="p">,</span><span class="w"> </span><span class="nc">CoherenceManagerWrapperParams</span><span class="p">(</span><span class="n">mbus</span><span class="p">.</span><span class="n">blockBytes</span><span class="p">,</span><span class="w"> </span><span class="n">mbus</span><span class="p">.</span><span class="n">beatBytes</span><span class="p">,</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="n">nBanks</span><span class="p">,</span><span class="w"> </span><span class="nc">L2</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">sbus</span><span class="p">.</span><span class="n">dtsFrequency</span><span class="p">)(</span><span class="n">l2</span><span class="p">.</span><span class="n">coherenceManager</span><span class="p">)))),</span>
+</span><span id="__span-2-12"><a href="#__codelineno-2-12" id="__codelineno-2-12" name="__codelineno-2-12"></a><span class="w">  </span><span class="n">connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l2</span><span class="p">.</span><span class="n">nBanks</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="nc">Nil</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">List</span><span class="p">(</span>
+</span><span id="__span-2-13"><a href="#__codelineno-2-13" id="__codelineno-2-13" name="__codelineno-2-13"></a><span class="w">    </span><span class="p">(</span><span class="nc">SBUS</span><span class="p">,</span><span class="w"> </span><span class="nc">L2</span><span class="p">,</span><span class="w">   </span><span class="nc">TLBusWrapperConnection</span><span class="p">(</span><span class="n">driveClockFromMaster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span><span class="w"> </span><span class="n">nodeBinding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BIND_STAR</span><span class="p">)()),</span>
+</span><span id="__span-2-14"><a href="#__codelineno-2-14" id="__codelineno-2-14" name="__codelineno-2-14"></a><span class="w">    </span><span class="p">(</span><span class="nc">L2</span><span class="p">,</span><span class="w">  </span><span class="nc">MBUS</span><span class="p">,</span><span class="w">  </span><span class="nc">TLBusWrapperConnection</span><span class="p">.</span><span class="n">crossTo</span><span class="p">(</span>
+</span><span id="__span-2-15"><a href="#__codelineno-2-15" id="__codelineno-2-15" name="__codelineno-2-15"></a><span class="w">      </span><span class="n">xType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sbusToMbusXType</span><span class="p">,</span>
+</span><span id="__span-2-16"><a href="#__codelineno-2-16" id="__codelineno-2-16" name="__codelineno-2-16"></a><span class="w">      </span><span class="n">driveClockFromMaster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">driveMBusClockFromSBus</span><span class="p">)</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">None</span><span class="p">,</span>
+</span><span id="__span-2-17"><a href="#__codelineno-2-17" id="__codelineno-2-17" name="__codelineno-2-17"></a><span class="w">      </span><span class="n">nodeBinding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BIND_QUERY</span><span class="p">))</span>
+</span><span id="__span-2-18"><a href="#__codelineno-2-18" id="__codelineno-2-18" name="__codelineno-2-18"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-2-19"><a href="#__codelineno-2-19" id="__codelineno-2-19" name="__codelineno-2-19"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="参考文档"><a class="toclink" href="../../hardware/2022/01/05/diplomacy/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html">TileLink and Diplomacy Reference</a></li>
+<li><a href="https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system">Rocket Chip - Memory System</a></li>
+</ul>
+</div>
+</article>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-01-03 00:00:00+00:00">2022年1月3日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="chisel3-cookbook"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/">Chisel3 Cookbook</a></h2>
+<h3 id="chisel-版本选择"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/#chisel-版本选择">Chisel 版本选择</a></h3>
+<p>尽量选择较新版本的 Chisel。Chisel v3.5 完善了编译器插件，使得生成的代码中会包括更多变量名信息。</p>
+<h3 id="去掉输出-verilog-文件中的寄存器随机初始化"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/#去掉输出-verilog-文件中的寄存器随机初始化">去掉输出 Verilog 文件中的寄存器随机初始化</a></h3>
+<p>版本：FIRRTL &gt;= 1.5.0-RC2</p>
+<p>代码：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="k">new</span><span class="w"> </span><span class="nc">ChiselStage</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="w">  </span><span class="nc">Array</span><span class="p">(</span><span class="s">"-X"</span><span class="p">,</span><span class="w"> </span><span class="s">"verilog"</span><span class="p">,</span><span class="w"> </span><span class="s">"-o"</span><span class="p">,</span><span class="w"> </span><span class="s">s"</span><span class="si">${</span><span class="n">name</span><span class="si">}</span><span class="s">.v"</span><span class="p">),</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="w">  </span><span class="nc">Seq</span><span class="p">(</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="w">    </span><span class="nc">ChiselGeneratorAnnotation</span><span class="p">(</span><span class="n">genModule</span><span class="p">),</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="w">    </span><span class="nc">CustomDefaultRegisterEmission</span><span class="p">(</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="w">      </span><span class="n">useInitAsPreset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="w">      </span><span class="n">disableRandomization</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="w">    </span><span class="p">)</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>设置 disableRandomization=true 即可。useInitAsPreset 不建议开启。</p>
+<h3 id="关闭-firrtl-优化输出尽可能与源代码一致的-verilog"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/#关闭-firrtl-优化输出尽可能与源代码一致的-verilog">关闭 FIRRTL 优化，输出尽可能与源代码一致的 Verilog</a></h3>
+<p>设置 Chisel 生成 MinimumVerilog：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="k">new</span><span class="w"> </span><span class="nc">ChiselStage</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span>
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="w">  </span><span class="nc">Array</span><span class="p">(</span><span class="s">"-X"</span><span class="p">,</span><span class="w"> </span><span class="s">"mverilog"</span><span class="p">,</span><span class="w"> </span><span class="s">"-o"</span><span class="p">,</span><span class="w"> </span><span class="s">s"</span><span class="si">${</span><span class="n">name</span><span class="si">}</span><span class="s">.v"</span><span class="p">),</span>
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="w">  </span><span class="nc">Seq</span><span class="p">(</span>
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="w">    </span><span class="nc">ChiselGeneratorAnnotation</span><span class="p">(</span><span class="n">genModule</span><span class="p">)</span>
+</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>此时代码中会保留更多原始 Chisel 代码的元素。</p>
+<h3 id="重命名-axi4-为标准命名"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/#重命名-axi4-为标准命名">重命名 AXI4 为标准命名</a></h3>
+<p>Rocket Chip 中 AXI4Bundle 直接生成的名字和标准写法不同，可以利用 Chisel3 3.5.0 的 DataView 功能进行重命名：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="c1">// https://www.chisel-lang.org/chisel3/docs/explanations/dataview.html</span>
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="c1">// use standard names</span>
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">StandardAXI4BundleBundle</span><span class="p">(</span><span class="kd">val</span><span class="w"> </span><span class="n">addrBits</span><span class="p">:</span><span class="w"> </span><span class="nc">Int</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="n">dataBits</span><span class="p">:</span><span class="w"> </span><span class="nc">Int</span><span class="p">,</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="n">idBits</span><span class="p">:</span><span class="w"> </span><span class="nc">Int</span><span class="p">)</span>
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">    </span><span class="k">extends</span><span class="w"> </span><span class="nc">Bundle</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWREADY</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWVALID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">idBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWADDR</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">addrBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWLEN</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">8</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-10"><a href="#__codelineno-2-10" id="__codelineno-2-10" name="__codelineno-2-10"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWSIZE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">3</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-11"><a href="#__codelineno-2-11" id="__codelineno-2-11" name="__codelineno-2-11"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWBURST</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-12"><a href="#__codelineno-2-12" id="__codelineno-2-12" name="__codelineno-2-12"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWLOCK</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">1</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-13"><a href="#__codelineno-2-13" id="__codelineno-2-13" name="__codelineno-2-13"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWCACHE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">4</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-14"><a href="#__codelineno-2-14" id="__codelineno-2-14" name="__codelineno-2-14"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWPROT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">3</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-15"><a href="#__codelineno-2-15" id="__codelineno-2-15" name="__codelineno-2-15"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">AWQOS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">4</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-16"><a href="#__codelineno-2-16" id="__codelineno-2-16" name="__codelineno-2-16"></a>
+</span><span id="__span-2-17"><a href="#__codelineno-2-17" id="__codelineno-2-17" name="__codelineno-2-17"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">WREADY</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-18"><a href="#__codelineno-2-18" id="__codelineno-2-18" name="__codelineno-2-18"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">WVALID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-19"><a href="#__codelineno-2-19" id="__codelineno-2-19" name="__codelineno-2-19"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">WDATA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">dataBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-20"><a href="#__codelineno-2-20" id="__codelineno-2-20" name="__codelineno-2-20"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">WSTRB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">((</span><span class="n">dataBits</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">8</span><span class="p">).</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-21"><a href="#__codelineno-2-21" id="__codelineno-2-21" name="__codelineno-2-21"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">WLAST</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-22"><a href="#__codelineno-2-22" id="__codelineno-2-22" name="__codelineno-2-22"></a>
+</span><span id="__span-2-23"><a href="#__codelineno-2-23" id="__codelineno-2-23" name="__codelineno-2-23"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">BREADY</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-24"><a href="#__codelineno-2-24" id="__codelineno-2-24" name="__codelineno-2-24"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">BVALID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-25"><a href="#__codelineno-2-25" id="__codelineno-2-25" name="__codelineno-2-25"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">BID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">idBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-26"><a href="#__codelineno-2-26" id="__codelineno-2-26" name="__codelineno-2-26"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">BRESP</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-27"><a href="#__codelineno-2-27" id="__codelineno-2-27" name="__codelineno-2-27"></a>
+</span><span id="__span-2-28"><a href="#__codelineno-2-28" id="__codelineno-2-28" name="__codelineno-2-28"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARREADY</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-29"><a href="#__codelineno-2-29" id="__codelineno-2-29" name="__codelineno-2-29"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARVALID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-30"><a href="#__codelineno-2-30" id="__codelineno-2-30" name="__codelineno-2-30"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">idBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-31"><a href="#__codelineno-2-31" id="__codelineno-2-31" name="__codelineno-2-31"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARADDR</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">addrBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-32"><a href="#__codelineno-2-32" id="__codelineno-2-32" name="__codelineno-2-32"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARLEN</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">8</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-33"><a href="#__codelineno-2-33" id="__codelineno-2-33" name="__codelineno-2-33"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARSIZE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">3</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-34"><a href="#__codelineno-2-34" id="__codelineno-2-34" name="__codelineno-2-34"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARBURST</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-35"><a href="#__codelineno-2-35" id="__codelineno-2-35" name="__codelineno-2-35"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARLOCK</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">1</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-36"><a href="#__codelineno-2-36" id="__codelineno-2-36" name="__codelineno-2-36"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARCACHE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">4</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-37"><a href="#__codelineno-2-37" id="__codelineno-2-37" name="__codelineno-2-37"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARPROT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">3</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-38"><a href="#__codelineno-2-38" id="__codelineno-2-38" name="__codelineno-2-38"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">ARQOS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">4</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-39"><a href="#__codelineno-2-39" id="__codelineno-2-39" name="__codelineno-2-39"></a>
+</span><span id="__span-2-40"><a href="#__codelineno-2-40" id="__codelineno-2-40" name="__codelineno-2-40"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">RREADY</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Output</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-41"><a href="#__codelineno-2-41" id="__codelineno-2-41" name="__codelineno-2-41"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">RVALID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-42"><a href="#__codelineno-2-42" id="__codelineno-2-42" name="__codelineno-2-42"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">RID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">idBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-43"><a href="#__codelineno-2-43" id="__codelineno-2-43" name="__codelineno-2-43"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">RDATA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="n">dataBits</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-44"><a href="#__codelineno-2-44" id="__codelineno-2-44" name="__codelineno-2-44"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">RRESP</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-2-45"><a href="#__codelineno-2-45" id="__codelineno-2-45" name="__codelineno-2-45"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="nc">RLAST</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Input</span><span class="p">(</span><span class="nc">Bool</span><span class="p">())</span>
+</span><span id="__span-2-46"><a href="#__codelineno-2-46" id="__codelineno-2-46" name="__codelineno-2-46"></a><span class="p">}</span>
+</span><span id="__span-2-47"><a href="#__codelineno-2-47" id="__codelineno-2-47" name="__codelineno-2-47"></a>
+</span><span id="__span-2-48"><a href="#__codelineno-2-48" id="__codelineno-2-48" name="__codelineno-2-48"></a><span class="k">object</span><span class="w"> </span><span class="nc">StandardAXI4BundleBundle</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-49"><a href="#__codelineno-2-49" id="__codelineno-2-49" name="__codelineno-2-49"></a><span class="w">  </span><span class="k">implicit</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="n">axiView</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">DataView</span><span class="p">[</span><span class="nc">StandardAXI4BundleBundle</span><span class="p">,</span><span class="w"> </span><span class="nc">AXI4Bundle</span><span class="p">](</span>
+</span><span id="__span-2-50"><a href="#__codelineno-2-50" id="__codelineno-2-50" name="__codelineno-2-50"></a><span class="w">    </span><span class="n">vab</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-2-51"><a href="#__codelineno-2-51" id="__codelineno-2-51" name="__codelineno-2-51"></a><span class="w">      </span><span class="k">new</span><span class="w"> </span><span class="nc">AXI4Bundle</span><span class="p">(</span>
+</span><span id="__span-2-52"><a href="#__codelineno-2-52" id="__codelineno-2-52" name="__codelineno-2-52"></a><span class="w">        </span><span class="nc">AXI4BundleParameters</span><span class="p">(</span><span class="n">vab</span><span class="p">.</span><span class="n">addrBits</span><span class="p">,</span><span class="w"> </span><span class="n">vab</span><span class="p">.</span><span class="n">dataBits</span><span class="p">,</span><span class="w"> </span><span class="n">vab</span><span class="p">.</span><span class="n">idBits</span><span class="p">)</span>
+</span><span id="__span-2-53"><a href="#__codelineno-2-53" id="__codelineno-2-53" name="__codelineno-2-53"></a><span class="w">      </span><span class="p">),</span>
+</span><span id="__span-2-54"><a href="#__codelineno-2-54" id="__codelineno-2-54" name="__codelineno-2-54"></a><span class="w">    </span><span class="c1">// AW</span>
+</span><span id="__span-2-55"><a href="#__codelineno-2-55" id="__codelineno-2-55" name="__codelineno-2-55"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWREADY</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span>
+</span><span id="__span-2-56"><a href="#__codelineno-2-56" id="__codelineno-2-56" name="__codelineno-2-56"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWVALID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">valid</span><span class="p">,</span>
+</span><span id="__span-2-57"><a href="#__codelineno-2-57" id="__codelineno-2-57" name="__codelineno-2-57"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+</span><span id="__span-2-58"><a href="#__codelineno-2-58" id="__codelineno-2-58" name="__codelineno-2-58"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWADDR</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">addr</span><span class="p">,</span>
+</span><span id="__span-2-59"><a href="#__codelineno-2-59" id="__codelineno-2-59" name="__codelineno-2-59"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWLEN</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">len</span><span class="p">,</span>
+</span><span id="__span-2-60"><a href="#__codelineno-2-60" id="__codelineno-2-60" name="__codelineno-2-60"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWSIZE</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">size</span><span class="p">,</span>
+</span><span id="__span-2-61"><a href="#__codelineno-2-61" id="__codelineno-2-61" name="__codelineno-2-61"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWBURST</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">burst</span><span class="p">,</span>
+</span><span id="__span-2-62"><a href="#__codelineno-2-62" id="__codelineno-2-62" name="__codelineno-2-62"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWLOCK</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">lock</span><span class="p">,</span>
+</span><span id="__span-2-63"><a href="#__codelineno-2-63" id="__codelineno-2-63" name="__codelineno-2-63"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWCACHE</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">cache</span><span class="p">,</span>
+</span><span id="__span-2-64"><a href="#__codelineno-2-64" id="__codelineno-2-64" name="__codelineno-2-64"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWPROT</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">prot</span><span class="p">,</span>
+</span><span id="__span-2-65"><a href="#__codelineno-2-65" id="__codelineno-2-65" name="__codelineno-2-65"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">AWQOS</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">qos</span><span class="p">,</span>
+</span><span id="__span-2-66"><a href="#__codelineno-2-66" id="__codelineno-2-66" name="__codelineno-2-66"></a><span class="w">    </span><span class="c1">// W</span>
+</span><span id="__span-2-67"><a href="#__codelineno-2-67" id="__codelineno-2-67" name="__codelineno-2-67"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">WREADY</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span>
+</span><span id="__span-2-68"><a href="#__codelineno-2-68" id="__codelineno-2-68" name="__codelineno-2-68"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">WVALID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">valid</span><span class="p">,</span>
+</span><span id="__span-2-69"><a href="#__codelineno-2-69" id="__codelineno-2-69" name="__codelineno-2-69"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">WDATA</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">data</span><span class="p">,</span>
+</span><span id="__span-2-70"><a href="#__codelineno-2-70" id="__codelineno-2-70" name="__codelineno-2-70"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">WSTRB</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">strb</span><span class="p">,</span>
+</span><span id="__span-2-71"><a href="#__codelineno-2-71" id="__codelineno-2-71" name="__codelineno-2-71"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">WLAST</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">last</span><span class="p">,</span>
+</span><span id="__span-2-72"><a href="#__codelineno-2-72" id="__codelineno-2-72" name="__codelineno-2-72"></a><span class="w">    </span><span class="c1">// B</span>
+</span><span id="__span-2-73"><a href="#__codelineno-2-73" id="__codelineno-2-73" name="__codelineno-2-73"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">BREADY</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span>
+</span><span id="__span-2-74"><a href="#__codelineno-2-74" id="__codelineno-2-74" name="__codelineno-2-74"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">BVALID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">valid</span><span class="p">,</span>
+</span><span id="__span-2-75"><a href="#__codelineno-2-75" id="__codelineno-2-75" name="__codelineno-2-75"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">BID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+</span><span id="__span-2-76"><a href="#__codelineno-2-76" id="__codelineno-2-76" name="__codelineno-2-76"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">BRESP</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">resp</span><span class="p">,</span>
+</span><span id="__span-2-77"><a href="#__codelineno-2-77" id="__codelineno-2-77" name="__codelineno-2-77"></a><span class="w">    </span><span class="c1">// AR</span>
+</span><span id="__span-2-78"><a href="#__codelineno-2-78" id="__codelineno-2-78" name="__codelineno-2-78"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARREADY</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span>
+</span><span id="__span-2-79"><a href="#__codelineno-2-79" id="__codelineno-2-79" name="__codelineno-2-79"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARVALID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">valid</span><span class="p">,</span>
+</span><span id="__span-2-80"><a href="#__codelineno-2-80" id="__codelineno-2-80" name="__codelineno-2-80"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+</span><span id="__span-2-81"><a href="#__codelineno-2-81" id="__codelineno-2-81" name="__codelineno-2-81"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARADDR</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">addr</span><span class="p">,</span>
+</span><span id="__span-2-82"><a href="#__codelineno-2-82" id="__codelineno-2-82" name="__codelineno-2-82"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARLEN</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">len</span><span class="p">,</span>
+</span><span id="__span-2-83"><a href="#__codelineno-2-83" id="__codelineno-2-83" name="__codelineno-2-83"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARSIZE</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">size</span><span class="p">,</span>
+</span><span id="__span-2-84"><a href="#__codelineno-2-84" id="__codelineno-2-84" name="__codelineno-2-84"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARBURST</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">burst</span><span class="p">,</span>
+</span><span id="__span-2-85"><a href="#__codelineno-2-85" id="__codelineno-2-85" name="__codelineno-2-85"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARLOCK</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">lock</span><span class="p">,</span>
+</span><span id="__span-2-86"><a href="#__codelineno-2-86" id="__codelineno-2-86" name="__codelineno-2-86"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARCACHE</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">cache</span><span class="p">,</span>
+</span><span id="__span-2-87"><a href="#__codelineno-2-87" id="__codelineno-2-87" name="__codelineno-2-87"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARPROT</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">prot</span><span class="p">,</span>
+</span><span id="__span-2-88"><a href="#__codelineno-2-88" id="__codelineno-2-88" name="__codelineno-2-88"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">ARQOS</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">qos</span><span class="p">,</span>
+</span><span id="__span-2-89"><a href="#__codelineno-2-89" id="__codelineno-2-89" name="__codelineno-2-89"></a><span class="w">    </span><span class="c1">// R</span>
+</span><span id="__span-2-90"><a href="#__codelineno-2-90" id="__codelineno-2-90" name="__codelineno-2-90"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">RREADY</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span>
+</span><span id="__span-2-91"><a href="#__codelineno-2-91" id="__codelineno-2-91" name="__codelineno-2-91"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">RVALID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">valid</span><span class="p">,</span>
+</span><span id="__span-2-92"><a href="#__codelineno-2-92" id="__codelineno-2-92" name="__codelineno-2-92"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">RID</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+</span><span id="__span-2-93"><a href="#__codelineno-2-93" id="__codelineno-2-93" name="__codelineno-2-93"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">RDATA</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">data</span><span class="p">,</span>
+</span><span id="__span-2-94"><a href="#__codelineno-2-94" id="__codelineno-2-94" name="__codelineno-2-94"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">RRESP</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">resp</span><span class="p">,</span>
+</span><span id="__span-2-95"><a href="#__codelineno-2-95" id="__codelineno-2-95" name="__codelineno-2-95"></a><span class="w">    </span><span class="n">_</span><span class="p">.</span><span class="nc">RLAST</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">last</span>
+</span><span id="__span-2-96"><a href="#__codelineno-2-96" id="__codelineno-2-96" name="__codelineno-2-96"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-2-97"><a href="#__codelineno-2-97" id="__codelineno-2-97" name="__codelineno-2-97"></a><span class="w">  </span><span class="k">implicit</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="n">axiView2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">StandardAXI4BundleBundle</span><span class="p">.</span><span class="n">axiView</span><span class="p">.</span><span class="n">invert</span><span class="p">(</span><span class="n">ab</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-2-98"><a href="#__codelineno-2-98" id="__codelineno-2-98" name="__codelineno-2-98"></a><span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="nc">StandardAXI4BundleBundle</span><span class="p">(</span>
+</span><span id="__span-2-99"><a href="#__codelineno-2-99" id="__codelineno-2-99" name="__codelineno-2-99"></a><span class="w">      </span><span class="n">ab</span><span class="p">.</span><span class="n">params</span><span class="p">.</span><span class="n">addrBits</span><span class="p">,</span>
+</span><span id="__span-2-100"><a href="#__codelineno-2-100" id="__codelineno-2-100" name="__codelineno-2-100"></a><span class="w">      </span><span class="n">ab</span><span class="p">.</span><span class="n">params</span><span class="p">.</span><span class="n">dataBits</span><span class="p">,</span>
+</span><span id="__span-2-101"><a href="#__codelineno-2-101" id="__codelineno-2-101" name="__codelineno-2-101"></a><span class="w">      </span><span class="n">ab</span><span class="p">.</span><span class="n">params</span><span class="p">.</span><span class="n">idBits</span>
+</span><span id="__span-2-102"><a href="#__codelineno-2-102" id="__codelineno-2-102" name="__codelineno-2-102"></a><span class="w">    </span><span class="p">)</span>
+</span><span id="__span-2-103"><a href="#__codelineno-2-103" id="__codelineno-2-103" name="__codelineno-2-103"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-2-104"><a href="#__codelineno-2-104" id="__codelineno-2-104" name="__codelineno-2-104"></a><span class="p">}</span>
+</span><span id="__span-2-105"><a href="#__codelineno-2-105" id="__codelineno-2-105" name="__codelineno-2-105"></a>
+</span><span id="__span-2-106"><a href="#__codelineno-2-106" id="__codelineno-2-106" name="__codelineno-2-106"></a><span class="c1">// usage</span>
+</span><span id="__span-2-107"><a href="#__codelineno-2-107" id="__codelineno-2-107" name="__codelineno-2-107"></a><span class="kd">val</span><span class="w"> </span><span class="nc">MEM</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">IO</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="nc">StandardAXI4BundleBundle</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span><span class="w"> </span><span class="mi">64</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">))</span>
+</span><span id="__span-2-108"><a href="#__codelineno-2-108" id="__codelineno-2-108" name="__codelineno-2-108"></a><span class="nc">MEM</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">mem_axi4</span><span class="p">.</span><span class="n">head</span><span class="p">.</span><span class="n">viewAs</span><span class="p">[</span><span class="nc">StandardAXI4BundleBundle</span><span class="p">]</span>
+</span></code></pre></div>
+<h3 id="给所有模块添加名称前缀"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/#给所有模块添加名称前缀">给所有模块添加名称前缀</a></h3>
+<p>有些时候，我们希望给所有模块添加一个名称前缀，防止可能出现的冲突。</p>
+<p>在 Chisel 3 中，可以使用自定义 FIRRTL Transform 来实现这个功能。这一部分的实现参考了 <a href="https://github.com/chipsalliance/chisel3/issues/1059#issuecomment-814353578">chisel issue #1059</a>：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="k">import</span><span class="w"> </span><span class="nn">firrtl</span><span class="p">.</span><span class="n">_</span>
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="k">import</span><span class="w"> </span><span class="nn">firrtl</span><span class="p">.</span><span class="nn">annotations</span><span class="p">.</span><span class="nc">NoTargetAnnotation</span>
+</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a><span class="k">import</span><span class="w"> </span><span class="nn">firrtl</span><span class="p">.</span><span class="nn">options</span><span class="p">.</span><span class="nc">Dependency</span>
+</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a><span class="k">import</span><span class="w"> </span><span class="nn">firrtl</span><span class="p">.</span><span class="nn">passes</span><span class="p">.</span><span class="nc">PassException</span>
+</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a><span class="k">import</span><span class="w"> </span><span class="nn">firrtl</span><span class="p">.</span><span class="nn">transforms</span><span class="p">.</span><span class="nc">DedupModules</span>
+</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a href="#__codelineno-3-7" id="__codelineno-3-7" name="__codelineno-3-7"></a><span class="c1">// adapted from https://github.com/chipsalliance/chisel3/issues/1059#issuecomment-814353578</span>
+</span><span id="__span-3-8"><a href="#__codelineno-3-8" id="__codelineno-3-8" name="__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a href="#__codelineno-3-9" id="__codelineno-3-9" name="__codelineno-3-9"></a><span class="cm">/** Specifies a global prefix for all module names. */</span>
+</span><span id="__span-3-10"><a href="#__codelineno-3-10" id="__codelineno-3-10" name="__codelineno-3-10"></a><span class="k">case</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">ModulePrefix</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span><span class="w"> </span><span class="nc">String</span><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">NoTargetAnnotation</span>
+</span><span id="__span-3-11"><a href="#__codelineno-3-11" id="__codelineno-3-11" name="__codelineno-3-11"></a>
+</span><span id="__span-3-12"><a href="#__codelineno-3-12" id="__codelineno-3-12" name="__codelineno-3-12"></a><span class="cm">/** FIRRTL pass to add prefix to module names</span>
+</span><span id="__span-3-13"><a href="#__codelineno-3-13" id="__codelineno-3-13" name="__codelineno-3-13"></a><span class="cm">  */</span>
+</span><span id="__span-3-14"><a href="#__codelineno-3-14" id="__codelineno-3-14" name="__codelineno-3-14"></a><span class="k">object</span><span class="w"> </span><span class="nc">PrefixModulesPass</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">Transform</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="nc">DependencyAPIMigration</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-15"><a href="#__codelineno-3-15" id="__codelineno-3-15" name="__codelineno-3-15"></a><span class="w">  </span><span class="c1">// we run after deduplication to save some work</span>
+</span><span id="__span-3-16"><a href="#__codelineno-3-16" id="__codelineno-3-16" name="__codelineno-3-16"></a><span class="w">  </span><span class="k">override</span><span class="w"> </span><span class="k">def</span><span class="w"> </span><span class="nf">prerequisites</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Seq</span><span class="p">(</span><span class="nc">Dependency</span><span class="p">[</span><span class="nc">DedupModules</span><span class="p">])</span>
+</span><span id="__span-3-17"><a href="#__codelineno-3-17" id="__codelineno-3-17" name="__codelineno-3-17"></a>
+</span><span id="__span-3-18"><a href="#__codelineno-3-18" id="__codelineno-3-18" name="__codelineno-3-18"></a><span class="w">  </span><span class="c1">// we do not invalidate the results of any prior passes</span>
+</span><span id="__span-3-19"><a href="#__codelineno-3-19" id="__codelineno-3-19" name="__codelineno-3-19"></a><span class="w">  </span><span class="k">override</span><span class="w"> </span><span class="k">def</span><span class="w"> </span><span class="nf">invalidates</span><span class="p">(</span><span class="n">a</span><span class="p">:</span><span class="w"> </span><span class="nc">Transform</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+</span><span id="__span-3-20"><a href="#__codelineno-3-20" id="__codelineno-3-20" name="__codelineno-3-20"></a>
+</span><span id="__span-3-21"><a href="#__codelineno-3-21" id="__codelineno-3-21" name="__codelineno-3-21"></a><span class="w">  </span><span class="k">override</span><span class="w"> </span><span class="k">protected</span><span class="w"> </span><span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="nc">CircuitState</span><span class="p">):</span><span class="w"> </span><span class="nc">CircuitState</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-22"><a href="#__codelineno-3-22" id="__codelineno-3-22" name="__codelineno-3-22"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">prefixes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">state</span><span class="p">.</span><span class="n">annotations</span><span class="p">.</span><span class="n">collect</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">case</span><span class="w"> </span><span class="n">a</span><span class="p">:</span><span class="w"> </span><span class="nc">ModulePrefix</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-3-23"><a href="#__codelineno-3-23" id="__codelineno-3-23" name="__codelineno-3-23"></a><span class="w">      </span><span class="n">a</span><span class="p">.</span><span class="n">prefix</span>
+</span><span id="__span-3-24"><a href="#__codelineno-3-24" id="__codelineno-3-24" name="__codelineno-3-24"></a><span class="w">    </span><span class="p">}.</span><span class="n">distinct</span>
+</span><span id="__span-3-25"><a href="#__codelineno-3-25" id="__codelineno-3-25" name="__codelineno-3-25"></a><span class="w">    </span><span class="n">prefixes</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-26"><a href="#__codelineno-3-26" id="__codelineno-3-26" name="__codelineno-3-26"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="nc">Seq</span><span class="p">()</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-3-27"><a href="#__codelineno-3-27" id="__codelineno-3-27" name="__codelineno-3-27"></a><span class="w">        </span><span class="n">logger</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s">"[PrefixModulesPass] No ModulePrefix annotation found."</span><span class="p">)</span>
+</span><span id="__span-3-28"><a href="#__codelineno-3-28" id="__codelineno-3-28" name="__codelineno-3-28"></a><span class="w">        </span><span class="n">state</span>
+</span><span id="__span-3-29"><a href="#__codelineno-3-29" id="__codelineno-3-29" name="__codelineno-3-29"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="nc">Seq</span><span class="p">(</span><span class="s">""</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">state</span>
+</span><span id="__span-3-30"><a href="#__codelineno-3-30" id="__codelineno-3-30" name="__codelineno-3-30"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="nc">Seq</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-3-31"><a href="#__codelineno-3-31" id="__codelineno-3-31" name="__codelineno-3-31"></a><span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">state</span><span class="p">.</span><span class="n">circuit</span><span class="p">.</span><span class="n">mapModule</span><span class="p">(</span><span class="n">onModule</span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-3-32"><a href="#__codelineno-3-32" id="__codelineno-3-32" name="__codelineno-3-32"></a><span class="w">        </span><span class="n">state</span><span class="p">.</span><span class="n">copy</span><span class="p">(</span><span class="n">circuit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">copy</span><span class="p">(</span><span class="n">main</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">main</span><span class="p">))</span>
+</span><span id="__span-3-33"><a href="#__codelineno-3-33" id="__codelineno-3-33" name="__codelineno-3-33"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="n">other</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-3-34"><a href="#__codelineno-3-34" id="__codelineno-3-34" name="__codelineno-3-34"></a><span class="w">        </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="nc">PassException</span><span class="p">(</span>
+</span><span id="__span-3-35"><a href="#__codelineno-3-35" id="__codelineno-3-35" name="__codelineno-3-35"></a><span class="w">          </span><span class="s">s"[PrefixModulesPass] found more than one prefix annotation: </span><span class="si">$</span><span class="n">other</span><span class="s">"</span>
+</span><span id="__span-3-36"><a href="#__codelineno-3-36" id="__codelineno-3-36" name="__codelineno-3-36"></a><span class="w">        </span><span class="p">)</span>
+</span><span id="__span-3-37"><a href="#__codelineno-3-37" id="__codelineno-3-37" name="__codelineno-3-37"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-38"><a href="#__codelineno-3-38" id="__codelineno-3-38" name="__codelineno-3-38"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-3-39"><a href="#__codelineno-3-39" id="__codelineno-3-39" name="__codelineno-3-39"></a>
+</span><span id="__span-3-40"><a href="#__codelineno-3-40" id="__codelineno-3-40" name="__codelineno-3-40"></a><span class="w">  </span><span class="k">private</span><span class="w"> </span><span class="k">def</span><span class="w"> </span><span class="nf">onModule</span><span class="p">(</span><span class="n">m</span><span class="p">:</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">DefModule</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">:</span><span class="w"> </span><span class="nc">String</span><span class="p">):</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">DefModule</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-3-41"><a href="#__codelineno-3-41" id="__codelineno-3-41" name="__codelineno-3-41"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-42"><a href="#__codelineno-3-42" id="__codelineno-3-42" name="__codelineno-3-42"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="n">e</span><span class="p">:</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">ExtModule</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">copy</span><span class="p">(</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="p">)</span>
+</span><span id="__span-3-43"><a href="#__codelineno-3-43" id="__codelineno-3-43" name="__codelineno-3-43"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="n">mod</span><span class="p">:</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">Module</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-3-44"><a href="#__codelineno-3-44" id="__codelineno-3-44" name="__codelineno-3-44"></a><span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">mod</span><span class="p">.</span><span class="n">name</span>
+</span><span id="__span-3-45"><a href="#__codelineno-3-45" id="__codelineno-3-45" name="__codelineno-3-45"></a><span class="w">        </span><span class="kd">val</span><span class="w"> </span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">onStmt</span><span class="p">(</span><span class="n">mod</span><span class="p">.</span><span class="n">body</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">)</span>
+</span><span id="__span-3-46"><a href="#__codelineno-3-46" id="__codelineno-3-46" name="__codelineno-3-46"></a><span class="w">        </span><span class="n">mod</span><span class="p">.</span><span class="n">copy</span><span class="p">(</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">body</span><span class="p">)</span>
+</span><span id="__span-3-47"><a href="#__codelineno-3-47" id="__codelineno-3-47" name="__codelineno-3-47"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-48"><a href="#__codelineno-3-48" id="__codelineno-3-48" name="__codelineno-3-48"></a>
+</span><span id="__span-3-49"><a href="#__codelineno-3-49" id="__codelineno-3-49" name="__codelineno-3-49"></a><span class="w">  </span><span class="k">private</span><span class="w"> </span><span class="k">def</span><span class="w"> </span><span class="nf">onStmt</span><span class="p">(</span><span class="n">s</span><span class="p">:</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">Statement</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">:</span><span class="w"> </span><span class="nc">String</span><span class="p">):</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">Statement</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-50"><a href="#__codelineno-3-50" id="__codelineno-3-50" name="__codelineno-3-50"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">i</span><span class="p">:</span><span class="w"> </span><span class="n">ir</span><span class="p">.</span><span class="nc">DefInstance</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">copy</span><span class="p">(</span><span class="n">module</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">module</span><span class="p">)</span>
+</span><span id="__span-3-51"><a href="#__codelineno-3-51" id="__codelineno-3-51" name="__codelineno-3-51"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">other</span><span class="w">             </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">other</span><span class="p">.</span><span class="n">mapStmt</span><span class="p">(</span><span class="n">onStmt</span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-3-52"><a href="#__codelineno-3-52" id="__codelineno-3-52" name="__codelineno-3-52"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-3-53"><a href="#__codelineno-3-53" id="__codelineno-3-53" name="__codelineno-3-53"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>实现思路就是遍历 IR，找到所有的 Module 并改名，再把所有模块例化也做一次替换。最后在生成 Verilog 的时候添加 Annotation 即可：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="k">new</span><span class="w"> </span><span class="nc">ChiselStage</span><span class="p">().</span><span class="n">execute</span><span class="p">(</span>
+</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="w">  </span><span class="nc">Array</span><span class="p">(</span><span class="s">"-o"</span><span class="p">,</span><span class="w"> </span><span class="s">s"</span><span class="si">${</span><span class="n">name</span><span class="si">}</span><span class="s">.v"</span><span class="p">),</span>
+</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a><span class="w">  </span><span class="nc">Seq</span><span class="p">(</span>
+</span><span id="__span-4-4"><a href="#__codelineno-4-4" id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="w">    </span><span class="nc">ChiselGeneratorAnnotation</span><span class="p">(</span><span class="n">genModule</span><span class="p">),</span>
+</span><span id="__span-4-5"><a href="#__codelineno-4-5" id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="w">    </span><span class="nc">RunFirrtlTransformAnnotation</span><span class="p">(</span><span class="nc">Dependency</span><span class="p">(</span><span class="nc">PrefixModulesPass</span><span class="p">)),</span>
+</span><span id="__span-4-6"><a href="#__codelineno-4-6" id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="w">    </span><span class="nc">ModulePrefix</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
+</span><span id="__span-4-7"><a href="#__codelineno-4-7" id="__codelineno-4-7" name="__codelineno-4-7"></a><span class="w">  </span><span class="p">)</span>
+</span></code></pre></div>
+<p>如果使用新的 MLIR FIRRTL Compiler，则可以利用 <code>sifive.enterprise.firrtl.NestedPrefixModulesAnnotation</code> annotation，让 firtool 来进行 <a href="https://github.com/llvm/circt/blob/fc6b00fd20d8a50f17a908cc681c8cf3a4d1c000/lib/Dialect/FIRRTL/Transforms/PrefixModules.cpp">prefix 操作</a>：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="k">package</span><span class="w"> </span><span class="n">sifive</span><span class="w"> </span><span class="err">{</span>
+</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="w">  </span><span class="k">package</span><span class="w"> </span><span class="n">enterprise</span><span class="w"> </span><span class="err">{</span>
+</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="w">    </span><span class="k">package</span><span class="w"> </span><span class="n">firrtl</span><span class="w"> </span><span class="err">{</span>
+</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="w">      </span><span class="k">import</span><span class="w"> </span><span class="nn">_root_</span><span class="p">.</span><span class="nn">firrtl</span><span class="p">.</span><span class="nn">annotations</span><span class="p">.</span><span class="n">_</span>
+</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a>
+</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a><span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">NestedPrefixModulesAnnotation</span><span class="p">(</span>
+</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="w">          </span><span class="kd">val</span><span class="w"> </span><span class="n">target</span><span class="p">:</span><span class="w"> </span><span class="nc">Target</span><span class="p">,</span>
+</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a><span class="w">          </span><span class="n">prefix</span><span class="p">:</span><span class="w"> </span><span class="nc">String</span><span class="p">,</span>
+</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a><span class="w">          </span><span class="n">inclusive</span><span class="p">:</span><span class="w"> </span><span class="nc">Boolean</span>
+</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a><span class="w">      </span><span class="p">)</span><span class="w"> </span><span class="k">extends</span><span class="w"> </span><span class="nc">SingleTargetAnnotation</span><span class="p">[</span><span class="nc">Target</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-11"><a href="#__codelineno-5-11" id="__codelineno-5-11" name="__codelineno-5-11"></a>
+</span><span id="__span-5-12"><a href="#__codelineno-5-12" id="__codelineno-5-12" name="__codelineno-5-12"></a><span class="w">        </span><span class="k">def</span><span class="w"> </span><span class="nf">duplicate</span><span class="p">(</span><span class="n">n</span><span class="p">:</span><span class="w"> </span><span class="nc">Target</span><span class="p">):</span><span class="w"> </span><span class="nc">Annotation</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-5-13"><a href="#__codelineno-5-13" id="__codelineno-5-13" name="__codelineno-5-13"></a><span class="w">          </span><span class="nc">NestedPrefixModulesAnnotation</span><span class="p">(</span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">,</span><span class="w"> </span><span class="n">inclusive</span><span class="p">)</span>
+</span><span id="__span-5-14"><a href="#__codelineno-5-14" id="__codelineno-5-14" name="__codelineno-5-14"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-5-15"><a href="#__codelineno-5-15" id="__codelineno-5-15" name="__codelineno-5-15"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-5-16"><a href="#__codelineno-5-16" id="__codelineno-5-16" name="__codelineno-5-16"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-5-17"><a href="#__codelineno-5-17" id="__codelineno-5-17" name="__codelineno-5-17"></a><span class="p">}</span>
+</span><span id="__span-5-18"><a href="#__codelineno-5-18" id="__codelineno-5-18" name="__codelineno-5-18"></a>
+</span><span id="__span-5-19"><a href="#__codelineno-5-19" id="__codelineno-5-19" name="__codelineno-5-19"></a><span class="k">object</span><span class="w"> </span><span class="nc">AddPrefix</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-20"><a href="#__codelineno-5-20" id="__codelineno-5-20" name="__codelineno-5-20"></a><span class="w">  </span><span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="n">module</span><span class="p">:</span><span class="w"> </span><span class="nc">Module</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">:</span><span class="w"> </span><span class="nc">String</span><span class="p">,</span><span class="w"> </span><span class="n">inclusive</span><span class="p">:</span><span class="w"> </span><span class="nc">Boolean</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-21"><a href="#__codelineno-5-21" id="__codelineno-5-21" name="__codelineno-5-21"></a><span class="w">    </span><span class="n">annotate</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="nc">ChiselAnnotation</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-22"><a href="#__codelineno-5-22" id="__codelineno-5-22" name="__codelineno-5-22"></a><span class="w">      </span><span class="k">def</span><span class="w"> </span><span class="nf">toFirrtl</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-5-23"><a href="#__codelineno-5-23" id="__codelineno-5-23" name="__codelineno-5-23"></a><span class="w">        </span><span class="k">new</span><span class="w"> </span><span class="nc">NestedPrefixModulesAnnotation</span><span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">toTarget</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="p">,</span><span class="w"> </span><span class="n">inclusive</span><span class="p">)</span>
+</span><span id="__span-5-24"><a href="#__codelineno-5-24" id="__codelineno-5-24" name="__codelineno-5-24"></a><span class="w">    </span><span class="p">})</span>
+</span><span id="__span-5-25"><a href="#__codelineno-5-25" id="__codelineno-5-25" name="__codelineno-5-25"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-5-26"><a href="#__codelineno-5-26" id="__codelineno-5-26" name="__codelineno-5-26"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这个方法的灵感来自 @sequencer。唯一的缺点就是比较 Hack，建议 SiFive 把相关的类也开源出来用。</p>
+<h3 id="关闭-rtl-级别的优化"><a class="toclink" href="../../hardware/2022/01/03/chisel3-cookbook/#关闭-rtl-级别的优化">关闭 RTL 级别的优化</a></h3>
+<p>Chisel3 生成 Verilog/System Verilog 的时候会进行一些优化。如果想要关闭这些优化，可以使用：</p>
+<ol>
+<li><a href="https://www.chisel-lang.org/docs/cookbooks/naming">dontTouch annotation</a></li>
+<li>添加命令行参数：<code>--preserve-values=[none/named/all]</code>，见 <a href="https://circt.llvm.org/docs/Dialects/FIRRTL/RationaleFIRRTL/">FIRRTL Dialect Rationale</a></li>
+</ol>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -3150,390 +3508,6 @@ https://software.intel.com/en-us/support
 </span><span id="__span-8-7"><a href="#__codelineno-8-7" id="__codelineno-8-7" name="__codelineno-8-7"></a><span class="m">0000000000000000</span><span class="w"> </span>T<span class="w"> </span>_Z6foobarSs
 </span></code></pre></div>
 <p>这样就可以正常链接到第三方的动态库了。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2021-05-06 00:00:00+00:00">2021年5月6日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 6 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="硬盘相关的概念"><a class="toclink" href="../../hardware/2021/05/06/disk/">硬盘相关的概念</a></h2>
-<h3 id="ata"><a class="toclink" href="../../hardware/2021/05/06/disk/#ata">ATA</a></h3>
-<p><a href="https://en.wikipedia.org/wiki/Parallel_ATA">ATA</a> 定义了发送给硬盘的命令，<a href="https://people.freebsd.org/~imp/asiabsdcon2015/works/d2161r5-ATAATAPI_Command_Set_-_3.pdf">标准</a>定义了命令：</p>
-<ul>
-<li>ech IDENTIFY DEVICE: 获取设备信息</li>
-<li>25h READ DMA EXT: 读取扇区</li>
-<li>35h WRITE DMA EXT: 写入扇区</li>
-</ul>
-<p>ATA 同时也是接口，图片如下。ATA 前身是 IDE，现在 ATA 叫做 PATA。</p>
-<p><img alt="PATA Pin" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/ATA_Plug.svg/600px-ATA_Plug.svg.png"/></p>
-<h3 id="ahci"><a class="toclink" href="../../hardware/2021/05/06/disk/#ahci">AHCI</a></h3>
-<p><a href="https://en.wikipedia.org/wiki/Advanced_Host_Controller_Interface">AHCI</a> 可以简单理解为 PCIe &lt;-&gt; SATA 的转换器。AHCI 暴露为一个 PCIe 设备：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>$<span class="w"> </span>lspci<span class="w"> </span>-vv
-</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="m">00</span>:1f.2<span class="w"> </span>SATA<span class="w"> </span>controller:<span class="w"> </span>Intel<span class="w"> </span>Corporation<span class="w"> </span>C600/X79<span class="w"> </span>series<span class="w"> </span>chipset<span class="w"> </span><span class="m">6</span>-Port<span class="w"> </span>SATA<span class="w"> </span>AHCI<span class="w"> </span>Controller<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span><span class="m">05</span><span class="o">)</span>
-</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="w">        </span>Kernel<span class="w"> </span>modules:<span class="w"> </span>ahci
-</span></code></pre></div>
-<p>处理器通过 IO port/MMIO 访问 AHCI，然后 AHCI HBA 连接到 SATA 设备。</p>
-<h3 id="sata"><a class="toclink" href="../../hardware/2021/05/06/disk/#sata">SATA</a></h3>
-<p><a href="https://en.wikipedia.org/wiki/Serial_ATA">SATA</a> 一般说的是接口。它一般分为两个部分，数据和电源。数据部分只有 7 个 pin，三个 GND 和两对差分线（A+A- B+B-），图片如下：</p>
-<p><img alt="SATA Data" src="https://upload.wikimedia.org/wikipedia/commons/e/ef/SATA_Data_Cable.jpg"/></p>
-<p>电源部分有 15 个 pin，有 GND 3.3V 5V 和 12V，图片如下：</p>
-<p><img alt="SATA Power" src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/SATA_power_cable.jpg/400px-SATA_power_cable.jpg"/></p>
-<p>常见的 SATA 盘有 2.5 英寸（small form factor, SFF）和 3.5 英寸（large form factor，LFF）两种规格。</p>
-<h3 id="m2"><a class="toclink" href="../../hardware/2021/05/06/disk/#m2">M.2</a></h3>
-<p><a href="https://en.wikipedia.org/wiki/M.2">M.2</a> 又称 NGFF，有不同的 key 类型。常见的是 B 和 M：</p>
-<ul>
-<li>B key: 12-19 notched, PCIe x2, SATA</li>
-<li>M key: 59-66 notched, PCIe x4, SATA</li>
-</ul>
-<p>都有部分引脚的位置是空的：</p>
-<p><img alt="M.2" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/M2_Edge_Connector_Keying.svg/620px-M2_Edge_Connector_Keying.svg.png"/></p>
-<p>在<a href="https://pinoutguide.com/HD/M.2_NGFF_connector_pinout.shtml">这里</a>可以看到两种 key 的 pinout。</p>
-<ul>
-<li>B key: SATA pin B(41,43) A(47,49), PCIe x2 pin R1(29,31) T1(35,37) R0(41,43) T0(47,49), USB 3.0 pin TX(29, 31) RX(35,37)</li>
-<li>M key: SATA 同上，PCIe x4 pin R3(5,7) T3(11,13) R2(17,19) T2(23,25) Lane 0,1 同上</li>
-</ul>
-<p>可以看到，SATA pin 和 PCIe 的两个 lane 在 B 和 M key 中是一样的，物理上也是可以兼容的。</p>
-<p>因为支持 SATA 和 PCIe，就有下面三种可能的使用方式：</p>
-<ul>
-<li>PCIe -- AHCI HBA(Board) -- SATA(M.2) -- Disk: 传统方式，只不过物理接口从 SATA 变成了 M.2</li>
-<li>PCIe -- PCIe Device(M.2) -- Disk(AHCI)：硬盘实现了 AHCI 的接口，通过 PCIe 连接到 CPU</li>
-<li>PCIe -- PCIe Device(M.2) -- Disk(NVMe)：硬盘实现了 NVMe 的接口，通过 PCIe 连接到 CPU</li>
-</ul>
-<p><img alt="" src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/SATA_Express_interface.svg/620px-SATA_Express_interface.svg.png"/></p>
-<h3 id="sata-express"><a class="toclink" href="../../hardware/2021/05/06/disk/#sata-express">SATA express</a></h3>
-<p><a href="https://en.wikipedia.org/wiki/SATA_Express">SATA express</a> 在 SATA 3.2 引入，它用的很少，被 U.2 取代。提供了 PCIe x2 或者 SATA x2。</p>
-<h3 id="u2"><a class="toclink" href="../../hardware/2021/05/06/disk/#u2">U.2</a></h3>
-<p><a href="https://en.wikipedia.org/wiki/U.2">U.2</a> 也叫 <a href="https://members.snia.org/document/dl/26489">SFF-8639</a>。它和 <a href="https://en.wikipedia.org/wiki/SATA_Express">SATA express</a> 接口一样，但提供了 PCIe x4 或者 SATA x2。详见 <a href="https://pinoutguide.com/HD/U.2_SATA_connector_pinout.shtml">pinout</a>。</p>
-<p><img alt="U.2" src="https://www.delock.com/infothek/U.2-NVMe/images/teaser.jpg"/></p>
-<h3 id="速度比较"><a class="toclink" href="../../hardware/2021/05/06/disk/#速度比较">速度比较</a></h3>
-<p>不同的协议的速度如下：</p>
-<ul>
-<li>SATA 3.0: 6Gb/s(8b/10b, 4Gb/s uncoded)</li>
-<li>SAS-1: 3Gb/s</li>
-<li>SAS-2: 6Gb/s</li>
-<li>SAS-3: 12Gb/s</li>
-<li>SAS-4: 22.5Gb/s</li>
-<li>PCIe 3.0 x4: 32Gb/s(8GT/s, 128b/130b, 31.5 Gb/s uncoded)</li>
-</ul>
-<p>更完整的可以看<a href="https://en.wikipedia.org/wiki/List_of_interface_bit_rates">List of interface bit rates</a>。</p>
-<p><a href="https://ark.intel.com/content/www/us/en/ark/products/192574/intel-ssd-dc-p4618-series-6-4tb-1-2-height-pcie-3-1-x8-3d2-tlc.html">Intel SSD DC P4618 Series</a> 读写速度可以达到 40~50 Gb/s，它采用的是 PCIe 3.0 x8(64Gb/s) NVMe。</p>
-<p><a href="https://ark.intel.com/content/www/us/en/ark/products/125024/intel-ssd-545s-series-1-024tb-2-5in-sata-6gb-s-3d2-tlc.html">Intel SSD 545s Series</a> 读写速度约 4Gb/s，采用的是 SATA 3.0 6Gb/s。</p>
-<p><a href="https://www.samsung.com/semiconductor/minisite/ssd/product/consumer/970evo/">SAMSUNG 970 EVO</a> 读写速度 20~30 Gb/s，它采用的是 PCIe 3.0 x4(32Gb/s) NVMe。</p>
-<h3 id="sas"><a class="toclink" href="../../hardware/2021/05/06/disk/#sas">SAS</a></h3>
-<p>SAS 涉及的物理接口比较多，下面举一个具体的例子：DELL SCv2000</p>
-<p>文档：https://dl.dell.com/topicspdf/storage-sc2000_owners-manual_en-us.pdf</p>
-<p>它的背面：</p>
-<p><img alt="" src="../../hardware/scv2000.png"/></p>
-<p>它有四个前端接口 Mini-SAS High Density (HD)，即 SFF-8644；两个后端接口 Mini-SAS，即 SFF-8088。</p>
-<p>RAID 卡例子：MegaRAID SAS 9361-8i</p>
-<p>文档：https://docs.broadcom.com/doc/12351995</p>
-<p>它的接口有：</p>
-<ol>
-<li>两个 mini-SAS SFF-8643(Mini Multilane 4/8X 12 Gb/s Unshielded Connector (HD12un)) 内部连接器，连接到硬盘</li>
-<li>PCIe 3.0 8x 连接主板</li>
-</ol>
-<p>SAS 标准：</p>
-<ul>
-<li>INCITS 417 Serial Attached SCSI 1.1 (SAS-1.1)</li>
-<li>INCITS 457 Serial Attached SCSI 2 (SAS-2)</li>
-<li>INCITS 478 Serial Attached SCSI 2.1 (SAS-2.1)</li>
-<li>INCITS 519 Serial Attached SCSI - 3 (SAS-3)</li>
-<li>INCITS 534 Serial Attached SCSI - 4 (SAS-4)</li>
-</ul>
-<p>可以从 https://www.t10.org/drafts.htm#SCSI3_SAS 免费下载尚未成为标准的 SAS-4.1 Working Draft。</p>
-<h3 id="sas-相关的物理接口"><a class="toclink" href="../../hardware/2021/05/06/disk/#sas-相关的物理接口">SAS 相关的物理接口</a></h3>
-<p>查找 SFF 标准：https://www.snia.org/technology-communities/sff/specifications</p>
-<p>中文介绍：https://www.163.com/dy/article/H8TGPEUA0532B75P.html</p>
-<h4 id="sff-8087"><a class="toclink" href="../../hardware/2021/05/06/disk/#sff-8087">SFF-8087</a></h4>
-<p>Mini Multilane 4X Unshielded Connector Shell and Plug</p>
-<p><img alt="" src="../../hardware/sff8087.png"/></p>
-<p>介绍：https://cs-electronics.com/sff-8087/</p>
-<p>Mini SAS 4i 连接器就是 36 pin 的 SFF-8087，支持四路 SAS。i 表示用于 internal 连接。对应的 external 接口是 SFF-8088。</p>
-<p>标准下载地址：https://members.snia.org/document/dl/25823</p>
-<p>它的引脚定义可以在 <a href="https://members.snia.org/document/dl/27380">SFF-9402</a> 看到，它的引脚分为 A 面和 B 面，每面有 18 个 PIN，用途如下：</p>
-<ul>
-<li>A2(Rx0+), A3(Rx0-), B2(Tx0+), B3(Tx0-)：第一组差分对</li>
-<li>A4(Rx1+), A5(Rx1-), B4(Tx1+), B5(Tx1-)：第二组差分对</li>
-<li>A13(Rx2+), A14(Rx2-), B13(Tx2+), B14(Tx2-)：第三组差分对</li>
-<li>A16(Rx3+), A17(Rx3-), B16(Tx3+), B17(Tx3-)：第四组差分对</li>
-<li>B8(Sclock), B9(Sload), A10(SDataOut), A11(SDataIn)：SGPIO 协议</li>
-<li>B8(2W-CLK), B9(2W-DATA)：用于 SES 的 I2C 协议</li>
-</ul>
-<p>这四组差分对对应四路 SAS 或者 SATA。SGPIO 协议的标准是 <a href="https://members.snia.org/document/dl/25923">SFF-8485</a>，主要用途是控制硬盘状态灯，以及判断盘是否插入。</p>
-<p>相关标准：</p>
-<ul>
-<li>SFF-8086: Mini Multilane 10 Gb/s 4X Common Elements Connector</li>
-</ul>
-<h4 id="sff-8088"><a class="toclink" href="../../hardware/2021/05/06/disk/#sff-8088">SFF-8088</a></h4>
-<p>Mini Multilane 4X Shielded Connector Shell and Plug</p>
-<p><img alt="" src="../../hardware/sff8088.png"/></p>
-<p>标准下载地址：https://members.snia.org/document/dl/25824</p>
-<p>Mini SAS 4x 连接器就是 26 pin 的 SFF-8088，支持四路 SAS。用于 external 连接。对应的 internal 接口是 SFF-8087。</p>
-<h4 id="sff-8482sff-8678sff-8680sff-8681"><a class="toclink" href="../../hardware/2021/05/06/disk/#sff-8482sff-8678sff-8680sff-8681">SFF-8482/SFF-8678/SFF-8680/SFF-8681</a></h4>
-<p>SFF-8482: Serial Attachment 2X Unshielded Connector (EIA-966)</p>
-<p><img alt="" src="../../hardware/sff8482.png"/></p>
-<p>介绍：https://cs-electronics.com/sff-8482/</p>
-<p>支持两路 SAS，29 个引脚。和 SATA 的接口大小一样，目的是为了可以兼容 SATA 和 SAS 盘，比较常见。</p>
-<p>标准下载地址：https://members.snia.org/document/dl/25920</p>
-<p>不同速率的版本：</p>
-<ul>
-<li>SFF-8678: Serial Attachment 2X 6Gb/s Unshielded Connector</li>
-<li>SFF-8680: Serial Attachment 2X 12Gb/s Unshielded Connector, 支持 SAS-2.x 和 SAS-3</li>
-<li>SFF-8681: Serial Attachment 2X 24Gb/s Unshielded Connector, 支持 SAS-4</li>
-</ul>
-<h4 id="sff-86148644"><a class="toclink" href="../../hardware/2021/05/06/disk/#sff-86148644">SFF-8614/8644</a></h4>
-<p>SFF-8614: Mini Multilane 4/8X Shielded Cage/Connector (HDsh)</p>
-<p><img alt="" src="../../hardware/sff8614.png"/></p>
-<p>标准下载地址：https://members.snia.org/document/dl/25939</p>
-<p>对应的 internal 版本是 SFF-8643: Mini Multilane 4/8X 12 Gb/s Unshielded Connector</p>
-<p>名称：External Mini-SAS HD(High Density)</p>
-<p>升级版本：</p>
-<p>SFF-8644: Mini Multilane 4/8X 12 Gb/s Shielded Cage/Connector (HD12sh)</p>
-<p>标准下载地址：https://members.snia.org/document/dl/25952</p>
-<p>支持 SAS-3 和 PCIe 3.0</p>
-<h4 id="sff-8639"><a class="toclink" href="../../hardware/2021/05/06/disk/#sff-8639">SFF-8639</a></h4>
-<p>Multifunction 6X Unshielded Connector</p>
-<p>又称 U.2</p>
-<p><img alt="" src="../../hardware/sff8639.png"/></p>
-<p>标准下载地址：https://members.snia.org/document/dl/26489</p>
-<p>用途：</p>
-<ul>
-<li>Single port SATA (as defined by Serial ATA revision 3.1)</li>
-<li>Two port SATA Express (as defined in Serial ATA Technical Proposal #TPR_C109, currently under development)</li>
-<li>Dual port SAS (as defined by SFF-8482)</li>
-<li>MultiLink SAS (as defined by SFF-8630)</li>
-<li>Up to 4 lanes of PCIe (as defined in this specification)</li>
-</ul>
-<h4 id="sff-8611"><a class="toclink" href="../../hardware/2021/05/06/disk/#sff-8611">SFF-8611</a></h4>
-<p>MiniLink 4/8X I/O Cable Assemblies</p>
-<p>又称 OCuLink 1.0</p>
-<p><img alt="" src="../../hardware/sff8611.png"/></p>
-<p>标准下载地址：https://members.snia.org/document/dl/27937</p>
-<p>用途：</p>
-<ul>
-<li>PCIe</li>
-<li>SAS</li>
-</ul>
-<h3 id="硬盘性能指标"><a class="toclink" href="../../hardware/2021/05/06/disk/#硬盘性能指标">硬盘性能指标</a></h3>
-<p>硬盘性能一般会看如下几个指标：</p>
-<ol>
-<li>顺序读写性能，在指定的 block size 下，顺序读写的传输速度，单位通常是 MB/s</li>
-<li>随机读写性能，在指定的 block size 下（一般是 4KB），随机地址读写的每秒读写操作次数，单位通常是 IOPS</li>
-<li>延迟</li>
-</ol>
-<p>CrystalDiskInfo 术语：</p>
-<ul>
-<li>SEQ1MQ8T1：顺序读写（SEQ），一次读写 1 MB（1M），队列深度是 8（Q8），单线程（T1）</li>
-<li>SEQ128KQ32T1：顺序读写（SEQ），一次读写 128 KB（128K），队列深度是 32（Q32），单线程（T1）</li>
-<li>RND4KQ32T16：随机读写（RND），一次读写 4KB（4K），队列深度是 32（Q32），16 线程（T16）</li>
-<li>RND4KQ1T1：随机读写（RND），一次读写 4KB（4K），队列深度是 1（Q1），单线程（T1）</li>
-</ul>
-<p>根据 <a href="https://www.buildcomputers.net/ssd-vs-hdd.html">SSD vs HDD - Should You Buy a Solid State Drive or Hard Disk Drive?</a>，SSD 和 HDD 在顺序读写性能上的常见范围：</p>
-<ul>
-<li>SSD: 300 ~ 500 MB/s</li>
-<li>HDD: 100 ~ 160 MB/s</li>
-</ul>
-<p>SSD 和 HDD 在随机读写性能上的常见范围：</p>
-<ul>
-<li>SSD: 20,000 ~ 100,000 IOPS</li>
-<li>HDD: 75 ~ 100 IOPS</li>
-</ul>
-<p>可以看到，SSD 和 HDD 相比，顺序读写性能高，随机读写性能显著高。但实际上，这个数据有些过时了。</p>
-<p>下面看一些具体的例子：</p>
-<ul>
-<li><a href="https://toshiba.semicon-storage.com/ap-en/storage/product/data-center-enterprise/enterprise-performance/articles/al15sebxxex.html">HDD TOSHIBA AL15SEB120N</a>: 顺序读写性能 234.0 MB/s，延迟 2.86ms</li>
-<li><a href="https://www.seagate.com/www-content/datasheets/pdfs/ent-cap-3-5-hdd-10tb-channelDS1863-5C-1608US-en_US.pdf">HDD SEAGATE ST10000NM0096</a>: 顺序读写性能 254 MB/s，随机读 170 IOPS，随机写 370 IOPS，延迟 4.16ms</li>
-<li><a href="https://documents.westerndigital.com/content/dam/doc-library/en_us/assets/public/western-digital/product/data-center-drives/ultrastar-ssd-sas-series/data-sheet-ultrastar-dc-ss200.pdf">SSD Ultrastar DC SS200</a>: 顺序读 1,800 MB/s，顺序写 1,000 MB/s，随机读 250,000 IOPS，随机写 86,000 IOPS，延迟 100us</li>
-<li><a href="https://apac.kioxia.com/en-apac/personal/ssd/exceria-pro.html">SSD KIOXIA EXCERIA PRO NVMe SSD</a>: 顺序读 7,300 MB/s，顺序写 6,400 MB/s，随机读 800,000 IOPS，随机写 1,300,000 IOPS</li>
-<li><a href="https://semiconductor.samsung.com/cn/ssd/pc-ssd/pm9a1/">SSD SAMSUNG PM9A1</a>: 顺序读 7,000 MB/s，顺序写 5,200 MB/s，随机读 1,000,000 IOPS，随机写 850,000 IOPS</li>
-</ul>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2021-04-15 00:00:00+00:00">2021年4月15日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/devops/">devops</a></li>
-<li class="md-meta__item">
-            
-              需要 4 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="在-esxi-中用-perccli-换-raid-中的盘"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/">在 ESXi 中用 PERCCli 换 RAID 中的盘</a></h2>
-<h3 id="背景"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/#背景">背景</a></h3>
-<p>最近有一台机器的盘出现了报警，需要换掉，然后重建 RAID5 阵列。iDRAC 出现报错：</p>
-<ol>
-<li>Disk 2 in Backplane 1 of Integrated RAID Controller 1 is not functioning correctly.</li>
-<li>Virtual Disk 1 on Integrated RAID Controller 1 has become degraded.</li>
-<li>Error occurred on Disk2 in Backplane 1 of Integrated RAID Controller 1 : (Error 2)</li>
-</ol>
-<h3 id="安装-perccli"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/#安装-perccli">安装 PERCCli</a></h3>
-<p>首先，因为系统是 VMware ESXi 6.7，所以在<a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">DELL 官网</a>下载对应的文件。按照里面的 README 安装 vib：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-20-1"><a href="#__codelineno-20-1" id="__codelineno-20-1" name="__codelineno-20-1"></a>esxcli<span class="w"> </span>software<span class="w"> </span>vib<span class="w"> </span>install<span class="w"> </span>-v<span class="w"> </span>/vmware-perccli-007.1420.vib
-</span></code></pre></div>
-<p>如果要升级系统，需要先卸载 vib：<code>esxcli software vib remove -n vmware-perccli</code>，因为升级的时候会发现缺少新版系统的 perccli，建议先卸载，升级后再安装新的。</p>
-<p>需要注意的是，如果复制上去 Linux 版本的 PERCCli，虽然也可以运行，但是找不到控制器。安装好以后，就可以运行 <code>/opt/lsi/perccli/perccli</code> 。接着，运行 <code>perccli show all</code>，可以看到类似下面的信息：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-21-1"><a href="#__codelineno-21-1" id="__codelineno-21-1" name="__codelineno-21-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>show<span class="w"> </span>all
-</span><span id="__span-21-2"><a href="#__codelineno-21-2" id="__codelineno-21-2" name="__codelineno-21-2"></a>--------------------------------------------------------------------------------
-</span><span id="__span-21-3"><a href="#__codelineno-21-3" id="__codelineno-21-3" name="__codelineno-21-3"></a>EID:Slt<span class="w"> </span>DID<span class="w"> </span>State<span class="w">  </span>DG<span class="w">     </span>Size<span class="w"> </span>Intf<span class="w"> </span>Med<span class="w"> </span>SED<span class="w"> </span>PI<span class="w"> </span>SeSz<span class="w"> </span>Model<span class="w">               </span>Sp<span class="w"> </span>Type
-</span><span id="__span-21-4"><a href="#__codelineno-21-4" id="__codelineno-21-4" name="__codelineno-21-4"></a>--------------------------------------------------------------------------------
-</span><span id="__span-21-5"><a href="#__codelineno-21-5" id="__codelineno-21-5" name="__codelineno-21-5"></a><span class="m">32</span>:2<span class="w">      </span><span class="m">2</span><span class="w"> </span>Failed<span class="w">  </span><span class="m">1</span><span class="w"> </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>SATA<span class="w"> </span>HDD<span class="w"> </span>N<span class="w">   </span>N<span class="w">  </span>512B<span class="w"> </span>ST4000NM0033-9ZM170<span class="w"> </span>U<span class="w">  </span>-
-</span><span id="__span-21-6"><a href="#__codelineno-21-6" id="__codelineno-21-6" name="__codelineno-21-6"></a><span class="m">32</span>:4<span class="w">      </span><span class="m">4</span><span class="w"> </span>UGood<span class="w">   </span>F<span class="w"> </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>SATA<span class="w"> </span>HDD<span class="w"> </span>N<span class="w">   </span>N<span class="w">  </span>512B<span class="w"> </span>ST4000NM0033-9ZM170<span class="w"> </span>U<span class="w">  </span>-
-</span><span id="__span-21-7"><a href="#__codelineno-21-7" id="__codelineno-21-7" name="__codelineno-21-7"></a>--------------------------------------------------------------------------------
-</span></code></pre></div>
-<p>其中 E32S2 是 Failed 的盘，属于 Disk Group 1；E32S4 是新插入的盘，准备替换掉 E32S2，目前不属于任何的 Disk Group。查看一下 Disk Group：<code>perccli /c0/dall show</code></p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-22-1"><a href="#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/dall<span class="w"> </span>show
-</span><span id="__span-22-2"><a href="#__codelineno-22-2" id="__codelineno-22-2" name="__codelineno-22-2"></a>-----------------------------------------------------------------------------
-</span><span id="__span-22-3"><a href="#__codelineno-22-3" id="__codelineno-22-3" name="__codelineno-22-3"></a>DG<span class="w"> </span>Arr<span class="w"> </span>Row<span class="w"> </span>EID:Slot<span class="w"> </span>DID<span class="w"> </span>Type<span class="w">  </span>State<span class="w"> </span>BT<span class="w">       </span>Size<span class="w"> </span>PDC<span class="w">  </span>PI<span class="w"> </span>SED<span class="w"> </span>DS3<span class="w">  </span>FSpace<span class="w"> </span>TR
-</span><span id="__span-22-4"><a href="#__codelineno-22-4" id="__codelineno-22-4" name="__codelineno-22-4"></a>-----------------------------------------------------------------------------
-</span><span id="__span-22-5"><a href="#__codelineno-22-5" id="__codelineno-22-5" name="__codelineno-22-5"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">   </span>N<span class="w">    </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
-</span><span id="__span-22-6"><a href="#__codelineno-22-6" id="__codelineno-22-6" name="__codelineno-22-6"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">   </span>N<span class="w">    </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
-</span><span id="__span-22-7"><a href="#__codelineno-22-7" id="__codelineno-22-7" name="__codelineno-22-7"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">0</span><span class="w">   </span><span class="m">32</span>:1<span class="w">     </span><span class="m">1</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">   </span>N<span class="w">    </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-22-8"><a href="#__codelineno-22-8" id="__codelineno-22-8" name="__codelineno-22-8"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">1</span><span class="w">   </span><span class="m">32</span>:2<span class="w">     </span><span class="m">2</span><span class="w">   </span>DRIVE<span class="w"> </span>Failed<span class="w"> </span>N<span class="w">    </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-22-9"><a href="#__codelineno-22-9" id="__codelineno-22-9" name="__codelineno-22-9"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">2</span><span class="w">   </span><span class="m">32</span>:3<span class="w">     </span><span class="m">3</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">   </span>N<span class="w">    </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span></code></pre></div>
-<p>可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 <a href="https://dl.dell.com/topicspdf/cli_guide_en-us.pdf">PERCCli 文档</a>，它告诉我们要这么做：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span><span class="nb">set</span><span class="w"> </span>offline
-</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span><span class="nb">set</span><span class="w"> </span>missing
-</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a>perccli<span class="w"> </span>/cx<span class="w"> </span>/dall<span class="w"> </span>show
-</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span>insert<span class="w"> </span><span class="nv">dg</span><span class="o">=</span>a<span class="w"> </span><span class="nv">array</span><span class="o">=</span>b<span class="w"> </span><span class="nv">row</span><span class="o">=</span>c
-</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span>start<span class="w"> </span>rebuild
-</span></code></pre></div>
-<p>具体到我们这个情景，就是把 E32S2 设为 offline，然后用 E32S4 来替换它：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span><span class="nb">set</span><span class="w"> </span>offline
-</span><span id="__span-24-2"><a href="#__codelineno-24-2" id="__codelineno-24-2" name="__codelineno-24-2"></a>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span><span class="nb">set</span><span class="w"> </span>missing
-</span><span id="__span-24-3"><a href="#__codelineno-24-3" id="__codelineno-24-3" name="__codelineno-24-3"></a>perccli<span class="w"> </span>/cx<span class="w"> </span>/dall<span class="w"> </span>show
-</span><span id="__span-24-4"><a href="#__codelineno-24-4" id="__codelineno-24-4" name="__codelineno-24-4"></a>perccli<span class="w"> </span>/cx/e32/s4<span class="w"> </span>insert<span class="w"> </span><span class="nv">dg</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">array</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="nv">row</span><span class="o">=</span><span class="m">2</span>
-</span><span id="__span-24-5"><a href="#__codelineno-24-5" id="__codelineno-24-5" name="__codelineno-24-5"></a>perccli<span class="w"> </span>/cx/e32/s4<span class="w"> </span>start<span class="w"> </span>rebuild
-</span></code></pre></div>
-<p>完成以后的状态：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-25-1"><a href="#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a>TOPOLOGY<span class="w"> </span>:
-</span><span id="__span-25-2"><a href="#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a><span class="o">========</span>
-</span><span id="__span-25-3"><a href="#__codelineno-25-3" id="__codelineno-25-3" name="__codelineno-25-3"></a>
-</span><span id="__span-25-4"><a href="#__codelineno-25-4" id="__codelineno-25-4" name="__codelineno-25-4"></a>---------------------------------------------------------------------------
-</span><span id="__span-25-5"><a href="#__codelineno-25-5" id="__codelineno-25-5" name="__codelineno-25-5"></a>DG<span class="w"> </span>Arr<span class="w"> </span>Row<span class="w"> </span>EID:Slot<span class="w"> </span>DID<span class="w"> </span>Type<span class="w">  </span>State<span class="w"> </span>BT<span class="w">     </span>Size<span class="w"> </span>PDC<span class="w">  </span>PI<span class="w"> </span>SED<span class="w"> </span>DS3<span class="w">  </span>FSpace<span class="w"> </span>TR
-</span><span id="__span-25-6"><a href="#__codelineno-25-6" id="__codelineno-25-6" name="__codelineno-25-6"></a>---------------------------------------------------------------------------
-</span><span id="__span-25-7"><a href="#__codelineno-25-7" id="__codelineno-25-7" name="__codelineno-25-7"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
-</span><span id="__span-25-8"><a href="#__codelineno-25-8" id="__codelineno-25-8" name="__codelineno-25-8"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
-</span><span id="__span-25-9"><a href="#__codelineno-25-9" id="__codelineno-25-9" name="__codelineno-25-9"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">0</span><span class="w">   </span><span class="m">32</span>:1<span class="w">     </span><span class="m">1</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-25-10"><a href="#__codelineno-25-10" id="__codelineno-25-10" name="__codelineno-25-10"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">1</span><span class="w">   </span><span class="m">32</span>:4<span class="w">     </span><span class="m">4</span><span class="w">   </span>DRIVE<span class="w"> </span>Rbld<span class="w">  </span>Y<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-25-11"><a href="#__codelineno-25-11" id="__codelineno-25-11" name="__codelineno-25-11"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">2</span><span class="w">   </span><span class="m">32</span>:3<span class="w">     </span><span class="m">3</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-25-12"><a href="#__codelineno-25-12" id="__codelineno-25-12" name="__codelineno-25-12"></a>---------------------------------------------------------------------------
-</span></code></pre></div>
-<p>可以看到 E32S4 替换了原来 E32S2 的位置，并且开始重建。查看重建进度：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-26-1"><a href="#__codelineno-26-1" id="__codelineno-26-1" name="__codelineno-26-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/32/s4<span class="w"> </span>show<span class="w"> </span>rebuild
-</span><span id="__span-26-2"><a href="#__codelineno-26-2" id="__codelineno-26-2" name="__codelineno-26-2"></a>-----------------------------------------------------
-</span><span id="__span-26-3"><a href="#__codelineno-26-3" id="__codelineno-26-3" name="__codelineno-26-3"></a>Drive-ID<span class="w">   </span>Progress%<span class="w"> </span>Status<span class="w">      </span>Estimated<span class="w"> </span>Time<span class="w"> </span>Left
-</span><span id="__span-26-4"><a href="#__codelineno-26-4" id="__codelineno-26-4" name="__codelineno-26-4"></a>-----------------------------------------------------
-</span><span id="__span-26-5"><a href="#__codelineno-26-5" id="__codelineno-26-5" name="__codelineno-26-5"></a>/c0/e32/s4<span class="w">         </span><span class="m">3</span><span class="w"> </span>In<span class="w"> </span>progress<span class="w"> </span>-
-</span><span id="__span-26-6"><a href="#__codelineno-26-6" id="__codelineno-26-6" name="__codelineno-26-6"></a>-----------------------------------------------------
-</span><span id="__span-26-7"><a href="#__codelineno-26-7" id="__codelineno-26-7" name="__codelineno-26-7"></a>$<span class="w"> </span>perccli<span class="w"> </span>show<span class="w"> </span>all
-</span><span id="__span-26-8"><a href="#__codelineno-26-8" id="__codelineno-26-8" name="__codelineno-26-8"></a>Need<span class="w"> </span>Attention<span class="w"> </span>:
-</span><span id="__span-26-9"><a href="#__codelineno-26-9" id="__codelineno-26-9" name="__codelineno-26-9"></a><span class="o">==============</span>
-</span><span id="__span-26-10"><a href="#__codelineno-26-10" id="__codelineno-26-10" name="__codelineno-26-10"></a>
-</span><span id="__span-26-11"><a href="#__codelineno-26-11" id="__codelineno-26-11" name="__codelineno-26-11"></a>Controller<span class="w"> </span><span class="m">0</span><span class="w"> </span>:
-</span><span id="__span-26-12"><a href="#__codelineno-26-12" id="__codelineno-26-12" name="__codelineno-26-12"></a><span class="o">============</span>
-</span><span id="__span-26-13"><a href="#__codelineno-26-13" id="__codelineno-26-13" name="__codelineno-26-13"></a>
-</span><span id="__span-26-14"><a href="#__codelineno-26-14" id="__codelineno-26-14" name="__codelineno-26-14"></a>-------------------------------------------------------------------------------
-</span><span id="__span-26-15"><a href="#__codelineno-26-15" id="__codelineno-26-15" name="__codelineno-26-15"></a>EID:Slt<span class="w"> </span>DID<span class="w"> </span>State<span class="w"> </span>DG<span class="w">     </span>Size<span class="w"> </span>Intf<span class="w"> </span>Med<span class="w"> </span>SED<span class="w"> </span>PI<span class="w"> </span>SeSz<span class="w"> </span>Model<span class="w">               </span>Sp<span class="w"> </span>Type
-</span><span id="__span-26-16"><a href="#__codelineno-26-16" id="__codelineno-26-16" name="__codelineno-26-16"></a>-------------------------------------------------------------------------------
-</span><span id="__span-26-17"><a href="#__codelineno-26-17" id="__codelineno-26-17" name="__codelineno-26-17"></a><span class="m">32</span>:4<span class="w">      </span><span class="m">4</span><span class="w"> </span>Rbld<span class="w">   </span><span class="m">1</span><span class="w"> </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>SATA<span class="w"> </span>HDD<span class="w"> </span>N<span class="w">   </span>N<span class="w">  </span>512B<span class="w"> </span>ST4000NM0033-9ZM170<span class="w"> </span>U<span class="w">  </span>-
-</span><span id="__span-26-18"><a href="#__codelineno-26-18" id="__codelineno-26-18" name="__codelineno-26-18"></a>-------------------------------------------------------------------------------
-</span></code></pre></div>
-<p>然后，查看一下出错的盘：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-27-1"><a href="#__codelineno-27-1" id="__codelineno-27-1" name="__codelineno-27-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span>show<span class="w"> </span>all
-</span><span id="__span-27-2"><a href="#__codelineno-27-2" id="__codelineno-27-2" name="__codelineno-27-2"></a>Drive<span class="w"> </span>/c0/e32/s2<span class="w"> </span>State<span class="w"> </span>:
-</span><span id="__span-27-3"><a href="#__codelineno-27-3" id="__codelineno-27-3" name="__codelineno-27-3"></a><span class="o">======================</span>
-</span><span id="__span-27-4"><a href="#__codelineno-27-4" id="__codelineno-27-4" name="__codelineno-27-4"></a>Shield<span class="w"> </span><span class="nv">Counter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
-</span><span id="__span-27-5"><a href="#__codelineno-27-5" id="__codelineno-27-5" name="__codelineno-27-5"></a>Media<span class="w"> </span>Error<span class="w"> </span><span class="nv">Count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
-</span><span id="__span-27-6"><a href="#__codelineno-27-6" id="__codelineno-27-6" name="__codelineno-27-6"></a>Other<span class="w"> </span>Error<span class="w"> </span><span class="nv">Count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">6</span>
-</span><span id="__span-27-7"><a href="#__codelineno-27-7" id="__codelineno-27-7" name="__codelineno-27-7"></a>Drive<span class="w"> </span><span class="nv">Temperature</span><span class="w"> </span><span class="o">=</span><span class="w">  </span>36C<span class="w"> </span><span class="o">(</span><span class="m">96</span>.80<span class="w"> </span>F<span class="o">)</span>
-</span><span id="__span-27-8"><a href="#__codelineno-27-8" id="__codelineno-27-8" name="__codelineno-27-8"></a>Predictive<span class="w"> </span>Failure<span class="w"> </span><span class="nv">Count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
-</span><span id="__span-27-9"><a href="#__codelineno-27-9" id="__codelineno-27-9" name="__codelineno-27-9"></a>S.M.A.R.T<span class="w"> </span>alert<span class="w"> </span>flagged<span class="w"> </span>by<span class="w"> </span><span class="nv">drive</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>No
-</span></code></pre></div>
-<p>果然有错误，但是也看不到更多信息了。</p>
-<p>坏块统计：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-28-1"><a href="#__codelineno-28-1" id="__codelineno-28-1" name="__codelineno-28-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0<span class="w"> </span>show<span class="w"> </span>badblocks
-</span><span id="__span-28-2"><a href="#__codelineno-28-2" id="__codelineno-28-2" name="__codelineno-28-2"></a>Detailed<span class="w"> </span>Status<span class="w"> </span>:
-</span><span id="__span-28-3"><a href="#__codelineno-28-3" id="__codelineno-28-3" name="__codelineno-28-3"></a><span class="o">===============</span>
-</span><span id="__span-28-4"><a href="#__codelineno-28-4" id="__codelineno-28-4" name="__codelineno-28-4"></a>
-</span><span id="__span-28-5"><a href="#__codelineno-28-5" id="__codelineno-28-5" name="__codelineno-28-5"></a>-------------------------------------------------------------
-</span><span id="__span-28-6"><a href="#__codelineno-28-6" id="__codelineno-28-6" name="__codelineno-28-6"></a>Ctrl<span class="w"> </span>Status<span class="w"> </span>Ctrl_Prop<span class="w">       </span>Value<span class="w"> </span>ErrMsg<span class="w">               </span>ErrCd
-</span><span id="__span-28-7"><a href="#__codelineno-28-7" id="__codelineno-28-7" name="__codelineno-28-7"></a>-------------------------------------------------------------
-</span><span id="__span-28-8"><a href="#__codelineno-28-8" id="__codelineno-28-8" name="__codelineno-28-8"></a><span class="w">   </span><span class="m">0</span><span class="w"> </span>Failed<span class="w"> </span>Bad<span class="w"> </span>Block<span class="w"> </span>Count<span class="w"> </span>-<span class="w">     </span>BadBlockCount<span class="w"> </span>failed<span class="w">     </span><span class="m">2</span>
-</span><span id="__span-28-9"><a href="#__codelineno-28-9" id="__codelineno-28-9" name="__codelineno-28-9"></a>-------------------------------------------------------------
-</span></code></pre></div>
-<p>经过检查以后，发现 E32S2 盘的 SMART 并没有报告什么问题，所以也没有把盘取走，而是作为 hot spare 当备用：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-29-1"><a href="#__codelineno-29-1" id="__codelineno-29-1" name="__codelineno-29-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span>add<span class="w"> </span>hotsparedrive<span class="w"> </span><span class="nv">DG</span><span class="o">=</span><span class="m">1</span>
-</span><span id="__span-29-2"><a href="#__codelineno-29-2" id="__codelineno-29-2" name="__codelineno-29-2"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/d1<span class="w"> </span>show
-</span><span id="__span-29-3"><a href="#__codelineno-29-3" id="__codelineno-29-3" name="__codelineno-29-3"></a>TOPOLOGY<span class="w"> </span>:
-</span><span id="__span-29-4"><a href="#__codelineno-29-4" id="__codelineno-29-4" name="__codelineno-29-4"></a><span class="o">========</span>
-</span><span id="__span-29-5"><a href="#__codelineno-29-5" id="__codelineno-29-5" name="__codelineno-29-5"></a>
-</span><span id="__span-29-6"><a href="#__codelineno-29-6" id="__codelineno-29-6" name="__codelineno-29-6"></a>---------------------------------------------------------------------------
-</span><span id="__span-29-7"><a href="#__codelineno-29-7" id="__codelineno-29-7" name="__codelineno-29-7"></a>DG<span class="w"> </span>Arr<span class="w"> </span>Row<span class="w"> </span>EID:Slot<span class="w"> </span>DID<span class="w"> </span>Type<span class="w">  </span>State<span class="w"> </span>BT<span class="w">     </span>Size<span class="w"> </span>PDC<span class="w">  </span>PI<span class="w"> </span>SED<span class="w"> </span>DS3<span class="w">  </span>FSpace<span class="w"> </span>TR
-</span><span id="__span-29-8"><a href="#__codelineno-29-8" id="__codelineno-29-8" name="__codelineno-29-8"></a>---------------------------------------------------------------------------
-</span><span id="__span-29-9"><a href="#__codelineno-29-9" id="__codelineno-29-9" name="__codelineno-29-9"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
-</span><span id="__span-29-10"><a href="#__codelineno-29-10" id="__codelineno-29-10" name="__codelineno-29-10"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
-</span><span id="__span-29-11"><a href="#__codelineno-29-11" id="__codelineno-29-11" name="__codelineno-29-11"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">0</span><span class="w">   </span><span class="m">32</span>:1<span class="w">     </span><span class="m">1</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-29-12"><a href="#__codelineno-29-12" id="__codelineno-29-12" name="__codelineno-29-12"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">1</span><span class="w">   </span><span class="m">32</span>:4<span class="w">     </span><span class="m">4</span><span class="w">   </span>DRIVE<span class="w"> </span>Rbld<span class="w">  </span>Y<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-29-13"><a href="#__codelineno-29-13" id="__codelineno-29-13" name="__codelineno-29-13"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">2</span><span class="w">   </span><span class="m">32</span>:3<span class="w">     </span><span class="m">3</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
-</span><span id="__span-29-14"><a href="#__codelineno-29-14" id="__codelineno-29-14" name="__codelineno-29-14"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span><span class="m">32</span>:2<span class="w">     </span><span class="m">2</span><span class="w">   </span>DRIVE<span class="w"> </span>DHS<span class="w">   </span>-<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>-<span class="w">    </span>-<span class="w">  </span>-<span class="w">   </span>-<span class="w">    </span>-<span class="w">      </span>N
-</span><span id="__span-29-15"><a href="#__codelineno-29-15" id="__codelineno-29-15" name="__codelineno-29-15"></a>---------------------------------------------------------------------------
-</span><span id="__span-29-16"><a href="#__codelineno-29-16" id="__codelineno-29-16" name="__codelineno-29-16"></a>
-</span><span id="__span-29-17"><a href="#__codelineno-29-17" id="__codelineno-29-17" name="__codelineno-29-17"></a><span class="nv">DG</span><span class="o">=</span>Disk<span class="w"> </span>Group<span class="w"> </span>Index<span class="p">|</span><span class="nv">Arr</span><span class="o">=</span>Array<span class="w"> </span>Index<span class="p">|</span><span class="nv">Row</span><span class="o">=</span>Row<span class="w"> </span>Index<span class="p">|</span><span class="nv">EID</span><span class="o">=</span>Enclosure<span class="w"> </span>Device<span class="w"> </span>ID
-</span><span id="__span-29-18"><a href="#__codelineno-29-18" id="__codelineno-29-18" name="__codelineno-29-18"></a><span class="nv">DID</span><span class="o">=</span>Device<span class="w"> </span>ID<span class="p">|</span><span class="nv">Type</span><span class="o">=</span>Drive<span class="w"> </span>Type<span class="p">|</span><span class="nv">Onln</span><span class="o">=</span>Online<span class="p">|</span><span class="nv">Rbld</span><span class="o">=</span>Rebuild<span class="p">|</span><span class="nv">Optl</span><span class="o">=</span>Optimal<span class="p">|</span><span class="nv">Dgrd</span><span class="o">=</span>Degraded
-</span><span id="__span-29-19"><a href="#__codelineno-29-19" id="__codelineno-29-19" name="__codelineno-29-19"></a><span class="nv">Pdgd</span><span class="o">=</span>Partially<span class="w"> </span>degraded<span class="p">|</span><span class="nv">Offln</span><span class="o">=</span>Offline<span class="p">|</span><span class="nv">BT</span><span class="o">=</span>Background<span class="w"> </span>Task<span class="w"> </span>Active
-</span><span id="__span-29-20"><a href="#__codelineno-29-20" id="__codelineno-29-20" name="__codelineno-29-20"></a><span class="nv">PDC</span><span class="o">=</span>PD<span class="w"> </span>Cache<span class="p">|</span><span class="nv">PI</span><span class="o">=</span>Protection<span class="w"> </span>Info<span class="p">|</span><span class="nv">SED</span><span class="o">=</span>Self<span class="w"> </span>Encrypting<span class="w"> </span>Drive<span class="p">|</span><span class="nv">Frgn</span><span class="o">=</span>Foreign
-</span><span id="__span-29-21"><a href="#__codelineno-29-21" id="__codelineno-29-21" name="__codelineno-29-21"></a><span class="nv">DS3</span><span class="o">=</span>Dimmer<span class="w"> </span>Switch<span class="w"> </span><span class="m">3</span><span class="p">|</span><span class="nv">dflt</span><span class="o">=</span>Default<span class="p">|</span><span class="nv">Msng</span><span class="o">=</span>Missing<span class="p">|</span><span class="nv">FSpace</span><span class="o">=</span>Free<span class="w"> </span>Space<span class="w"> </span>Present
-</span><span id="__span-29-22"><a href="#__codelineno-29-22" id="__codelineno-29-22" name="__codelineno-29-22"></a><span class="nv">TR</span><span class="o">=</span>Transport<span class="w"> </span>Ready
-</span></code></pre></div>
-<p>这样就可以做后备盘，当别的盘坏的时候，作为备用。</p>
-<h3 id="相关软件下载"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/#相关软件下载">相关软件下载</a></h3>
-<p>可以在<a href="https://www.broadcom.com/products/storage/raid-controllers/megaraid-9660-16i">这里</a>和<a href="https://www.broadcom.com/support/download-search?dk=storcli">这里</a>寻找 StorCLI 版本。</p>
-<p>StorCLI：</p>
-<ul>
-<li>007.3007.0000.0000 May 16, 2024 <a href="https://docs.broadcom.com/docs-and-downloads/007.3007.0000.0000_MR7.30_Storcli.zip">007.3007.0000.0000_MR7.30_Storcli.zip</a></li>
-<li>007.1613.0000.0000 Oct 29, 2020 <a href="https://docs.broadcom.com/docs/007.1613.0000.0000_Unified_StorCLI.zip">007.1613.0000.0000_Unified_StorCLI.zip</a></li>
-<li>007.1506.0000.0000 Aug 11, 2020 <a href="https://downloadcenter.intel.com/download/30286/StorCLI-Standalone-Utility">StorCLI_MR7.15.zip</a> </li>
-<li>008.0010.0000.0010 Jun 14, 2024 <a href="https://docs.broadcom.com/docs-and-downloads/008.0010.0000.0010_MR8.10_Storcli2.zip">008.0010.0000.0010_MR8.10_Storcli2.zip</a>，注：不支持旧型号</li>
-<li>008.0005.0000.0010 Feb 22, 2023 <a href="https://docs.broadcom.com/docs/1232743171">008.0005.0000.0010_StorCLI.zip</a>，注：不支持旧型号</li>
-<li>1.15.12 Apr 23, 2015 <a href="https://docs.broadcom.com/docs/12354905">MR_SAS_StorCLI_6-7-1-15-12-SCGCQ00852539.zip</a></li>
-<li>1.15.05 Jan 22, 2015 <a href="https://docs.broadcom.com/docs/12354804">1-15-05_StorCLI.zip</a></li>
-</ul>
-<p>MegaCLI:</p>
-<ul>
-<li>8.07.07 Dec 19, 2012 <a href="https://docs.broadcom.com/docs/12351585">8-07-07_MegaCLI.zip</a></li>
-</ul>
-<p>PercCLI:</p>
-<ul>
-<li>007.1420.0000.0000 Dec 10, 2020 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=n65f1">PERCCLI_N65F1_7.1420.00_A10_Linux.tar.gz</a> <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">PERCCLI_5V7XX_7.1420.0_A10_VMware.tar.gz</a></li>
-<li>007.1327.0000.0000 July 27, 2020 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=d6ywp">PERCCLI_D6YWP_7.1327.00_A09_Linux.tar.gz</a></li>
-<li>007.0127.0000.0000 July 13, 2017 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=f48c2">perccli_7.1-007.0127_linux.tar.gz</a></li>
-</ul>
 </div>
 </article>
 <nav class="md-pagination">

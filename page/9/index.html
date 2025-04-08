@@ -547,6 +547,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#研究-rocket-chip-的-bscan-调试原理" class="md-nav__link">
+    <span class="md-ellipsis">
+      研究 Rocket Chip 的 BSCAN 调试原理
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#在-macos-上带执行权限-mmap-一个已删除文件遇到的问题和解决方案" class="md-nav__link">
+    <span class="md-ellipsis">
+      在 macOS 上带执行权限 mmap 一个已删除文件遇到的问题和解决方案
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#每周分享第-55-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 55 期
@@ -748,24 +766,6 @@
   <a href="#在-macos-上创建-esp-镜像文件" class="md-nav__link">
     <span class="md-ellipsis">
       在 macOS 上创建 ESP 镜像文件
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-40-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      每周分享第 40 期
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-39-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      每周分享第 39 期
     </span>
   </a>
   
@@ -1713,6 +1713,290 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-02-09 00:00:00+00:00">2020年2月9日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="研究-rocket-chip-的-bscan-调试原理"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/">研究 Rocket Chip 的 BSCAN 调试原理</a></h2>
+<h3 id="前言"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/#前言">前言</a></h3>
+<p>最近 <a href="https://github.com/KireinaHoro">@jsteward</a> 在研究如何通过 JTAG 对 FPGA 里的 Rocket Chip 进行调试。之前 <a href="https://github.com/sequencer">@sequencer</a> 已经做了一些实践，我们在重复他的工作，同时也研究了一下这是怎么工作的。</p>
+<h3 id="原理"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/#原理">原理</a></h3>
+<p>我们从 @sequencer 得到了一份可用的 <a href="https://github.com/sequencer/rocket-playground/blob/7fa3c51113be607add2034f3abe0ae973caac04a/playground/src/FPGA.scala#L83">Scala 代码</a> 和 <a href="https://github.com/sequencer/rocket-playground/blob/7fa3c51113be607add2034f3abe0ae973caac04a/playground/debugger/openocd.cfg#L16">OpenOCD 配置</a>，并且了解到：</p>
+<ol>
+<li>可以通过 openocd 找到并调试 Rocket Chip</li>
+<li>openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。</li>
+</ol>
+<p>这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的<a href="https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361">操作代码</a>：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_zero</span><span class="p">;</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_tunnel_ir_width</span><span class="p">;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ir_dtmcontrol</span><span class="p">;</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tunneled_ir_width</span><span class="p">;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_zero</span><span class="p">;</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span></code></pre></div>
+<p>如果画成图，大概是这个样子（IR）：</p>
+<table>
+<thead>
+<tr>
+<th>3 bits</th>
+<th>IR Width bits</th>
+<th>7 bits</th>
+<th>1 bit</th>
+<th>TDI</th>
+<th>Data Register</th>
+<th>TDO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Payload</td>
+<td>Tunneled IR Width</td>
+<td>0</td>
+<td>-&gt;</td>
+<td>Rocket Chip TAP</td>
+<td>-&gt;</td>
+</tr>
+</tbody>
+</table>
+<p>DR：</p>
+<table>
+<thead>
+<tr>
+<th>3 bits</th>
+<th>DR Width bits</th>
+<th>7 bits</th>
+<th>1 bit</th>
+<th>TDI</th>
+<th>Data Register</th>
+<th>TDO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Payload</td>
+<td>Tunneled DR Width</td>
+<td>1</td>
+<td>-&gt;</td>
+<td>Rocket Chip TAP</td>
+<td>-&gt;</td>
+</tr>
+</tbody>
+</table>
+<p>这里 TDI 和 TDO 是直接接到 Rocket Chip 的 JTAG 中的，所以我们期望，当 Rocket Chip TAP 在 Shift-IR/Shift-DR 阶段的时候，刚好通过的是 Payload 部分。而控制 TAP 状态机，需要控制 TMS，这个则是通过一段 <a href="https://github.com/sifive/fpga-shells/blob/c099bd9b4f916bc0ba88030939a9614d0b0daf2d/src/main/scala/ip/xilinx/Xilinx.scala#L13">HDL</a> 来完成的：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">always</span><span class="p">@(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mh">8&#39;h04</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TDI_REG</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mh">8&#39;h05</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b1</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mh">8&#39;h08</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shiftreg_cnt</span><span class="p">))</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mh">8&#39;h08</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shiftreg_cnt</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mh">8&#39;h01</span><span class="p">)))</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b1</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b0</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">end</span>
+</span></code></pre></div>
+<p>这里 <code>TDI_REG</code> 取的是第一个 bit 的反（也就是上面 IR 对应 0，DR 对应 1 的那一位），<code>shiftreg_cnf</code> 则是之后 7 个 bit，对应上面的 Tunneled IR/DR Width。那么，在选择 IR 时 TMS 的序列为：</p>
+<table>
+<thead>
+<tr>
+<th>4 cycles</th>
+<th>1 cycle</th>
+<th>1 cycle</th>
+<th>2 cycles</th>
+<th>shiftreg_cnt-1 cycles</th>
+<th>2 cycles</th>
+<th>rest cycles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Run-Test/Idle</td>
+<td>Select-DR-Scan</td>
+<td>Select-IR-Scan</td>
+<td>Capture-IR, Shift-IR</td>
+<td>Shift-IR</td>
+<td>Exit1-IR, Update-IR</td>
+<td>Run-Test/Idle</td>
+</tr>
+</tbody>
+</table>
+<p>类似地，如果是选择 DR：</p>
+<table>
+<thead>
+<tr>
+<th>4 cycles</th>
+<th>1 cycle</th>
+<th>1 cycle</th>
+<th>2 cycles</th>
+<th>shiftreg_cnt-1 cycles</th>
+<th>2 cycles</th>
+<th>rest cycles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Run-Test/Idle</td>
+<td>Run-Test/Idle</td>
+<td>Select-DR-Scan</td>
+<td>Capture-DR, Shift-DR</td>
+<td>Shift-DR</td>
+<td>Exit1-DR, Update-DR</td>
+<td>Run-Test/Idle</td>
+</tr>
+</tbody>
+</table>
+<p>这样，刚好在 Shift-IR/DR 状态下，Payload 会被写入 IR/DR，从而完成了期望的操作。通过规定一个特定格式的 Data Register，可以实现嵌套的 TAP 的 IR 和 DR 的操作。</p>
+<h3 id="参考"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/#参考">参考</a></h3>
+<ol>
+<li>JTAG Standard</li>
+<li><a href="https://github.com/sequencer/rocket-playground">sequencer/rocket-playground</a></li>
+<li>SiFive's JTAG Tunnel: https://github.com/sifive/fpga-shells/blob/c099bd9b4f916bc0ba88030939a9614d0b0daf2d/src/main/scala/ip/xilinx/Xilinx.scala#L13</li>
+<li>https://github.com/watz0n/arty_xjtag</li>
+<li>https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361</li>
+<li>UG740: 7 Series FPGAs Configuration</li>
+</ol>
+    
+  </div>
+</article>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-02-07 00:00:00+00:00">2020年2月7日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/software/" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-macos-上带执行权限-mmap-一个已删除文件遇到的问题和解决方案"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/">在 macOS 上带执行权限 mmap 一个已删除文件遇到的问题和解决方案</a></h2>
+<h3 id="背景"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/#背景">背景</a></h3>
+<p>实验环境：macOS Catalina 10.15.2</p>
+<p>最近在 <a href="https://github.com/rcore-os/zircon-rs">rcore-rs/zircon-rs</a> 项目中遇到一个比较玄学的问题，首先需求是在 macOS 的用户进程里开辟一段地址空间，然后把这个地址空间多次映射（权限可能不同、同一块内存可能被映射到多个地址），通过 mmap 模拟虚拟地址的映射。采用的是如下的方案：</p>
+<ol>
+<li>在临时目录创建一个文件，把文件大小设为 16M（暂不考虑扩容）</li>
+<li>需要映射一个虚拟地址到物理地址的时候，就对这个文件的物理地址偏移进行 FIXED 映射，虚拟地址就是期望的虚拟地址。</li>
+</ol>
+<p>这样的方案在 Linux 下运行地很好，但在 macOS 下总是以一定概率在第二部出现 EPERM。网上搜了很多，但也没搜到相关的信息，于是自己断断续续地研究了一下，现在有一个比较初步的结果。</p>
+<h3 id="tldr"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/#tldr">TL；DR</a></h3>
+<p>先说结论：调用一个带 PROT_EXEC 并且映射文件的 mmap 时，macOS 会进行安全检测，如果此时发现文件在文件系统上消失了，它会认为这可能是一个恶意软件行为，进行拦截，返回 EPERM。</p>
+<p>而代码实际上在第一步和第二步之间，把临时目录删了：由于进程持有 fd，所以文件并不会真的删掉，当软件退出的时候文件自然会删除，这是临时文件的常见做法（见 tmpfile(3)）。</p>
+<h3 id="研究过程"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/#研究过程">研究过程</a></h3>
+<h4 id="查看-console"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/#查看-console">查看 Console</a></h4>
+<p>在网上一番搜索未果后，就尝试在 Console 里面寻找信息。照着程序名字搜索，可以找到一些信息：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>temporarySigning type=1 matchFlags=0x0 path=/path/to/executable
+</span></code></pre></div>
+<p>这是编译这个 executable 的时候出现的，好像也没啥问题。然后解除过滤，在这个信息前后按照 syspolicyd 寻找：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>initiating malware scan (... info_path: /path/to/temp/file proc_path: /path/to/executable)
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Unable (errno: 2) to read file at &lt;private&gt; for process path: &lt;private&gt; library path: &lt;private&gt;
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Disallowing load of &lt;private&gt; in 50001, &lt;private&gt;
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Library load (/path/to/temp/file) rejected: library load denied by system policy
+</span></code></pre></div>
+<p>这几条记录比较可疑，每次运行程序，如果跑挂了，就会出现这几条，如果没跑挂，就不会出现这一条。所以很大概率是被 macOS 拦截了。错误信息的用词是 library，所以大概率是被当成加载动态库了，但既然内容是空的，所以我想的是文件名触碰到了什么奇怪的规则，然后文件名又是随机的，随机导致 EPERM 是概率性出现的，这好像很有道理。于是我把 tmpfile 换成了固定的路径，忽然就好了。但固定的路径只能保证同时只有一个程序在跑，如果路径拼接上 pid，怎么删，谁来删又是一个问题。虽然可以放到 /tmp 下面然后随便搞，但 /tmp 的回收并不是那么积极，在临时目录下丢太多文件也会出现问题。</p>
+<h4 id="一丝曙光"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/#一丝曙光">一丝曙光</a></h4>
+<p>这时候，@wangrunji0408 提供了一个方案：在 System Preferences -&gt; Security &amp; Privacy -&gt; Privacy -&gt; Developer Tools 中添加编译该 executable 的程序（如 iTerm、CLion）可以解决这个问题。那么问题应该比较明确了，就是 malware scan 的问题，如果信任了这个 App 为 Developer Tools，它产生的 executable 也是可信的，应该不是恶意软件。但在 tmux 环境下，它哪个 App 也不属于，没法继承，况且把这个权限开放出去也有潜在的安全问题。并且让每个开发者都要这么操作一遍很不方便。</p>
+<h4 id="回到-console"><a class="toclink" href="../../software/2020/02/07/macos-mmap-exec/#回到-console">回到 Console</a></h4>
+<p>今天刚好看到一个 <a href="https://georgegarside.com/blog/macos/sierra-console-private/">post</a>，内容是如何在 macOS Catalina 中查看 log 中标记为 private 的内容。如果你注意到的话，上面的 log 中出现了几处 private，这并不是我改的，而是 macOS 自带的隐私机制（当然这种机制似乎并没有采用的很完全，一些消息源没有打上 private 的标签）。</p>
+<p>然后按照上面的 post 的方法（<a href="https://saagarjha.com/blog/2019/09/29/making-os-log-public-on-macos-catalina/">另一个 post</a>）开启了一下标记为 private 的内容，正好我的系统没有升级到 10.15.3 所以还能用。此时上面的第二条和第三条就出现了具体内容：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Unable (errno: 2) to read file at /path/to/temp/file for process path: /path/to/executable library path: /path/to/temp/file
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Disallowing load of /path/to/temp/file in 61254, /path/to/executable
+</span></code></pre></div>
+<p>这个时候问题就很明显了：读取不到文件。这时候回想起 tmpfile 的工作原理，它会删除生成的文件，在删除文件之后，macOS 进行扫描，发现找不到文件，于是 disallow 了，mmap 就会返回 EPERM。</p>
+<p>解决方案也很显然了：把删除目录延后，或者放在 /tmp 下等待清理等待。</p>
+<p>我也写了一段 C 代码来验证这个现象：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;fcntl.h&gt;</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;sys/mman.h&gt;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unistd.h&gt;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">fd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">open</span><span class="p">(</span><span class="s">&quot;mmap&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">O_RDWR</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">O_CREAT</span><span class="p">,</span><span class="w"> </span><span class="mo">0777</span><span class="p">);</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x200000000</span><span class="p">;</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="n">ftruncate</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span><span class="w"> </span><span class="mi">16</span><span class="o">*</span><span class="mi">1024</span><span class="o">*</span><span class="mi">1024</span><span class="p">);</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="c1">// might not work if unlink is put here (race condition)</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="c1">// you can use sleep to reproduce</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="n">unlink</span><span class="p">(</span><span class="s">&quot;mmap&quot;</span><span class="p">);</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mmap</span><span class="p">((</span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">addr</span><span class="p">,</span><span class="w"> </span><span class="mi">16</span><span class="o">*</span><span class="mi">1024</span><span class="o">*</span><span class="mi">1024</span><span class="p">,</span><span class="w"> </span><span class="n">PROT_READ</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">PROT_WRITE</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">PROT_EXEC</span><span class="p">,</span><span class="w"> </span><span class="n">MAP_SHARED</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">MAP_FIXED</span><span class="p">,</span><span class="w"> </span><span class="n">fd</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">    </span><span class="c1">// always works if unlink is put here</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">    </span><span class="c1">// unlink(&quot;mmap&quot;);</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">MAP_FAILED</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">        </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;mmap&quot;</span><span class="p">);</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">        </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;good&quot;</span><span class="p">);</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="p">}</span>
+</span></code></pre></div>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -2957,95 +3241,6 @@ P.P.S MacBookPro11,2 的网卡是 BCM4360，直接用 broadcom-wl 驱动就可�
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>qemu-img<span class="w"> </span>convert<span class="w"> </span>-O<span class="w"> </span>vmdk<span class="w"> </span>uefi.cdr<span class="w"> </span>uefi.vmdk
 </span></code></pre></div>
 <p>这样就可以了。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-09-06 00:00:00+00:00">2019年9月6日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-40-期"><a class="toclink" href="../../misc/2019/09/06/weekly-sharing-40/">每周分享第 40 期</a></h2>
-<ol>
-<li>TeX Typesetting Game https://texnique.xyz/</li>
-<li>Writing Linux Kernel Module in Rust https://github.com/fishinabarrel/linux-kernel-module-rust</li>
-<li>Sipeed Longan Nano RISC-V 开发板 https://readhacker.news/s/48EBG</li>
-<li>Systemd 加载 BPF 防火墙 https://kailueke.gitlab.io/systemd-bpf-firewall-loader/</li>
-<li>方舟编译器 https://code.opensource.huaweicloud.com/HarmonyOS/OpenArkCompiler.git</li>
-<li>XLOOKUP 函数 https://techcommunity.microsoft.com/t5/Excel-Blog/Announcing-XLOOKUP/ba-p/811376</li>
-<li>SystemVerilog to Verilog 转译 https://github.com/zachjs/sv2v</li>
-<li>USB 4.0 发布 http://www.phoronix.com/scan.php?page=news_item&amp;px=USB-4.0-Specification-Published</li>
-<li>Android 10 发布 http://www.phoronix.com/scan.php?page=news_item&amp;px=Android-10-Released</li>
-<li>iOS 13.1 beta 2 发布</li>
-<li>对 iOS 设备抓包 http://blog.imaou.com/opensource/2014/12/14/pcapd_diagnostic_packet_capture.html</li>
-<li>Google 的差分隐私库 https://developers.googleblog.com/2019/09/enabling-developers-and-organizations.html</li>
-<li>Apple Music 第三方 App https://github.com/Musish/Musish</li>
-</ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-08-30 00:00:00+00:00">2019年8月30日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-39-期"><a class="toclink" href="../../misc/2019/08/30/weekly-sharing-39/">每周分享第 39 期</a></h2>
-<ol>
-<li>另一个 Pattern Matching in C++ 库 https://github.com/mpark/patterns</li>
-<li>Rust 编写的一个 shell http://www.jonathanturner.org/2019/08/introducing-nushell.html</li>
-<li>Vim 的游戏教程 https://readhacker.news/s/48nbJ</li>
-<li>在 throw 的时候同时抓取 SO 信息 https://github.com/shobrook/rebound/</li>
-<li>颜色生成工具 https://github.com/sharkdp/pastel</li>
-<li>转换 Escape Code 到 HTML https://github.com/theZiz/aha</li>
-<li>iOS 13.1 beta 发布</li>
-<li>苹果特别活动定于 9.11 日</li>
-<li>exFAT 规范发布 http://www.phoronix.com/scan.php?page=news_item&amp;px=Microsoft-exFAT-Specification</li>
-<li>可视化的 5 阶段流水线 RISC-V 模拟器 https://github.com/mortbopet/Ripes</li>
-</ol>
     
   </div>
 </article>
