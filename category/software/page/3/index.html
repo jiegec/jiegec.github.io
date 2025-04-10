@@ -1443,6 +1443,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#在-m1-上用-qemu-运行-debian-虚拟机" class="md-nav__link">
+    <span class="md-ellipsis">
+      在 M1 上用 QEMU 运行 Debian 虚拟机
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#在-spack-中用-external-的-slurm-依赖编译-openmpi" class="md-nav__link">
     <span class="md-ellipsis">
       在 Spack 中用 external 的 Slurm 依赖编译 OpenMPI
@@ -1658,15 +1667,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#usbip-实践" class="md-nav__link">
-    <span class="md-ellipsis">
-      USB/IP 实践
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1722,6 +1722,116 @@
       <header class="md-typeset">
         <h1 id="software">software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-01-02 00:00:00+00:00">2021年1月2日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-m1-上用-qemu-运行-debian-虚拟机"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/">在 M1 上用 QEMU 运行 Debian 虚拟机</a></h2>
+<h3 id="背景"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#背景">背景</a></h3>
+<p>看到 @jsteward 在 M1 的 QEMU 中运行了 Windows on ARM，所以我先来试试 Debian on AArch64，这样会简单一些。</p>
+<p>参考：https://gist.github.com/niw/e4313b9c14e968764a52375da41b4278#file-readme-md</p>
+<p>大约需要 3G 的硬盘空间。</p>
+<h3 id="安装-qemu-w-m1-patches"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#安装-qemu-w-m1-patches">安装 QEMU w/ M1 patches</a></h3>
+<p>目前上游的 QEMU 还不支持 M1 的 Hypervisor framework，需要打 patch：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://mirrors.tuna.tsinghua.edu.cn/git/qemu.git
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">cd</span><span class="w"> </span>qemu
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>git<span class="w"> </span>checkout<span class="w"> </span>master<span class="w"> </span>-b<span class="w"> </span>wip/hvf
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>curl<span class="w"> </span><span class="s1">&#39;https://patchwork.kernel.org/series/400619/mbox/&#39;</span><span class="p">|</span>git<span class="w"> </span>am<span class="w"> </span>--3way
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>mkdir<span class="w"> </span>build
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="nb">cd</span><span class="w"> </span>build
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>../configure<span class="w"> </span>--target-list<span class="o">=</span>aarch64-softmmu<span class="w"> </span>--enable-cocoa<span class="w"> </span>--disable-gnutls
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>make<span class="w"> </span>-j4
+</span></code></pre></div>
+<p>编译后，得到 <code>qemu-system-aarch64</code> 的二进制</p>
+<h3 id="准备好文件系统"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#准备好文件系统">准备好文件系统</a></h3>
+<p>需要下载 <a href="https://gist.github.com/niw/4f1f9bb572f40d406866f23b3127919b/raw/f546faea68f4149c06cca88fa67ace07a3758268/QEMU_EFI-cb438b9-edk2-stable202011-with-extra-resolutions.tar.gz">EFI 固件</a> 和 <a href="https://mirrors.tuna.tsinghua.edu.cn/debian-cd/current/arm64/iso-cd/debian-10.7.0-arm64-xfce-CD-1.iso">Debian 安装镜像</a>，解压前者以后把文件放同一个目录中，并且创建需要的文件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$<span class="w"> </span>ls<span class="w"> </span>*.fd
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>QEMU_EFI.fd<span class="w">   </span>QEMU_VARS.fd
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>$<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>/dev/zero<span class="w"> </span><span class="nv">of</span><span class="o">=</span>pflash0.img<span class="w"> </span><span class="nv">bs</span><span class="o">=</span>1m<span class="w"> </span><span class="nv">count</span><span class="o">=</span><span class="m">64</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>$<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>/dev/zero<span class="w"> </span><span class="nv">of</span><span class="o">=</span>pflash1.img<span class="w"> </span><span class="nv">bs</span><span class="o">=</span>1m<span class="w"> </span><span class="nv">count</span><span class="o">=</span><span class="m">64</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>$<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>QEMU_EFI.fd<span class="w"> </span><span class="nv">of</span><span class="o">=</span>pflash0.img<span class="w"> </span><span class="nv">conv</span><span class="o">=</span>notrunc
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>$<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>QEMU_VARS.fd<span class="w"> </span><span class="nv">of</span><span class="o">=</span>pflash1.img<span class="w"> </span><span class="nv">conv</span><span class="o">=</span>notrunc
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>$<span class="w"> </span><span class="nv">$QEMU</span>/qemu-img<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>qcow2<span class="w"> </span>disk.qcow2<span class="w"> </span>40G
+</span></code></pre></div>
+<h3 id="安装-debian-系统"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#安装-debian-系统">安装 Debian 系统</a></h3>
+<p>接着，执行以下的命令，然后按照提示安装系统：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>$<span class="w"> </span><span class="nv">$QEMU</span>/qemu-system-aarch64<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>-serial<span class="w"> </span>mon:stdio<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>-M<span class="w"> </span>virt,highmem<span class="o">=</span>off<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>-accel<span class="w"> </span>hvf<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>-cpu<span class="w"> </span>cortex-a72<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span>-smp<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span>-m<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>./pflash0.img,format<span class="o">=</span>raw,if<span class="o">=</span>pflash,readonly<span class="o">=</span>on<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>./pflash1.img,format<span class="o">=</span>raw,if<span class="o">=</span>pflash<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span>-device<span class="w"> </span>virtio-scsi-pci<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">  </span>-device<span class="w"> </span>virtio-gpu-pci<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">  </span>-device<span class="w"> </span>qemu-xhci<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">  </span>-device<span class="w"> </span>usb-kbd<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">  </span>-device<span class="w"> </span>usb-tablet<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">  </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>./disk.qcow2,if<span class="o">=</span>none,id<span class="o">=</span>boot,cache<span class="o">=</span>writethrough<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="w">  </span>-device<span class="w"> </span>nvme,drive<span class="o">=</span>boot,serial<span class="o">=</span>boot<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="w">  </span>-drive<span class="w"> </span><span class="k">if</span><span class="o">=</span>none,id<span class="o">=</span>cd,file<span class="o">=</span>debian-10.7.0-arm64-xfce-CD-1.iso,media<span class="o">=</span>cdrom<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="w">  </span>-device<span class="w"> </span>scsi-cd,drive<span class="o">=</span><span class="nb">cd</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a><span class="w">  </span>-display<span class="w"> </span>default,show-cursor<span class="o">=</span>on
+</span></code></pre></div>
+<p>需要注意的是，如果用 <code>-cdrom</code> 选项，Debian 会无法识别，所以需要走 SCSI。安装完成后，第一次重启可能会显示失败，不用管。另外，安装界面只在串口处显示，但不会显示在 GUI 中，估计是因为 <a href="https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=977466">BUG</a>（感谢 @Harry-Chen 指出）。</p>
+<h3 id="启动系统"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#启动系统">启动系统</a></h3>
+<p>安装好后，运行下面的命令来启动 Debian 系统：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>$<span class="w"> </span><span class="nv">$QEMU</span>/qemu-system-aarch64<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span>-monitor<span class="w"> </span>stdio<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span>-M<span class="w"> </span>virt,highmem<span class="o">=</span>off<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span>-accel<span class="w"> </span>hvf<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span>-cpu<span class="w"> </span>cortex-a72<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span>-smp<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">  </span>-m<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>./pflash0.img,format<span class="o">=</span>raw,if<span class="o">=</span>pflash,readonly<span class="o">=</span>on<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">  </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>./pflash1.img,format<span class="o">=</span>raw,if<span class="o">=</span>pflash<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">  </span>-device<span class="w"> </span>virtio-gpu-pci<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">  </span>-device<span class="w"> </span>virtio-scsi-pci<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">  </span>-device<span class="w"> </span>qemu-xhci<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">  </span>-device<span class="w"> </span>usb-kbd<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">  </span>-device<span class="w"> </span>usb-tablet<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">  </span>-drive<span class="w"> </span><span class="nv">file</span><span class="o">=</span>./disk.qcow2,if<span class="o">=</span>none,id<span class="o">=</span>boot,cache<span class="o">=</span>writethrough<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="w">  </span>-device<span class="w"> </span>nvme,drive<span class="o">=</span>boot,serial<span class="o">=</span>boot<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="w">  </span>-display<span class="w"> </span>default,show-cursor<span class="o">=</span>on<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="w">  </span>-nic<span class="w"> </span>user,model<span class="o">=</span>virtio
+</span></code></pre></div>
+<p>注意参数和上面有所不同。启动后就可以在 GUI 上看到 Debian 登录的界面了。</p>
+<h3 id="网络"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#网络">网络</a></h3>
+<p>起来以后，可以看到一个网卡 <code>enp0s1</code> 启动并获取 IP 地址：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>$<span class="w"> </span>ip<span class="w"> </span>l<span class="w"> </span><span class="nb">set</span><span class="w"> </span>enp0s1<span class="w"> </span>up
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>$<span class="w"> </span>dhclient<span class="w"> </span>enp0s1
+</span></code></pre></div>
+<p>获取到一个 IP 地址后，就可以上网了。</p>
+<h3 id="已知问题"><a class="toclink" href="../../../../software/2021/01/02/aarch64-debian-in-qemu-m1/#已知问题">已知问题</a></h3>
+<p>在虚拟机内重启以后，可能会启动失败。退出 QEMU 进程重新启动即可。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3011,62 +3121,6 @@
 </span></code></pre></div>
 <p>此时应该能够看到 /Volumes/Data 上已经挂载了一个 ZFS Dataset。我采用 <a href="https://github.com/cbreak-black/ZetaWatch">cbreak-black/ZetaWatch</a> 在菜单栏里查看 ZFS 信息。此时回到 Arch Linux 上，通过 <code>zfs import</code> 可以找到并且挂载这个 ZFS Dataset 到 <code>/Data</code> 处。</p>
 <p>我还尝试创建了一个加密的 ZFS Dataset，对加密的部分的粒度控制可以很细。另外，我参考 <a href="https://openzfsonosx.org/wiki/Time_Machine_Backups">Time Machine Backups - OpenZFS on OSX</a> 也在移动硬盘上划出一个新的分区作为 ZFS，在上面创建了一个加密的 Sparse Bundle，把它作为 Time Machine 的目标。之后还会尝试一下 <code>zfs send</code> 作为替代的备份方案。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2018-11-20 00:00:00+00:00">2018年11月20日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="usbip-实践"><a class="toclink" href="../../../../software/2018/11/20/usb-ip/">USB/IP 实践</a></h2>
-<p>之前一直想玩 USB/IP，但是一直没有找俩 Linux 设备然后共享，今天终于尝试了一下，没有什么大问题。这次采用的设备是 Raspberri Pi 3 和 SaltedFish Pi。一开始尝试从后者向前者共享，但总是出现这个错误：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>libusbip: error: udev_device_get_sysattr_value failed
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>usbip: error: open vhci_driver
-</span></code></pre></div>
-<p>然后我反过来做就好了，比较神奇。</p>
-<p>主要过程如下：</p>
-<ul>
-<li><code>pacman -S usbip</code> 安装用户态软件</li>
-<li><code>systemctl enable --now usbipd</code> 启动 USB/IP 的端口监听 daemon</li>
-<li><code>usbip list -l</code> 查看本地有哪些 USB 设备可以共享</li>
-<li><code>usbip bind -b [BUS_ID]</code> 把指定的 USB 设备共享出去，其中 BUS_ID 从上个命令中查看</li>
-<li><code>usbip list -r [IP]</code> 在另一个设备上查看这个设备共享的 USB 设备，可以看到许多信息</li>
-<li><code>usbip attach -r [IP] -b [BUS_ID]</code> 把对方共享的 USB 设备 attach 到本地</li>
-</ul>
-<p>效果：把一个 U 盘成功映射到了本地：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$ lsusb -t
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/:  Bus 04.Port 1: Dev 1, Class=root_hub, Driver=vhci_hcd/8p, 480M
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    |__ Port 1: Dev 2, If 0, Class=Mass Storage, Driver=usb-storage, 480M
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>$ lsblk
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>sda           8:0    1 14.9G  0 disk
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>`-sda1        8:1    1 14.9G  0 part /tmp/mnt
-</span></code></pre></div>
-<p>尝试 mount 什么的，也都没有问题。以后可以考虑把本地的 LicheeTang 通过这种方式穿透到远端，然后在远端用它的 IDE 进行编程。</p>
-<p>UPDATE: LicheeTang 烧写有一些问题，直接 JTAG 写上去没有作用，但是 SPI Flash 是可以成功写入并且有作用的，虽然需要强制打断。感觉还是网络延迟导致了一些问题。</p>
     
   </div>
 </article>
