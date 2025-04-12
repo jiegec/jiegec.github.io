@@ -1497,7 +1497,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 3 分钟阅读时间
+                              需要 4 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1688,6 +1688,14 @@
 </ol>
 <p>第一种方法性能是最好的，运行开销比较小，耗费 1.4x 的时间，但是后续处理也比较费劲一些，此外比较依赖平台，ARM 上虽然也有 SPE，但是支持的平台比较少。其他平台就不好说了。</p>
 <p>第二种方法性能会差一些，大概会有 30-50x 的性能开销，但是一天一夜也能够把 SPEC INT 2017 跑完。实现的时候，需要注意在遇到分支的时候，首先把信息保存在内存的 buffer 中，buffer 满了再写盘；此外，为了减少磁盘空间以及写盘所耗费的 I/O 时间，可以在内存中一边生成数据一边压缩，直接把压缩好的数据写入到文件中。</p>
+<p>实践中，可以先用 Intel PT 抓取 trace，再把 trace 转换为第二种格式，最终的抓取+转换的性能开销大概是 20x。大致算法如下：</p>
+<ol>
+<li>遍历程序中所有的分支，按照地址从小到大保存起来在数组当中，针对那些直接分支，提前计算好从它的目的地址开始遇到的第一个分支在数组的下标</li>
+<li>解析 perf.data 中的 Intel PT packet，提取出其中的 TNT 和 TIP packet，从程序的 entrypoint 开始，沿着 Intel PT 的 trace 重建控制流：条件分支从 TNT packet 获取方向，间接分支从 TIP packet 获取目的地址，</li>
+<li>如果分支跳转了，就根据目的地址找到从目的地址开始遇到的下一个分支（二分查找）；如果没有跳转，就直接访问数组的下一个分支</li>
+<li>注意 RET compression 的处理：维护 call stack，如果遇到 return 的时候刚好在 TNT packet 中，且对应的 bit 是 Taken，则从 call stack 取出目的地址</li>
+<li>重建控制流的同时，输出第二种格式的 trace，在内存中完成流式压缩</li>
+</ol>
 <h2 id="条件分支预测器模拟">条件分支预测器模拟<a class="headerlink" href="#条件分支预测器模拟" title="Permanent link">&para;</a></h2>
 <p>在完成了前面的大部分步骤以后，最终就是搭建一个条件分支预测器的模拟器了。其实这一点倒是并不复杂，例如 CBP Championship 或者 ChampSim 都有现成的框架，它们也都提供了一些经典的分支预测器的实现代码，例如 TAGE-SC-L。在它们的基础上进行开发，就可以评估各种条件分支预测器的预测效果了。</p>
 <p>实际上，除了条件分支预测器，还有很多其他的实验也可以用类似的方法构建 trace 然后运行。但条件分支预测器有个比较好的特点：它需要的状态比较简单，通常拿之前一段指令做预热即可，不需要 checkpoint；而如果要完整模拟整个处理器的执行，通常需要得到系统的整个状态，比如内存和寄存器，才能继续执行，这时候就可能需要提前把 slice 开始的状态保存下来（checkpoint），或者用一个简单的不精确的模拟器快速计算出 slice 开始的状态（fast forwarding）。</p>
@@ -1713,7 +1721,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月12日 09:45:01">2025年4月12日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月12日 12:34:10">2025年4月12日</span>
   </span>
 
     
