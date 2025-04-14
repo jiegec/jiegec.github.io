@@ -1656,7 +1656,7 @@
 <p>由此可以推导出不同的 trace 记录方式：</p>
 <p>第一种方式是，遇到条件分支指令时，只记录跳转（Taken）还是不跳转（Not Taken），这种方式保存的数据量最小（平均每个分支只需要比 1 bit 略多的空间），但是后续需要结合汇编，恢复出执行的过程，更进一步还可以压缩那些 return 的目的地址等于对应的 call 指令的下一条指令的地址的情况（Indirect Transfer Compression for Returns）。Intel PT 采用的是这种方法。</p>
 <p>第二种方式是，遇到条件分支指令时，不仅记录跳转与否，还记录它执行的是哪一条分支指令。这种方式保存的数据量稍多，假如要支持 5e4 条不同的条件分支指令，为了保存这个 id，就需要 16 位。类似地，也可以只记录跳转了的条件分支指令，那么那些没有跳转的条件分支指令，就需要后续结合汇编或者完整的条件分支指令表来恢复出来。CBP Championship 的 trace 采用的是这种方法。</p>
-<p>第一种方法明显空间会更小，以 1.6e13 条执行的分支指令数，大概需要 2TB 的磁盘空间；第二种方法，同样的分支指令数，就需要大概 30TB 的磁盘空间。当然了，第二种方法存的数据可以经过无损压缩进一步缩小空间，实测压缩后大概是每分支 0.16 字节，只比第一种方法大概每分支 0.14 字节略大。同理，第一种方法存的数据也可以经过无损压缩进一步缩小空间，达到每分支大约 0.018 字节的程度。</p>
+<p>第一种方法明显空间会更小，以 1.6e13 条执行的分支指令数，大概需要 2TB 的磁盘空间；第二种方法，同样的分支指令数，就需要大概 30TB 的磁盘空间。当然了，第二种方法存的数据可以经过无损压缩进一步缩小空间，实测压缩后大概是每分支 0.16 字节（这个数字与所跑的 benchmark 有关系，分支预测容易预测的 benchmark 对应更好的压缩率），只比第一种方法大概每分支 0.14 字节略大。同理，第一种方法存的数据也可以经过无损压缩进一步缩小空间，达到每分支大约 0.018 字节的程度。</p>
 <p>在评估条件分支预测器的时候，除了知道分支本身，还需要知道执行的指令数，用于计算 MPKI 等，这个可以通过 PMU 单独统计出来，或者直接根据控制流推算出执行的指令数，例如在等长指令的 ISA 上直接用地址差除以指令长度来计算指令数，在变长指令的 ISA 上 Parse ELF 去解析控制流经过的指令：</p>
 <ol>
 <li>解析 ELF，用反汇编器得到每条指令的地址，从小到大排序放到数组中</li>
@@ -1689,12 +1689,12 @@
 <h2 id="trace-抓取">trace 抓取<a class="headerlink" href="#trace-抓取" title="Permanent link">&para;</a></h2>
 <p>刚才讨论了很多 trace 的大小以及如何用 SimPoint 压缩空间，那么这个 trace 到底怎么抓取呢？主要有两种方法：</p>
 <ol>
-<li>基于硬件已有的 trace，比如 <a href="../../../../2024/12/10/linux-perf-pmu/">Intel PT</a>，但需要注意，Intel PT 是可能丢失历史的，虽然比例比较小；为了避免丢失历史，建议设置 <code>sysctl kernel.perf_event_paranoid=-1</code>（或者用 root 权限来运行 <code>perf record</code>，即绕过 <code>mlock limit after perf_event_mlock_kb</code> 的限制） 来扩大 Intel PT 使用的 buffer 大小，从 32KB 扩大到 1MB（参考 <a href="https://github.com/mysqlperformance/pt_perf">pt_perf</a>），在大小核机器上还要绑定到一个大核上</li>
+<li>基于硬件已有的 trace，比如 <a href="../../../../2024/12/10/linux-perf-pmu/">Intel PT</a>，但需要注意，Intel PT 是可能丢失历史的，虽然比例比较小；为了避免丢失历史，建议设置 <code>sysctl kernel.perf_event_paranoid=-1</code>（或者用 root 权限来运行 <code>perf record</code>，即绕过 <code>mlock limit after perf_event_mlock_kb</code> 的限制）来扩大 Intel PT 使用的 buffer 大小，从 32KB 扩大到 1MB（参考 <a href="https://github.com/mysqlperformance/pt_perf">pt_perf</a>），在大小核机器上还要绑定到一个大核上</li>
 <li>基于软件的 Binary Instrumentation，即针对分支指令插桩，比如 Pin、DynamoRIO 甚至 QEMU</li>
 </ol>
 <p>第一种方法性能是最好的，运行开销比较小，耗费 1.4x 的时间，但是后续处理也比较费劲一些，此外比较依赖平台，ARM 上虽然也有 SPE，但是支持的平台比较少。其他平台就不好说了。</p>
 <p>第二种方法性能会差一些，大概会有 30-50x 的性能开销，但是一天一夜也能够把 SPEC INT 2017 跑完。实现的时候，需要注意在遇到分支的时候，首先把信息保存在内存的 buffer 中，buffer 满了再写盘；此外，为了减少磁盘空间以及写盘所耗费的 I/O 时间，可以在内存中一边生成数据一边压缩，直接把压缩好的数据写入到文件中。</p>
-<p>实践中，可以先用 Intel PT 抓取 trace，再把 trace 转换为第二种格式，最终的抓取+转换的性能开销大概是 15x。大致算法如下：</p>
+<p>实践中，可以先用 Intel PT 抓取 trace，再把 trace 转换为第二种格式，最终的抓取 + 转换的性能开销大概是 15x。大致算法如下：</p>
 <ol>
 <li>遍历程序中所有的分支，按照地址从小到大保存起来在数组当中，针对那些直接分支，提前计算好从它的目的地址开始遇到的第一个分支在数组的下标</li>
 <li>解析 perf.data 中的 Intel PT packet，提取出其中的 TNT 和 TIP packet，从程序的 entrypoint 开始，沿着 Intel PT 的 trace 重建控制流：条件分支从 TNT packet 获取方向，间接分支从 TIP packet 获取目的地址，</li>
@@ -1727,7 +1727,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月13日 15:49:21">2025年4月13日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月14日 00:43:44">2025年4月14日</span>
   </span>
 
     
