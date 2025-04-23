@@ -1499,7 +1499,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 10 分钟阅读时间
+                              需要 11 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1631,6 +1631,15 @@
   <a href="#instruction-decode-queue-idq--loop-stream-detector-lsd" class="md-nav__link">
     <span class="md-ellipsis">
       Instruction Decode Queue (IDQ) + Loop Stream Detector (LSD)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conditional-branch-predictor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Conditional Branch Predictor
     </span>
   </a>
   
@@ -1967,6 +1976,31 @@
 <p>Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD）会检测当前指令流是否在一个循环当中，并且循环的 uop 不超出 Instruction Decode Queue(IDQ) 的容量，那么 LSD 会把 Legacy decode pipeline(MITE) 和 Decode stream buffer(DSB) 关掉，不再让 IDQ 的指令出队，而是直接在 IDQ 的内部循环提供指令，这个时候就节省了很多处理器前端的功耗。</p>
 <p>为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 <code>inc %rsi</code> 指令，最后是 <code>dec + jnz</code> 作为循环结尾，通过 <a href="https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS">LSD.UOPS</a> 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 144，说明 Golden Cove 的 Loop Stream Detector 可以识别最多 144 个 uop 的循环。此时每个循环要执行 145 条指令，最后的 <code>dec + jnz</code> 被融合成了一个 uop。</p>
 <p>循环体中，如果用 <code>nop</code> 指令来填充，会得到 40 左右的小得多的容量，猜测是进入了低功耗模式。</p>
+<h3 id="conditional-branch-predictor">Conditional Branch Predictor<a class="headerlink" href="#conditional-branch-predictor" title="Permanent link">&para;</a></h3>
+<p>参考 <a href="https://cseweb.ucsd.edu/~dstefan/pubs/yavarzadeh:2023:half.pdf">Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution</a> 论文的方法，可以测出 Golden Cove 的分支预测器采用的历史更新方式为：</p>
+<ol>
+<li>使用 388 位的 Path History Register，每次执行 taken branch 时更新</li>
+<li>更新方式为：<code>PHRnew = (PHRold &lt;&lt; 2) xor footprint</code></li>
+<li>footprint 共有 16 位，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址：<ul>
+<li>footprint[0] = B[3] xor T[0]</li>
+<li>footprint[1] = B[4] xor T[1]</li>
+<li>footprint[2] = B[5]</li>
+<li>footprint[3] = B[6]</li>
+<li>footprint[4] = B[7]</li>
+<li>footprint[5] = B[8]</li>
+<li>footprint[6] = B[9]</li>
+<li>footprint[7] = B[10]</li>
+<li>footprint[8] = B[0] xor T[2]</li>
+<li>footprint[9] = B[1] xor T[3]</li>
+<li>footprint[10] = B[2] xor T[4]</li>
+<li>footprint[11] = B[11] xor T[5]</li>
+<li>footprint[12] = B[12]</li>
+<li>footprint[13] = B[13]</li>
+<li>footprint[14] = B[14]</li>
+<li>footprint[15] = B[15]</li>
+</ul>
+</li>
+</ol>
 <h2 id="后端">后端<a class="headerlink" href="#后端" title="Permanent link">&para;</a></h2>
 <h3 id="rename">Rename<a class="headerlink" href="#rename" title="Permanent link">&para;</a></h3>
 <p>官方信息：</p>
@@ -2174,7 +2208,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年2月21日 03:20:27">2025年2月21日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月23日 02:10:29">2025年4月23日</span>
   </span>
 
     
