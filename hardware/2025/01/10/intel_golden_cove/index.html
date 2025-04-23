@@ -1971,11 +1971,11 @@
 <h3 id="instruction-decode-queue-idq--loop-stream-detector-lsd">Instruction Decode Queue (IDQ) + Loop Stream Detector (LSD)<a class="headerlink" href="#instruction-decode-queue-idq--loop-stream-detector-lsd" title="Permanent link">&para;</a></h3>
 <p>官方信息：</p>
 <ul>
-<li>The IDQ can hold 144 uops per logical processor in single thread mode, or 72 uops per thread when SMT is active.</li>
+<li>The IDQ can hold <strong>144</strong> uops per logical processor in single thread mode, or 72 uops per thread when SMT is active.</li>
 </ul>
 <p>Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD）会检测当前指令流是否在一个循环当中，并且循环的 uop 不超出 Instruction Decode Queue(IDQ) 的容量，那么 LSD 会把 Legacy decode pipeline(MITE) 和 Decode stream buffer(DSB) 关掉，不再让 IDQ 的指令出队，而是直接在 IDQ 的内部循环提供指令，这个时候就节省了很多处理器前端的功耗。</p>
 <p>为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 <code>inc %rsi</code> 指令，最后是 <code>dec + jnz</code> 作为循环结尾，通过 <a href="https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS">LSD.UOPS</a> 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 144，说明 Golden Cove 的 Loop Stream Detector 可以识别最多 144 个 uop 的循环。此时每个循环要执行 145 条指令，最后的 <code>dec + jnz</code> 被融合成了一个 uop。</p>
-<p>循环体中，如果用 <code>nop</code> 指令来填充，会得到 40 左右的小得多的容量，猜测是进入了低功耗模式。</p>
+<p>循环体中，如果用 <code>nop</code> 指令来填充，会得到 40 左右的比 144 小得多的容量，猜测是进入了低功耗模式。</p>
 <h3 id="conditional-branch-predictor">Conditional Branch Predictor<a class="headerlink" href="#conditional-branch-predictor" title="Permanent link">&para;</a></h3>
 <p>参考 <a href="https://cseweb.ucsd.edu/~dstefan/pubs/yavarzadeh:2023:half.pdf">Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution</a> 论文的方法，可以测出 Golden Cove 的分支预测器采用的历史更新方式为：</p>
 <ol>
@@ -2091,16 +2091,16 @@
 </tbody>
 </table>
 <p>可以看到，Golden Cove 在 Store 完全包含 Load 的情况下都可以转发，没有额外的对齐要求。但当 Load 和 Store 只有部分重合时，就无法转发，这和官方信息有所冲突。两个连续的 32 位的 Store 和一个 64 位的 Load 重合也不能转发。</p>
-<p>比较有意思的是，在 y=x 且不跨越缓存行边界且满足下列要求的情况下，Store Forwarding 不会带来性能损失，就好像 Load Store 访问的是不同的没有 Overlap 的地址一样：</p>
+<p>比较有意思的是，在 y=x 且不跨越缓存行边界且满足下列要求的情况下，Store Forwarding 不会或只带来很小的性能损失：</p>
 <ul>
 <li>8b Store -&gt; 8b Load</li>
 <li>32b Store -&gt; 8b Load</li>
 <li>64b Store -&gt; 8b Load</li>
-<li>16b Store -&gt; 16b Load</li>
 <li>32b Store -&gt; 32b Load</li>
 <li>64b Store -&gt; 32b Load</li>
+<li>64b Store -&gt; 64b Load</li>
 </ul>
-<p>考虑到 y 必须等于 x，也就是地址要一样，并且没有带来性能损失，猜测 Golden Cove 使用了类似 Memory Renaming 的技术来实现这个效果。如果是连续两个对同一个地址的 Store 对一个 Load 的转发，效果和只有一个 Store 是一样的。</p>
+<p>考虑到 y 必须等于 x，也就是地址要一样，猜测 Golden Cove 使用了类似 Memory Renaming 的技术来实现这个效果。如果是连续两个对同一个地址的 Store 对一个 Load 的转发，效果和只有一个 Store 是一样的。</p>
 <p>除了上述情况以外，Store Forwarding 成功时的延迟在 5 个周期，失败则要 19 个周期。</p>
 <p>小结：Golden Cove 的 Store to Load Forwarding：</p>
 <ul>
@@ -2209,7 +2209,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月23日 07:21:55">2025年4月23日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年4月23日 09:39:52">2025年4月23日</span>
   </span>
 
     
