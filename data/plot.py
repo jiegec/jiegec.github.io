@@ -88,6 +88,8 @@ def parse_data(flavor):
             # perf
             if found_delim and ":" in line:
                 benchmark = parts[0][:-1]
+                if benchmark == "all":
+                    continue
                 key = parts[1]
                 value = float(parts[-1])
                 data[name][f"{benchmark}/{key}"].append(value)
@@ -231,4 +233,5 @@ for flavor in ["int", "fp"]:
     plot_perf(flavor, "mispred", "misprediction", "Branch Misprediction Rate (%)")
     plot_perf(flavor, "freq", "clock", "Clock Freq (MHz)")
     plot_perf(flavor, "inst", "instructions", "Instructions")
+    plot_perf(flavor, "brinst", "branch", "Branch Instructions")
     plot_perf(flavor, "ratio", "ratio", "Ratio")
