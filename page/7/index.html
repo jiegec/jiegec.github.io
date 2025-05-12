@@ -547,6 +547,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#将-k8s-rook-ceph-集群迁移到-cephadm" class="md-nav__link">
+    <span class="md-ellipsis">
+      将 k8s rook ceph 集群迁移到 cephadm
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#c-11-的-abi-问题" class="md-nav__link">
     <span class="md-ellipsis">
       C++ 11 的 ABI 问题
@@ -757,15 +766,6 @@
   <a href="#在-spack-中用-external-的-slurm-依赖编译-openmpi" class="md-nav__link">
     <span class="md-ellipsis">
       在 Spack 中用 external 的 Slurm 依赖编译 OpenMPI
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#在裸机上部署-esxi-和-vcsa-7" class="md-nav__link">
-    <span class="md-ellipsis">
-      在裸机上部署 ESXi 和 vCSA 7
     </span>
   </a>
   
@@ -1713,6 +1713,77 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-06-25 00:00:00+00:00">2021年6月25日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="将-k8s-rook-ceph-集群迁移到-cephadm"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/">将 k8s rook ceph 集群迁移到 cephadm</a></h2>
+<h3 id="背景"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#背景">背景</a></h3>
+<p>前段时间用 rook 搭建了一个 k8s 内部的 ceph 集群，但是使用过程中遇到了一些稳定性问题，所以想要用 cephadm 重建一个 ceph 集群。</p>
+<h3 id="重建过程"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#重建过程">重建过程</a></h3>
+<p>重建的时候，我首先用 cephadm 搭建了一个 ceph 集群，再把原来的 MON 数据导入，再恢复各个 OSD。理论上，可能有更优雅的办法，但我还是慢慢通过比较复杂的办法解决了。</p>
+<h4 id="cephadm-搭建-ceph-集群"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#cephadm-搭建-ceph-集群">cephadm 搭建 ceph 集群</a></h4>
+<p>首先，配置 <a href="https://mirrors.tuna.tsinghua.edu.cn/help/ceph/">TUNA 源</a>，在各个节点上安装 <code>docker-ce</code> 和 <code>cephadm</code>。接着，在主节点上 bootstrap：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>cephadm<span class="w"> </span>bootstrap<span class="w"> </span>--mon-ip<span class="w"> </span>HOST1_IP
+</span></code></pre></div>
+<p>此时，在主节点上会运行最基础的 ceph 集群，不过此时还没有任何数据。寻找 ceph 分区，会发现因为 FSID 不匹配而无法导入。所以，首先要恢复 MON 数据。</p>
+<p>参考文档：<a href="https://docs.ceph.com/en/latest/cephadm/install/">cephadm install</a>。</p>
+<h4 id="恢复-mon-数据"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#恢复-mon-数据">恢复 MON 数据</a></h4>
+<p>首先，关掉 rook ceph 集群，找到留存下来的 MON 数据目录，默认路径是 <code>/var/lib/rook</code> 下的 <code>mon-[a-z]</code> 目录，找到最新的一个即可。我把目录下的路径覆盖到 cephadm 生成的 MON 目录下，然后跑起来，发现有几个问题：</p>
+<ol>
+<li>cephadm 生成的 /etc/ceph/ceph.client.admin.keyring 与 MON 中保存的 auth 信息不匹配，导致无法访问</li>
+<li>FSID 不一致，而 cephadm 会将各个设置目录放到 <code>/var/lib/ceph/$FSID</code> 下</li>
+</ol>
+<p>第一个问题的解决办法就是临时用 MON 目录下的 keyring 进行认证，再创建一个新的 client.admin 认证。第二个问题的解决办法就是将遇到的各种 cephadm 生成的 FSID 替换为 MON 中的 FSID，包括目录名、各个目录下 unit.run 中的路径和 systemd unit 的名称。</p>
+<p>进行一系列替换以后，原来的 MON 已经起来了，可以看到原来保留的各个 pool 和 cephfs 信息。</p>
+<h4 id="扩展到多节点"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#扩展到多节点">扩展到多节点</a></h4>
+<p>接下来，由于 MON 中保存的数据更新了，所以要重新生成 cephadm 的 SSH 密钥。将 SSH 密钥复制到各节点后，再用 cephadm 的 orch 功能部署到其他节点上。此时 FSID 都已经是 MON 中的 FSID，不需要替换。此时可以在 <code>ceph orch ps</code> 命令中看到在各个节点上运行的程序。接下来，还需要恢复各个 OSD。</p>
+<h4 id="导入-osd"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#导入-osd">导入 OSD</a></h4>
+<p>为了从 ceph 分区从导出 OSD 的配置文件，需要用 <code>ceph-volume</code> 工具。这个工具会生成一个 <code>/var/lib/ceph/osd-ID</code> 目录，在 cephadm 的概念里属于 legacy，因此我们首先要把路径 mount 到 shell 里面：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$<span class="w"> </span>cephadm<span class="w"> </span>shell<span class="w"> </span>--mount<span class="w"> </span>/var/lib/ceph:/var/lib/ceph
+</span></code></pre></div>
+<p>接着，生成 osd 目录配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$<span class="w"> </span>ceph-volume<span class="w"> </span>lvm<span class="w"> </span>activate<span class="w"> </span>--all<span class="w"> </span>--no-systemd
+</span></code></pre></div>
+<p>然后，可以看到创建了对应的 osd 路径，再用 cephadm 进行转换：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$<span class="w"> </span>cephadm<span class="w"> </span>adopt<span class="w"> </span>--style<span class="w"> </span>legacy<span class="w"> </span>--name<span class="w"> </span>osd.ID
+</span></code></pre></div>
+<p>这样就可以用 cephadm 管理了。</p>
+<h3 id="配置-k8s"><a class="toclink" href="../../devops/2021/06/25/ceph-k8s-to-external/#配置-k8s">配置 k8s</a></h3>
+<p>配置好外部 ceph 集群后，还需要配置 k8s rook。</p>
+<p>参考 <a href="https://rook.github.io/docs/rook/v1.8/ceph-cluster-crd.html#external-cluster">https://rook.github.io/docs/rook/v1.8/ceph-cluster-crd.html#external-cluster</a>，大概有这么几步：</p>
+<ol>
+<li>在 ceph 集群上运行 create-external-cluster-resources.sh，创建用户，并且导出 key</li>
+<li>在 k8s 集群上应用第一步生成的环境变量，然后运行 import-external-cluster.sh</li>
+<li>复制一份 cluster-external.yaml 然后应用</li>
+<li>复制 storageclass.yaml，把里面的 namespace 改成 rook-ceph-external</li>
+</ol>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -4630,57 +4701,6 @@ in 1.4.
 </span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>      <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--enable-static&#39;</span><span class="p">)</span>
 </span></code></pre></div>
 <p>然后，就可以编译通过了。</p>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2020-10-18 00:00:00+00:00">2020年10月18日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在裸机上部署-esxi-和-vcsa-7"><a class="toclink" href="../../devops/2020/10/18/deploy-esxi-vcsa-7/">在裸机上部署 ESXi 和 vCSA 7</a></h2>
-<p>之前在另一篇文章里提到过 vCSA 的安装，这次又在另一台机器上重新做了一遍，特此记录一下。</p>
-<p>首先在官网上下载 <a href="https://my.vmware.com/group/vmware/evalcenter?p=vsphere-eval-7">ESXi+VCSA 7.0</a> ，应该得到两个文件：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>7.9G VMware-VCSA-all-7.0.1-16860138.iso
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>358M VMware-VMvisor-Installer-7.0U1-16850804.x86_64.iso
-</span></code></pre></div>
-<p>首先安装 ESXi，用 UNetBootin 制作 ESXi 的安装光盘。注意不能用 dd，因为它是 CDFS 格式的，不能直接 boot。启动以后，按照界面要求，一路安装即可。</p>
-<p>接着，就可以用网页访问 ESXi 进行配置。比如安装一些 Linux 发行版，然后在 Linux 虚拟机里面 mount 上面的 VCSA 的 iso：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>sudo<span class="w"> </span>mount<span class="w"> </span>/dev/sr0<span class="w"> </span>/mnt
-</span></code></pre></div>
-<p>接着，复制并修改 <code>/mnt/vcsa-cli-installer/templates/install/embedded_vCSA_on_ESi.json</code>，按照代码注释进行修改。需要注意几点：</p>
-<ol>
-<li>密码都可以设为空，然后运行 cli 的时候输入</li>
-<li>ESXi 的密码和 vCSA 的密码是不一样的</li>
-<li>可以把 ceip 关掉，设置 ceip_enabled: false</li>
-</ol>
-<p>接着，进行安装：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>/mnt/vcsa-cli-installer/lin64/vcsa-deploy<span class="w"> </span>install<span class="w"> </span>--accept-eula<span class="w"> </span>/path/to/customized.json<span class="w"> </span>-v
-</span></code></pre></div>
-<p>慢慢等待它安装成功即可。</p>
-<p>安装完成后，进入 vCSA，新建一个 Datacenter，然后选择新建的 Datacenter，选择 Add host，输入 ESXi 的地址和用户密码信息即可。</p>
     
   </div>
 </article>
