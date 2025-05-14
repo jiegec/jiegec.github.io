@@ -1499,7 +1499,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 13 分钟阅读时间
+                              需要 14 分钟阅读时间
                             
                           </span>
                         </div>
@@ -2441,6 +2441,48 @@
 </span></code></pre></div>
 <p>下面是一个双核 Rocket Chip 的 GraphML 导出来用 yED 绘制的架构图：</p>
 <p><img alt="" src="../../../../diplomacy_rocket_chip.png" /></p>
+<p>这个图比较复杂，混合了多个 Diplomacy 网络，首先是总线的部分，包括 TileLink 和 AXI：</p>
+<ol>
+<li>两个 Tile，对应一个双核的系统；每个 Tile 内部有一个 dcache 和 icache，连接到一个 tlMasterXbar 上，再通过 coupler_from_rockettile 连接到 fixer 再到 system_bus_xbar</li>
+<li>从 system_bus_xbar 分出来三路 Slave：<ol>
+<li>第一路是 cbus，通过 out_xbar，连接到多个 slave：debug，error device，plic，clint，l2 control，bootrom</li>
+<li>第二路是 mmio，通过 tl2axi4，转成 AXI4 连接到外部的 MMIO 外设</li>
+<li>第三路是 coh，连接到 InclusiveCache，再连接到 mbus，通过 tl2axi4，转成 AXI4 连接到外部的内存</li>
+</ol>
+</li>
+<li>system_bus_xbar 除了每个 tile 对应一个 master 以外，还有一个 master：fbus，它从外部的 AXI4 进来，通过 axi42tl 转换，接到 fbus，提供一个有缓存一致性的 AXI 访问接口，用于 DMA</li>
+</ol>
+<p>简化后的结构如图：</p>
+<pre class="mermaid"><code>flowchart TD
+    subgraph tile0
+        dcache0[dcache]
+        icache0[icache]
+        tlMasterXbar0[tlMasterXbar]
+        dcache0 --&gt; tlMasterXbar0
+        icache0 --&gt; tlMasterXbar0
+    end
+
+    subgraph tile1
+        dcache1[dcache]
+        icache1[icache]
+        tlMasterXbar1[tlMasterXbar]
+        dcache1 --&gt; tlMasterXbar1
+        icache1 --&gt; tlMasterXbar1
+    end
+
+    system_bus_xbar
+    tlMasterXbar0 --&gt; system_bus_xbar
+    tlMasterXbar1 --&gt; system_bus_xbar
+    axi_fbus --&gt; axi42tl --&gt; system_bus_xbar
+    system_bus_xbar --&gt; cbus --&gt; out_xbar
+    out_xbar --&gt; debug
+    out_xbar --&gt; error
+    out_xbar --&gt; plit
+    out_xbar --&gt; clint
+    out_xbar --&gt; l2_ctrl
+    out_xbar --&gt; bootrom
+    system_bus_xbar --&gt; tl2axi4_mmio[tl2axi4] --&gt; axi_mmio
+    system_bus_xbar --&gt; coh --&gt; InclusiveCache --&gt; tl2axi4_mem[tl2axi4] --&gt; axi_mem</code></pre>
 <h3 id="tilelink">TileLink<a class="headerlink" href="#tilelink" title="Permanent link">&para;</a></h3>
 <p>Rocket Chip 中用 Diplomacy 实现 TileLink 总线的连接。相关的结构如下：</p>
 <ol>
@@ -2481,7 +2523,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年5月14日 09:44:14">2025年5月14日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年5月14日 09:57:45">2025年5月14日</span>
   </span>
 
     
