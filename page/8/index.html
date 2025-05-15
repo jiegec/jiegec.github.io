@@ -547,6 +547,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#在-spack-中用-external-的-slurm-依赖编译-openmpi" class="md-nav__link">
+    <span class="md-ellipsis">
+      在 Spack 中用 external 的 Slurm 依赖编译 OpenMPI
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#在裸机上部署-esxi-和-vcsa-7" class="md-nav__link">
     <span class="md-ellipsis">
       在裸机上部署 ESXi 和 vCSA 7
@@ -757,15 +766,6 @@
   <a href="#每周分享第-56-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 56 期
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#通过-bscan-jtag-对-rocket-chip-进行调试" class="md-nav__link">
-    <span class="md-ellipsis">
-      通过 BSCAN JTAG 对 Rocket Chip 进行调试
     </span>
   </a>
   
@@ -1713,6 +1713,71 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-11-08 00:00:00+00:00">2020年11月8日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/software/" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 1 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-spack-中用-external-的-slurm-依赖编译-openmpi"><a class="toclink" href="../../software/2020/11/08/spack-openmpi-slurm-external/">在 Spack 中用 external 的 Slurm 依赖编译 OpenMPI</a></h2>
+<p>最近在一个集群上，需要用一个自己编译的 openmpi，但并没有 root 权限，所以需要自己搞一个 spack，在 spack 里面装 openmpi。但默认的安装选项下，它没有打开 slurm 支持，所以 srun 的话会出问题，只能 sbatch 然后指定 host 去做。于是我研究了一下怎么在 spack 里引入 external 的 slurm，然后用它来编译 openmpi</p>
+<p>首先，编译 <code>~/.spack/packages.yaml</code>：</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">packages</span><span class="p">:</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">slurm</span><span class="p">:</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">buildable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">paths</span><span class="p">:</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">      </span><span class="s">&quot;slurm@15-08-7-1%gcc@8.3.0</span><span class="nv"> </span><span class="s">arch=linux-ubuntu16.04-haswell&quot;</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr</span>
+</span></code></pre></div>
+<p>这里 slurm 版本是 <code>15.08.7</code>，我就按照 spack 里面 slurm 的版本号来写了。可以用 <code>spack spec openmpi schedulers=slurm +pmi</code> 来确认一下外部的 slurm 确实出现在了依赖之中。</p>
+<p>这一步配好的话，安装的时候就会直接跳过 spack 里面 slurm 的安装。但又出现了 configure 错误，找不到 pmi 的库。于是，先用 external 的 mpirun 看一下配置：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$<span class="w"> </span>module<span class="w"> </span>load<span class="w"> </span>openmpi-3.0.0
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>$<span class="w"> </span>ompi_info
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>...
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>--with-pmi<span class="o">=</span>/usr
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>--with-pmi-libdir<span class="o">=</span>/usr/lib/x86_64-linux-gnu
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>...
+</span></code></pre></div>
+<p>可以看到，需要两个 config 参数。然后，在 spack 的 openmpi package.py 中：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;schedulers=slurm&#39;</span><span class="p">):</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--with-pmi=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s1">&#39;slurm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.1.3:&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.0.3&#39;</span><span class="p">):</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">if</span> <span class="s1">&#39;+static&#39;</span> <span class="ow">in</span> <span class="n">spec</span><span class="p">:</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>      <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--enable-static&#39;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>所以，需要加一个小 patch：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;schedulers=slurm&#39;</span><span class="p">):</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--with-pmi=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s1">&#39;slurm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  <span class="c1"># patched here</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--with-pmi-libdir=</span><span class="si">{0}</span><span class="s1">/lib/x86_64-linux-gnu&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s1">&#39;slurm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">prefix</span><span class="p">))</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.1.3:&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">spec</span><span class="o">.</span><span class="n">satisfies</span><span class="p">(</span><span class="s1">&#39;@3.0.3&#39;</span><span class="p">):</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="k">if</span> <span class="s1">&#39;+static&#39;</span> <span class="ow">in</span> <span class="n">spec</span><span class="p">:</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>      <span class="n">config_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--enable-static&#39;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>然后，就可以编译通过了。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -4344,89 +4409,6 @@
 <li>网络学堂 PC 端 App https://github.com/jiegec/learn_tsinghua_app/releases</li>
 <li>Rust 2020 roadmap https://github.com/rust-lang/rfcs/pull/2857/files</li>
 </ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2020-02-10 00:00:00+00:00">2020年2月10日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="通过-bscan-jtag-对-rocket-chip-进行调试"><a class="toclink" href="../../hardware/2020/02/10/rocket-chip-bscan-debug/">通过 BSCAN JTAG 对 Rocket Chip 进行调试</a></h2>
-<h3 id="前言"><a class="toclink" href="../../hardware/2020/02/10/rocket-chip-bscan-debug/#前言">前言</a></h3>
-<p>在上一个 <a href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/">post</a> 里研究了原理，今天也是成功在 Artix 7 上实现了调试。效果如下：</p>
-<p>OpenOCD 输出：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Info : JTAG tap: riscv.cpu tap/device found: 0x0362d093 (mfg: 0x049 (Xilinx), part: 0x362d, ver: 0x0)
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Info : datacount=1 progbufsize=16
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Info : Disabling abstract command reads from CSRs.
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Info : Examined RISC-V core; found 1 harts
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Info :  hart 0: XLEN=32, misa=0x40801105
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>Info : Listening on port 3333 for gdb connections
-</span></code></pre></div>
-<p>GDB 输出：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Remote debugging using localhost:3333
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>0x0001018c in getc () at bootloader.c:36
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>36        while (!(*UART_LSR &amp; 0x1))
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>(gdb) 
-</span></code></pre></div>
-<p>这里用的 OpenOCD 和 GDB 都是 riscv 版本，上游的支持尚不完善。对于 Homebrew 用户，我在 <a href="https://github.com/jiegec/homebrew-formulas">jiegec/homebrew-formulas</a> 维护了需要的 Formula。</p>
-<h3 id="过程"><a class="toclink" href="../../hardware/2020/02/10/rocket-chip-bscan-debug/#过程">过程</a></h3>
-<p>代码基本借鉴了 <a href="https://github.com/sequencer/rocket-playground/tree/7fa3c51113be607add2034f3abe0ae973caac04a">sequencer/rocket-playground</a> 和 <a href="https://github.com/KireinaHoro/rocket-zcu102/tree/ab9112c951eeeb64482716394d926777862d9e86">KireinaHoro/rocket-zcu102</a> 而来，代码方面主要是添加了 <a href="https://github.com/jiegec/rocket2thinpad/blob/ad1e86620c54bc0be29d08394d04f70031718b6d/src/main/scala/BscanJTAG.scala#L1">BscanJTAG.scala</a>，然后在 Top 模块下把它连接到内部的 JTAG 中：</p>
-<div class="language-scala highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">boardJTAG</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Module</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="nc">BscanJTAG</span><span class="p">)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">jtagBundle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">debug</span><span class="p">.</span><span class="n">head</span><span class="p">.</span><span class="n">systemjtag</span><span class="p">.</span><span class="n">head</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">// set JTAG parameters</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">reset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">reset</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">mfr_id</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mh">0x233</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="mi">11</span><span class="p">.</span><span class="nc">W</span><span class="p">)</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">part_number</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="mi">16</span><span class="p">.</span><span class="nc">W</span><span class="p">)</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">version</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="mi">4</span><span class="p">.</span><span class="nc">W</span><span class="p">)</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1">// connect to BSCAN</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TCK</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">boardJTAG</span><span class="p">.</span><span class="n">tck</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TMS</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">boardJTAG</span><span class="p">.</span><span class="n">tms</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">jtagBundle</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDI</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">boardJTAG</span><span class="p">.</span><span class="n">tdi</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">boardJTAG</span><span class="p">.</span><span class="n">tdo</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">jtagBundle</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDO</span><span class="p">.</span><span class="n">data</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">boardJTAG</span><span class="p">.</span><span class="n">tdoEnable</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">jtagBundle</span><span class="p">.</span><span class="n">jtag</span><span class="p">.</span><span class="nc">TDO</span><span class="p">.</span><span class="n">driven</span>
-</span></code></pre></div>
-<p>代码方面就足够了。然后，需要一个 riscv-openocd 和 riscv-gdb，分别从上游 repo 编译得来。然后采用以下的 openocd.cfg：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>adapter_khz 20000
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>interface ftdi
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>ftdi_vid_pid 0x0403 0x6014
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>ftdi_layout_init 0x00e8 0x60eb
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>ftdi_tdo_sample_edge falling
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>reset_config none
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>set _CHIPNAME riscv
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>jtag newtap $_CHIPNAME cpu -irlen 6
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>set _TARGETNAME $_CHIPNAME.cpu
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>target create $_TARGETNAME.0 riscv -chain-position $_TARGETNAME
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>$_TARGETNAME.0 configure -work-area-phys 0x80000000 -work-area-size 10000 -work-area-backup 1
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>riscv use_bscan_tunnel 5
-</span></code></pre></div>
-<p>然后就可以用 GDB 调试了。</p>
     
   </div>
 </article>
