@@ -1920,6 +1920,42 @@ Sunway TaihuLight 双精度性能：<code>40 * 4 * 256 * 3.0624 = 125.435904 PFl
 <li>修改 <code>/etc/vmware/appliance/firewall.conf</code> 后运行 <code>/usr/lib/applmgmt/networking/bin/firewall-reload</code> 以修改防火墙配置</li>
 </ol>
 <p>参考：<a href="https://knowledge.broadcom.com/external/article/375247/how-to-changeupdate-dns-server-ip-addres.html">How to change/update DNS Server IP address for vCenter Server</a> <a href="https://www.reddit.com/r/vmware/comments/9fjclx/adding_firewall_rules_to_vcsa_without_web_client/">Adding firewall rules to VCSA without web client? (self.vmware)</a></p>
+<h3 id="导出-esxi-虚拟机到-ovf"><a class="toclink" href="../../devops/2021/10/05/vmware-esxi-notes/#导出-esxi-虚拟机到-ovf">导出 ESXi 虚拟机到 OVF</a></h3>
+<p>使用 ovftool 导出 ESXi 上的虚拟机到本地的 OVF 文件：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>ovftool<span class="w"> </span>vi://<span class="nv">$HOSTNAME</span>/<span class="nv">$VMNAME</span><span class="w"> </span><span class="nv">$PWD</span>
+</span></code></pre></div>
+<h3 id="导入-ovf-到-esxi"><a class="toclink" href="../../devops/2021/10/05/vmware-esxi-notes/#导入-ovf-到-esxi">导入 OVF 到 ESXi</a></h3>
+<p>使用 ovftool 把本地的 OVF 导入到 ESXi：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>ovftool<span class="w"> </span>./xxx/xxx.ovf<span class="w"> </span>vi://<span class="nv">$HOSTNAME</span>/
+</span></code></pre></div>
+<p>特别地，如果目标 ESXi 被 vCenter 管理：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>ovftool<span class="w"> </span>./xxx/xxx.ovf<span class="w"> </span>vi://<span class="nv">$VCENTER_HOSTNAME</span>/<span class="nv">$CLUSTER</span>/host/<span class="nv">$HOSTNAME</span>
+</span></code></pre></div>
+<p>给 ovftool 传递的额外参数：</p>
+<ul>
+<li><code>-dm=thin</code>: Thin Provisioning</li>
+<li><code>--net:"OLD NAME"="NEW NAME"</code>: 对网络名字进行映射，比如原来的虚拟机用 <code>OLD NAME</code>，在现在的 ESXi 上叫 <code>NEW NAME</code></li>
+<li><code>-ds=DATASTORE_NAME</code>：设置保存到哪个 datastore 内</li>
+</ul>
+<h3 id="把物理机的硬盘导出为-vmdk"><a class="toclink" href="../../devops/2021/10/05/vmware-esxi-notes/#把物理机的硬盘导出为-vmdk">把物理机的硬盘导出为 VMDK</a></h3>
+<p>如果物理机的硬盘正在用（比如是保存 rootfs 的硬盘），建议重启到 Live CD（可以通过 BMC 挂着 Virtual Media），小心 Live CD 有没有网卡驱动和网卡固件。</p>
+<p>本地导出：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="c1"># -p: progress</span>
+</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a><span class="c1"># -O vmdk: output as vmdk</span>
+</span><span id="__span-11-3"><a href="#__codelineno-11-3" id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="c1"># -o subformat=streamOptimized: thin provisioning</span>
+</span><span id="__span-11-4"><a href="#__codelineno-11-4" id="__codelineno-11-4" name="__codelineno-11-4"></a><span class="c1"># output file should be put in places other that /dev/sda</span>
+</span><span id="__span-11-5"><a href="#__codelineno-11-5" id="__codelineno-11-5" name="__codelineno-11-5"></a>qemu-img<span class="w"> </span>convert<span class="w"> </span>-p<span class="w"> </span>-O<span class="w"> </span>vmdk<span class="w"> </span>-o<span class="w"> </span><span class="nv">subformat</span><span class="o">=</span>streamOptimized<span class="w"> </span>/dev/sda<span class="w"> </span>xxx.vmdk
+</span></code></pre></div>
+<p>远程导出：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="c1"># on the source machine</span>
+</span><span id="__span-12-2"><a href="#__codelineno-12-2" id="__codelineno-12-2" name="__codelineno-12-2"></a><span class="c1"># expose raw /dev/sda as network block device</span>
+</span><span id="__span-12-3"><a href="#__codelineno-12-3" id="__codelineno-12-3" name="__codelineno-12-3"></a>qemu-nbd<span class="w"> </span>-f<span class="w"> </span>raw<span class="w"> </span>/dev/sda
+</span><span id="__span-12-4"><a href="#__codelineno-12-4" id="__codelineno-12-4" name="__codelineno-12-4"></a><span class="c1"># on the destination machine</span>
+</span><span id="__span-12-5"><a href="#__codelineno-12-5" id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="c1"># -p: progress</span>
+</span><span id="__span-12-6"><a href="#__codelineno-12-6" id="__codelineno-12-6" name="__codelineno-12-6"></a><span class="c1"># -O vmdk: output as vmdk</span>
+</span><span id="__span-12-7"><a href="#__codelineno-12-7" id="__codelineno-12-7" name="__codelineno-12-7"></a><span class="c1"># -o subformat=streamOptimized: thin provisioning</span>
+</span><span id="__span-12-8"><a href="#__codelineno-12-8" id="__codelineno-12-8" name="__codelineno-12-8"></a>qemu-img<span class="w"> </span>convert<span class="w"> </span>-p<span class="w"> </span>-O<span class="w"> </span>vmdk<span class="w"> </span>-o<span class="w"> </span><span class="nv">subformat</span><span class="o">=</span>streamOptimized<span class="w"> </span>nbd://<span class="nv">$SOURCE_IP</span><span class="w"> </span>xxx.vmdk
+</span></code></pre></div>
 </div>
 </article>
 <article class="md-post md-post--excerpt">
