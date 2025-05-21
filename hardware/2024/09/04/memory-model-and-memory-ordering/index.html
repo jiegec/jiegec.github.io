@@ -10,10 +10,10 @@
       
       
       
-        <link rel="canonical" href="https://jia.je/hardware/2024/09/04/memory_model_and_memory_ordering/">
+        <link rel="canonical" href="https://jia.je/hardware/2024/09/04/memory-model-and-memory-ordering/">
       
       
-        <link rel="prev" href="../../01/qualcomm_oryon/">
+        <link rel="prev" href="../../01/qualcomm-oryon/">
       
       
         <link rel="next" href="../../10/samsung-exynos-cpu/">
@@ -1756,7 +1756,7 @@
 </ul>
 <p>可以看到，可能是先完成所有 A 核心上的访存，再完成 B 核心上的访存（Ra Wa Rb Wb），也可能反过来，先完成 B 核心上的访存，再完成 A 核心上的访存（Rb Wb Ra Wa），也可能两个核心的访存交错进行（例如 Ra Rb Wa Wb）。它们都满足一个条件：Ra 一定在 Wa 之前，Rb 一定在 Wb 之前，也就是说，Ra 一定在 Wa 之前的这种 program order 在内存子系统上的执行顺序 memory order 里也一定会保证。</p>
 <p>这种内存模型就是 Sequential Consistency (简称 SC)，它的性质就是遵循 program order，从每个核心来看，代码怎么写的就怎么跑，不做重排，而来自不同核心的访存之间的顺序不做要求。下面是 SC 模型的图示（图源 <a href="https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf">A Tutorial Introduction to the ARM and POWER Relaxed Memory Model</a>）：</p>
-<p><img alt="" src="../../../../memory_model_and_memory_ordering_sc.png" /></p>
+<p><img alt="" src="../../../../memory-model-and-memory-ordering-sc.png" /></p>
 <p>根据这个性质，我们就可以分析软件的行为，判断它是否可能出现特定的结果。下面举一个例子：</p>
 <p>假如有两个线程，A 线程要给 B 线程传输数据，两个线程分别跑在两个核心上。为了传输数据，A 把数据放在内存地址 x 里，为了标记数据准备完成，另外在内存地址 y 放了一个标记，0 表示数据还没准备好，1 表示数据准备好了。那么 A 要传输数据的时候，要做的事情就是：</p>
 <ol>
@@ -1917,7 +1917,7 @@
 <p>回想前面提到的 Store Buffer 的硬件实现，问题出现在，x 和 y 处于不同的地址，A 核心读取 y 时，直接通过缓存读取数据，此时从缓存的视角来看，先看到了 A 核心读取 y，后看到了 A 核心写入了 x，这和指令的顺序不同。也就是 PodWR（Program order write to read）这条边不再成立了，这种情况下，从核外的视角看，程序的先 Store 后 Load，可能被重排为先 Load 后 Store。这也说明 x86 的处理器做了 Store Buffer 的硬件实现。在优化性能的同时，也切实改变了内存模型。</p>
 <h3 id="x86-tso">X86-TSO<a class="headerlink" href="#x86-tso" title="Permanent link">&para;</a></h3>
 <p>依托 Store Buffer，我们可以构建出一个新的内存模型：在每个核心和内存子系统之间，多了一个 Store Buffer，Store 指令会先进入 Store Buffer，再进入内存子系统。当 Load 指令和 Store Buffer 中的 Store 指令有数据相关时，会从 Store Buffer 中取数据，如果不相关，或者不完全相关（例如只有一部分重合），则会从内存子系统中取数据，此时从内存子系统的角度来看，就发生了 Load 提前于 Store 执行的重排。这个模型被称为 <a href="https://dl.acm.org/doi/10.1145/1785414.1785443">X86-TSO</a>（图源 <a href="https://link.springer.com/book/10.1007/978-3-031-01764-3">A Primer on Memory Consistency and Cache Coherence, Second Edition</a>）：</p>
-<p><img alt="" src="../../../../memory_model_and_memory_ordering_x86_tso.png" /></p>
+<p><img alt="" src="../../../../memory-model-and-memory-ordering-x86-tso.png" /></p>
 <p>需要注意的是，X86-TSO 模型是在 <a href="https://dl.acm.org/doi/10.1145/1785414.1785443">2010 年的论文 x86-TSO: a rigorous and usable programmer's model for x86 multiprocessors</a>中由学术界对现有 x86 处理器的内存模型的总结，但 Intel 和 AMD 在他们的文档中没有直接采用这个模型，而是给出了各种各样的规则。但实践中，可以认为 x86 处理器用的就是这个模型，从各自 litmus 测试中，也没有发现理论和实际不一致的地方。</p>
 <p>这里的 TSO 的全称是 Total Store Order，意思是针对 Store 指令（只有离开 Store Buffer 进入缓存的才算），有一个全局的顺序。内存子系统会处理来自不同核心的 Store，但会保证 Store 有一个先后顺序，并且所有核心会看到同一个顺序。这个概念有些时候还会被称为 Multi-copy Atomic，字面意思是当一个 Store 被其他核心看到时，所有核心都会“同时”看到，不会说一部分核先看到，另一部分核后看到。</p>
 <p>从 TSO 的字面意思来说，并没有提到 Load 可以被重排到 Store 之前，是 X86 的 TSO 实现了这种重排。不过平常也不会专门去区分这件事情，提到 TSO，大家想到的都是 X86 的 TSO，也就是 X86-TSO 模型。</p>
@@ -1942,7 +1942,7 @@
 <li>先 Store 后 Store：SC 和 X86-TSO 不允许重排</li>
 </ul>
 <p>既然 Weak 了，那就自由到底：全都允许重排。如果用户不想重排，那再加合适的 fence 或 barrier 指令，阻止不想要的重排。在这个内存模型下，每个核心可以在向内存子系统读写前，对自己的读写进行重排（图源 <a href="https://link.springer.com/book/10.1007/978-3-031-01764-3">A Primer on Memory Consistency and Cache Coherence, Second Edition</a>）：</p>
-<p><img alt="" src="../../../../memory_model_and_memory_ordering_weak.png" /></p>
+<p><img alt="" src="../../../../memory-model-and-memory-ordering-weak.png" /></p>
 <p>这意味着什么呢？前面出现过 Message Passing 的例子，结论是 MP 测试的情况在 SC 和 X86-TSO 场景下都被禁止。但如果我们在一个具有 Weak Memory Model 的机器上运行：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># P0:</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># 1. Wx1</span>
@@ -1967,7 +1967,7 @@
 </span></code></pre></div>
 <p>既然在实际的 ARM 机器上测出来这种情况，说明 PodWW 或者 PodRR 至少有一个出现了重排，打破了环。</p>
 <p>更进一步，SC 和 X86-TSO 都要求有 Total Store Order（Multi-copy Atomic）：所有核心会看到统一的 Store 顺序。有要求，就可以舍弃，部分 Weak Memory Model 也不要求这一点，这个时候，内存模型就好像每个核心都有自己的一份内存，这些内存之间会互相传播 Store 以保证缓存一致性，但是有的核心可能先看到，有的核心可能后看到（图源 <a href="https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf">A Tutorial Introduction to the ARM and POWER Relaxed Memory Model</a>）：</p>
-<p><img alt="" src="../../../../memory_model_and_memory_ordering_weak_2.png" /></p>
+<p><img alt="" src="../../../../memory-model-and-memory-ordering-weak-2.png" /></p>
 <p>这一点可以在 IRIW（全称 Independent Read of Independent Write；准确地说，为了排除 PodRR 重排的情况，要用 IRIW+addrs 或者加 barrier）Litmus 测试中看到。简单来说，IRIW 测试中，有两个核心负责写入，另外两个核心负责读，如果这两个负责读的核心观察到了不同的写入顺序，说明没有 Total Store Order（Multi-copy Atomic）：写入传播到不同核心的顺序可能打乱。</p>
 <h2 id="内存序">内存序<a class="headerlink" href="#内存序" title="Permanent link">&para;</a></h2>
 <h3 id="指令集">指令集<a class="headerlink" href="#指令集" title="Permanent link">&para;</a></h3>
@@ -2023,7 +2023,7 @@
 <h3 id="软件">软件<a class="headerlink" href="#软件" title="Permanent link">&para;</a></h3>
 <p>从上面的分析可见，不同的处理器和指令集使用了不同的内存模型，提供了不同的指令来控制乱序重排，但是对于软件开发者来说，会希望尽量用一套通用的 API 来控制乱序重排，可以兼容各种指令集，不用去记忆每个处理器用的是什么内存模型，不用去知道哪些指令可以用来解决哪些重排。</p>
 <p>这个 API 在很多编程语言中都有，C 的 stdatomic.h，C++ 的 std::memory_order，Rust 的 std::sync::atomic::Ordering 等等。它们对各种处理器的内存序进行了进一步的抽象，并且在编译的时候，由编译器或标准库把这些抽象的内存序翻译成实际的指令。以 C++ 的抽象为例，有如下几种内存序（图源 <a href="https://en.cppreference.com/w/cpp/atomic/memory_order">cppreference</a>）：</p>
-<p><img alt="" src="../../../../memory_model_and_memory_ordering_order.png" /></p>
+<p><img alt="" src="../../../../memory-model-and-memory-ordering-order.png" /></p>
 <p>其中比较重要的 acquire 和 release，其实就是上面提到的 Load Acquire 和 Store Release。最后的 seq_cst，就对应了 Sequential Consistency（SC）模型，要模拟 SC 模型的行为。</p>
 <p>由于 C++ 可以被编译到不同的指令集架构，所以这些 memory order 在编译的时候，会变成对应的指令，也可能由于内存模型保证了不出现对应的乱序，不需要生成额外的指令。以 X86 为例子：</p>
 <ul>
@@ -2063,7 +2063,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2024年9月18日 04:15:50">2024年9月18日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年5月21日 04:33:34">2025年5月21日</span>
   </span>
 
     
@@ -2125,7 +2125,7 @@
       <nav class="md-footer__inner md-grid" aria-label="页脚" >
         
           
-          <a href="../../01/qualcomm_oryon/" class="md-footer__link md-footer__link--prev" aria-label="上一页: Qualcomm Oryon 微架构评测">
+          <a href="../../01/qualcomm-oryon/" class="md-footer__link md-footer__link--prev" aria-label="上一页: Qualcomm Oryon 微架构评测">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>

@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://jia.je/hardware/2024/11/11/amd_zen5/">
+        <link rel="canonical" href="https://jia.je/hardware/2024/11/11/amd-zen5/">
       
       
         <link rel="prev" href="../../../../../meta/2024/11/10/migrate-from-disqus-to-giscus/">
@@ -2040,12 +2040,12 @@ microcode (greater than two macro-ops). Macro ops can normally contain up to two
 <h3 id="l1-itlb">L1 ITLB<a class="headerlink" href="#l1-itlb" title="Permanent link">&para;</a></h3>
 <p>官方信息：<strong>64-entry</strong>, fully associative</p>
 <p>为了测试 L1 ITLB 的容量，构造 jmp 序列，每个 jmp 在一个单独的页中，在关闭 Op Cache 的情况下观察 jmp 的性能：</p>
-<p><img alt="" src="../../../../amd_zen5_itlb.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-itlb.png" /></p>
 <p>可以看到明显的 64 pages 的拐点，对应了 64 entry 的 L1 ITLB。</p>
 <h3 id="l2-itlb">L2 ITLB<a class="headerlink" href="#l2-itlb" title="Permanent link">&para;</a></h3>
 <p>官方信息：<strong>2048-entry</strong>, 8-way set associative L2 ITLB</p>
 <p>继续沿用测试 L1 ITLB 的方式，把页的数量提高到 2000+，在关闭 Op Cache 的情况下得到以下测试结果：</p>
-<p><img alt="" src="../../../../amd_zen5_l2itlb.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-l2itlb.png" /></p>
 <p>可以看到明显的 2048 pages 的拐点，对应了 2048 entry 的 L2 ITLB。</p>
 <h3 id="btb">BTB<a class="headerlink" href="#btb" title="Permanent link">&para;</a></h3>
 <p>官方信息：16K-entry L1 BTB, 8K-entry L2 BTB</p>
@@ -2053,7 +2053,7 @@ microcode (greater than two macro-ops). Macro ops can normally contain up to two
 <h3 id="return-address-stack">Return Address Stack<a class="headerlink" href="#return-address-stack" title="Permanent link">&para;</a></h3>
 <p>官方信息：<strong>52-entry</strong> per thread</p>
 <p>构造不同深度的调用链，测试每次调用花费的时间，在关闭 Op Cache 的情况下得到如下测试结果：</p>
-<p><img alt="" src="../../../../amd_zen5_ras.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-ras.png" /></p>
 <p>可以看到 52 的拐点，对应的就是 Return Address Stack 的大小。</p>
 <h3 id="indirect-target-predictor">Indirect Target Predictor<a class="headerlink" href="#indirect-target-predictor" title="Permanent link">&para;</a></h3>
 <p>官方信息：3072-entry Indirect Target Array</p>
@@ -2077,20 +2077,20 @@ microcode (greater than two macro-ops). Macro ops can normally contain up to two
 <h3 id="rob">ROB<a class="headerlink" href="#rob" title="Permanent link">&para;</a></h3>
 <p>官方信息：<strong>224-entry per thread</strong>, 1-2 MOP per entry</p>
 <p>把两个独立的 long latency pointer chasing load 放在循环的头和尾，中间用 NOP 填充，当 NOP 填满了 ROB，第二个 pointer chasing load 无法提前执行，导致性能下降。测试结果如下：</p>
-<p><img alt="" src="../../../../amd_zen5_rob.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-rob.png" /></p>
 <p>当 NOP 指令达到 446 条时出现性能突变，此时应该是触发了 Zen 5 的每个 entry 保存两个 MOP 的条件，因此 446 条 NOP 指令对应 223 个 entry，加上循环开头的 load 指令，正好把循环尾部的 load 拦在了 ROB 外面，导致性能下降。</p>
 <p>说明单线程可以访问到的 ROB 容量是 224 entry。</p>
 <h3 id="register-file">Register File<a class="headerlink" href="#register-file" title="Permanent link">&para;</a></h3>
 <p>官方信息：240-entry(40 per thread for architectural) integer physical register file, 192-entry flag physical register file, 384-entry 512b vector register file</p>
 <p>为了测试物理寄存器堆大小，构造一个循环，循环开头和结尾各是一个长延迟的操作，由于 Zen 5 没有实现 temporal prefetcher，使用的是 pointer chasing load。然后在两个长延迟的操作中间穿插不同的指令类型，从而测出对应的物理寄存器堆可供预测执行的寄存器数量：</p>
-<p><img alt="" src="../../../../amd_zen5_rf.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-rf.png" /></p>
 <p>整数方面使用 lea 指令来消耗整数物理寄存器而不消耗 flags 寄存器，此时无论是 32 位还是 64 位寄存器，供预测执行的寄存器数都有 200 个，和官方的信息吻合：<code>200+40=240</code>，说明超线程在没有负载的时候，不会占用整数物理寄存器堆，这在 AMD 的文档中叫做 Watermarked：<code>Resource entries are assigned on demand</code>。356 个 flags 寄存器超过了官方宣传的 192 的大小，猜测做了一些优化，测到的并非 flags 寄存器堆大小。</p>
 <p>浮点方面，测得 430 个供预测执行的浮点寄存器，超过了官方宣传的 384 个 512 位浮点寄存器。考虑到 Zen5 引入了在 Rename 之前的 96-entry Non-Scheduling Queue(NSQ)，在 NSQ 中的指令还没有经过重命名，因此不消耗物理寄存器：<code>384+96=480</code>，再去掉至少 32 个架构寄存器 zmm0-zmm31，和观察到的 430 是比较接近的。</p>
 <p>针对浮点寄存器，Zen5 的不同平台的设计不完全一样，上面的测试是在 9950X 上进行的，其他平台的测试以及分析见 <a href="http://www.numberworld.org/blogs/2024_8_7_zen5_avx512_teardown/#vector_register_file">Zen5's AVX512 Teardown + More...</a>。</p>
 <h3 id="l1-dcache">L1 DCache<a class="headerlink" href="#l1-dcache" title="Permanent link">&para;</a></h3>
 <p>官方信息：<strong>48KB</strong>, 12-way set associative, index 是 VA[11:6]</p>
 <p>使用不同 footprint 的随机的 pointer chasing load，测试性能，得到如下结果：</p>
-<p><img alt="" src="../../../../amd_zen5_l1dc.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-l1dc.png" /></p>
 <p>可以观察到明显的 48KB 的拐点，命中 L1 DCache 时 load to use latency 是 4 cycle，命中 L2 时增大到了 14 cycle。</p>
 <h4 id="linear-address-utagway-predictor">Linear Address UTAG/Way-Predictor<a class="headerlink" href="#linear-address-utagway-predictor" title="Permanent link">&para;</a></h4>
 <p>复现论文 <a href="https://dl.acm.org/doi/10.1145/3320269.3384746">Take A Way: Exploring the Security Implications of AMD's Cache Way Predictors</a>，可以看到 Zen 5 的 UTAG 哈希函数和 Zen 2 一样也是如下 8 bit：</p>
@@ -2172,7 +2172,7 @@ microcode (greater than two macro-ops). Macro ops can normally contain up to two
 </tbody>
 </table>
 <p>可以看到，Zen 5 在 Store 完全包含 Load 的情况下都可以转发，没有额外的对齐要求。但当 Load 和 Store 只有部分重合时，就无法转发。两个连续的 32 位的 Store 和一个 64 位的 Load 重合也不能转发。</p>
-<p>可见 Zen 5 的 Store to Load Forwarding 实现比较粗暴，只允许 Load 从单个完全包含 Load 的 Store 中转发数据。和 <a href="../../07/arm_neoverse_v2/">Neoverse V2</a> 相比，Zen 5 对 Load 在 Store 内的偏移没有要求，但也不允许 Load 和 Store 只有一部分覆盖，也不支持一个 Load 从两个或更多的 Store 中获取数据。</p>
+<p>可见 Zen 5 的 Store to Load Forwarding 实现比较粗暴，只允许 Load 从单个完全包含 Load 的 Store 中转发数据。和 <a href="../../07/arm-neoverse-v2/">Neoverse V2</a> 相比，Zen 5 对 Load 在 Store 内的偏移没有要求，但也不允许 Load 和 Store 只有一部分覆盖，也不支持一个 Load 从两个或更多的 Store 中获取数据。</p>
 <p>成功转发时 8 cycle，有 Overlap 但转发失败时 14-15 cycle。</p>
 <p>小结：Zen 5 的 Store to Load Forwarding：</p>
 <ul>
@@ -2182,7 +2182,7 @@ microcode (greater than two macro-ops). Macro ops can normally contain up to two
 <h3 id="l1-dtlb">L1 DTLB<a class="headerlink" href="#l1-dtlb" title="Permanent link">&para;</a></h3>
 <p>官方信息：<strong>96-entry</strong>, fully associative</p>
 <p>使用不同 footprint 的随机的 pointer chasing load 且每次 load 都在单独的页内，测试性能，得到如下结果：</p>
-<p><img alt="" src="../../../../amd_zen5_l1dtlb.png" /></p>
+<p><img alt="" src="../../../../amd-zen5-l1dtlb.png" /></p>
 <p>可以观察到明显的 96 page 的拐点，命中 L1 DTLB 时 load to use latency 是 4 cycle，命中 L2 DTLB 时增大到了 11 cycle。</p>
 <p>这个拐点也可以从性能计数器中看出，Zen 5 针对 L1 DTLB 有性能计数器 <code>PMCx045 [L1 DTLB Misses] (Core::X86::Pmc::Core::LsL1DTlbMiss)</code>，根据这个事件记录 L1 DTLB Miss 次数，可以看到在 96 个页内时 Miss 次数为 0，之后开始增加，到 100 个页的时候 Miss 次数和访问次数相同，即 100% Miss Rate。</p>
 <h3 id="l2-dtlb">L2 DTLB<a class="headerlink" href="#l2-dtlb" title="Permanent link">&para;</a></h3>
@@ -2221,7 +2221,7 @@ microcode (greater than two macro-ops). Macro ops can normally contain up to two
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年3月1日 06:48:26">2025年3月1日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年5月21日 04:33:34">2025年5月21日</span>
   </span>
 
     
