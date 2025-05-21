@@ -1499,7 +1499,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 18 分钟阅读时间
+                              需要 19 分钟阅读时间
                             
                           </span>
                         </div>
@@ -3494,7 +3494,69 @@
 <li>最后只差 x 和 y 的取值没有求出来，可以通过进一步测试来更加精确地求出</li>
 </ol>
 <h4 id="icestorm_11">Icestorm<a class="headerlink" href="#icestorm_11" title="Permanent link">&para;</a></h4>
-<p>TODO</p>
+<p>在 Icestorm 上测试，结果如下：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>可调度 + 不可调度</th>
+<th>可调度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ld</td>
+<td>24</td>
+<td>10</td>
+</tr>
+<tr>
+<td>st</td>
+<td>24</td>
+<td>4</td>
+</tr>
+<tr>
+<td>alu</td>
+<td>36</td>
+<td>28</td>
+</tr>
+<tr>
+<td>crc</td>
+<td>16</td>
+<td>8</td>
+</tr>
+<tr>
+<td>idiv</td>
+<td>16</td>
+<td>8</td>
+</tr>
+<tr>
+<td>bfm</td>
+<td>16</td>
+<td>8</td>
+</tr>
+<tr>
+<td>csel</td>
+<td>32</td>
+<td>24</td>
+</tr>
+<tr>
+<td>mrs nzcv</td>
+<td>32</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+<p>访存部分，load 和 store 总数一样但 Scheduler 差了 6，不确定是测试误差还是什么问题，暂且考虑为一个统一的 Scheduler 和同一个 Non Scheduling Queue。</p>
+<p>整数部分，由于有 3 个整数执行单元，情况会比较复杂：</p>
+<ol>
+<li>可调度部分 alu 一共是 28（多出来的 4 个不确定是什么原因），其中 csel/mrs nzcv 是 24，crc/idiv/bfm 都是 8，结合 3 个整数执行单元，可以得到这 3 个执行单元对应的 Scheduler 大小关系：<ol>
+<li>alu + csel + mrs nzcv + branch: x entries</li>
+<li>alu + csel + mrs nzcv + branch: 16-x entries</li>
+<li>alu + csel + mrs nzcv + madd + mul + crc: 8 entries</li>
+</ol>
+</li>
+<li>alu 不可调度部分是 36-28=8，crc/idiv/bfm/csel/mrs nzcv 不可调度部分都是 8，应该是 3 个整数执行单元共享一个 8 entry 的 Non Scheduling Queue</li>
+</ol>
 <h3 id="reorder-buffer">Reorder Buffer<a class="headerlink" href="#reorder-buffer" title="Permanent link">&para;</a></h3>
 <h4 id="firestorm_12">Firestorm<a class="headerlink" href="#firestorm_12" title="Permanent link">&para;</a></h4>
 <p>Firestorm 的 ROB 采用的是比较特别的方案，它的 entry 地位不是等同的，而是若干个 entry 组合在一起，成为一个 group，每个 group 有若干个 entry，一个 group 对 group 内指令的类型和数量有要求，这就导致用传统方法测 Firestorm 的 ROB，可能会测到特别巨大的数：2200+，也可能测到比较小的数：320+，这就和指令类型有关系。为什么对指令的类型和位置有要求呢，这是为了方便处理有副作用的指令。很多指令是没有副作用的，也不会抛异常，这些指令可以比较随意地放置；但是对于有副作用的指令，retire 时是需要特殊处理的，因此一个合理的设计就是，让这些指令只能放在 group 的开头。</p>
@@ -3512,7 +3574,10 @@
 <p>而如果把填充的指令改成 load/store，inflight 的 load 和 store 最多都是 325 个，并且这和 load/store queue 大小无关，而 load/store 又是有副作用的，很可能是因为它们只能在 ROB 每个 group 里只能放一条，于是看起来 ROB 的容量比 2277 小了很多，只表现出 325。按照这个猜想，对二者进行除法，发现商和 7 十分接近，这大概率意味着 Firestorm 的 ROB 有 325 左右个 group，每个 group 内有 7 个 entry，每个 entry 可以放一条指令（uop）。测试里开头的 20 个 sqrt 也要占用 ROB，实际的 ROB group 数量可能比 325 略多。</p>
 <p>结论：Firestorm 的 ROB 有大约 330 个 group，每个 group 最多保存 7 个 uop。</p>
 <h4 id="icestorm_12">Icestorm<a class="headerlink" href="#icestorm_12" title="Permanent link">&para;</a></h4>
-<p>TODO</p>
+<p>首先用 NOP 指令测试 Icestorm 的 ROB 大小：</p>
+<p><img alt="" src="../../../../apple-m1-icestorm-rob.png" /></p>
+<p>可以看到拐点是 413 条指令。改成用 load/store 指令，可以测到拐点在 57 左右，根据上面的分析，认为 group 数量在 57 左右，每个 group 最多保存 7 个 uop。由于 <code>413 / 7 = 59</code>，认为有 59 个 group。</p>
+<p>结论：Icestorm 的 ROB 有 59 个 group，每个 group 最多保存 7 个 uop。</p>
 <h3 id="l2-cache">L2 Cache<a class="headerlink" href="#l2-cache" title="Permanent link">&para;</a></h3>
 <p>官方信息：通过 sysctl 可以看到，4 个 Firestorm 核心共享一个 12MB L2 Cache，4 个 Icestorm 核心共享一个 4MB L2 Cache：</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>hw.perflevel0.l2cachesize: 12582912
@@ -3570,7 +3635,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年5月21日 04:33:34">2025年5月21日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年5月21日 07:24:48">2025年5月21日</span>
   </span>
 
     
