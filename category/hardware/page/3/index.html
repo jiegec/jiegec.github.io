@@ -532,6 +532,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#tilelink-总线协议分析">
+<span class="md-ellipsis">
+      TileLink 总线协议分析
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#试用沁恒-ch32v307-评估板">
 <span class="md-ellipsis">
       试用沁恒 CH32V307 评估板
@@ -699,13 +706,6 @@
     </span>
 </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#fido-u2ffido2-和-ctap-的关系">
-<span class="md-ellipsis">
-      FIDO U2F、FIDO2 和 CTAP 的关系
-    </span>
-</a>
-</li>
 </ul>
 </nav>
 </li>
@@ -786,6 +786,215 @@
 <header class="md-typeset">
 <h1 id="hardware">hardware<a class="headerlink" href="#hardware" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-05-09 00:00:00+00:00">2022年5月9日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 8 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="tilelink-总线协议分析"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/">TileLink 总线协议分析</a></h2>
+<p>本文的内容已经整合到<a href="/kb/hardware/cache_coherence_protocol.html">知识库</a>中。</p>
+<h3 id="背景"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#背景">背景</a></h3>
+<p>最近在研究一些支持缓存一致性的缓存的实现，比如 rocket-chip 的实现和 sifive 的实现，因此需要研究一些 TileLink 协议。本文讨论的时候默认读者具有一定的 AXI 知识，因此很多内容会直接参考 AXI。</p>
+<h3 id="信号"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#信号">信号</a></h3>
+<p>根据 <a href="https://github.com/chipsalliance/omnixtend/blob/master/OmniXtend-1.0.3/spec/TileLink-1.8.0.pdf">TileLink Spec 1.8.0</a>，TileLink 分为以下三种：</p>
+<ul>
+<li>TL-UL: 只支持读写，不支持 burst，类比 AXI-Lite</li>
+<li>TL-UH：支持读写，原子指令，预取，支持 burst，类比 AXI+ATOP（AXI5 引入的原子操作）</li>
+<li>TL-C：在 TL-UH 基础上支持缓存一致性协议，类比 AXI+ACE/CHI</li>
+</ul>
+<h3 id="tilelink-uncached"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#tilelink-uncached">TileLink Uncached</a></h3>
+<p>TileLink Uncached(TL-UL 和 TL-UH) 包括了两个 channel：</p>
+<ul>
+<li>A channel: M-&gt;S 发送请求，类比 AXI 的 AR/AW/W</li>
+<li>D channel: S-&gt;M 发送响应，类比 AXI 的 R/B</li>
+</ul>
+<p>因此 TileLink 每个周期只能发送读或者写的请求，而 AXI 可以同时在 AR 和 AW channel 上发送请求。</p>
+<p>一些请求的例子：</p>
+<ul>
+<li>读：M-&gt;S 在 A channel 上发送 Get，S-&gt;M 在 D channel 上发送 AccessAckData</li>
+<li>写：M-&gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&gt;M 在 D channel 是发送 AccessAck</li>
+<li>原子操作：M-&gt;S 在 A channel 上发送 ArithmeticData/LogicalData，S-&gt;M 在 D channel 上发送 AccessAckData</li>
+<li>预取操作：M-&gt;S 在 A channel 上发送 Intent，S-&gt;M 在 D channel 上发送 AccessAck</li>
+</ul>
+<h3 id="axi4totl"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#axi4totl">AXI4ToTL</a></h3>
+<p>针对 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L59">AXI4ToTL</a> 模块的例子，来分析一下如何把一个 AXI4 Master 转换为 TileLink。</p>
+<p>首先考虑一下 AXI4 和 TileLink 的区别：一个是读写 channel 合并了，所以这里需要一个 Arbiter；其次 AXI4 中 AW 和 W 是分开的，这里也需要进行合并。这个模块并不考虑 Burst 的情况，而是由 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/Fragmenter.scala#L14=">AXI4Fragmenter</a> 来进行拆分，即添加若干个 AW beat，和 W 进行配对。</p>
+<p>具体到代码实现上，首先把 AR channel <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L86=">对应到</a> 到 A channel 上：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-22-1"><a href="#__codelineno-22-1" id="__codelineno-22-1" name="__codelineno-22-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">r_out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Wire</span><span class="p">(</span><span class="n">out</span><span class="p">.</span><span class="n">a</span><span class="p">)</span>
+</span><span id="__span-22-2"><a href="#__codelineno-22-2" id="__codelineno-22-2" name="__codelineno-22-2"></a><span class="n">r_out</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">valid</span>
+</span><span id="__span-22-3"><a href="#__codelineno-22-3" id="__codelineno-22-3" name="__codelineno-22-3"></a><span class="n">r_out</span><span class="p">.</span><span class="n">bits</span><span class="w"> </span><span class="o">:&lt;=</span><span class="w"> </span><span class="n">edgeOut</span><span class="p">.</span><span class="nc">Get</span><span class="p">(</span><span class="n">r_id</span><span class="p">,</span><span class="w"> </span><span class="n">r_addr</span><span class="p">,</span><span class="w"> </span><span class="n">r_size</span><span class="p">).</span><span class="n">_2</span>
+</span></code></pre></div>
+<p>然后 AW+W channel 也<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L119=">连接</a> 到 A channel，由于不用考虑 burst 的情况，这里在 aw 和 w 同时 valid 的时候才认为有请求。</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-23-1"><a href="#__codelineno-23-1" id="__codelineno-23-1" name="__codelineno-23-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">w_out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Wire</span><span class="p">(</span><span class="n">out</span><span class="p">.</span><span class="n">a</span><span class="p">)</span>
+</span><span id="__span-23-2"><a href="#__codelineno-23-2" id="__codelineno-23-2" name="__codelineno-23-2"></a><span class="n">in</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">w_out</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">last</span>
+</span><span id="__span-23-3"><a href="#__codelineno-23-3" id="__codelineno-23-3" name="__codelineno-23-3"></a><span class="n">in</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">ready</span><span class="w">  </span><span class="o">:=</span><span class="w"> </span><span class="n">w_out</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">valid</span>
+</span><span id="__span-23-4"><a href="#__codelineno-23-4" id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="n">w_out</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">valid</span>
+</span><span id="__span-23-5"><a href="#__codelineno-23-5" id="__codelineno-23-5" name="__codelineno-23-5"></a><span class="n">w_out</span><span class="p">.</span><span class="n">bits</span><span class="w"> </span><span class="o">:&lt;=</span><span class="w"> </span><span class="n">edgeOut</span><span class="p">.</span><span class="nc">Put</span><span class="p">(</span><span class="n">w_id</span><span class="p">,</span><span class="w"> </span><span class="n">w_addr</span><span class="p">,</span><span class="w"> </span><span class="n">w_size</span><span class="p">,</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">w</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">strb</span><span class="p">).</span><span class="n">_2</span>
+</span></code></pre></div>
+<p>比较有意思的是读写的 id 增加了若干位，最低位 0 表示读，1 表示写，剩下几位是请求编号，这样发出去的是不同 id 的多个请求。</p>
+<p>然后，把读和写的 A channel <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/amba/axi4/ToTL.scala#L155=">连接</a>到 Arbiter 上：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="nc">TLArbiter</span><span class="p">(</span><span class="nc">TLArbiter</span><span class="p">.</span><span class="n">roundRobin</span><span class="p">)(</span><span class="n">out</span><span class="p">.</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="n">r_out</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">len</span><span class="p">,</span><span class="w"> </span><span class="n">w_out</span><span class="p">))</span>
+</span></code></pre></div>
+<p>其余的部分则是对 D channel 进行判断，有数据的转给 R channel，没有数据的转给 B channel：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-25-1"><a href="#__codelineno-25-1" id="__codelineno-25-1" name="__codelineno-25-1"></a><span class="n">out</span><span class="p">.</span><span class="n">d</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">d_hasData</span><span class="p">,</span><span class="w"> </span><span class="n">ok_r</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span><span class="w"> </span><span class="n">ok_b</span><span class="p">.</span><span class="n">ready</span><span class="p">)</span>
+</span><span id="__span-25-2"><a href="#__codelineno-25-2" id="__codelineno-25-2" name="__codelineno-25-2"></a><span class="n">ok_r</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">d</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">d_hasData</span>
+</span><span id="__span-25-3"><a href="#__codelineno-25-3" id="__codelineno-25-3" name="__codelineno-25-3"></a><span class="n">ok_b</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">d</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">d_hasData</span>
+</span></code></pre></div>
+<p>最后处理了一下 TileLink 和 AXI4 对写请求返回确认的区别：TileLink 中，可以在第一个 burst beat 就返回确认，而 AXI4 需要在最后一个 burst beat 之后返回确认。</p>
+<h3 id="tltoaxi4"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#tltoaxi4">TLToAXI4</a></h3>
+<p>再来看一下反过来的转换，从 TileLink Master 到 AXI。由于 TileLink 同时只能进行读或者写，所以它首先做了一个虚构的 arw channel，可以理解为合并了 ar 和 aw channel 的 AXI4，这个设计在 SpinalHDL 的代码中也能看到。然后再根据是否是写入，分别<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/ToAXI4.scala#L153=">连接</a>到 ar 和 aw channel：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-26-1"><a href="#__codelineno-26-1" id="__codelineno-26-1" name="__codelineno-26-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">queue_arw</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Queue</span><span class="p">.</span><span class="n">irrevocable</span><span class="p">(</span><span class="n">out_arw</span><span class="p">,</span><span class="w"> </span><span class="n">entries</span><span class="o">=</span><span class="n">depth</span><span class="p">,</span><span class="w"> </span><span class="n">flow</span><span class="o">=</span><span class="n">combinational</span><span class="p">)</span>
+</span><span id="__span-26-2"><a href="#__codelineno-26-2" id="__codelineno-26-2" name="__codelineno-26-2"></a><span class="n">out</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">bits</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">queue_arw</span><span class="p">.</span><span class="n">bits</span>
+</span><span id="__span-26-3"><a href="#__codelineno-26-3" id="__codelineno-26-3" name="__codelineno-26-3"></a><span class="n">out</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">bits</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">queue_arw</span><span class="p">.</span><span class="n">bits</span>
+</span><span id="__span-26-4"><a href="#__codelineno-26-4" id="__codelineno-26-4" name="__codelineno-26-4"></a><span class="n">out</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">queue_arw</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">queue_arw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">wen</span>
+</span><span id="__span-26-5"><a href="#__codelineno-26-5" id="__codelineno-26-5" name="__codelineno-26-5"></a><span class="n">out</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">queue_arw</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w">  </span><span class="n">queue_arw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">wen</span>
+</span><span id="__span-26-6"><a href="#__codelineno-26-6" id="__codelineno-26-6" name="__codelineno-26-6"></a><span class="n">queue_arw</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">queue_arw</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">wen</span><span class="p">,</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">aw</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">ar</span><span class="p">.</span><span class="n">ready</span><span class="p">)</span>
+</span></code></pre></div>
+<p><a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/ToAXI4.scala#L197=">这里</a>处理了 aw 和 w 的 valid 信号：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-27-1"><a href="#__codelineno-27-1" id="__codelineno-27-1" name="__codelineno-27-1"></a><span class="n">in</span><span class="p">.</span><span class="n">a</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">!</span><span class="n">stall</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">a_isPut</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">doneAW</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">out_arw</span><span class="p">.</span><span class="n">ready</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">out_w</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span><span class="w"> </span><span class="n">out_arw</span><span class="p">.</span><span class="n">ready</span><span class="p">)</span>
+</span><span id="__span-27-2"><a href="#__codelineno-27-2" id="__codelineno-27-2" name="__codelineno-27-2"></a><span class="n">out_arw</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">!</span><span class="n">stall</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">a</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">a_isPut</span><span class="p">,</span><span class="w"> </span><span class="o">!</span><span class="n">doneAW</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">out_w</span><span class="p">.</span><span class="n">ready</span><span class="p">,</span><span class="w"> </span><span class="nc">Bool</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span>
+</span><span id="__span-27-3"><a href="#__codelineno-27-3" id="__codelineno-27-3" name="__codelineno-27-3"></a><span class="n">out_w</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">!</span><span class="n">stall</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">a</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">a_isPut</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">doneAW</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">out_arw</span><span class="p">.</span><span class="n">ready</span><span class="p">)</span>
+</span></code></pre></div>
+<p>这样做的原因是，在 TileLink 中，每个 burst 都是一个 a channel 上的请求，而 AXI4 中，只有第一个 burst 有 aw 请求，所有 burst 都有 w 请求，因此这里用 doneAW 信号来进行区分。</p>
+<p>接着，要把 b 和 r channel 上的结果连接到 d channel，根据上面的经验，<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/ToAXI4.scala#L205=">这里</a> 又是一个 arbitration：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-28-1"><a href="#__codelineno-28-1" id="__codelineno-28-1" name="__codelineno-28-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">r_wins</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">out</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">b_delay</span><span class="w"> </span><span class="o">=/=</span><span class="w"> </span><span class="nc">UInt</span><span class="p">(</span><span class="mi">7</span><span class="p">))</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r_holds_d</span>
+</span><span id="__span-28-2"><a href="#__codelineno-28-2" id="__codelineno-28-2" name="__codelineno-28-2"></a><span class="n">out</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">d</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">r_wins</span>
+</span><span id="__span-28-3"><a href="#__codelineno-28-3" id="__codelineno-28-3" name="__codelineno-28-3"></a><span class="n">out</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">d</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">r_wins</span>
+</span><span id="__span-28-4"><a href="#__codelineno-28-4" id="__codelineno-28-4" name="__codelineno-28-4"></a><span class="n">in</span><span class="p">.</span><span class="n">d</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">r_wins</span><span class="p">,</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">r</span><span class="p">.</span><span class="n">valid</span><span class="p">,</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">valid</span><span class="p">)</span>
+</span></code></pre></div>
+<p>最后还处理了一下请求和结果顺序的问题。</p>
+<h3 id="tilelink-cached"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#tilelink-cached">TileLink Cached</a></h3>
+<p>上面说的两个模块都是 TileLink Uncached，那么它如何支持缓存一致性呢？首先，它引入了三个 channel：B、C 和 E，支持三种操作：</p>
+<ul>
+<li>Acquire：M-&gt;S 在 A channel 上发送 Acquire，S-&gt;M 在 D channel 上发送 Grant，然后 M-&gt;S 在 E channel 上发送 GrantAck；功能是获取一个 copy，可以看到这个和 Get 是类似的，都是在 A channel 上发送请求，在 D channel 上接受响应，只不过额外需要在 E channel 上发送 GrantAck。</li>
+<li>Release：M-&gt;S 在 C channel 上发送 Release/ReleaseData，S-&gt;M 在 D channel 上发送 ReleaseAck；功能是删除自己的 copy，一般是缓存行要被换出的时候，如果要写回 Dirty 数据，就用 ReleaseData，否则用 Release</li>
+<li>Probe：S-&gt;M 在 B channel 上发送 Probe，M-&gt;S 在 C channel 上发送 ProbeAck；功能是要求 M 删除自己的 copy，通常是有某一个缓存发送了 Acquire，导致其他缓存需要降低权限</li>
+</ul>
+<p>可以看到，A C E 三个 channel 是 M-&gt;S，B D 两个 channel 是 S-&gt;M。</p>
+<p>假如一个缓存（Master A）要写入一块只读数据，或者读取一块 miss 的缓存行，如果是广播式的缓存一致性协议，那么需要经历如下的过程：</p>
+<ul>
+<li>Master A -&gt; Slave: Acquire</li>
+<li>Slave -&gt; Master B: Probe</li>
+<li>Master B -&gt; Slave: ProbeAck</li>
+<li>Slave -&gt; Master A: Grant</li>
+<li>Master A -&gt; Slave: GrantAck</li>
+</ul>
+<p>首先 Master A 发出 Acquire 请求，然后 Slave 向其他 Master 广播 Probe，等到其他 Master 返回 ProbeAck 后，再向 Master A 返回 Grant，最后 Master A 发送 GrantAck 给 Slave。这样 Master A 就获得了这个缓存行的一份拷贝，并且让 Master B 的缓存行失效或者状态变成只读。</p>
+<p>TileLink 的缓存行有三个状态：None，Branch 和 Trunk(Tip)。基本对应 MSI 模型：None-&gt;Invalid，Branch-&gt;Shared 和 Trunk-&gt;Modified。Rocket Chip 代码中 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Metadata.scala#L10=">ClientStates</a> 还定义了 Dirty 状态，大致对应 MESI 模型：None-&gt;Invalid，Branch-&gt;Shared，Trunk-&gt;Exclusive，Dirty-&gt;Modified。</p>
+<p>此外，标准还说可以在 B 和 C channel 上进行 TL-UH 的操作。标准这么设计的意图是可以让 Slave 转发操作到拥有缓存数据的 Master 上。比如 Master A 在 A channel 上发送 Put 请求，那么 Slave 向 Master B 的 B channel 上发送 Put 请求，Master B 在 C channel 上发送 AccessAck 响应，Slave 再把响应转回 Master A 的 D channel。这就像是一个片上的网络，Slave 负责在 Master 之间路由请求。</p>
+<h3 id="broadcast"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#broadcast">Broadcast</a></h3>
+<p>接下来看看 Rocket Chip 自带的基于广播的缓存一致性协议实现。核心实现是 <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala">TLBroadcast</a>，核心的逻辑就是，如果一个 Master A 发送了 Acquire，那么 TLBroadcast 需要发送 Probe 到其他的 Master，当其他的 Master 都响应了 ProbeAck 后，再返回 Grant 到 Master A。</p>
+<p>首先来看 B channel 上的 Probe <a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala#L214=">逻辑</a>。它记录了一个 todo bitmask，表示哪些 Master 需要发送 Probe，这里采用了 Probe Filter 来减少发送 Probe 的次数，因为只需要向拥有这个缓存行的 Master 发送 Probe：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-29-1"><a href="#__codelineno-29-1" id="__codelineno-29-1" name="__codelineno-29-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">probe_todo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">RegInit</span><span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="nc">U</span><span class="p">(</span><span class="n">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">caches</span><span class="p">.</span><span class="n">size</span><span class="p">).</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-29-2"><a href="#__codelineno-29-2" id="__codelineno-29-2" name="__codelineno-29-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">probe_line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Reg</span><span class="p">(</span><span class="nc">UInt</span><span class="p">())</span>
+</span><span id="__span-29-3"><a href="#__codelineno-29-3" id="__codelineno-29-3" name="__codelineno-29-3"></a><span class="kd">val</span><span class="w"> </span><span class="n">probe_perms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Reg</span><span class="p">(</span><span class="nc">UInt</span><span class="p">(</span><span class="mi">2</span><span class="p">.</span><span class="nc">W</span><span class="p">))</span>
+</span><span id="__span-29-4"><a href="#__codelineno-29-4" id="__codelineno-29-4" name="__codelineno-29-4"></a><span class="kd">val</span><span class="w"> </span><span class="n">probe_next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">probe_todo</span><span class="w"> </span><span class="n">&amp;</span><span class="w"> </span><span class="o">~</span><span class="p">(</span><span class="n">leftOR</span><span class="p">(</span><span class="n">probe_todo</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-29-5"><a href="#__codelineno-29-5" id="__codelineno-29-5" name="__codelineno-29-5"></a><span class="kd">val</span><span class="w"> </span><span class="n">probe_busy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">probe_todo</span><span class="p">.</span><span class="n">orR</span><span class="p">()</span>
+</span><span id="__span-29-6"><a href="#__codelineno-29-6" id="__codelineno-29-6" name="__codelineno-29-6"></a><span class="kd">val</span><span class="w"> </span><span class="n">probe_target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">caches</span><span class="p">.</span><span class="n">size</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="nc">U</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nc">Mux1H</span><span class="p">(</span><span class="n">probe_next</span><span class="p">,</span><span class="w"> </span><span class="n">cache_targets</span><span class="p">)</span>
+</span><span id="__span-29-7"><a href="#__codelineno-29-7" id="__codelineno-29-7" name="__codelineno-29-7"></a>
+</span><span id="__span-29-8"><a href="#__codelineno-29-8" id="__codelineno-29-8" name="__codelineno-29-8"></a><span class="c1">// Probe whatever the FSM wants to do next</span>
+</span><span id="__span-29-9"><a href="#__codelineno-29-9" id="__codelineno-29-9" name="__codelineno-29-9"></a><span class="n">in</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">valid</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">probe_busy</span>
+</span><span id="__span-29-10"><a href="#__codelineno-29-10" id="__codelineno-29-10" name="__codelineno-29-10"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">caches</span><span class="p">.</span><span class="n">size</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-29-11"><a href="#__codelineno-29-11" id="__codelineno-29-11" name="__codelineno-29-11"></a><span class="w">    </span><span class="n">in</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">bits</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">edgeIn</span><span class="p">.</span><span class="nc">Probe</span><span class="p">(</span><span class="n">probe_line</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">lineShift</span><span class="p">,</span><span class="w"> </span><span class="n">probe_target</span><span class="p">,</span><span class="w"> </span><span class="n">lineShift</span><span class="p">.</span><span class="nc">U</span><span class="p">,</span><span class="w"> </span><span class="n">probe_perms</span><span class="p">).</span><span class="n">_2</span>
+</span><span id="__span-29-12"><a href="#__codelineno-29-12" id="__codelineno-29-12" name="__codelineno-29-12"></a><span class="p">}</span>
+</span><span id="__span-29-13"><a href="#__codelineno-29-13" id="__codelineno-29-13" name="__codelineno-29-13"></a><span class="n">when</span><span class="w"> </span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="n">b</span><span class="p">.</span><span class="n">fire</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">probe_todo</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">probe_todo</span><span class="w"> </span><span class="n">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">probe_next</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>这里 <code>probe_next</code> 就是被 probe 的那个 Master 对应的 bitmask，<code>probe_target</code> 就是 Master 的 Id。这个 Probe FSM 的输入就是 Probe Filter，它会<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala#L256=">给出</a>哪些 Cache 拥有当前的缓存行的信息：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-30-1"><a href="#__codelineno-30-1" id="__codelineno-30-1" name="__codelineno-30-1"></a><span class="kd">val</span><span class="w"> </span><span class="n">leaveB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!</span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">needT</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">gaveT</span>
+</span><span id="__span-30-2"><a href="#__codelineno-30-2" id="__codelineno-30-2" name="__codelineno-30-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">others</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">cacheOH</span><span class="w"> </span><span class="n">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">allocOH</span>
+</span><span id="__span-30-3"><a href="#__codelineno-30-3" id="__codelineno-30-3" name="__codelineno-30-3"></a><span class="kd">val</span><span class="w"> </span><span class="n">todo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">leaveB</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="nc">U</span><span class="p">,</span><span class="w"> </span><span class="n">others</span><span class="p">)</span>
+</span><span id="__span-30-4"><a href="#__codelineno-30-4" id="__codelineno-30-4" name="__codelineno-30-4"></a><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">ready</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">!</span><span class="n">probe_busy</span>
+</span><span id="__span-30-5"><a href="#__codelineno-30-5" id="__codelineno-30-5" name="__codelineno-30-5"></a><span class="n">when</span><span class="w"> </span><span class="p">(</span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">fire</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-30-6"><a href="#__codelineno-30-6" id="__codelineno-30-6" name="__codelineno-30-6"></a><span class="w">    </span><span class="n">probe_todo</span><span class="w">  </span><span class="o">:=</span><span class="w"> </span><span class="n">todo</span>
+</span><span id="__span-30-7"><a href="#__codelineno-30-7" id="__codelineno-30-7" name="__codelineno-30-7"></a><span class="w">    </span><span class="n">probe_line</span><span class="w">  </span><span class="o">:=</span><span class="w"> </span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">address</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">lineShift</span>
+</span><span id="__span-30-8"><a href="#__codelineno-30-8" id="__codelineno-30-8" name="__codelineno-30-8"></a><span class="w">    </span><span class="n">probe_perms</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nc">Mux</span><span class="p">(</span><span class="n">filter</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">response</span><span class="p">.</span><span class="n">bits</span><span class="p">.</span><span class="n">needT</span><span class="p">,</span><span class="w"> </span><span class="nc">TLPermissions</span><span class="p">.</span><span class="n">toN</span><span class="p">,</span><span class="w"> </span><span class="nc">TLPermissions</span><span class="p">.</span><span class="n">toB</span><span class="p">)</span>
+</span><span id="__span-30-9"><a href="#__codelineno-30-9" id="__codelineno-30-9" name="__codelineno-30-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这里又区分两种情况：如果 Acquire 需要进入 Trunk 状态（比如是个写入操作），意味着其他 Master 需要进入 None 状态，所以这里要发送 toN；如果 Acquire 不需要进入 Trunk 状态（比如是个读取操作），那么只需要其他 Master 进入 Branch 状态，所以这里要发送 toB。</p>
+<p>在 B channel 发送 Probe 的同时，也要<a href="https://github.com/chipsalliance/rocket-chip/blob/850e1d5d56989f031fe3e7939a15afa1ec165d64/src/main/scala/tilelink/Broadcast.scala#L152=">处理</a> C channel 上的 ProbeAck 和 ProbeAckData：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-31-1"><a href="#__codelineno-31-1" id="__codelineno-31-1" name="__codelineno-31-1"></a><span class="c1">// Incoming C can be:</span>
+</span><span id="__span-31-2"><a href="#__codelineno-31-2" id="__codelineno-31-2" name="__codelineno-31-2"></a><span class="c1">// ProbeAck     =&gt; decrement tracker, drop </span>
+</span><span id="__span-31-3"><a href="#__codelineno-31-3" id="__codelineno-31-3" name="__codelineno-31-3"></a><span class="c1">// ProbeAckData =&gt; decrement tracker, send out A as PutFull(DROP)</span>
+</span><span id="__span-31-4"><a href="#__codelineno-31-4" id="__codelineno-31-4" name="__codelineno-31-4"></a><span class="c1">// ReleaseData  =&gt;                    send out A as PutFull(TRANSFORM)</span>
+</span><span id="__span-31-5"><a href="#__codelineno-31-5" id="__codelineno-31-5" name="__codelineno-31-5"></a><span class="c1">// Release      =&gt; send out D as ReleaseAck</span>
+</span></code></pre></div>
+<p>由于这里采用的是 invalidation based，所以如果某个 Master 之前处于 Dirty 状态，那么它会发送 ProbeAckData，此时需要把数据写回，所以需要用 PutFull 把数据写出去。</p>
+<h3 id="serialization"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#serialization">Serialization</a></h3>
+<p>下面来讨论一下 TileLink 对各组信号的一些要求。</p>
+<h4 id="flow-control-rules"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#flow-control-rules">Flow Control Rules</a></h4>
+<p>首先是 Flow Control Rules，讨论的是 ready 和 valid 信号的关系，目的是防止死锁。首先是两个比较常规的要求：</p>
+<ul>
+<li>If ready is LOW, the receiver must not process the beat and the sender must not consider the beat processed.</li>
+<li>If valid is LOW, the receiver must not expect the control or data signals to be a syntactically correct TileLink beat.</li>
+</ul>
+<p>第一个说的就是 valid &amp; ready 的时候才认为是一个 beat 处理了，第二个就是如果 valid=LOW，那么信号可能是随机的、不合法的。</p>
+<ul>
+<li>valid must never depend on ready. If a sender wishes to send a beat, it must assert valid independently of whether the receiver signals that it is ready.</li>
+<li>As a consequence, there must be no combinational path from ready to valid or any of the control and data signals.</li>
+</ul>
+<p>这里是为了防止组合逻辑出现环路，如果 valid 依赖 ready，ready 依赖 valid，就会出现问题，所以这里规定，valid 不能依赖 ready，反过来只能 ready 依赖 valid。类似地，其他的数据和控制信号也不可以依赖 ready。简单理解就是 sender 要主动提供数据，而 receiver 决定了是否接受。</p>
+<ul>
+<li>A low priority valid may not combinationally depend on a high priority valid. In other words, the decision to send a request may not be based on receiving a response in the same cycle.</li>
+<li>A high priority ready may not combinationally depend on a low priority ready. In other words, acceptance of a response may not be made contingent upon a request being accepted the same cycle.</li>
+</ul>
+<p>这两条的意思是，同一个周期内，我设置发送的请求的 valid，不能依赖于同一个周期内接受到的响应的 valid，比如 A 的 valid 不能组合依赖于 D 的 valid。另一方面，我设置的响应的 ready 不能依赖于同一个周期内的请求，比如 D 的 ready 不能组和依赖于 A 的 ready。</p>
+<p>那么，有这么几种用法是可以的：</p>
+<ul>
+<li>It is acceptable for a receiver to drive ready in response to valid or any of the control and data signals. For example, an arbiter may lower ready if a valid request is made for an address which is busy. However, whenever possible, it is recommended that ready be driven independently so as to reduce the handshaking circuit depth. 接收方可以让 ready 依赖于 valid 或者其他的控制和数据信号，不过这样会让组合逻辑比较长。</li>
+<li>A channel may change valid and all control and data signals based on the value of ready in the prior cycle. For example, after a request has been accepted (ready HIGH), a new request may be presented. Only a same-cycle dependency of valid on ready is forbidden. 可以让当前周期的 valid 依赖于上一个周期的 ready 信号，只是不能有同周期的 valid 对 ready 的依赖。</li>
+<li>A device may legally drive valid for a response based on valid of a request in the same cycle. For example, a combinational ROM which answers immediately. In this case, presumably ready for the request will likewise be driven by ready for the response. The converse relationship is forbidden. 设备可以让响应的 valid 依赖请求的 valid，比如一个组合的 ROM，它的 D channel 的 valid 可以组合依赖于 A channel 的 valid，同时 A channel 的 ready 组合依赖于 D channel 的 ready。这样就简化了设备的设计，并且可以无延迟地进行访问。</li>
+</ul>
+<p>和 AXI 不同的一点在于，TileLink 不要求 irrevocable，也就是说如果一个周期内 valid=HIGH 但是 ready=LOW，那么下一个周期 Master 可以修改控制和数据信号，也可以让 valid=LOW。</p>
+<div class="language-text highlight"><pre><span></span><code>Note that a sender may raise valid and then lower it on the following
+cycle, even if the message was not accepted on the previous cycle. For example,
+the sender might have some other higher priority task to perform on the
+following cycle, instead of trying to send the rejected message again.
+Furthermore, the sender may change the contents of the control and data signals
+when a message was not accepted.
+</code></pre></div>
+<p>TileLink 的 burst 请求是通过比 bus 更宽的 size 的多个 beat 组成的。一旦第一个 beat fire 了，后续只能发送同一个 burst 的数据，不可以交错。</p>
+<h4 id="request-response-message-ordering"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#request-response-message-ordering">Request-Response Message Ordering</a></h4>
+<p>这里讨论的是请求和响应的顺序关系。TileLink 规定，响应的第一个 beat 不早于第一个请求的 beat，比如：</p>
+<ul>
+<li>对于 Get 请求，如果响应需要多个 beat，那么第一个 beat 不早于请求的那一个周期，这个比较常规，意思是可以组合返回响应。</li>
+<li>对于 Put 请求，如果请求需要多个 beat，那么响应可以在第一个请求的 beat 的周期，这个比较特别，意思是对于多个 beat 的请求，可以立即返回响应，不需要等到所有请求的 beat 完成。</li>
+<li>对于 ArithmeticData 请求，响应和请求都可能有多个 beat，那么响应的第一个 beat 不早于请求的第一个 beat 即可，其他没有顺序要求。</li>
+</ul>
+<h4 id="deadlock-freedom"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#deadlock-freedom">Deadlock Freedom</a></h4>
+<p>那么多规则，一个很重要的目的是要防止死锁。为了防止死锁，有这样三条：</p>
+<ol>
+<li>The agent graph (Section 5.3) contains no cycles</li>
+<li>Agents must eventually present all beats of a received message</li>
+<li>Unless they have a higher priority message in flight or unanswered<ol>
+<li>Agents must eventually accept a presented beat</li>
+<li>Agents must eventually answer a received request message</li>
+</ol>
+</li>
+</ol>
+<p>大概意思是，beat 不能无限推迟，无论是发送方还是接受方。对于每个请求，它的响应不能无限推迟。</p>
+<p>TileLink 定义了各个 channel 的优先级，从低到高是 <code>A&lt;B&lt;C&lt;D&lt;E</code>。对于同一个 channel，A C E 上是 master/sender 优先级更高，B D 上是 slave/receiver 优先级更高。</p>
+<p>TileLink 的设计里保证了，每个请求的响应都比请求优先级更高。比如 A channel 的请求（Get/Put/AcquireBlock）的响应在 D channel（AccessAckData/AccessAck/Grant），B channel 的请求（Probe）的响应在 C channel（ProbeAck），C channel 的请求（Release）的响应在 D channel（ReleaseAck），D channel 的请求（Grant）的响应在 E channel（GrantAck）。</p>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2022/05/09/tilelink/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://github.com/chipsalliance/omnixtend/blob/master/OmniXtend-1.0.3/spec/TileLink-1.8.0.pdf">TileLink spec</a></li>
+<li><a href="https://github.com/chipsalliance/rocket-chip">rocket-chip</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -4682,299 +4891,6 @@ in 1.4.
 </span></code></pre></div>
 <h3 id="总结"><a class="toclink" href="../../../../hardware/2020/11/19/arm-m1-macbookair/#总结">总结</a></h3>
 <p>总的来说，还是挺香的。不错的性能，没有风扇的喧闹，没有烫手的键盘。可能有少部分软件还不能正常运行，然后很多程序还需要 Rosetta 翻译，但目前来看兼容性还是挺不错的，并且这些应该明年就都适配地差不多了吧。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2020-05-18 00:00:00+00:00">2020年5月18日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 3 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="fido-u2ffido2-和-ctap-的关系"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/">FIDO U2F、FIDO2 和 CTAP 的关系</a></h2>
-<h3 id="背景"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#背景">背景</a></h3>
-<p>2012 年，Yubico 和 Google 设计了 U2F 协议，第二年 U2F 成为 FIDO 组织的标准，之后加入了 NFC 的支持。之后，FIDO2 作为替代 U2F 的新标准产生，原来的 U2F 以兼容的方式成为了 CTAP1，而采用 CBOR 封装格式的 CTAP(CTAP2) 则是 FIDO2 的主要协议。</p>
-<h3 id="u2f"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#u2f">U2F</a></h3>
-<h4 id="命令格式"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#命令格式">命令格式</a></h4>
-<p>U2F 定义了它的<a href="https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.pdf">命令格式</a>，基于 ISO7816-4 APDU（short APDU） ：</p>
-<table>
-<thead>
-<tr>
-<th>CLA</th>
-<th>INS</th>
-<th>P1</th>
-<th>P2</th>
-<th>Lc</th>
-<th>data</th>
-<th>Le</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>0-1 bytes</td>
-<td>variable length</td>
-<td>0-1 bytes</td>
-</tr>
-</tbody>
-</table>
-<p>比如 U2F_VERSION 就是：</p>
-<table>
-<thead>
-<tr>
-<th>CLA</th>
-<th>INS</th>
-<th>P1</th>
-<th>P2</th>
-<th>Lc</th>
-<th>data</th>
-<th>Le</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>00</td>
-<td>03</td>
-<td>00</td>
-<td>00</td>
-<td>0</td>
-<td>empty</td>
-<td>00</td>
-</tr>
-</tbody>
-</table>
-<p>返回的数据就是 <code>U2F_V2</code> 的 ASCII 加上 <code>9000</code> 的状态。</p>
-<p>除此之外，它还有一种 extended length 格式的 APDU，和上面的是等价的不同表示。</p>
-<h4 id="传输方式"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#传输方式">传输方式</a></h4>
-<p>实际使用 U2F 的时候，又有三种情况，分别是 USB、Bluetooth 和 NFC。</p>
-<h5 id="usb"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#usb">USB</a></h5>
-<p>在 <a href="https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-hid-protocol-v1.2-ps-20170411.pdf">U2FHID</a> 里面，为了让 U2F 的命令通过 HID 接口传输，它规定了两个 endpoint，分别是 Interrupt IN 和 Interrupt OUT，还有一个固定的 HID Report Descriptor。为了发 U2F 命令，首先会进行一次封装：</p>
-<table>
-<thead>
-<tr>
-<th>CMD</th>
-<th>BCNT</th>
-<th>DATA</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>U2FHID_MSG</td>
-<td>4..n</td>
-<td>n bytes</td>
-</tr>
-</tbody>
-</table>
-<p>添加了一个头，表示载荷是一个 U2F 的 command（自然也是 APDU）。</p>
-<p>在 cmd 之上，还会封装一层，为了解决 USB 的 packet size 限制等问题，定义了 init packet：</p>
-<table>
-<thead>
-<tr>
-<th>CID</th>
-<th>CMD</th>
-<th>BCNTH</th>
-<th>BCNTL</th>
-<th>DATA</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>4 bytes</td>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>variable length</td>
-</tr>
-</tbody>
-</table>
-<p>如果数据太长，就会拆分成一个 init 和 多个 continuation packet：</p>
-<table>
-<thead>
-<tr>
-<th>CID</th>
-<th>SEQ</th>
-<th>DATA</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>4 bytes</td>
-<td>1 byte</td>
-<td>variable length</td>
-</tr>
-</tbody>
-</table>
-<p>把 init 和 continuation 里面的 data 组合起来，就是 U2F 的 message，message 里面可能又有 U2F raw command，也就是 APDU。</p>
-<p>发送的时候，先 Interrupt OUT 发送请求，再 Interrupt IN 读取回应。</p>
-<h5 id="bluetooth"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#bluetooth">Bluetooth</a></h5>
-<p>在 <a href="https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-bt-protocol-v1.2-ps-20170411.pdf">U2F/Bluetooth</a> 里面，也用了一个类似的封装格式，请求：</p>
-<table>
-<thead>
-<tr>
-<th>CMD</th>
-<th>HLEN</th>
-<th>LLEN</th>
-<th>DATA</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>1 byte</td>
-<td>variable length</td>
-</tr>
-</tbody>
-</table>
-<p>这里的 DATA payload 就是 extended length 格式的 APDU</p>
-<h5 id="nfc"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#nfc">NFC</a></h5>
-<p>在 <a href="https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-nfc-protocol-v1.2-ps-20170411.pdf">U2F/NFC</a> 里面，既然 ISO 7816-4 本来就是 NFC-native 的格式，就不要额外的封装了。只需要规定一个 Applet 的 AID 即可：<code>A0000006472F0001</code></p>
-<h4 id="总结"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#总结">总结</a></h4>
-<p>总而言之，U2F raw commands 就是在 APDU 格式上定义了几个命令。在 USB 和 Bluetooth 上都加了几个小的 Header，而 NFC 上则是规定了一个 AID。这对应用程序来说很方便，核心的命令只有一套，需要的时候封装一下即可。</p>
-<h3 id="fido2"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#fido2">FIDO2</a></h3>
-<p>在之后，<a href="https://fidoalliance.org/specs/fido-v2.0-rd-20170927/fido-client-to-authenticator-protocol-v2.0-rd-20170927.html#message-encoding">FIDO2</a> 出现了，在保持 U2F 兼容的基础上添加了新的功能，并且出现了 WebAuthN 作为浏览器使用 FIDO2 的协议。U2F 就变成了第一代的 CTAP，称为 CTAP1，然后 CTAP 默认指的就是 CTAP2。</p>
-<h4 id="命令格式_1"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#命令格式_1">命令格式</a></h4>
-<p>FIDO2 里面，定义了一些 CTAP 命令，比如 authenticatorMakeCredential，对应 U2F 的 U2F_REGISTER 命令。然后，规定了一个 <a href="https://tools.ietf.org/html/rfc7049">CBOR</a> 的格式，来表示命令附带的数据。CBOR 是 RFC 7049，所以也是借用过来的格式。</p>
-<h4 id="传输方式_1"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#传输方式_1">传输方式</a></h4>
-<p>FIDO2 定义了在 USB 和 NFC 上的传输格式。</p>
-<h5 id="usb_1"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#usb_1">USB</a></h5>
-<p>在 USB 上传输的时候，定义了 CTAPHID 的协议，与 U2FHID 基本是一样的，规定了 init packet 和 continuation packet，packet 里面也是 CTAPHID 的消息，这部分是兼容 U2F 的。并且，额外添加了 CTAPHID_CBOR 消息：</p>
-<table>
-<thead>
-<tr>
-<th>CMD</th>
-<th>BCNT</th>
-<th>DATA</th>
-<th>DATA + 1</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>CTAPHID_CBOR</td>
-<td>1..(n+1)</td>
-<td>CTAP command</td>
-<td>n bytes of CBOR data</td>
-</tr>
-</tbody>
-</table>
-<p>它的载荷就是 CBOR 格式的请求。</p>
-<p>类似地，它也是通过 Interrupt OUT 发送请求，从 Interrupt IN 读取回应。</p>
-<h5 id="nfc_1"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#nfc_1">NFC</a></h5>
-<p>在 NFC 上传输的时候，因为内部的格式是 CBOR，不再是 APDU 了，所以需要一些封装。</p>
-<p>首先，它也定义了一个 Applet ID：<code>A0000006472F0001</code>，和 U2F 一样。为了保持兼容，它都支持 U2F 定义的 APDU 命令。</p>
-<p>那怎么区分设备是否支持 CTAP1/U2F 和 CTAP2 呢？使用前面提到的 U2F_VERSION 命令即可。如果得到 U2F_V2，说明是支持 CTAP1/U2F 的；如果得到是其他的，说明只支持 CTAP2，不支持 CTAP1/U2F。</p>
-<p>如果要发 CTAP2 的命令，就要把 CTAP command 和 CBOR 格式的数据封装到 APDU 里面：</p>
-<table>
-<thead>
-<tr>
-<th>CLA</th>
-<th>INS</th>
-<th>P1</th>
-<th>P2</th>
-<th>Data</th>
-<th>Le</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>80</td>
-<td>10</td>
-<td>00</td>
-<td>00</td>
-<td>CTAP Command || CBOR Data</td>
-<td>variable</td>
-</tr>
-</tbody>
-</table>
-<p>它规定，如果请求采用的是 extended length 的 APDU，那么响应也要是 extended length 的 APDU；如果请求是 short APDU，那么响应也要支持 short APDU 的 chaining。</p>
-<h4 id="兼容性"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#兼容性">兼容性</a></h4>
-<p>可以看到，CTAP2 设计的基本都考虑了兼容 U2F，允许用 U2F 的 API 操作 U2F 和 CTAP2 的设备；也允许用 CTAP2 的 API 操作 U2F（只支持部分命令）和  CTAP2 的设备。</p>
-<h3 id="总结_1"><a class="toclink" href="../../../../hardware/2020/05/18/fido-u2f-fido2-ctap/#总结_1">总结</a></h3>
-<p>可以看到，这里有一堆套娃的过程：</p>
-<p>U2F：</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>USB HID</th>
-<th>Bluetooth</th>
-<th>NFC</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>4</td>
-<td>APDU</td>
-<td>APDU</td>
-<td>APDU</td>
-</tr>
-<tr>
-<td>3</td>
-<td>U2F message</td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>2</td>
-<td>USB HID packet</td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>1</td>
-<td>USB</td>
-<td>Bluetooth</td>
-<td>ISO 14443-4/ISO 18092</td>
-</tr>
-</tbody>
-</table>
-<p>FIDO2:</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>USB HID</th>
-<th>NFC</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>4</td>
-<td>CTAP command + CBOR data</td>
-<td>CTAP command + CBOR data</td>
-</tr>
-<tr>
-<td>3</td>
-<td>CTAP message</td>
-<td>APDU</td>
-</tr>
-<tr>
-<td>2</td>
-<td>USB HID packet</td>
-<td></td>
-</tr>
-<tr>
-<td>1</td>
-<td>USB</td>
-<td>ISO 14443-4/ISO 18092</td>
-</tr>
-</tbody>
-</table>
 </div>
 </article>
 <nav class="md-pagination">

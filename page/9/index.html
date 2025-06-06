@@ -547,6 +547,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#用-kubernetes-部署无状态服务" class="md-nav__link">
+    <span class="md-ellipsis">
+      用 Kubernetes 部署无状态服务
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#用-jailkit-限制用户仅-scp" class="md-nav__link">
     <span class="md-ellipsis">
       用 jailkit 限制用户仅 scp
@@ -757,15 +766,6 @@
   <a href="#每周分享第-45-期" class="md-nav__link">
     <span class="md-ellipsis">
       每周分享第 45 期
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-44-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      每周分享第 44 期
     </span>
   </a>
   
@@ -1713,6 +1713,101 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-03-10 00:00:00+00:00">2020年3月10日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="用-kubernetes-部署无状态服务"><a class="toclink" href="../../devops/2020/03/10/k8s-deploy-with-hpa/">用 Kubernetes 部署无状态服务</a></h2>
+<h3 id="背景"><a class="toclink" href="../../devops/2020/03/10/k8s-deploy-with-hpa/#背景">背景</a></h3>
+<p>最近需要部署一个用来跑编译的服务，服务从 MQ 取任务，编译完以后提交任务。最初的做法是包装成 docker，然后用 docker-compose 来 scale up。但既然有 k8s 这么好的工具，就试着学习了一下，踩了很多坑，总结了一些需要用到的命令。</p>
+<h3 id="搭建-docker-registry"><a class="toclink" href="../../devops/2020/03/10/k8s-deploy-with-hpa/#搭建-docker-registry">搭建 Docker Registry</a></h3>
+<p>首先搭建一个本地的 Docker Repository，首先设置密码：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$<span class="w"> </span>mkdir<span class="w"> </span>auth
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>$<span class="w"> </span>htpasswd<span class="w"> </span>user<span class="w"> </span>pass<span class="w"> </span>&gt;<span class="w"> </span>auth/passwd
+</span></code></pre></div>
+<p>然后运行 registry：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-p<span class="w"> </span><span class="m">5000</span>:5000<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">        </span>--restart<span class="o">=</span>always<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span>--name<span class="w"> </span>registry<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span><span class="s2">/registry&quot;</span>:/var/lib/registry<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span><span class="s2">/auth&quot;</span>:/auth<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;REGISTRY_AUTH=htpasswd&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span>-e<span class="w"> </span><span class="nv">REGISTRY_AUTH_HTPASSWD_PATH</span><span class="o">=</span>/auth/htpasswd<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span>registry:2
+</span></code></pre></div>
+<p>简单起见没有配 tls。然后吧本地的 image push 上去：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$<span class="w"> </span>docker<span class="w"> </span>tag<span class="w"> </span><span class="nv">$image</span><span class="w"> </span>localhost:5000/<span class="nv">$image</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>$<span class="w"> </span>docker<span class="w"> </span>push<span class="w"> </span>localhost:5000/<span class="nv">$image</span>
+</span></code></pre></div>
+<p>这样就可以了。</p>
+<h3 id="搭建-k8s-环境"><a class="toclink" href="../../devops/2020/03/10/k8s-deploy-with-hpa/#搭建-k8s-环境">搭建 k8s 环境</a></h3>
+<p>考虑到只用了单个物理机，所以采用的是 minikube。首先下载 minikube，下载方法略去。</p>
+<p>接着新建 minikube 虚拟机：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$<span class="w"> </span>minikube<span class="w"> </span>start<span class="w"> </span>--registry-mirror<span class="o">=</span>https://registry.docker-cn.com<span class="w"> </span>--image-mirror-country<span class="o">=</span>cn<span class="w"> </span>--image-repository<span class="o">=</span>registry.cn-hangzhou.aliyuncs.com/google_containers<span class="w"> </span>--vm-driver<span class="o">=</span>kvm2<span class="w"> </span>--insecure-registry<span class="o">=</span><span class="s2">&quot;0.0.0.0/0&quot;</span><span class="w"> </span>--disk-size<span class="o">=</span>50GB<span class="w"> </span>--cpus<span class="w"> </span><span class="m">128</span><span class="w"> </span>--memory<span class="w"> </span><span class="m">131072</span>
+</span></code></pre></div>
+<p>这里的 0.0.0.0/0 可以缩小，磁盘、CPU 和内存需要在这里就设好，之后不能改，要改只能重新开个虚拟机，不过这个过程也挺快的。</p>
+<p>然后初始化一些组件（metrics server 和 kubernetes dashboard）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$<span class="w"> </span>minikube<span class="w"> </span>addons<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>metrics-server
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>$<span class="w"> </span>minikube<span class="w"> </span>dashboard
+</span></code></pre></div>
+<p>如果要访问 dashboard 的话，可以用上面命令输出的链接，或者用 <code>kubectl proxy</code> 然后打开  http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/ （注意 http 还是 https）。</p>
+<p>如果问到 Access Token，可以用以下 alias 获得（fish/macOS）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$<span class="w"> </span><span class="nb">alias</span><span class="w"> </span><span class="nv">kubedashboard</span><span class="o">=</span><span class="s2">&quot;kubectl -n kubernetes-dashboard describe secret (kubectl -n kubernetes-dashboard get secret | grep admin-user | awk &#39;{print \$1}&#39;) | tail -n1 | awk &#39;{print \$2}&#39; | pbcopy&quot;</span>
+</span></code></pre></div>
+<p>接着，配置一下 docker registry 的密钥：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>regcred<span class="w"> </span>--from-file<span class="o">=</span>.dockerconfigjson<span class="o">=</span>/path/to/config.json<span class="w">  </span>--type<span class="o">=</span>kubernetes.io/dockerconfigjson
+</span></code></pre></div>
+<p>然后，在 Pod/Deployment 里面设定镜像：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>containers:
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  - name: name
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    image: IP:5000/image
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>imagePullSecrets:
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>  - name: regcred
+</span></code></pre></div>
+<p>然后部署即可。</p>
+<h3 id="部署水平自动伸缩hpa"><a class="toclink" href="../../devops/2020/03/10/k8s-deploy-with-hpa/#部署水平自动伸缩hpa">部署水平自动伸缩（HPA）</a></h3>
+<p>这一步配置的是自带的 HPA 功能，需要上述的 metrics-server 打开，并且在 Pod/Deployment 里面写明 resources.requests.cpu:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>- name: name
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  resources:
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    requests:
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>      cpu: &quot;xxx&quot;
+</span></code></pre></div>
+<p>然后创建 HPA 即可：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$<span class="w"> </span>kubectl<span class="w"> </span>autoscale<span class="w"> </span>deployment<span class="w"> </span><span class="nv">$deployment</span><span class="w"> </span>--cpu-percent<span class="o">=</span><span class="m">50</span><span class="w"> </span>--min<span class="o">=</span><span class="m">1</span><span class="w"> </span>--max<span class="o">=</span><span class="m">10</span>
+</span></code></pre></div>
+<p>通过压测，可以看到自动伸缩的记录：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$<span class="w"> </span>kubectl<span class="w"> </span>describe<span class="w"> </span>hpa
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Normal<span class="w">  </span>SuccessfulRescale<span class="w">  </span>22s<span class="w">   </span>horizontal-pod-autoscaler<span class="w">  </span>New<span class="w"> </span>size:<span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span>reason:<span class="w"> </span>cpu<span class="w"> </span>resource<span class="w"> </span>utilization<span class="w"> </span><span class="o">(</span>percentage<span class="w"> </span>of<span class="w"> </span>request<span class="o">)</span><span class="w"> </span>above<span class="w"> </span>target
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Normal<span class="w">  </span>SuccessfulRescale<span class="w">  </span>6s<span class="w">     </span>horizontal-pod-autoscaler<span class="w">  </span>New<span class="w"> </span>size:<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span>reason:<span class="w"> </span>All<span class="w"> </span>metrics<span class="w"> </span>below<span class="w"> </span>target
+</span></code></pre></div>
+<p>参考：Kubernetes 官方文档</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3230,63 +3325,6 @@ P.P.S MacBookPro11,2 的网卡是 BCM4360，直接用 broadcom-wl 驱动就可�
 <li>CD 上的结构 https://readhacker.news/s/4aDHB</li>
 <li>在线 TAC 的虚拟机 https://jia.je/online_tac_vm/</li>
 <li>在线 Decaf 编译和运行 https://jia.je/online_decaf/</li>
-</ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-10-04 00:00:00+00:00">2019年10月4日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-44-期"><a class="toclink" href="../../misc/2019/10/04/weekly-sharing-44/">每周分享第 44 期</a></h2>
-<ol>
-<li>
-<p>Modern Script Loading https://jasonformat.com/modern-script-loading/</p>
-</li>
-<li>
-<p>如何实现 closure http://craftinginterpreters.com/closures.html</p>
-</li>
-<li>
-<p>加速 uniform_int_distribution 实现 https://lemire.me/blog/2019/09/28/doubling-the-speed-of-stduniform_int_distribution-in-the-gnu-c-library/</p>
-</li>
-<li>
-<p>在 FPGA 上运行 Rocket Chip 教程 https://github.com/cnrv/fpga-rocket-chip</p>
-</li>
-<li>
-<p>Xilinx Bitstream 逆向 https://prjxray.readthedocs.io/en/latest/</p>
-</li>
-<li>
-<p>JVM 利用 SIGSEGV 进行 null 检测 https://jcdav.is/2015/10/06/SIGSEGV-as-control-flow/</p>
-</li>
-<li>
-<p>Async/Await 进入 Rust Beta https://blog.rust-lang.org/2019/09/30/Async-await-hits-beta.html</p>
-</li>
-<li>
-<p>在 Rust 里实现 Plugin http://adventures.michaelfbryan.com/posts/plugins-in-rust/</p>
-</li>
 </ol>
     
   </div>

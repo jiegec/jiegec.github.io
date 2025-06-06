@@ -290,6 +290,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#openroad-flow-初尝试">
+<span class="md-ellipsis">
+      OpenROAD Flow 初尝试
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#通过-jtag-对-vcu128-上的-rocket-chip-进行调试">
 <span class="md-ellipsis">
       通过 JTAG 对 VCU128 上的 Rocket Chip 进行调试
@@ -454,13 +461,6 @@
 <a class="md-nav__link" href="#一次从-rhel-6-到-centos-7-的更新">
 <span class="md-ellipsis">
       一次从 RHEL 6 到 CentOS 7 的更新
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#轶事一则">
-<span class="md-ellipsis">
-      轶事一则
     </span>
 </a>
 </li>
@@ -785,6 +785,129 @@
 <header class="md-typeset">
 <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2022-03-12 00:00:00+00:00">2022年3月12日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../category/hardware/">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="openroad-flow-初尝试"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/">OpenROAD Flow 初尝试</a></h2>
+<h3 id="背景"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/#背景">背景</a></h3>
+<p>最近在尝试接触一些芯片前后端的知识。正好有现成的开源工具链 OpenROAD 来做这个事情，借此机会来学习一下整个流程。</p>
+<h3 id="尝试过程"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/#尝试过程">尝试过程</a></h3>
+<p>首先 clone 仓库 OpenROAD-flow-scripts，然后运行：<code>./build_openroad.sh</code>，脚本会克隆一些仓库，自动进行编译。</p>
+<p>编译中会找不到一些库，比如可能需要安装这些依赖：<code>liblemon-dev libeigen3-dev libreadline-dev swig</code>，此外运行的时候还需要 <code>klayout</code> 依赖。</p>
+<p>如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 <a href="https://lemon.cs.elte.hu/trac/lemon/ticket/628">BUG</a>，可以运行下面的命令解决：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>/usr/lib/x86_64-linux-gnu/cmake/lemon
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>cp<span class="w"> </span>lemonConfig.cmake<span class="w"> </span>LEMONConfig.cmake
+</span></code></pre></div>
+<p>编译后整个目录大概有 4.8G，输出的二进制目录是 133M。</p>
+<p>如果要跑一下样例里的 nangate45 工艺的 gcd 例子，运行：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>cd flow
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>make DESIGN_CONFIG=./designs/nangate45/gcd/config.mk
+</span></code></pre></div>
+<h3 id="分析-gcd-测例"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/#分析-gcd-测例">分析 GCD 测例</a></h3>
+<p>这个测例的代码提供了这样一个接口：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="k">module</span><span class="w"> </span><span class="n">gcd</span>
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="p">(</span>
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="w">  </span><span class="k">input</span><span class="w">  </span><span class="kt">wire</span><span class="w"> </span><span class="n">clk</span><span class="p">,</span>
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="w">  </span><span class="k">input</span><span class="w">  </span><span class="kt">wire</span><span class="w"> </span><span class="p">[</span><span class="w">  </span><span class="mh">31</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">req_msg</span><span class="p">,</span>
+</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="w">  </span><span class="k">output</span><span class="w"> </span><span class="kt">wire</span><span class="w"> </span><span class="n">req_rdy</span><span class="p">,</span>
+</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a><span class="w">  </span><span class="k">input</span><span class="w">  </span><span class="kt">wire</span><span class="w"> </span><span class="n">req_val</span><span class="p">,</span>
+</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a><span class="w">  </span><span class="k">input</span><span class="w">  </span><span class="kt">wire</span><span class="w"> </span><span class="n">reset</span><span class="p">,</span>
+</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a><span class="w">  </span><span class="k">output</span><span class="w"> </span><span class="kt">wire</span><span class="w"> </span><span class="p">[</span><span class="w">  </span><span class="mh">15</span><span class="o">:</span><span class="mh">0</span><span class="p">]</span><span class="w"> </span><span class="n">resp_msg</span><span class="p">,</span>
+</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a><span class="w">  </span><span class="k">input</span><span class="w">  </span><span class="kt">wire</span><span class="w"> </span><span class="n">resp_rdy</span><span class="p">,</span>
+</span><span id="__span-2-10"><a href="#__codelineno-2-10" id="__codelineno-2-10" name="__codelineno-2-10"></a><span class="w">  </span><span class="k">output</span><span class="w"> </span><span class="kt">wire</span><span class="w"> </span><span class="n">resp_val</span>
+</span><span id="__span-2-11"><a href="#__codelineno-2-11" id="__codelineno-2-11" name="__codelineno-2-11"></a><span class="p">);</span>
+</span><span id="__span-2-12"><a href="#__codelineno-2-12" id="__codelineno-2-12" name="__codelineno-2-12"></a><span class="k">endmodule</span>
+</span></code></pre></div>
+<p>从名字可以推断出，外部通过 req 发送请求到 GCD 模块，然后模块计算出 GCD 后再返回结果。</p>
+<p>根据日志可以看到，从 verilog 到最终的 gds 文件，经过了这些步骤：</p>
+<ol>
+<li>第一步用 yosys 综合（1_1_yosys），把 verilog 代码转化为网表，网表中的单元就是形如 <code>NAND2_X1</code> <code>DFF_X1</code> 等这样由工艺库定义的一些单元。</li>
+<li>第二步进行 floorplan（2_1_floorplan），规划出芯片的大小，逻辑放在哪个位置，输入输出引脚放在什么位置（2_2_floorplan_io），还要考虑 SRAM 等宏或者 IP（2_4_mplace），电源网络 PDN（2_6_floorplan_pdn）</li>
+<li>第三步是 Placement，就是把前面得到的一些 cell 放到芯片上的 (x,y) 坐标上</li>
+<li>第四步是 Clock Tree Synthesis（4_1_cts），简称 CTS，生成时钟树</li>
+<li>第五步是进行路由连线，OpenROAD 有两个路由：FastRoute（5_1_fastroute）和 TritonRoute（5_2_TritonRoute）</li>
+<li>第六步输出结果到 gds 文件（6_1_merge）。</li>
+</ol>
+<p>这些步骤可以在仓库的 <code>flow/Makefile</code> 里面看得比较清晰，英文版摘抄如下：</p>
+<ol>
+<li>SYNTHESIS<ol>
+<li>Run Synthesis using yosys</li>
+</ol>
+</li>
+<li>FLOORPLAN<ol>
+<li>Translate verilog to def</li>
+<li>IO Placement (random)</li>
+<li>Timing Driven Mixed Size Placement (tdms)</li>
+<li>Macro Placement</li>
+<li>Tapcell and Welltie insertion</li>
+<li>PDN generation</li>
+</ol>
+</li>
+<li>PLACE<ol>
+<li>Global placement without placed IOs, timing-driven, and routability-driven</li>
+<li>IO placement (non-random)</li>
+<li>Global placement with placed IOs, timing-driven, and routability-driven</li>
+<li>Resizing &amp; Buffering</li>
+<li>Detail placement</li>
+</ol>
+</li>
+<li>CTS(Clock Tree Synthesis)<ol>
+<li>Run TritonCTS</li>
+<li>Filler cell insertion</li>
+</ol>
+</li>
+<li>ROUTING<ol>
+<li>Run global route (FastRoute)</li>
+<li>Run detailed route (TritonRoute)</li>
+</ol>
+</li>
+</ol>
+<p>最后生成的 gds，用 KLayout 打开，可以看到这个样子：</p>
+<p><img alt="" src="../../hardware/gcd-gds.png"/></p>
+<p>日志里可以看到，预测的总功耗是 1.71 mW，面积占用是 703 um^2。</p>
+<p>还跑了一下其他样例设计的 gds，比如 ibex：</p>
+<p><img alt="" src="../../hardware/ibex-gds.png"/></p>
+<p>日志里可以看到，预测的总功耗是 10.1 mW，面积占用是 32176 um^2。</p>
+<p>还有 tiny rocket：</p>
+<p><img alt="" src="../../hardware/tiny-rocket-gds.png"/></p>
+<p>日志里可以看到，预测的总功耗是 36.8 mW，面积占用是 52786 um^2。</p>
+<h3 id="工艺库常见术语"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/#工艺库常见术语">工艺库常见术语</a></h3>
+<ul>
+<li>slvt/lvt/rvt/hvt: super-low/low/regular/high V threshold 前者速度快：阈值电压低，同时漏电流大</li>
+<li>ss/tt/ff: slow-slow/typical-typical/fast-fast 后者速度快：电压高，温度低，比如 SS（0.99V 125C）TT（1.10V 25C）FF（1.21V -40C）；有时候还会看到 ssg，可以理解为 ss 的比较精确的版本，因此没有那么悲观，延迟比 SS 低一些，详见 <a href="https://cloud.tencent.com/developer/article/1598417">STA | ssg 跟 ss corner 的区别——谬误更正版</a></li>
+<li>c + 数字：表示的是 channel length，c40 表示 40nm，数字越大速度越慢，能耗越低</li>
+<li>数字+track：表示的是 track height，sc12 表示 12-track，数字越大速度越快</li>
+</ul>
+<p>ARM 的文档 <a href="https://developer.arm.com/documentation/102738/0100/Choosing-the-physical-IP-libraries">Choosing the physical IP libraries</a> 描述了 Channel length, Track height, Voltage threshold 等不同的选择。</p>
+<p>综合来说，如果要更低的延迟，选择低 vt，小 c 和大 track，反之如果要更低的能耗，选择高 vt，大 c 和 小 track。</p>
+<h3 id="ccs-vs-nldm"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/#ccs-vs-nldm">CCS v.s. NLDM</a></h3>
+<p>由于物理的特性比较复杂，工艺库里描述的也只是一个大致的模型，刻画了这些 cell 的特性，那么自然可以选取不同的模型。NLDM（上面举的例子就是 NLDM），CCS 就是常见的两个模型，相比之下，CCS 更精确，同时参数更多。更精确的还有直接用 SPICE 描述的电路。详细的对比可以看下面的参考文档。</p>
+<h3 id="参考文档"><a class="toclink" href="../../hardware/2022/03/12/try-openroad-flow/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://theopenroadproject.org/2019/12/11/getting-started-with-openroad-app-part-1/">GETTING STARTED WITH OPENROAD APP – PART 1</a></li>
+<li><a href="https://link.springer.com/book/10.1007/b117024">Advanced ASIC Chip Synthesis Using Synopsys® Design Compiler™ Physical Compiler™ and PrimeTime®</a></li>
+<li><a href="https://www.paripath.com/blog/characterization-blog/comparing-nldm-and-ccs-delay-models">Comparing NLDM And CCS delay models</a></li>
+<li><a href="https://chitlesh.ch/wordpress/liberty-ccs-ecsm-or-ndlm/">Introduction to Liberty : CCS, ECSM and NDLM</a></li>
+<li><a href="https://blog.csdn.net/graymount/article/details/106010388">STA 概念：一文了解 NLDM 与 CCS</a></li>
+</ul>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -3605,72 +3728,6 @@ t_0 - t_{data} &lt; -t_{clk} - t_h
 <p>简单试了一下，发现 dracut 的 initramfs 里程序太少了，调试起来很痛苦。所以，我在 BMC 里通过 Virtual Media 挂了一个 Arch Linux 的 Live CD。因为通过 Web 访问延迟太高，我设了一个 root 密码，然后直接 ssh 到 live cd 系统中。</p>
 <p>接着，我发现，可以正常找到盘和里面的各个分区，所以怀疑是之前 initramfs 里缺了什么东西，导致找不到硬盘。我 arch-chroot 到 root 分区里，然后手动更新各个包，特别麻烦：我首先升级了 yum repos 到最新的 CentOS 7，然后手动删掉/升级 el6 的各个软件包。最后好不容易把 kernel 终于升级好了，又重新生成 grub2 的配置，因为 CentOS 6 是 grub1。这时候，重启进入系统，发现可以找到 rootfs 了，但是经过 selinux relabel 以后，仍然会遇到 systemd-logind 起不来的问题，伴随着一系列的 audit 报警。</p>
 <p>最后，使出了暴力的解决办法：在 cmdline 中设置 selinux=0 audit=0，然后终于进入系统了。再继续删掉一些 el6 的包，然后升级各种包，最后终于是恢复了正常。</p>
-</div>
-</article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2021-08-06 00:00:00+00:00">2021年8月6日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../category/misc/">misc</a></li>
-<li class="md-meta__item">
-            
-              需要 2 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="轶事一则"><a class="toclink" href="../../misc/2021/08/06/intel-intrinsics-guide/">轶事一则</a></h2>
-<p>7.31 号周六的时候，发现 Intel Intrinsics Guide(https://software.intel.com/sites/landingpage/IntrinsicsGuide/) 出现错误，加载数据失败，于是在 Intel 的网站上提交了一个 bug。</p>
-<p>8.2 号的时候，Intel 发邮件过来，说已经复现了问题，已经汇报给了后端团队。邮件原文：</p>
-<div class="language-text highlight"><pre><span></span><code>Thank you for bringing this to our attention. We have verified and
-encountered the same issue. Please know that we have escalated this
-issue to our backend technical team.
-
-We will get back to you as soon as we have an update. Have a nice day
-ahead!
-</code></pre></div>
-<p>8.4 号的时候，Intel 再次发邮件过来，说后端团队正在处理这个问题，会尽快完成修复，请我耐心等待。这个时候我去网站上看，还是有问题。邮件原文：</p>
-<div class="language-text highlight"><pre><span></span><code>Our backend team is still working on this issue. We are trying our level
-best to get back to you with an update soon.
-
-Have a nice day ahead!
-</code></pre></div>
-<p>8.6 号 19:27 的时候，Intel 又发了一次邮件，说后端团队依然在处理这个问题，并且正在进行一个永久性的修复（言下之意是现在提供了一个临时性的修复）。这个时候去网站上看，终于是修好了。邮件原文：</p>
-<div class="language-text highlight"><pre><span></span><code>We have received an update from our backend team is that they are
-working on this issue and, a more permanent fix is in the works.
-Hopefully, it will resolve soon.
-
-We appreciate your patience and understanding on this matter. Have a
-nice day!
-</code></pre></div>
-<p>我回复了一下邮件，告诉 Intel 我这边看到已经是修复好的版本，紧接着又收到了一封邮件，告诉我可以从网站上下载离线版的 Intrinsics Guide：</p>
-<div class="language-text highlight"><pre><span></span><code>Thank you for your prompt response. We are glad that your issue has been
-resolved and we would like to thank you for your co operation.  Please
-be informed that the offline version of the Intrinsic Guide is now
-available for download from the site. The offline version of the guide
-has the same content as the site, but is viewable offline by the user. A
-link to the download is now added in the left column of the site:
-https://software.intel.com/sites/landingpage/IntrinsicsGuide/
-
-That said, we are closing this ticket and if you have further issues
-please open another ticket and we will be happy to help you.
-
-After case closure, you will receive a survey email. We appreciate it if
-you can complete this survey regarding the support you received.  Your
-feedback will help us improve our support.
-
-For any concerns related to Intel® Developer Zone account, login or
-website, please feel free to open a new ticket:
-https://software.intel.com/en-us/support
-</code></pre></div>
-<p>这次 Intel Support 的反应挺快的，给个好评。就是希望 Intel 能够不挤牙膏，能拿出和 AMD 相当水平的 CPU。</p>
 </div>
 </article>
 <nav class="md-pagination">
