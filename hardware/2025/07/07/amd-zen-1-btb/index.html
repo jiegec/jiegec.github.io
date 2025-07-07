@@ -1497,7 +1497,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 4 分钟阅读时间
+                              需要 5 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1730,6 +1730,33 @@
 <p>继续观察 stride=16B 的情况：</p>
 <p><img alt="" src="../../../../amd-zen-1-btb-16b.png" /></p>
 <p>相比 stride=4B/8B，L0 BTB 的行为没有变化；L1 BTB 的容量减半到了 128，意味着 L1 BTB 采用了组相连，此时有一半的 set 不能被用上。此外，比较特别的是，从 stride=16B 开始，CPI=5 的平台出现了波动，CPI 从 5 变到 4 再变到了 5，猜测此时 L1 BTB 也有一定的比例会介入。L2 BTB 在 mix (uncond + cond) 模式下，拐点从 3072 前移到 2560。</p>
+<p>针对这个 2560 的拐点，做了一系列测试，下面是 64B cacheline 内四条分支的类型的不同组合（U 代表 Uncond，C 代表 Cond），对应的容量：</p>
+<ul>
+<li>CCCC: 2048</li>
+<li>CCCU: 2560</li>
+<li>CCUC: 2560</li>
+<li>CCUU: 2560</li>
+<li>CUCC: 2560</li>
+<li>CUCU: 4096</li>
+<li>CUUC: 2560</li>
+<li>CUUU: 2560</li>
+<li>UCCC: 2048</li>
+<li>UCCU: 2560</li>
+<li>UCUC: 2560</li>
+<li>UCUU: 2560</li>
+<li>UUCC: 2048</li>
+<li>UUCU: 2560</li>
+<li>UUUC: 2048</li>
+<li>UUUU: 2048</li>
+</ul>
+<p>可以观察到，如果没有出现连续的 CU（CCCC/UCCC/UUCC/UUUC/UUUU），容量是 2048；如果出现了一组 CU（CC<strong>CU</strong>/C<strong>CU</strong>C/C<strong>CU</strong>U/<strong>CU</strong>CC/<strong>CU</strong>UC/<strong>CU</strong>UU/UC<strong>CU</strong>/U<strong>CU</strong>C/U<strong>CU</strong>U/UU<strong>CU</strong>），容量是 2560；出现了两组 CU（<strong>CUCU</strong>），就是 mix (cond + uncond) 模式，容量是 4096。</p>
+<p>一种可能的猜想：</p>
+<ul>
+<li>如果没有出现连续的 CU，那么每个 branch 占用一个 entry，那么容量就是 2048 个 branch</li>
+<li>如果出现了一组 CU，那么一个 64B cacheline 里的 4 个 branch 对应 3 个 entry，那么前 2048 个 branch 对应 1536 个 entry，还剩下 512 个 entry，这些 entry 每个 entry 只放 1 个 branch（？），所以最后容量是 <code>2048+512=2560</code> 个 branch</li>
+<li>如果出现了两组 CU，那么每一组 CU 的两个 branch 对应一个 entry，容量是 4096 个 branch</li>
+</ul>
+<p>但是这个猜想有一个没有回答的问题，就是只有一组 CU 的情况下，为啥剩下的 512 个 entry 只放 512 个 branch，而不能放 1024 个 branch？</p>
 <h3 id="stride32b">stride=32B<a class="headerlink" href="#stride32b" title="Permanent link">&para;</a></h3>
 <p>继续观察 stride=32B 的情况：</p>
 <p><img alt="" src="../../../../amd-zen-1-btb-32b.png" /></p>
@@ -1777,7 +1804,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年7月7日 10:08:24 UTC">2025年7月7日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年7月7日 13:47:17 UTC">2025年7月7日</span>
   </span>
 
     
