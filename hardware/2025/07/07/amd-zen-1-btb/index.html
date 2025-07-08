@@ -16,6 +16,8 @@
         <link rel="prev" href="../../../06/23/arm-neoverse-v1-btb/">
       
       
+        <link rel="next" href="../../08/amd-zen-2-btb/">
+      
       
         <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
         <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
@@ -1726,7 +1728,7 @@
 
 <h1 id="amd-zen-1-的-btb-结构分析">AMD Zen 1 的 BTB 结构分析<a class="headerlink" href="#amd-zen-1-的-btb-结构分析" title="Permanent link">&para;</a></h1>
 <h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
-<p>AMD Zen 1 是 AMD 的 Zen 系列的第一代微架构。在之前，我们分析了 ARM Neoverse <a href="./">N1</a> 和 <a href="../../../06/23/arm-neoverse-v1-btb/">V1</a> 的 BTB，那么现在也把视线转到 AMD 上，看看 AMD 的 Zen 系列的 BTB 是如何演进的。</p>
+<p>AMD Zen 1 是 AMD 的 Zen 系列的第一代微架构。在之前，我们分析了 ARM Neoverse <a href="../../../06/05/arm-neoverse-n1-btb/">N1</a> 和 <a href="../../../06/23/arm-neoverse-v1-btb/">V1</a> 的 BTB，那么现在也把视线转到 AMD 上，看看 AMD 的 Zen 系列的 BTB 是如何演进的。</p>
 <!-- more -->
 
 <h2 id="官方信息">官方信息<a class="headerlink" href="#官方信息" title="Permanent link">&para;</a></h2>
@@ -1739,6 +1741,19 @@
 <p>Each BTB entry includes information for branches and their targets. Each BTB entry can hold up to two branches if the branches reside in the same 64-byte aligned cache line and the first branch is a conditional branch.</p>
 </blockquote>
 <p>Zen 1 的 BTB entry 有一定的压缩能力，一个 entry 最多保存两条分支，前提是两条分支在同一个 64B 缓存行中，并且第一条分支是条件分支。这样，如果第二条分支是无条件分支，分支预测的时候，可以根据第一条分支的方向预测的结果，决定要用哪条分支的目的地址作为下一个 fetch block 的地址。虽然有压缩能力，但是没有提到单个周期预测两条分支，所以只是扩大了等效 BTB 容量。</p>
+<p>例如，有这么一段代码：</p>
+<div class="language-asm highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># fetch block entrypoint</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nl">entrypoint:</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># do something</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nf">jnz</span><span class="w"> </span><span class="no">targetA</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># do something</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nf">jmp</span><span class="w"> </span><span class="no">targetB</span>
+</span></code></pre></div>
+<p>那么 jnz 和 jmp 指令可以放到同一个 entry 当中，一次读出来，然后对 jnz 指令进行分支方向预测：</p>
+<ul>
+<li>如果 jnz 预测为跳转，那么当前 fetch block 从 entrypoint 开始，到 jnz 结束；下一个 fetch block 从 targetA 开始</li>
+<li>如果 jnz 预测为不跳转，那么当前 fetch block 从 entrypoint 开始，到 jmp 结束；下一个 fetch block 从 targetB 开始</li>
+</ul>
 <blockquote>
 <p>L0BTB holds 4 forward taken branches and 4 backward taken branches, and predicts with zero bubbles.</p>
 </blockquote>
@@ -1794,11 +1809,11 @@
 <h3 id="stride64b">stride=64B<a class="headerlink" href="#stride64b" title="Permanent link">&para;</a></h3>
 <p>继续观察 stride=64B 的情况：</p>
 <p><img alt="" src="../../../../amd-zen-1-btb-64b.png" /></p>
-<p>相比 stride=16B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 32，符合组相连的预期；L2 BTB 在  mix (cond + uncond) 模式下只能体现出 2048 的容量，此时每个 64B cacheline 都只有一条分支，不满足两条分支共享一个 entry 的条件。</p>
+<p>相比 stride=32B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 32，符合组相连的预期；L2 BTB 在  mix (cond + uncond) 模式下只能体现出 2048 的容量，此时每个 64B cacheline 都只有一条分支，不满足两条分支共享一个 entry 的条件。</p>
 <h3 id="stride128b">stride=128B<a class="headerlink" href="#stride128b" title="Permanent link">&para;</a></h3>
 <p>继续观察 stride=128B 的情况：</p>
 <p><img alt="" src="../../../../amd-zen-1-btb-128b.png" /></p>
-<p>相比 stride=16B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 16，符合组相连的预期；L2 BTB 的容量减半到了 1024，意味着 L2 BTB 也是组相连结构。</p>
+<p>相比 stride=64B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 16，符合组相连的预期；L2 BTB 的容量减半到了 1024，意味着 L2 BTB 也是组相连结构。</p>
 <h2 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h2>
 <p>测试到这里就差不多了，更大的 stride 得到的也是类似的结果，总结一下前面的发现：</p>
 <ul>
@@ -1874,7 +1889,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年7月8日 09:31:32 UTC">2025年7月8日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年7月8日 10:37:17 UTC">2025年7月8日</span>
   </span>
 
     
@@ -1951,6 +1966,22 @@
             </div>
           </a>
         
+        
+          
+          <a href="../../08/amd-zen-2-btb/" class="md-footer__link md-footer__link--next" aria-label="下一页: AMD Zen 2 的 BTB 结构分析">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                AMD Zen 2 的 BTB 结构分析
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
         
       </nav>
     
