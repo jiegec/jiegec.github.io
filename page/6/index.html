@@ -547,6 +547,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#nuc11-esxi-中-igpu-直通虚拟机" class="md-nav__link">
+    <span class="md-ellipsis">
+      NUC11 ESXi 中 iGPU 直通虚拟机
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#loongarch64-工具链构建" class="md-nav__link">
     <span class="md-ellipsis">
       LoongArch64 工具链构建
@@ -757,15 +766,6 @@
   <a href="#sunway-处理器架构分析" class="md-nav__link">
     <span class="md-ellipsis">
       Sunway 处理器架构分析
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#移植系统到-rocket-chip-on-vcu128" class="md-nav__link">
-    <span class="md-ellipsis">
-      移植系统到 Rocket Chip on VCU128
     </span>
   </a>
   
@@ -1713,6 +1713,99 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2022-05-05 00:00:00+00:00">2022年5月5日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/system/" class="md-meta__link">system</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="nuc11-esxi-中-igpu-直通虚拟机"><a class="toclink" href="../../system/2022/05/05/nuc11-igpu-passthrough/">NUC11 ESXi 中 iGPU 直通虚拟机</a></h2>
+<h3 id="背景"><a class="toclink" href="../../system/2022/05/05/nuc11-igpu-passthrough/#背景">背景</a></h3>
+<p>之前在 NUC11PAKi5 上装了 ESXI 加几个虚拟机系统，但是自带的 iGPU Intel Iris Xe Graphics(Tiger Lake GT-2) 没用上，感觉有些浪费。因此想要给 Windows 直通。在直通到 Windows 后发现会无限重启，最后直通到 Linux 中。</p>
+<h3 id="步骤"><a class="toclink" href="../../system/2022/05/05/nuc11-igpu-passthrough/#步骤">步骤</a></h3>
+<p>第一步是到 esxi 的设备设置的地方，把 iGPU 的 Passthrough 打开，这时候会提示需要重启，但是如果重启，会发现还是处于 Needs reboot 状态。网上进行搜索，发现是 ESXi 自己占用了 iGPU 的输出，<a href="https://williamlam.com/2020/06/passthrough-of-integrated-gpu-igpu-for-standard-intel-nuc.html">解决方法</a>如下：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$<span class="w"> </span>esxcli<span class="w"> </span>system<span class="w"> </span>settings<span class="w"> </span>kernel<span class="w"> </span><span class="nb">set</span><span class="w"> </span>-s<span class="w"> </span>vga<span class="w"> </span>-v<span class="w"> </span>FALSE
+</span></code></pre></div>
+<p>这样设置以后就不会在显卡输出上显示 dcui 了，这是一个比较大的缺点，但是平时也不用自带的显示输出，就无所谓了。</p>
+<p>第二步，重启以后，这时候看设备状态就是 Active。回到 Windows 虚拟机，添加 PCI device，然后启动。这时候，我遇到了这样的错误：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Module ‘DevicePowerOn’ power on failed
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>Failed to register the device pciPassthru0
+</span></code></pre></div>
+<p>搜索了一番，<a href="https://shuttletitan.com/vsphere/pci-passthrough-module-devicepoweron-power-on-failed/">解决方法</a>是关掉 IOMMU。在虚拟机设计中关掉 IOMMU，就可以正常启动了。</p>
+<p>第三步，进入 Windows，这时候就可以看到有一个新的未知设备了，VID=8086，PID=9a49；等待一段时间，Windows 自动安装好了驱动，就可以正常识别了。GPU-Z 中可以看到效果如下：</p>
+<p><img alt="" src="../../system/igpu-passthrough.png" /></p>
+<p>不过关机重启的时候会蓝屏，可能还有一些问题，有人在<a href="https://community.intel.com/t5/Graphics/SR-IOV-support-for-intel-Iris-Xe-Graphics-on-i7-1165G7/td-p/1293264">论坛</a>上也说 passthrough 之后会蓝屏。这个问题一直没有解决。</p>
+<p>再尝试 Passthrough 到 Linux：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>$<span class="w"> </span>sudo<span class="w"> </span>dmesg<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>i915
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.173500<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span>enabling<span class="w"> </span>device<span class="w"> </span><span class="o">(</span><span class="m">0000</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="m">0003</span><span class="o">)</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.180137<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>VT-d<span class="w"> </span>active<span class="w"> </span><span class="k">for</span><span class="w"> </span>gfx<span class="w"> </span>access
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.182109<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span>BAR<span class="w"> </span><span class="m">6</span>:<span class="w"> </span>can<span class="err">&#39;</span>t<span class="w"> </span>assign<span class="w"> </span><span class="o">[</span>???<span class="w"> </span>0x00000000<span class="w"> </span>flags<span class="w"> </span>0x20000000<span class="o">]</span><span class="w"> </span><span class="o">(</span>bogus<span class="w"> </span>alignment<span class="o">)</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.182110<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>Failed<span class="w"> </span>to<span class="w"> </span>find<span class="w"> </span>VBIOS<span class="w"> </span>tables<span class="w"> </span><span class="o">(</span>VBT<span class="o">)</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.182541<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span>vgaarb:<span class="w"> </span>changed<span class="w"> </span>VGA<span class="w"> </span>decodes:<span class="w"> </span><span class="nv">olddecodes</span><span class="o">=</span>io+mem,decodes<span class="o">=</span>none:owns<span class="o">=</span>none
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.197374<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span>firmware:<span class="w"> </span>direct-loading<span class="w"> </span>firmware<span class="w"> </span>i915/tgl_dmc_ver2_08.bin
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="o">[</span><span class="w">    </span><span class="m">2</span>.198037<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>Finished<span class="w"> </span>loading<span class="w"> </span>DMC<span class="w"> </span>firmware<span class="w"> </span>i915/tgl_dmc_ver2_08.bin<span class="w"> </span><span class="o">(</span>v2.8<span class="o">)</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="o">[</span><span class="w">    </span><span class="m">3</span>.401676<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>failed<span class="w"> </span>to<span class="w"> </span>retrieve<span class="w"> </span>link<span class="w"> </span>info,<span class="w"> </span>disabling<span class="w"> </span>eDP
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="o">[</span><span class="w">    </span><span class="m">3</span>.515822<span class="o">]</span><span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>Initialized<span class="w"> </span>i915<span class="w"> </span><span class="m">1</span>.6.0<span class="w"> </span><span class="m">20200917</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="m">0000</span>:13:00.0<span class="w"> </span>on<span class="w"> </span>minor<span class="w"> </span><span class="m">0</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="o">[</span><span class="w">    </span><span class="m">3</span>.516054<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>Cannot<span class="w"> </span>find<span class="w"> </span>any<span class="w"> </span>crtc<span class="w"> </span>or<span class="w"> </span>sizes
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="o">[</span><span class="w">    </span><span class="m">3</span>.516144<span class="o">]</span><span class="w"> </span>i915<span class="w"> </span><span class="m">0000</span>:13:00.0:<span class="w"> </span><span class="o">[</span>drm<span class="o">]</span><span class="w"> </span>Cannot<span class="w"> </span>find<span class="w"> </span>any<span class="w"> </span>crtc<span class="w"> </span>or<span class="w"> </span>sizes
+</span></code></pre></div>
+<p>OpenCL 也可以检测到：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$<span class="w"> </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>intel-opencl-icd<span class="w"> </span>clinfo
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Number<span class="w"> </span>of<span class="w"> </span>devices<span class="w">                                 </span><span class="m">1</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span>Device<span class="w"> </span>Name<span class="w">                                     </span>Intel<span class="o">(</span>R<span class="o">)</span><span class="w"> </span>Graphics<span class="w"> </span>Gen12LP<span class="w"> </span><span class="o">[</span>0x9a49<span class="o">]</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span>Device<span class="w"> </span>Vendor<span class="w">                                   </span>Intel<span class="o">(</span>R<span class="o">)</span><span class="w"> </span>Corporation
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>Device<span class="w"> </span>Vendor<span class="w"> </span>ID<span class="w">                                </span>0x8086
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span>Device<span class="w"> </span>Version<span class="w">                                  </span>OpenCL<span class="w"> </span><span class="m">3</span>.0<span class="w"> </span>NEO
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span>Device<span class="w"> </span>Numeric<span class="w"> </span>Version<span class="w">                          </span>0xc00000<span class="w"> </span><span class="o">(</span><span class="m">3</span>.0.0<span class="o">)</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span>Driver<span class="w"> </span>Version<span class="w">                                  </span><span class="m">1</span>.0.0
+</span></code></pre></div>
+<p>Vulkan：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$<span class="w"> </span>vulkaninfo
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Group<span class="w"> </span><span class="m">1</span>:
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">        </span>Properties:
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">                </span>physicalDevices:<span class="w"> </span><span class="nv">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">1</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">                        </span>Intel<span class="o">(</span>R<span class="o">)</span><span class="w"> </span>Xe<span class="w"> </span>Graphics<span class="w"> </span><span class="o">(</span>TGL<span class="w"> </span>GT2<span class="o">)</span><span class="w"> </span><span class="o">(</span>ID:<span class="w"> </span><span class="m">0</span><span class="o">)</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">                </span><span class="nv">subsetAllocation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">        </span>Present<span class="w"> </span>Capabilities:
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">                </span>Intel<span class="o">(</span>R<span class="o">)</span><span class="w"> </span>Xe<span class="w"> </span>Graphics<span class="w"> </span><span class="o">(</span>TGL<span class="w"> </span>GT2<span class="o">)</span><span class="w"> </span><span class="o">(</span>ID:<span class="w"> </span><span class="m">0</span><span class="o">)</span>:
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">                        </span>Can<span class="w"> </span>present<span class="w"> </span>images<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>following<span class="w"> </span>devices:<span class="w"> </span><span class="nv">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">1</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">                                </span>Intel<span class="o">(</span>R<span class="o">)</span><span class="w"> </span>Xe<span class="w"> </span>Graphics<span class="w"> </span><span class="o">(</span>TGL<span class="w"> </span>GT2<span class="o">)</span><span class="w"> </span><span class="o">(</span>ID:<span class="w"> </span><span class="m">0</span><span class="o">)</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">                </span>Present<span class="w"> </span>modes:<span class="w"> </span><span class="nv">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">1</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">                        </span>DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR
+</span></code></pre></div>
+<p>不过目前还没找到显示输出的方法，只能用 VMware SVGA 或者远程桌面。</p>
+<h3 id="吐槽"><a class="toclink" href="../../system/2022/05/05/nuc11-igpu-passthrough/#吐槽">吐槽</a></h3>
+<p>需要吐槽的是，11 代的核显不再支持 Intel GVT-g，而是提供了 SR-IOV 的虚拟化。但是，Linux i915 驱动没有做相应的支持。</p>
+<p>参考文档：</p>
+<ul>
+<li><a href="https://williamlam.com/2020/06/passthrough-of-integrated-gpu-igpu-for-standard-intel-nuc.html">Passthrough of Integrated GPU (iGPU) for standard Intel NUC</a></li>
+<li><a href="https://shuttletitan.com/vsphere/pci-passthrough-module-devicepoweron-power-on-failed/">PCI Passthrough – “Module ‘DevicePowerOn’ power on failed”</a></li>
+</ul>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -4718,78 +4811,6 @@ Sunway TaihuLight 双精度性能：<code>40 * 4 * 256 * 3.0624 = 125.435904 PFl
 <li>MPE 和 CPE 向量宽度从 256 位扩展到了 512 位。添加了 16 位半精度浮点支持。</li>
 <li>每个 node 提供超过 12 TFlops 的双精度浮点性能。应该是靠两倍的 Core Group，乘上两倍的向量计算宽度，达到四倍的性能。</li>
 </ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2021-10-18 00:00:00+00:00">2021年10月18日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 2 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="移植系统到-rocket-chip-on-vcu128"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/">移植系统到 Rocket Chip on VCU128</a></h2>
-<h3 id="背景"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#背景">背景</a></h3>
-<p>最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：</p>
-<ul>
-<li><a href="https://github.com/jiegec/rocket-chip-vcu128">rocket-chip-vcu128</a></li>
-<li><a href="https://github.com/jiegec/opensbi/tree/rocket-chip-vcu128">opensbi</a></li>
-<li><a href="https://github.com/jiegec/u-boot/tree/rocket-chip-vcu128">u-boot</a></li>
-<li><a href="https://github.com/jiegec/linux/tree/rocket-chip-vcu128">linux</a></li>
-</ul>
-<h3 id="rocket-chip-on-vcu128"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#rocket-chip-on-vcu128">Rocket Chip on VCU128</a></h3>
-<p>第一部分是基于之前 <a href="https://github.com/jiegec/rocket2thinpad">rocket2thinpad</a> 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：</p>
-<ol>
-<li>添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH</li>
-<li>打开了更多核心选项：S-mode 和 U-mode</li>
-</ol>
-<p>主要踩过的坑：</p>
-<ol>
-<li>BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑</li>
-<li>这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset</li>
-<li>SPI Startup Flash 的时序配置，见我之前的<a href="../../hardware/2021/09/27/xilinx-axi-quad-spi-timing/">博客</a></li>
-<li>Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus 上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突</li>
-</ol>
-<h3 id="u-boot"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#u-boot">U-Boot</a></h3>
-<p>在 U-Boot 上花了比较多的时间，用它的目的主要是：</p>
-<ol>
-<li>BootROM 中的代码只支持从串口加载程序，如果后续要加载 Linux 内核等软件，性能太差。</li>
-<li>U-Boot 驱动比较完善，而且 dts 也可以很容易地迁移到 Linux 中</li>
-<li>有一些可以参考的资料</li>
-</ol>
-<p>移植的时候，首先新建一个自定义的 board，然后自己写 defconfig 和 dts，其中 dts 可以参考 rocket chip 生成的 dts 文件。然后，按照各个外设的 device tree binding 去写，然后打开/关闭各个 CONFIG 开关。</p>
-<p>对代码主要的改动是，实现了 DCache 的 flush 功能，因为以太网部分用了 DMA，所以要让外设看到内存的更改，这里采用的是 SiFive 的扩展指令 <code>cflush.d.l1</code>。由于编译器还不支持这个指令，就按照网上的方式去构造了汇编指令。实现完成以后，就可以用网络了。</p>
-<p>一开始的时候，为了简单，直接在 M-mode 中运行 U-Boot，这样不需要 OpenSBI，同时 DTB 也是内置的。但后续为了运行 Linux，还是需要一个 SBI 实现：OpenSBI，然后在 S-mode 中运行 U-Boot，再引导到 Linux。</p>
-<p>此外还花了很多努力来缩小 binary 大小，首先可以用 <code>nm --size -r u-boot | head -20</code> 来找到比较大的一些符号，不考虑其中 BSS 的部分（type=b），主要看哪些代码/数据比较占空间。</p>
-<p>UPDATE: U-Boot 在 v2022.01 版本<a href="https://github.com/u-boot/u-boot/commit/eeaa3fe65270758ab0bdb1515e14f9bf936d3a25">修复了一个 BUG</a>，之前的版本在 riscv 架构下没有 reserve lmb region，使得加载 initrd 的时候，会覆盖掉自己的栈空间，这解释了之前的诸多玄学内存问题，升级到 v2022.01 后就好了。</p>
-<h3 id="opensbi"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#opensbi">OpenSBI</a></h3>
-<p>OpenSBI 移植比较简单，直接参考 template 修改即可，主要就是串口的配置，其他基本不用改。然后，我把 U-Boot 作为 OpenSBI 的 Payload 放到 OpenSBI 的后面，此时要把 U-Boot 配置为 S-mode 模式。接着，遇到了新的问题：<code>cflush.d.l1</code> 指令只能在 M-mode 用，因此我在 OpenSBI 代码中处理了 trap，转而在 M-mode 里面运行这条指令。这样，就可以在 S-mode 里刷新 Cache 了。</p>
-<h3 id="linux"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#linux">Linux</a></h3>
-<p>Linux 目前可以 boot 到寻找 init，还没有碰文件系统，之后计划用 buildroot 打一个 initramfs 出来。为了在 U-Boot 中启动 Linux，用 U-Boot 的 mkimage 工具生成了 FIT 格式的 uImage，里面打包了 kernel image 和 dtb，就可以用 bootm 命令启动了，注意地址不要和加载地址重复。</p>
-<p>此外还遇到一个坑：RV64 里面 Linux dts 的 address cell 得是 2（对应 64 位），否则会有错误。但 U-Boot 对这个没有做要求。</p>
-<h3 id="缓存一致性"><a class="toclink" href="../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#缓存一致性">缓存一致性</a></h3>
-<p>一开始的时候，AXI DMA 直接接到内存上，所以与 CPU 缓存是不一致的，网卡驱动需要经常地刷缓存。在 Rocket Chip 上，可以用 sifive 自己的 cflush 指令来刷缓存，但是它只能在 M 态执行，同时又支持虚拟地址，这种奇怪的设计就使得要在 OpenSBI，U-Boot 和 Linux 三处都添加逻辑：OpenSBI 处理 illegal instruction，如果发现是 cflush 指令，就再次 cflush；U-Boot 和 Linux 修改驱动，在合适的地方添加 cflush 指令。U-Boot 驱动比较简单，工作得比较好，但是 Linux 的网卡驱动怎么都改不好。</p>
-<p>最后决定，打开 Rocket Chip 的 Frontend Bus，添加一个 AXI Slave 接口，然后让 AXI DMA 通过 AXI Slave 接入到 Rocket Chip 中，然后通过 TLBroadcast 实现缓存一致性。这样软件实现会比较简单，但是硬件就更复杂了。</p>
     
   </div>
 </article>
