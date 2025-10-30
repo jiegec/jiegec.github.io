@@ -603,6 +603,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#向-rocket-chip-添加自定义调试信号" class="md-nav__link">
+    <span class="md-ellipsis">
+      向 Rocket Chip 添加自定义调试信号
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#教学内存认证算法" class="md-nav__link">
     <span class="md-ellipsis">
       「教学」内存认证算法
@@ -813,15 +822,6 @@
   <a href="#教学risc-v-debug-协议" class="md-nav__link">
     <span class="md-ellipsis">
       「教学」RISC-V Debug 协议
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#教学随想" class="md-nav__link">
-    <span class="md-ellipsis">
-      教学随想
     </span>
   </a>
   
@@ -1791,6 +1791,124 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2022-05-13 00:00:00+00:00">2022年5月13日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="向-rocket-chip-添加自定义调试信号"><a class="toclink" href="../../hardware/2022/05/13/rocket-chip-custom-debug/">向 Rocket Chip 添加自定义调试信号</a></h2>
+<h3 id="背景"><a class="toclink" href="../../hardware/2022/05/13/rocket-chip-custom-debug/#背景">背景</a></h3>
+<p>最近在尝试把核心作为一个 Tile 加到 Rocket System 中，所以想要把核心之前自定义的调试信号接到顶层上去。Rocket System 自带的支持是 trace，也就是输出每个周期 retire 的指令信息，但和自定义的不大一样，所以研究了一下怎么添加自定义的调试信号，并且连接到顶层。</p>
+<h3 id="分析-trace-信号连接方式"><a class="toclink" href="../../hardware/2022/05/13/rocket-chip-custom-debug/#分析-trace-信号连接方式">分析 Trace 信号连接方式</a></h3>
+<p>首先，观察 Rocket Chip 自己使用的 Trace 信号是如何连接到顶层的。在顶层上，可以找到使用的是 <code>testchipip.CanHaveTraceIO</code>:</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">trait</span><span class="w"> </span><span class="nc">CanHaveTraceIO</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">this</span><span class="p">:</span><span class="w"> </span><span class="nc">HasTiles</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">module</span><span class="p">:</span><span class="w"> </span><span class="nc">CanHaveTraceIOModuleImp</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="c1">// Bind all the trace nodes to a BB; we&#39;ll use this to generate the IO in the imp</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">traceNexus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BundleBridgeNexusNode</span><span class="p">[</span><span class="nc">Vec</span><span class="p">[</span><span class="nc">TracedInstruction</span><span class="p">]]()</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">tileTraceNodes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tiles</span><span class="p">.</span><span class="n">flatMap</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">ext_tile</span><span class="p">:</span><span class="w"> </span><span class="nc">WithExtendedTraceport</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nc">None</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">tile</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nc">Some</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="p">}.</span><span class="n">map</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">traceNode</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="n">tileTraceNodes</span><span class="p">.</span><span class="n">foreach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">traceNexus</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>可以看到，它采用了 diplomacy 的 BundleBridgeNexusNode，把每个 tile 取出来，把它的 traceNode 接到 traceNexus 上。再看一下模块 <code>CanHaveTraceIOModuleImp</code> 是怎么实现的：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">trait</span><span class="w"> </span><span class="nc">CanHaveTraceIOModuleImp</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">this</span><span class="p">:</span><span class="w"> </span><span class="nc">LazyModuleImpLike</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">outer</span><span class="p">:</span><span class="w"> </span><span class="nc">CanHaveTraceIO</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="nc">HasTiles</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="k">implicit</span><span class="w"> </span><span class="kd">val</span><span class="w"> </span><span class="n">p</span><span class="p">:</span><span class="w"> </span><span class="nc">Parameters</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="kd">val</span><span class="w"> </span><span class="n">traceIO</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">(</span><span class="nc">TracePortKey</span><span class="p">)</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">traceParams</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">extTraceSeqVec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">outer</span><span class="p">.</span><span class="n">traceNexus</span><span class="p">.</span><span class="n">in</span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="n">_</span><span class="p">.</span><span class="n">_1</span><span class="p">)).</span><span class="n">map</span><span class="p">(</span><span class="nc">ExtendedTracedInstruction</span><span class="p">.</span><span class="n">fromVec</span><span class="p">(</span><span class="n">_</span><span class="p">))</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">tio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">IO</span><span class="p">(</span><span class="nc">Output</span><span class="p">(</span><span class="nc">TraceOutputTop</span><span class="p">(</span><span class="n">extTraceSeqVec</span><span class="p">)))</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="n">tileInsts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">((</span><span class="n">outer</span><span class="p">.</span><span class="n">traceNexus</span><span class="p">.</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="n">map</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">tileTrace</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nc">DeclockedTracedInstruction</span><span class="p">.</span><span class="n">fromVec</span><span class="p">(</span><span class="n">tileTrace</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="c1">// Since clock &amp; reset are not included with the traced instruction, plumb that out manually</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">    </span><span class="p">(</span><span class="n">tio</span><span class="p">.</span><span class="n">traces</span><span class="w"> </span><span class="n">zip</span><span class="w"> </span><span class="p">(</span><span class="n">outer</span><span class="p">.</span><span class="n">tile_prci_domains</span><span class="w"> </span><span class="n">zip</span><span class="w"> </span><span class="n">tileInsts</span><span class="p">)).</span><span class="n">foreach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">prci</span><span class="p">,</span><span class="w"> </span><span class="n">insts</span><span class="p">))</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">      </span><span class="n">port</span><span class="p">.</span><span class="n">clock</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">prci</span><span class="p">.</span><span class="n">module</span><span class="p">.</span><span class="n">clock</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">      </span><span class="n">port</span><span class="p">.</span><span class="n">reset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">prci</span><span class="p">.</span><span class="n">module</span><span class="p">.</span><span class="n">reset</span><span class="p">.</span><span class="n">asBool</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">      </span><span class="n">port</span><span class="p">.</span><span class="n">insns</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">insts</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">    </span><span class="n">tio</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span><span class="p">})</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>可以看到，它从 traceNexus 上接了若干的 trace 信号，然后通过 <code>IO(TraceOutputTop())</code> 接到了顶层的输出信号。</p>
+<p>再来看看 Rocket 是如何连接的，首先是 <code>traceNode</code> 的定义：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="cm">/** Node for the core to drive legacy &quot;raw&quot; instruction trace. */</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">traceSourceNode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BundleBridgeSource</span><span class="p">(()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nc">Vec</span><span class="p">(</span><span class="n">traceRetireWidth</span><span class="p">,</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="nc">TracedInstruction</span><span class="p">()))</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="cm">/** Node for external consumers to source a legacy instruction trace from the core. */</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kd">val</span><span class="w"> </span><span class="n">traceNode</span><span class="p">:</span><span class="w"> </span><span class="nc">BundleBridgeOutwardNode</span><span class="p">[</span><span class="nc">Vec</span><span class="p">[</span><span class="nc">TracedInstruction</span><span class="p">]]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">traceNexus</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">traceSourceNode</span>
+</span></code></pre></div>
+<p>然后 Rocket Tile 实现的时候，把自己的 trace 接到 traceSourceNode 上：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">outer</span><span class="p">.</span><span class="n">traceSourceNode</span><span class="p">.</span><span class="n">bundle</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="n">core</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">trace</span>
+</span></code></pre></div>
+<h3 id="添加自定义调试信号"><a class="toclink" href="../../hardware/2022/05/13/rocket-chip-custom-debug/#添加自定义调试信号">添加自定义调试信号</a></h3>
+<p>到这里，整个思路已经比较清晰了，我们只需要照猫画虎地做一个就行。比如要把自己的 Custom Debug 接口暴露出去，首先也是在 Tile 里面创建一个 SourceNode：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">// expose debug</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">customDebugSourceNode</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nc">BundleBridgeSource</span><span class="p">(()</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="nc">CustomDebug</span><span class="p">())</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="kd">val</span><span class="w"> </span><span class="n">customDebugNode</span><span class="p">:</span><span class="w"> </span><span class="nc">BundleBridgeOutwardNode</span><span class="p">[</span><span class="nc">CustomDebug</span><span class="p">]</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="n">customDebugSourceNode</span>
+</span></code></pre></div>
+<p>在 BaseTileModuleImp 里，进行信号的连接：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">// expose debug</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">outer</span><span class="p">.</span><span class="n">customDebugSourceNode</span><span class="p">.</span><span class="n">bundle</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">core</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">debug</span>
+</span></code></pre></div>
+<p>为了暴露到顶层，我们可以类似地做。在 Subsystem 中：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1">// expose debug</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">customDebugNexus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">BundleBridgeNexusNode</span><span class="p">[</span><span class="nc">CustomDebug</span><span class="p">]()</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="kd">val</span><span class="w"> </span><span class="n">tileCustomDebugNodes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tiles</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="p">.</span><span class="n">flatMap</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">case</span><span class="w"> </span><span class="n">tile</span><span class="p">:</span><span class="w"> </span><span class="nc">MeowV64Tile</span><span class="w"> </span><span class="o">=&gt;</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="nc">Some</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span><span class="p">.</span><span class="n">map</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="p">.</span><span class="n">customDebugNode</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="n">tileCustomDebugNodes</span><span class="p">.</span><span class="n">foreach</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">customDebugNexus</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>最后在 SubsystemModule Imp 中连接到 IO：</p>
+<div class="language-scala highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1">// wire custom debug signals</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="kd">val</span><span class="w"> </span><span class="n">customDebugIO</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">outer</span><span class="p">.</span><span class="n">customDebugNexus</span><span class="p">.</span><span class="n">in</span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="n">_</span><span class="p">.</span><span class="n">_1</span><span class="p">)</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="kd">val</span><span class="w"> </span><span class="n">customDebug</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nc">IO</span><span class="p">(</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nc">Output</span><span class="p">(</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="nc">Vec</span><span class="p">(</span><span class="n">customDebugIO</span><span class="p">.</span><span class="n">length</span><span class="p">,</span><span class="w"> </span><span class="n">customDebugIO</span><span class="p">(</span><span class="mi">0</span><span class="p">).</span><span class="n">cloneType</span><span class="p">)</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="p">)</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="p">)</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="n">until</span><span class="w"> </span><span class="n">customDebug</span><span class="p">.</span><span class="n">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">  </span><span class="n">customDebug</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="n">customDebugIO</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>这样就搞定了。</p>
+<h3 id="总结"><a class="toclink" href="../../hardware/2022/05/13/rocket-chip-custom-debug/#总结">总结</a></h3>
+<p>找到这个实现方法，基本是对着自带的 trace 接口做的，比较重要的是理解 diplomacy 里面的两层，第一层是把不同的模块进行一些连接，然后第二层在 ModuleImp 中处理实际的信号和逻辑。</p>
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -4856,78 +4974,6 @@ VREF the highest performance.
 <li>IEEE Standard for JTAG 1149.1-2013</li>
 <li>OpenOCD 相关代码</li>
 </ol>
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2021-12-09 00:00:00+00:00">2021年12月9日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="教学随想"><a class="toclink" href="../../misc/2021/12/09/education/">教学随想</a></h2>
-<h3 id="背景"><a class="toclink" href="../../misc/2021/12/09/education/#背景">背景</a></h3>
-<p>最近关于课程改革的讨论比较多，我也来谈谈我的看法。</p>
-<h3 id="动机"><a class="toclink" href="../../misc/2021/12/09/education/#动机">动机</a></h3>
-<p>一位高中毕业的同学，选择计算机系的动机是什么？我想了想，可能有下面几种：</p>
-<ol>
-<li>计算机行业就业好，我选了计算机系，毕业以后可以赚到很多钱</li>
-<li>喜欢计算机，希望从事计算机方面的工作</li>
-<li>计算机系分高，大家都说好，那我就选择去这里吧</li>
-<li>我是竞赛保送的，所以来到了这里</li>
-</ol>
-<p>学校希望计算机系培养出来的学生：</p>
-<ol>
-<li>有很好的能力</li>
-<li>有很好的毕业去向（保研/工作/留校等等）</li>
-</ol>
-<p>学校为希望计算机系：</p>
-<ol>
-<li>有更多重大科研成果</li>
-<li>能够培养多且精的计算机人才</li>
-</ol>
-<p>计算机系为了实现上面的目标：</p>
-<ol>
-<li>教学的专业课程要全面，并且能够支撑后续的科研</li>
-<li>吸引更多学生进入实验室科研</li>
-</ol>
-<p>同时还要与其他院系（软件学院，交叉信息学院，集成电路学院等）有区分（分工）。</p>
-<h3 id="路径"><a class="toclink" href="../../misc/2021/12/09/education/#路径">路径</a></h3>
-<p>可以看到，上面的这一系列诉求是有矛盾的，可以假想这么几条路径：</p>
-<ol>
-<li>想赚钱-&gt;读研毕业薪资更高-&gt;读研需要高 GPA-&gt;每门课都要 4.0-&gt;每个课程的可选部分都要做-&gt;工作量太大</li>
-<li>想科研-&gt;找好老师-&gt;需要高 GPA 和或论文-&gt;每门课都要 4.0 同时还要在实验室科研-&gt;工作量特别大</li>
-<li>不想科研直接工作-&gt;工作不需要高的 GPA-&gt;放弃一些课程的可选部分-&gt;空余时间学习实用技术-&gt;面试轻松过关</li>
-<li>对未来没有想法-&gt;从众心理卷 GPA-&gt;每个课程都做可选部分-&gt;花费很多时间-&gt;没有时间做自己喜欢的事情</li>
-</ol>
-<p>这对于七字班（2017）或者更早同学来说，这可能是难以理解的。当时，保研不需要很高的 GPA，老师会看重科研潜力，想科研的同学可能选择在实验室科研的同时，放弃一些课程。</p>
-<p>但是从八字班（2018）开始，多重因素下，问题就凸显了。一是总人数更多，保研难度本身就更大，竞争激烈；二是保研名额严格按照 GPA 排序，导致保研的同学必须科研学习两手抓；三是 GPA 改革以后，4.0 难度变低，以前会想 A B C 课程比较难，大部分人都拿不到 4.0，我 A 课程 3.7，B 课程 3.3 和你 A 课程 3.3，B 课程 3.7 是一样的，精力有限，只做三个里面最简单的一个，但现在会发现，比 GPA 实际上就是比谁 4.0 更多，虽然 A B C 课程也比较难，但是此时只能把三个都做了，不然就会排名下降明显。</p>
-<p>这还会带来其他的问题：为了拿到更多 4.0，但精力有限，按照自己的时间，三个课里只能拿到一个 4.0，比不过拿到三个 4.0 的同学，咋办？抄袭。让老师放水，人人 4.0。</p>
-<h3 id="解决"><a class="toclink" href="../../misc/2021/12/09/education/#解决">解决</a></h3>
-<p>那么，怎么解决这个问题？</p>
-<p>从个人的角度出发：尽早想好自己要什么。我要做什么，就在我要做的方向上做好，其他方向可以选择性放弃，不要随大流。</p>
-<p>从院系的角度出发：难。</p>
     
   </div>
 </article>

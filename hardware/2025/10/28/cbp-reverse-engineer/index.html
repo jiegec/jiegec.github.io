@@ -1,0 +1,2372 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="杰哥的{运维，编程，调板子}小笔记">
+      
+      
+      
+        <link rel="canonical" href="https://jia.je/hardware/2025/10/28/cbp-reverse-engineer/">
+      
+      
+        <link rel="prev" href="../../../../../software/2025/10/09/blog-analytics-three-months/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
+    
+    
+      
+        <title>条件分支预测器逆向（以 Apple M1 Firestorm 为例） - 杰哥的{运维，编程，调板子}小笔记</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.342714a4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-3109FRSVTT');
+</script>
+
+<script
+    src="https://analytics.jiege.pro/api/script.js"
+    data-site-id="1"
+    defer
+></script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="条件分支预测器逆向（以 Apple M1 Firestorm 为例） - 杰哥的{运维，编程，调板子}小笔记" >
+      
+        <meta  property="og:description"  content="杰哥的{运维，编程，调板子}小笔记" >
+      
+        <meta  property="og:image"  content="https://jia.je/assets/images/social/blog/posts/hardware/cbp-reverse-engineer.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://jia.je/hardware/2025/10/28/cbp-reverse-engineer/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="条件分支预测器逆向（以 Apple M1 Firestorm 为例） - 杰哥的{运维，编程，调板子}小笔记" >
+      
+        <meta  name="twitter:description"  content="杰哥的{运维，编程，调板子}小笔记" >
+      
+        <meta  name="twitter:image"  content="https://jia.je/assets/images/social/blog/posts/hardware/cbp-reverse-engineer.png" >
+      
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#条件分支预测器逆向以-apple-m1-firestorm-为例" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-header__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            杰哥的{运维，编程，调板子}小笔记
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              条件分支预测器逆向（以 Apple M1 Firestorm 为例）
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jiegec/blog-source" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  博客
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  关于
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../open-source-contributions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开源
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tags/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  标签
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/kb/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  知识库
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/cpu/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CPU
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/ctf-writeups/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CTF
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../series/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  系列
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../projects/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  项目
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tools/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  工具
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/feed.xml" class="md-tabs__link">
+        
+  
+  
+    
+  
+  订阅
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../benchmark/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  SPEC
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../archive/2025/" class="md-tabs__link">
+          
+  
+  
+  归档
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../category/crypto/" class="md-tabs__link">
+          
+  
+  
+  分类
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-nav__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    杰哥的{运维，编程，调板子}小笔记
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jiegec/blog-source" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    博客
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    关于
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../open-source-contributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    开源
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    标签
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/kb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    知识库
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/cpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CPU
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/ctf-writeups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CTF
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../series/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    系列
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    项目
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    工具
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/feed.xml" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    订阅
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    SPEC
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    归档
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            归档
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2024/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2024
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2023/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2023
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2022/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2022
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2021/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2021
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2020/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2020
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2019/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2019
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2018/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2018
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2017/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2017
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2016/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2016
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2014/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2014
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    分类
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
+            <span class="md-nav__icon md-icon"></span>
+            分类
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/crypto/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    crypto
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/csdn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    csdn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/ctf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ctf
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/devops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    devops
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    hardware
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/meta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    meta
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/misc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    misc
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    networking
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/os/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    os
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/others/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    others
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/programming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    programming
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/software/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    software
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    system
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                  <span class="md-ellipsis">
+                    回到主页
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    元数据
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
+                        <time datetime="2025-10-28 00:00:00+00:00" class="md-ellipsis">2025年10月28日</time>
+                      </div>
+                    </li>
+                    
+                    
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3zm3 2 4 13 3-1-4-13zM5 5v13h3V5zM3 19v2h18v-2z"/></svg>
+                          <span class="md-ellipsis">
+                            分类于
+                            
+                              <a href="../../../../../category/hardware/">hardware</a></span>
+                        </div>
+                      </li>
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              需要 11 分钟阅读时间
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+            
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#背景" class="md-nav__link">
+    <span class="md-ellipsis">
+      背景
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#背景知识" class="md-nav__link">
+    <span class="md-ellipsis">
+      背景知识
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#分支历史的逆向" class="md-nav__link">
+    <span class="md-ellipsis">
+      分支历史的逆向
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="分支历史的逆向">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#历史长度" class="md-nav__link">
+    <span class="md-ellipsis">
+      历史长度
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#分支地址-b-的贡献" class="md-nav__link">
+    <span class="md-ellipsis">
+      分支地址 B 的贡献
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#目的地址-t-的贡献" class="md-nav__link">
+    <span class="md-ellipsis">
+      目的地址 T 的贡献
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结" class="md-nav__link">
+    <span class="md-ellipsis">
+      小结
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tage-表的逆向" class="md-nav__link">
+    <span class="md-ellipsis">
+      TAGE 表的逆向
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TAGE 表的逆向">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#逆向工程-pc-输入" class="md-nav__link">
+    <span class="md-ellipsis">
+      逆向工程 PC 输入
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#逆向工程相连度和-index-函数的-pc-输入" class="md-nav__link">
+    <span class="md-ellipsis">
+      逆向工程相连度和 index 函数的 PC 输入
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#逆向工程-tag-函数" class="md-nav__link">
+    <span class="md-ellipsis">
+      逆向工程 tag 函数
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#逆向工程-index-函数" class="md-nav__link">
+    <span class="md-ellipsis">
+      逆向工程 index 函数
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#逆向工程使用分支历史更短的-tage-表" class="md-nav__link">
+    <span class="md-ellipsis">
+      逆向工程使用分支历史更短的 TAGE 表
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#总结" class="md-nav__link">
+    <span class="md-ellipsis">
+      总结
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#引用文献" class="md-nav__link">
+    <span class="md-ellipsis">
+      引用文献
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:apple" class="md-tag">apple</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:cbp" class="md-tag">cbp</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:cpu" class="md-tag">cpu</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:firestorm" class="md-tag">firestorm</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:m1" class="md-tag">m1</a>
+      
+    
+      
+      
+      
+        <a href="../../../../../tags/#tag:re" class="md-tag">re</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="条件分支预测器逆向以-apple-m1-firestorm-为例">条件分支预测器逆向（以 Apple M1 Firestorm 为例）<a class="headerlink" href="#条件分支预测器逆向以-apple-m1-firestorm-为例" title="Permanent link">&para;</a></h1>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
+<p>去年我完成了针对 Apple 和 Qualcomm 条件分支预测器（Conditional Branch Predictor）的逆向工程研究，相关论文已发表在 <a href="https://arxiv.org/abs/2411.13900">arXiv</a> 上，并公开了<a href="https://github.com/jiegec/cpu-micro-benchmarks">源代码</a>。考虑到许多读者对处理器逆向工程感兴趣，但可能因其复杂性而望而却步，本文将以 Apple M1 Firestorm 为例，详细介绍条件分支预测器的逆向工程方法，作为对原论文的补充说明。</p>
+<!-- more -->
+
+<h2 id="背景知识">背景知识<a class="headerlink" href="#背景知识" title="Permanent link">&para;</a></h2>
+<p>首先介绍一些背景知识。要逆向工程条件分支预测器，需要先了解其工作原理。条件分支预测器的基本思路是：</p>
+<ul>
+<li>条件分支的跳转行为（跳转或不跳转）通常是高度可预测的</li>
+<li>预测器的输入包括条件分支的地址，以及近期执行的若干条分支的历史记录；输出则是预测该条件分支是否跳转</li>
+</ul>
+<p>为了在硬件上实现这一算法，处理器会维护一个预测表，表中每一项包含一个 2 位饱和计数器，用于预测跳转方向。查表时，系统会对条件分支地址以及近期执行的分支历史进行哈希运算，使用哈希结果作为索引读取表项，然后根据计数器的值来预测分支的跳转方向。</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-basic.png" /></p>
+<p>（图源 CMU ECE740 Computer Architecture: Branch Prediction）</p>
+<p>目前主流处理器普遍采用 <a href="https://inria.hal.science/hal-03408381/document">TAGE</a> 预测器，它在上述基础查表方法的基础上进行了重要改进：</p>
+<ol>
+<li>观察到不同分支的预测所需的历史长度各不相同：有些分支无需历史信息即可准确预测，有些依赖近期分支的跳转结果，而有些则需要更久远的历史信息；</li>
+<li>分支历史越长，可能的路径组合就越多，导致预测器训练过程变慢，训练期间的预测错误率较高，因此希望尽快收敛；</li>
+<li>为满足不同分支对历史长度的需求，TAGE 设计了多个预测表，每个表使用不同长度的分支历史。多个表同时进行预测，当多个表都提供预测结果时（仅在 tag 匹配时提供预测），选择使用最长历史长度的预测结果。</li>
+</ol>
+<p><img alt="" src="../../../../cbp-reverse-engineer-tage.png" /></p>
+<p>（图源 <a href="https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf">Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution</a>）</p>
+<p>因此，要逆向工程处理器的条件分支预测器，需要完成以下工作：</p>
+<ol>
+<li>确定分支历史的记录方式：通常涉及分支地址和目的地址，通过一系列移位和异或操作，将结果存储在寄存器中；</li>
+<li>确定 TAGE 算法的具体实现：包括表的数量、每个表的大小、索引方式以及使用的分支历史长度。</li>
+</ol>
+<h2 id="分支历史的逆向">分支历史的逆向<a class="headerlink" href="#分支历史的逆向" title="Permanent link">&para;</a></h2>
+<p>第一步是逆向工程处理器记录分支历史的方式。传统教科书方法使用一个寄存器，每当遇到条件分支时记录其跳转方向（跳转记为 1，不跳转记为 0），每个分支占用 1 bit。然而，现代处理器（包括 Intel、Apple、Qualcomm、ARM 和部分 AMD）普遍采用 <a href="https://ieeexplore.ieee.org/document/476809/">Path History Register</a> 方法。这种方法设计一个长度为 <span class="arithmatex">\(n\)</span> 的寄存器 <span class="arithmatex">\(\mathrm{PHR}\)</span>，每当遇到跳转分支（包括条件分支和无条件分支）时，将寄存器左移，然后将当前跳转分支的地址和目的地址通过哈希函数映射，将哈希结果异或到移位寄存器中。用数学公式表示为：</p>
+<p><span class="arithmatex">\(\mathrm{PHR}_{\mathrm{new}} = (\mathrm{PHR}_{\mathrm{old}} \ll \mathrm{shamt}) \oplus \mathrm{footprint}\)</span></p>
+<p>其中 <span class="arithmatex">\(\mathrm{footprint}\)</span> 是通过分支地址和目的地址计算得到的哈希值。接下来的任务是确定 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的位宽、每次左移的位数，以及 <span class="arithmatex">\(\mathrm{footprint}\)</span> 的计算方法。</p>
+<h3 id="历史长度">历史长度<a class="headerlink" href="#历史长度" title="Permanent link">&para;</a></h3>
+<p>首先分析这个更新公式：它将最近的 <span class="arithmatex">\(\lceil n / \mathrm{shamt} \rceil\)</span> 条跳转分支的信息压缩存储在 <span class="arithmatex">\(n\)</span> 位的 <span class="arithmatex">\(\mathrm{PHR}\)</span> 寄存器中。随着移位操作的累积，更早的分支历史信息对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的贡献最终会变为零。</p>
+<p>第一个实验的目标是确定 <span class="arithmatex">\(\mathrm{PHR}\)</span> 能够记录多少条最近分支的历史。具体方法是构建一个分支历史序列：</p>
+<ol>
+<li>第一个条件分支：以 50% 的概率随机跳转或不跳转；</li>
+<li>中间插入若干条无条件分支；</li>
+<li>最后一个条件分支：跳转方向与第一个条件分支相同。</li>
+</ol>
+<p>接下来分析两种情况：</p>
+<ol>
+<li>如果在预测最后一个条件分支时，分支历史 <span class="arithmatex">\(\mathrm{PHR}\)</span> 仍然包含第一个条件分支的信息，预测器应该能够准确预测最后一个条件分支的方向；</li>
+<li>如果中间的无条件分支数量足够多，使得第一个条件分支的跳转信息对预测最后一个条件分支时的 <span class="arithmatex">\(\mathrm{PHR}\)</span> 没有影响，预测器只能以 50% 的概率进行正确预测。</li>
+</ol>
+<p>通过构造上述程序，调整中间无条件分支的数量，并使用性能计数器统计分支预测错误率，可以找到一个临界点。当无条件分支数量超过这个阈值时，第二个条件分支的错误预测率会从 0% 上升到 50%。这个临界点对应 <span class="arithmatex">\(\mathrm{PHR}\)</span> 能够记录的分支历史数量，即 <span class="arithmatex">\(\lceil n / \mathrm{shamt} \rceil\)</span>。</p>
+<p>经过<a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/phr_size_gen.cpp">测试</a>：</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-phr-len.png" /></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a># 第一列：第二步插入的无条件分支数量加一
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a># 第二列到第四列：分支预测错误概率的 min/avg/max
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a># 第五列：每次循环的周期数
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>size,min,avg,max,cycles
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>97,0.00,0.00,0.01,216.87
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>98,0.00,0.00,0.01,221.02
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>99,0.00,0.00,0.01,225.18
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>100,0.00,0.00,0.01,229.17
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>101,0.45,0.50,0.53,331.97
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>102,0.47,0.50,0.54,336.27
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>103,0.46,0.50,0.54,339.85
+</span></code></pre></div>
+<p>测试结果表明阈值为 100：在 Apple M1 Firestorm 上，最多可以记录最近 100 条分支的历史信息。</p>
+<details class="question">
+<summary>分支预测错误率是怎么测量的？</summary>
+<p>处理器内置了性能计数器，会记录分支预测错误次数。在 Linux 上，可以用 perf 子系统来读取；在 macOS 上，可以用 kpep 私有 API 来获取。我开源的代码中对这些 API 进行了<a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/utils.cpp">封装</a>，可以实现跨平台的性能计数器读取。更进一步，我们还逆向了 Qualcomm Oryon 的针对条件分支的预测错误次数的隐藏性能计数器用于后续的实验。</p>
+</details>
+<h3 id="分支地址-b-的贡献">分支地址 B 的贡献<a class="headerlink" href="#分支地址-b-的贡献" title="Permanent link">&para;</a></h3>
+<p>接下来需要推测 <span class="arithmatex">\(\mathrm{footprint}\)</span> 的计算方法，即分支地址和目的地址如何参与 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的更新过程。约定分支地址记为 <span class="arithmatex">\(B\)</span>（Branch 的首字母），目的地址记为 <span class="arithmatex">\(T\)</span>（Target 的首字母），用 <span class="arithmatex">\(B[i]\)</span> 表示分支地址从低到高第 <span class="arithmatex">\(i\)</span> 位（下标从 0 开始）的值，<span class="arithmatex">\(T[i]\)</span> 同理。假设 <span class="arithmatex">\(\mathrm{footprint}\)</span> 的每一位都由若干个 <span class="arithmatex">\(B[i]\)</span> 和 <span class="arithmatex">\(T[i]\)</span> 通过异或运算得到。</p>
+<details class="question">
+<summary>分支指令本身占用了多个字节，那么分支地址指的是哪一个字节的地址呢？</summary>
+<p>经过测试，AMD64 架构下，分支地址用的是分支指令最后一个字节的地址，而 ARM64 架构下，分支指令用的是分支指令第一个字节的地址。这大概是因为 AMD64 架构下分支指令是变长的，并且可以跨越页的边界；ARM64 则是定长的，并且不会跨越页的边界。</p>
+</details>
+<p>设计以下程序来推测某个 <span class="arithmatex">\(B[i]\)</span> 如何参与 <span class="arithmatex">\(\mathrm{footprint}\)</span> 的计算：</p>
+<ol>
+<li>根据上面的分析，Apple M1 Firestorm 最多可以记录最近 100 条分支的历史信息，为了让 <span class="arithmatex">\(\mathrm{PHR}\)</span> 进入一个稳定的初始值，执行 100 个无条件分支；</li>
+<li>设计两条分支指令，第一条是条件分支，按 50% 的概率跳或不跳；第二条是无条件分支；这两条分支的分支地址只在 <span class="arithmatex">\(B[i]\)</span> 上不同，其余的位都相同，目的地址相同；</li>
+<li>执行若干条无条件分支，目的是把 <span class="arithmatex">\(B[i]\)</span> 对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的贡献往前移；</li>
+<li>执行一条条件分支指令，其跳转方向与第二步中条件分支的方向一致。</li>
+</ol>
+<p>约等于下面的代码：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// step 1.</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1">// 100 jumps forward</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">goto</span><span class="w"> </span><span class="n">jump_0</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nl">jump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_1</span><span class="p">;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1">// ...</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nl">jump_98</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_99</span><span class="p">;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nl">jump_99</span><span class="p">:</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">// step 2.</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="kt">int</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rand</span><span class="p">();</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">// the follow two branches differ in B[i]</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1">// first conditional branch, 50% taken or not taken</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">target</span><span class="p">;</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1">// second unconditional branch</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="k">else</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">target</span><span class="p">;</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="nl">target</span><span class="p">:</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1">// step 3.</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1">// variable number of jumps forward</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="k">goto</span><span class="w"> </span><span class="n">varjump_0</span><span class="p">;</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="nl">varjump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">varjump_1</span><span class="p">;</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1">// ...</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="nl">varjump_k</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">last</span><span class="p">;</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="c1">// step 4.</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="c1">// conditional branch</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="nl">last</span><span class="p">:</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">end</span><span class="p">;</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="nl">end</span><span class="p">:</span>
+</span></code></pre></div>
+<p>第二步中条件分支跳转与否，会影响分支历史中 <span class="arithmatex">\(B[i]\)</span> 一个位的变化，它会经过哈希函数，影响到 <span class="arithmatex">\(\mathrm{footprint}\)</span> 当中，进而异或到 <span class="arithmatex">\(\mathrm{PHR}\)</span> 当中。通过调整第三步执行的无条件分支个数，可以把 <span class="arithmatex">\(B[i]\)</span> 对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的影响左移到不同的位置。如果 <span class="arithmatex">\(B[i]\)</span> 对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 造成了影响，就可以正确预测最后一条条件分支指令的方向。当左移的次数足够多，就会使得 <span class="arithmatex">\(B[i]\)</span> 对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的贡献为零，那么对最后一条条件分支指令的方向预测只有 50% 的正确率。在 Apple M1 Firestorm 上<a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/phr_branch_bits_location_gen.cpp">测试</a>，得到如下结果：</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-phrb.png" /></p>
+<p>横坐标 <code>Dummy branches</code> 指的是上面第三步插入的无条件分支的个数，纵坐标 <code>Branch toggle bit</code> 代表修改的是具体哪一个 <span class="arithmatex">\(B[i]\)</span>，颜色对应分支预测的错误率，浅色部分对应最后一条分支只能正确预测 50%，深色部分对应最后一条分支总是可以正确预测。</p>
+<p>从这个图可以得到什么信息呢？首先观察 <span class="arithmatex">\(B[2]\)</span> 对应的这一行，可以看到它确实参与到了 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的计算当中，但是，仅仅经过 28 次移位，这个贡献就被移出了 <span class="arithmatex">\(\mathrm{PHR}\)</span>，为了保留在 <span class="arithmatex">\(\mathrm{PHR}\)</span> 内，最多移动 27 次。类似地，在移出 <span class="arithmatex">\(\mathrm{PHR}\)</span> 之前，<span class="arithmatex">\(B[3]\)</span> 最多移动 26 次，<span class="arithmatex">\(B[4]\)</span> 最多移动 25 次，<span class="arithmatex">\(B[5]\)</span> 最多移动 24 次。</p>
+<p>但实际上，这些 <span class="arithmatex">\(B\)</span> 是同时进入 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的：这暗示了，它们对应了 <span class="arithmatex">\(\mathrm{footprint}\)</span> 的不同位置。如果某个 <span class="arithmatex">\(B[i]\)</span> 出现在 <span class="arithmatex">\(\mathrm{footprint}\)</span> 更高位的地方，它也会进入 <span class="arithmatex">\(\mathrm{PHR}\)</span> 更高位的地址，经过更少的移位次数就会被移出 <span class="arithmatex">\(\mathrm{PHR}\)</span>；反之，如果 <span class="arithmatex">\(B[i]\)</span> 出现在 <span class="arithmatex">\(\mathrm{footprint}\)</span> 更低位的地方，它能够在 <span class="arithmatex">\(\mathrm{PHR}\)</span> 中停留更长的时间。</p>
+<p>根据上面的实验，可见 <span class="arithmatex">\(B[5], B[4], B[3], B[2]\)</span> 参与到了 <span class="arithmatex">\(\mathrm{footprint}\)</span> 计算当中，而 <span class="arithmatex">\(B\)</span> 其他的位则没有。但比较奇怪的是，<span class="arithmatex">\(\mathrm{PHR}\)</span> 理应可以记录最近 100 条分支的信息，但实际上只观察到了 28。所以一定另外有别的信息。</p>
+<h3 id="目的地址-t-的贡献">目的地址 T 的贡献<a class="headerlink" href="#目的地址-t-的贡献" title="Permanent link">&para;</a></h3>
+<p>刚刚测试了 <span class="arithmatex">\(B\)</span>，接下来测试 <span class="arithmatex">\(T\)</span> 各位对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的贡献，方法类似：</p>
+<ol>
+<li>为了让 <span class="arithmatex">\(\mathrm{PHR}\)</span> 进入一个稳定的初始值，执行 100 个无条件分支；</li>
+<li>设计一个间接分支，根据随机数，随机跳转到两个不同的目的地址，这两个目的地址只在 <span class="arithmatex">\(T[i]\)</span> 上不同，其余的位都相同，分支地址相同；</li>
+<li>执行若干条无条件分支，目的是把 <span class="arithmatex">\(T[i]\)</span> 对 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的贡献往前移；</li>
+<li>执行一条条件分支指令，其跳转方向取决于第二步中间接分支所使用的随机数。</li>
+</ol>
+<p>约等于下面的代码：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// step 1.</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// 100 jumps forward</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">goto</span><span class="w"> </span><span class="n">jump_0</span><span class="p">;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nl">jump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_1</span><span class="p">;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1">// ...</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nl">jump_98</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_99</span><span class="p">;</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nl">jump_99</span><span class="p">:</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1">// step 2.</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="kt">int</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rand</span><span class="p">();</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1">// indirect branch</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="c1">// the follow two targets differ in T[i]</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="k">auto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">target0</span><span class="p">,</span><span class="w"> </span><span class="n">target1</span><span class="p">};</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="k">goto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">];</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="nl">target0</span><span class="p">:</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="c1">// add many nops</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="nl">target1</span><span class="p">:</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="c1">// step 3.</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="c1">// variable number of jumps forward</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="k">goto</span><span class="w"> </span><span class="n">varjump_0</span><span class="p">;</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="nl">varjump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">varjump_1</span><span class="p">;</span>
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="c1">// ...</span>
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="nl">varjump_k</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">last</span><span class="p">;</span>
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="c1">// step 4.</span>
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="c1">// conditional branch</span>
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="nl">last</span><span class="p">:</span>
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">end</span><span class="p">;</span>
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="nl">end</span><span class="p">:</span>
+</span></code></pre></div>
+<p>在 Apple M1 Firestorm 上<a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/phr_target_bits_location_gen.cpp">测试</a>，得到如下结果：</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-phrt.png" /></p>
+<details class="question">
+<summary>为了测试 T[31]，岂不是得插入很多个 NOP，一方面二进制很大，其次还要执行很长时间？</summary>
+<p>是的，所以这里在测试的时候，采用的是类似 JIT 的方法，通过 mmap <code>MAP_FIXED</code> 在内存中特定位置分配并写入代码，避免了用汇编器生成一个巨大的 ELF。同时，为了避免执行大量的 NOP，考虑到前面已经发现 <span class="arithmatex">\(B[6]\)</span> 或更高的位没有参与到 <span class="arithmatex">\(\mathrm{PHR}\)</span> 计算当中，所以可以添加额外的一组无条件分支来跳过大量的 NOP，它们的目的地址相同，分支地址低位相同，因此对 PHR 不会产生影响。对应的代码大概是：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// step 1.</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">// 100 jumps forward</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">goto</span><span class="w"> </span><span class="n">jump_0</span><span class="p">;</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nl">jump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_1</span><span class="p">;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1">// ...</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nl">jump_98</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_99</span><span class="p">;</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nl">jump_99</span><span class="p">:</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1">// step 2.</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="kt">int</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rand</span><span class="p">();</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1">// indirect branch</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1">// the follow two targets differ in T[i]</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="k">auto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">target0</span><span class="p">,</span><span class="w"> </span><span class="n">target1</span><span class="p">};</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="k">goto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">];</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="nl">target0</span><span class="p">:</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1">// skip over nops, while keeping B[5:2]=0</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="k">goto</span><span class="w"> </span><span class="n">target2</span><span class="p">;</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="c1">// add many nops</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="nl">target1</span><span class="p">:</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="k">goto</span><span class="w"> </span><span class="n">target2</span><span class="p">;</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="nl">target2</span><span class="p">:</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="c1">// step 3.</span>
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="c1">// variable number of jumps forward</span>
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="k">goto</span><span class="w"> </span><span class="n">varjump_0</span><span class="p">;</span>
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="nl">varjump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">varjump_1</span><span class="p">;</span>
+</span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="c1">// ...</span>
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="nl">varjump_k</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">last</span><span class="p">;</span>
+</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>
+</span><span id="__span-3-31"><a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a><span class="c1">// step 4.</span>
+</span><span id="__span-3-32"><a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a><span class="c1">// conditional branch</span>
+</span><span id="__span-3-33"><a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a><span class="nl">last</span><span class="p">:</span>
+</span><span id="__span-3-34"><a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">end</span><span class="p">;</span>
+</span><span id="__span-3-35"><a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a><span class="nl">end</span><span class="p">:</span>
+</span></code></pre></div>
+</details>
+<p>由此我们终于找到了分支历史最长记录 100 条分支是怎么来的：<span class="arithmatex">\(T[2]\)</span> 会经过 <span class="arithmatex">\(\mathrm{footprint}\)</span> 被异或到 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的最低位，然后每次执行一个跳转的分支左移一次，直到移动 100 次才被移出 <span class="arithmatex">\(\mathrm{PHR}\)</span>。类似地，<span class="arithmatex">\(T[3]\)</span> 只需要 99 次就能移出 <span class="arithmatex">\(\mathrm{PHR}\)</span>，说明 <span class="arithmatex">\(T[3]\)</span> 被异或到了 <span class="arithmatex">\(\mathrm{PHR}[1]\)</span>。依此类推，可以知道涉及到 <span class="arithmatex">\(T\)</span> 的 <span class="arithmatex">\(\mathrm{footprint} = T[31:2]\)</span>，其中 <span class="arithmatex">\(T[31:2]\)</span> 代表一个 30 位的数，每一位从高到低分别对应 <span class="arithmatex">\(T[31], T[30], \cdots, T[2]\)</span>。</p>
+<h3 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h3>
+<p>那么，问题来了，前面测试 <span class="arithmatex">\(B\)</span> 的时候，移位次数那么少，明显少于 <span class="arithmatex">\(T\)</span> 的移位次数。这有两种可能：</p>
+<ol>
+<li>硬件上只有一个 <span class="arithmatex">\(\mathrm{PHR}\)</span> 寄存器，然后 <span class="arithmatex">\(T[31:2]\)</span> 被异或到 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的低位，而 <span class="arithmatex">\(B[5:2]\)</span> 被异或到 <span class="arithmatex">\(\mathrm{PHR}\)</span> 的中间的位置；</li>
+<li>硬件上有两个 <span class="arithmatex">\(\mathrm{PHR}\)</span> 寄存器，其中一个是 100 位，它的 <span class="arithmatex">\(\mathrm{footprint} = T[31:2]\)</span>，记为 <span class="arithmatex">\(\mathrm{PHRT}\)</span>；另一个是 28 位，它的 <span class="arithmatex">\(\mathrm{footprint} = B[5:2]\)</span>，记为 <span class="arithmatex">\(\mathrm{PHRB}\)</span>。</li>
+</ol>
+<p>经过后续的测试，基本确认硬件实现的是第二种。用数学公式来表达：</p>
+<p><span class="arithmatex">\(\mathrm{PHRT}_{\mathrm{new}} = (\mathrm{PHRT}_{\mathrm{old}} \ll 1) \oplus \mathrm{T}[31:2]\)</span></p>
+<p><span class="arithmatex">\(\mathrm{PHRB}_{\mathrm{new}} = (\mathrm{PHRB}_{\mathrm{old}} \ll 1) \oplus \mathrm{B}[5:2]\)</span></p>
+<p>有意思的是，在我的论文发表后不久，在 Apple 公开的专利 <a href="https://patents.google.com/patent/US12159142B1/en">Managing table accesses for tagged geometric length (TAGE) load value prediction</a> 当中，就出现了相关的表述，证明了逆向结果的正确性。</p>
+<p>按照这个方法，我还逆向了 Apple、Qualcomm、ARM 和 Intel 的多代处理器的分支历史的记录方法，<a href="https://jia.je/cpu/cbp.html">并进行了公开</a>，供感兴趣的读者阅读，也欢迎读者将测试代码移植到更多处理器上，并贡献对其逆向的结果。</p>
+<h2 id="tage-表的逆向">TAGE 表的逆向<a class="headerlink" href="#tage-表的逆向" title="Permanent link">&para;</a></h2>
+<p>接下来，把目光转向 TAGE 表的逆向。TAGE 表和缓存的结构类似，也是一个多路组相连的结构，通过 index 访问若干路，然后对每一路进行 tag 匹配，匹配正确的那一路提供预测。TAGE 在预测的时候，输入是历史寄存器，也就是上面逆向得到的 <span class="arithmatex">\(\mathrm{PHRT}\)</span> 和 <span class="arithmatex">\(\mathrm{PHRB}\)</span>，以及分支的地址，目前这两个输入都是可控的。为了避免多个表同时提供预测，首先来逆向工程使用分支历史最长的表的参数：它的容量是多少，index 是如何计算的，tag 是如何计算的，以及几路组相连。</p>
+<p>怎么保证是使用分支历史最长的表提供预测呢？其实还是利用分支历史的特性，把随机数注入到 <span class="arithmatex">\(PHR\)</span> 当中，例如前面的间接分支，让两个目的地址只在 <span class="arithmatex">\(T[2]\)</span> 上不同：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// add some unconditional jumps to reset phr to some constant value</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1">// 100 jumps forward</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">goto</span><span class="w"> </span><span class="n">jump_0</span><span class="p">;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nl">jump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_1</span><span class="p">;</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1">// ...</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="nl">jump_98</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">jump_99</span><span class="p">;</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="nl">jump_99</span><span class="p">:</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1">// inject</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="kt">int</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rand</span><span class="p">();</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1">// indirect branch</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c1">// the follow two targets differ in T[2]</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="k">auto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">target0</span><span class="p">,</span><span class="w"> </span><span class="n">target1</span><span class="p">};</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="k">goto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">];</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="nl">target0</span><span class="p">:</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="c1">// add nop here</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="nl">target1</span><span class="p">:</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="c1">// add some unconditional jumps to shift the injected bit left</span>
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="k">goto</span><span class="w"> </span><span class="n">varjump_0</span><span class="p">;</span>
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="nl">varjump_0</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">varjump_1</span><span class="p">;</span>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="c1">// ...</span>
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="nl">varjump_k</span><span class="p">:</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">last</span><span class="p">;</span>
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="nl">last</span><span class="p">:</span>
+</span></code></pre></div>
+<p>根据前面的分析，<span class="arithmatex">\(T[2]\)</span> 会被异或到 <span class="arithmatex">\(\mathrm{PHRT}\)</span> 的最低位上，每执行一次无条件分支，就左移一位。因此，通过若干个无条件分支，可以把 <code>d % 2</code> 这个随机数注入到 <span class="arithmatex">\(\mathrm{PHRT}\)</span> 的任意一位上。之后我们还会很多次地进行这种随机数的注入。</p>
+<p>把随机数注入到 <span class="arithmatex">\(\mathrm{PHRT}\)</span> 高位以后，再预测一个根据随机数跳转或不跳转的分支，就可以保证它只能由使用分支历史最长的表来进行预测。</p>
+<h3 id="逆向工程-pc-输入">逆向工程 PC 输入<a class="headerlink" href="#逆向工程-pc-输入" title="Permanent link">&para;</a></h3>
+<p>首先，我们希望推断 PC 是如何参与到 index 或 tag 计算当中的。通常，TAGE 只会采用一部分的 PC 位来参与到 index 或 tag 计算当中。换句话说，如果两个分支在 PC 上不同的部分，并没有参与到 index 或 tag 计算当中，那么 TAGE 是无法区分这两条分支的。如果这两个分支跳转方向是相反的，并且用相同的 PHR 进行预测，那么一定会出现错误的预测。思路如下：</p>
+<ol>
+<li>用 100 个无条件分支，保证 PHR 变成一个确定的值；</li>
+<li>注入随机数 <code>d % 2</code> 到 PHRT，并移动到高位（例如 <span class="arithmatex">\(PHRT[99]\)</span>），使用前面所述的方法；</li>
+<li>执行两个条件分支，它们在分支地址上只有一位 <span class="arithmatex">\(PC[i]\)</span> 不同，它们的跳转条件相反，当第一个条件分支不跳转的时候，会执行第二个条件分支，它总是会跳转。</li>
+</ol>
+<p>对应代码类似于：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">// step 1. inject phrt</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kt">int</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rand</span><span class="p">();</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">inject_phrt</span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">99</span><span class="p">);</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1">// step 2. a pair of conditional branches with different direction</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1">// their PC differs in one bit</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">end</span><span class="p">;</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">end</span><span class="p">;</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="nl">end</span><span class="p">:</span>
+</span></code></pre></div>
+<p>经过测试，PC 的输入是 <span class="arithmatex">\(PC[18:2]\)</span>，其余的没有。</p>
+<h3 id="逆向工程相连度和-index-函数的-pc-输入">逆向工程相连度和 index 函数的 PC 输入<a class="headerlink" href="#逆向工程相连度和-index-函数的-pc-输入" title="Permanent link">&para;</a></h3>
+<p>接下来是比较复杂的一步，同时逆向工程表的相连度和 index 函数的 PC 输入。这是因为，这两部分是紧密耦合的：只有知道了相连度，才能知道预测出来的分支数对应几个 set；但不知道 index 函数，又无法控制分支被分配到几个 set 当中。首先，为了避免 PHR 的干扰，还是只注入一个随机数到 <span class="arithmatex">\(PHRT[99]\)</span> 上（事实上，<span class="arithmatex">\(PHRT[99]\)</span> 不是随便选择的，而是需要在 index 函数当中，但通过测试可以找到满足要求的位）。其次，构造一系列分支，它们的地址满足：第 i 条分支（i 从 0 开始）的分支地址是 <span class="arithmatex">\(i2^k\)</span>，其中 <span class="arithmatex">\(k\)</span> 是接下来要遍历的参数。当 <span class="arithmatex">\(k=3\)</span> 时，分支会被放到 <code>0x0, 0x8, 0x10, 0x18, 0x20</code> 等等的地址，涉及到的 PC 的位数随着分支数的增加越来越多。接下来，我们来分类讨论：</p>
+<ul>
+<li>假如涉及到的 PC 的位都在 tag 中，并没有出现在 index 中：那么这些分支都会被映射到同一个 set 内，一旦分支数量超出了相连度，就会出现预测错误。</li>
+<li>假如涉及到的 PC 的位有一部分出现在了 index 中：那么每有一个 PC 位出现在 index 中，这些分支可以被分配到的 set 数量就翻倍，直到这些 set 都满了以后，才会出现预测错误。</li>
+<li>假如涉及到的 PC 的位有一部分超出了 PC 输入的范围（如前面逆向工程得到的 <span class="arithmatex">\(PC[18:2]\)</span>）：那么超出输入的部分地址会被忽略，使得 set 内出现冲突。</li>
+</ul>
+<p><a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/pht_associativity_gen.cpp">实验</a>结果如下图：</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-assoc.png" /></p>
+<p>纵坐标就是上面的 <span class="arithmatex">\(k\)</span>，横坐标是测试的条件分支数，颜色表示预测的错误率。当颜色从深色变浅，就说明出现了预测错误。观察：</p>
+<ul>
+<li><span class="arithmatex">\(PC[3]\)</span> 的情况下，只能预测 4 个分支，而 <span class="arithmatex">\(PC[4]\)</span> 或 <span class="arithmatex">\(PC[5]\)</span> 可以预测 8 个分支，暗示了四路组相连，然后 <span class="arithmatex">\(PC[4]\)</span> 和 <span class="arithmatex">\(PC[5]\)</span> 对应到了两个 set，所以能够正确预测 8 个分支。</li>
+<li><span class="arithmatex">\(PC[6]\)</span> 的情况下，可以预测 16 个分支，对应 4 个 set；后续 <span class="arithmatex">\(PC[7]\)</span> 和 <span class="arithmatex">\(PC[8]\)</span> 又可以预测 8 个分支，对应 2 个 set；意味着 <span class="arithmatex">\(PC[6]\)</span> 在 index 当中，给 <span class="arithmatex">\(PC[4]\)</span> 和 <span class="arithmatex">\(PC[5]\)</span> 提供了两倍的 set；<span class="arithmatex">\(PC[9]\)</span> 在 index 当中，给 <span class="arithmatex">\(PC[6]\)</span>、<span class="arithmatex">\(PC[7]\)</span> 和 <span class="arithmatex">\(PC[8]\)</span> 提供了两倍的 set。</li>
+<li>后续更高的 PC 位，没有受到 index 函数的影响，因此都是 4，直到最后超出 PC 输入范围。</li>
+</ul>
+<p>这就说明它是四路组相连，PC[6] 和 PC[9] 参与到了 index 函数当中。</p>
+<p>下面给读者一个小练习，下面是在 Qualcomm Oryon 上测得的结果，可以看到，它噪声比较大，你能推断出它是几路组相连，有哪些 PC 参与到了 index 计算吗？</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-assoc-oryon.png" /></p>
+<details class="question">
+<summary>揭晓答案</summary>
+<p>四路组相连，<span class="arithmatex">\(PC[6]\)</span> 和 <span class="arithmatex">\(PC[7]\)</span> 参与到了 index 函数。</p>
+</details>
+<p>那么，这种测试是怎么构造的呢？即需要用相同的 PHR 去预测 <span class="arithmatex">\(PC=i2^k\)</span> 的多条分支。思路比较复杂：</p>
+<ol>
+<li>首先执行一条间接分支，目的地址是 <span class="arithmatex">\(i2^{k-1}\)</span>，那么它对 PHRT 的贡献是 <span class="arithmatex">\(\mathrm{PHRT}_1 = (\mathrm{PHRT}_0 \ll 1) \oplus (i2^{k-3})\)</span>；</li>
+<li>接下来，在 <span class="arithmatex">\(i2^{k-1}\)</span> 的位置，再执行一条直接分支，目的地址是 <span class="arithmatex">\(i2^k\)</span>，那么它对 PHRT 的贡献是 <span class="arithmatex">\(\mathrm{PHRT}_2 = (\mathrm{PHRT}_1 \ll 1) \oplus (i2^{k-2}) = (((\mathrm{PHRT}_0 \ll 1) \oplus (i2^{k-3})) \ll 1) \oplus (i2^{k-2}) = \mathrm{PHRT}_0 \ll 2\)</span>。</li>
+</ol>
+<p>可见经过两步以后，PHRT 是保持不变的。针对 PHRB，只要 <span class="arithmatex">\(i2^{k-1}\)</span> 没有涉及到 <span class="arithmatex">\(PC[5:2]\)</span>，就能保证相同。那么如果 <span class="arithmatex">\(k\)</span> 足够小，也有办法：</p>
+<ol>
+<li>首先执行一条间接分支，目的地址是 <span class="arithmatex">\(i2^{k-1}\)</span>；</li>
+<li>接下来执行大量的 NOP，使得 <span class="arithmatex">\(B\)</span> 的低位等于 0，然后再执行一条间接分支，目的地址是 <span class="arithmatex">\(i2^k\)</span>。</li>
+</ol>
+<p>因此我们总是可以通过两次分支，实现用相同的 PHR 预测不同 PC 上的多条分支。</p>
+<h3 id="逆向工程-tag-函数">逆向工程 tag 函数<a class="headerlink" href="#逆向工程-tag-函数" title="Permanent link">&para;</a></h3>
+<p>接下来，进行 tag 函数的逆向。为了逆向 tag 函数，我们希望能够找到两个位在 tag 函数中有异或的关系，那么如果这两个位同时设为 0，或者同时设为 1，其异或结果都等于 0，使得计算出来的 tag 函数相同，如果此时 index 还相同，那么预测器就无法区分这两种情况。</p>
+<p>为了利用这一点，生成两个 0 到 1 的随机数 <span class="arithmatex">\(k\)</span> 和 <span class="arithmatex">\(l\)</span>，分别把它们注入到 PC、PHRB 或者 PHRT 当中，去预测一个条件分支，其跳转与否取决于 <span class="arithmatex">\(k\)</span> 的值（论文中有个小 typo）。如果 <span class="arithmatex">\(k\)</span> 和 <span class="arithmatex">\(l\)</span> 在 tag 函数中有异或关系，那么预测器总会预测错误。</p>
+<p>实验结果大致如下，横纵坐标表示注入哪一个位，颜色代表预测错误率，深色意味着预测错误，也就是找到了一组异或关系：</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-assoc-tag-pc-phr.png" /></p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-assoc-tag-phr-phr.png" /></p>
+<p>其中有一些异或关系，因为对应的位在 index 中出现的缘故，导致没有显现出来。根据已知的异或关系外推，可以得到如下的 tag 计算公式：</p>
+<ul>
+<li>PC[7] xor PHRT[0,12,...,96] xor PHRB[8,21]</li>
+<li>PC[8] xor PHRT[1,13,...,97] xor PHRB[9,22]</li>
+<li>PC[9] xor PHRT[2,14,...,98] xor PHRB[10,23,24]</li>
+<li>PC[10] xor PHRT[3,15,...,87,99] xor PHRB[11,12,25]</li>
+<li>PC[11] xor PHRT[4,16,...,88] xor PHRB[0,13,26]</li>
+<li>PC[12] xor PHRT[5,17,...,89] xor PHRB[1,14,27]</li>
+<li>PC[13] xor PHRT[6,18,...,90] xor PHRB[2,15]</li>
+<li>PC[14] xor PHRT[7,19,...,91] xor PHRB[3,16]</li>
+<li>PC[15] xor PHRT[8,20,...,92] xor PHRB[4,17]</li>
+<li>PC[16] xor PHRT[9,21,...,93] xor PHRB[5,18]</li>
+<li>PC[17] xor PHRT[10,22,...,94] xor PHRB[6,19]</li>
+<li>PC[18] xor PHRT[11,23,...,95] xor PHRB[7,20]</li>
+<li>PC[2:5]: 单独出现，不和其他位异或</li>
+</ul>
+<p>那么，这里是怎么实现针对 PC、PHRT 和 PHRB 的注入的呢？针对 PHRT 的注入前面已经提到过，只需要一个间接分支：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">// target differs in T[2]</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">auto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">target0</span><span class="p">,</span><span class="w"> </span><span class="n">target1</span><span class="p">};</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">goto</span><span class="w"> </span><span class="n">targets</span><span class="p">[</span><span class="n">d</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">];</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nl">target0</span><span class="p">:</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">// add nop</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nl">target1</span><span class="p">:</span>
+</span></code></pre></div>
+<p>PHRB 的注入就比较复杂了，例如要注入 <span class="arithmatex">\(B[2]=k\)</span>，我们需要进行三次分支的跳转：</p>
+<ol>
+<li>第一次跳转，<span class="arithmatex">\(B\)</span> 相同，<span class="arithmatex">\(T[2]=k\)</span>；</li>
+<li>第二次跳转，<span class="arithmatex">\(B[2]=k\)</span>，<span class="arithmatex">\(T[3]=k\)</span>；</li>
+<li>第三次跳转，<span class="arithmatex">\(B[2]=B[3]=k\)</span>, <span class="arithmatex">\(T\)</span> 相同。</li>
+</ol>
+<p>经过计算，可以发现前两次跳转对 PHRT 的抵消，第二次跳转的 <span class="arithmatex">\(B[2]\)</span> 与第三次跳转的 <span class="arithmatex">\(B[3]\)</span> 抵消，最后相当于只有最后一次跳转的 <span class="arithmatex">\(B[2]=k\)</span> 对 PHRB 产生了贡献。</p>
+<p>最复杂的是 PC 的注入，这次需要分情况讨论：</p>
+<p>第一种情况是，要注入的 PC 位比较高，具体来说，是 <span class="arithmatex">\(PC[7]\)</span> 或者更高的位数，此时我们可以很容易地避免引入对 PHRB 的贡献，因为它只考虑 <span class="arithmatex">\(B[5:2]\)</span>：</p>
+<ol>
+<li>第一次跳转，<span class="arithmatex">\(B\)</span> 相同，<span class="arithmatex">\(T[6]=k\)</span>；</li>
+<li>第二次跳转，<span class="arithmatex">\(B[6]=k\)</span> 但对 PHRB 没有贡献，<span class="arithmatex">\(T[7]=k\)</span>。</li>
+</ol>
+<p>那么两次跳转完以后，PHRB 不变，PHRT 的贡献被抵消掉，同时实现了 <span class="arithmatex">\(PC[7]=k\)</span> 的注入。</p>
+<p>第二种情况是，要注入的正好是 <span class="arithmatex">\(PC[6]\)</span>，继续用上面的方法会发现 PHRB 无法抵消，这时候，需要引入第三次跳转：</p>
+<ol>
+<li>第一次跳转，<span class="arithmatex">\(B\)</span> 相同，<span class="arithmatex">\(T[3]=k\)</span>； </li>
+<li>第二次跳转，<span class="arithmatex">\(B[3]=k\)</span>，<span class="arithmatex">\(T[5]=T[4]=k\)</span>；</li>
+<li>第三次跳转，<span class="arithmatex">\(B[4]=k\)</span>，<span class="arithmatex">\(T[6]=k\)</span>。</li>
+</ol>
+<p>验算可以发现，PHRB 和 PHRT 的贡献全都被抵消，成功注入 <span class="arithmatex">\(PC[6]=k\)</span>。</p>
+<p>最后来看要注入的 PC 更低的情况，例如要注入 <span class="arithmatex">\(PC[3]=k\)</span>，还是用三次跳转：</p>
+<ol>
+<li>第一次跳转，<span class="arithmatex">\(B\)</span> 相同，<span class="arithmatex">\(T[2]=k\)</span>； </li>
+<li>第二次跳转，<span class="arithmatex">\(B[2]=k\)</span>，<span class="arithmatex">\(T[2]=T[3]=k\)</span>；</li>
+<li>第三次跳转，<span class="arithmatex">\(B[3]=k\)</span>，<span class="arithmatex">\(T[3]=k\)</span>。</li>
+</ol>
+<p>这样就成功注入 <span class="arithmatex">\(PC[3]=k\)</span>。</p>
+<p>那么 PC 的注入就完成了，只有 <span class="arithmatex">\(PC[2]\)</span> 没有找到合适的方法来注入。</p>
+<h3 id="逆向工程-index-函数">逆向工程 index 函数<a class="headerlink" href="#逆向工程-index-函数" title="Permanent link">&para;</a></h3>
+<p>相连度和 tag 函数已知，接下来，让我们逆向工程最后的 index 函数。逆向的思路是这样的：</p>
+<ol>
+<li>通过前面的逆向，发现 <span class="arithmatex">\(PC[5:2]\)</span> 是独立出现在 tag 函数当中，并且没有出现在 index，所以我们很容易可以构造出多个分支，它们的 tag 不同；</li>
+<li>进一步，构造两组条件分支，每组都有四个条件分支，因为是四路组相连，如果这两组分别映射到两个 set 当中，就可以正确预测；反之，如果被映射到同一个 set 当中，就会预测错误；</li>
+<li>和之前类似，向 PC、PHRB 或 PHRT 注入两个随机数 <span class="arithmatex">\(k\)</span> 和 <span class="arithmatex">\(l\)</span>，然后预测两组共八个条件分支，这些条件分支的跳转方向都是 <code>k xor l</code>；</li>
+<li>如果 <span class="arithmatex">\(k\)</span> 和 <span class="arithmatex">\(l\)</span> 注入的位同时出现在 index 函数当中，但是没有异或关系，那么这八个条件分支可以正确地被预测；</li>
+<li>如果 <span class="arithmatex">\(k\)</span> 和 <span class="arithmatex">\(l\)</span> 注入的位同时出现在 index 函数当中，并且有异或关系，那么这八个条件分支会被映射到同一个 set 内，最多只能正确预测其中四个分支；</li>
+<li>如果 <span class="arithmatex">\(k\)</span> 和 <span class="arithmatex">\(l\)</span> 注入的位至少出现一个在 tag 函数当中，那么一个分支会在同一个 set 内占用两项，导致最多只能正确预测其中两个分支。</li>
+</ol>
+<p>注入 <span class="arithmatex">\(PC[9]\)</span> 和 <span class="arithmatex">\(PHRT[i]\)</span> 的<a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/pht_index_bits_xor.cpp">实验</a>结果如下：</p>
+<p><img alt="" src="../../../../cbp-reverse-engineer-index.png" /></p>
+<p>结合上面的讨论，可以知道：</p>
+<ul>
+<li>PC[9] 和 PHRT[38] 和 PHRT[88] 有异或关系</li>
+<li>PHRT[2]、PHRT[12]、PHRT[17]、PHRT[22]、PHRT[27]、PHRT[33]、PHRT[43]、PHRT[53]、PHRT[58]、PHRT[63]、PHRT[68]、PHRT[73]、PHRT[78]、PHRT[83]、PHRT[93] 在 index 当中，但是和 PC[9] 没有异或关系</li>
+</ul>
+<p>实际上还有 PHRT[7] 和 PHRT[48] 也在 index 当中，但实际上测试的时候为了保证历史最长的表提供预测，还额外注入了 PHRT[99]，它与 PHRT[7] 和 PHRT[48] 有异或关系，所以在上图没有显现出来。</p>
+<p>用类似的方法，去测试 PHRT 与 PHRT、PHRT 与 PHRB、PHRB 与 PHRB 之间的异或关系，就可以找到最终的 index 函数：</p>
+<ul>
+<li>PHRT[2] xor PHRT[43] xor PHRT[93]</li>
+<li>PHRT[7] xor PHRT[48] xor PHRT[99]</li>
+<li>PHRT[12] xor PHRT[63] xor PHRB[5]</li>
+<li>PHRT[17] xor PHRT[68] xor PHRB[10]</li>
+<li>PHRT[22] xor PHRT[73] xor PHRB[15]</li>
+<li>PHRT[27] xor PHRT[78] xor PHRB[20]</li>
+<li>PHRT[33] xor PHRT[83] xor PHRB[25]</li>
+<li>PHRT[38] xor PHRT[88] xor PC[9]</li>
+<li>PHRT[53] xor PHRT[58] xor PHRB[0]</li>
+<li>PC[6]</li>
+</ul>
+<p>至此使用分支历史最长的表的逆向就完成了。接下来讨论一下，如何逆向工程分支历史更短的表。</p>
+<h3 id="逆向工程使用分支历史更短的-tage-表">逆向工程使用分支历史更短的 TAGE 表<a class="headerlink" href="#逆向工程使用分支历史更短的-tage-表" title="Permanent link">&para;</a></h3>
+<p>前面提到，TAGE 在预测的时候，会选取提供预测的多个表中，所使用历史最长的那个表。那么，如果要测试使用历史第二长的表，应该怎么办呢？我们尝试了这些方法：</p>
+<ul>
+<li>在使用历史更长的表里，预先插入一些表项，再去测试历史较短的表的情况，由于 TAGE 会利用它的 useful 计数器来进行新表项的分配，当历史更长的表里的表项的 useful 不为零，可以防止它被覆盖成新的内容，逼迫 TAGE 用历史更短的表来进行预测；</li>
+<li>把多个表当成一个整体来考虑，比如在测试能够正常预测的分支数量的时候，得到的是多个表叠加的结果，再减去已知数量，可以得到历史比较短的表的信息；</li>
+<li>在超出要测试的表的历史部分，注入大量随机数，例如要测试的一个表，只用到了历史的低 57 位，那就在更高的部分注入大量的随机数，那么历史最长的表能够提供预测的概率会非常小，从而逼迫 TAGE 用当前被测试的表来做预测。</li>
+</ul>
+<p>通过这些方法，我们成功地逆向出了 Firestorm 的剩下的 TAGE 表的信息：</p>
+<ul>
+<li><a href="https://github.com/jiegec/cpu-micro-benchmarks/blob/master/reports/dissecting_cbp_of_apple_firestorm_and_qualcomm_oryon/README.md">完整结果</a></li>
+<li><a href="https://github.com/jiegec/cpu-micro-benchmarks/">代码开源</a></li>
+</ul>
+<p>有兴趣的读者可以试着自己复现一下，看看能不能得到对应的实验结果，然后从结果中分析出硬件的参数。有意思的是，我们逆向出来 Qualcomm Oryon 的分支预测器的大小（6 个表一共 80KB 的空间），与官方在 Hot Chips 上公开的是一致的。</p>
+<h2 id="总结">总结<a class="headerlink" href="#总结" title="Permanent link">&para;</a></h2>
+<p>我们通过一系列方法，实现了对 Apple M1 Firestorm 的条件分支预测器的逆向，并且成功地把它应用到了设计基本一样的 Qualcomm Oryon 处理器上，为后续的研究提供了基础。</p>
+<h2 id="引用文献">引用文献<a class="headerlink" href="#引用文献" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2411.13900">Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis</a></li>
+<li><a href="https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf">Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution</a></li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="最后更新">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年10月30日 08:43:51 UTC">2025年10月30日</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="创建日期">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年10月29日 04:38:50 UTC">2025年10月29日</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+  
+
+
+  
+
+
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<script src="https://giscus.app/client.js"
+  data-repo="jiegec/blog-source"
+  data-repo-id="MDEwOlJlcG9zaXRvcnk1MTgyMTUzMQ=="
+  data-category="General"
+  data-category-id="DIC_kwDOAxa7284CkIjI"
+  data-mapping="pathname"
+  data-strict="1"
+  data-reactions-enabled="1"
+  data-emit-metadata="0"
+  data-input-position="top"
+  data-theme="light"
+  data-lang="zh-CN"
+  data-loading="lazy"
+  crossorigin="anonymous"
+  async>
+</script>
+      
+    </article>
+  </div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../../../../software/2025/10/09/blog-analytics-three-months/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 本博客近三个月来的访问数据观察">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                本博客近三个月来的访问数据观察
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2016-2025 Jiajie Chen
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jiegec" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

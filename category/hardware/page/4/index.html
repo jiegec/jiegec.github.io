@@ -572,6 +572,13 @@
     </label>
 <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
 <li class="md-nav__item">
+<a class="md-nav__link" href="#移植系统到-rocket-chip-on-vcu128">
+<span class="md-ellipsis">
+      移植系统到 Rocket Chip on VCU128
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#教学axi-quad-spi-时序分析">
 <span class="md-ellipsis">
       「教学」AXI Quad SPI 时序分析
@@ -739,13 +746,6 @@
     </span>
 </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#华为随行-wifi-2-mini-开箱">
-<span class="md-ellipsis">
-      华为随行 WiFi 2 mini 开箱
-    </span>
-</a>
-</li>
 </ul>
 </nav>
 </li>
@@ -826,6 +826,69 @@
 <header class="md-typeset">
 <h1 id="hardware">hardware<a class="headerlink" href="#hardware" title="Permanent link">¶</a></h1>
 </header>
+<article class="md-post md-post--excerpt">
+<header class="md-post__header">
+<div class="md-post__meta md-meta">
+<ul class="md-meta__list">
+<li class="md-meta__item">
+<time datetime="2021-10-18 00:00:00+00:00">2021年10月18日</time></li>
+<li class="md-meta__item">
+            分类于
+            
+              <a class="md-meta__link" href="../../">hardware</a></li>
+<li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+</ul>
+</div>
+</header>
+<div class="md-post__content md-typeset">
+<h2 id="移植系统到-rocket-chip-on-vcu128"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/">移植系统到 Rocket Chip on VCU128</a></h2>
+<h3 id="背景"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#背景">背景</a></h3>
+<p>最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：</p>
+<ul>
+<li><a href="https://github.com/jiegec/rocket-chip-vcu128">rocket-chip-vcu128</a></li>
+<li><a href="https://github.com/jiegec/opensbi/tree/rocket-chip-vcu128">opensbi</a></li>
+<li><a href="https://github.com/jiegec/u-boot/tree/rocket-chip-vcu128">u-boot</a></li>
+<li><a href="https://github.com/jiegec/linux/tree/rocket-chip-vcu128">linux</a></li>
+</ul>
+<h3 id="rocket-chip-on-vcu128"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#rocket-chip-on-vcu128">Rocket Chip on VCU128</a></h3>
+<p>第一部分是基于之前 <a href="https://github.com/jiegec/rocket2thinpad">rocket2thinpad</a> 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：</p>
+<ol>
+<li>添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH</li>
+<li>打开了更多核心选项：S-mode 和 U-mode</li>
+</ol>
+<p>主要踩过的坑：</p>
+<ol>
+<li>BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑</li>
+<li>这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset</li>
+<li>SPI Startup Flash 的时序配置，见我之前的<a href="../../../../hardware/2021/09/27/xilinx-axi-quad-spi-timing/">博客</a></li>
+<li>Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus 上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突</li>
+</ol>
+<h3 id="u-boot"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#u-boot">U-Boot</a></h3>
+<p>在 U-Boot 上花了比较多的时间，用它的目的主要是：</p>
+<ol>
+<li>BootROM 中的代码只支持从串口加载程序，如果后续要加载 Linux 内核等软件，性能太差。</li>
+<li>U-Boot 驱动比较完善，而且 dts 也可以很容易地迁移到 Linux 中</li>
+<li>有一些可以参考的资料</li>
+</ol>
+<p>移植的时候，首先新建一个自定义的 board，然后自己写 defconfig 和 dts，其中 dts 可以参考 rocket chip 生成的 dts 文件。然后，按照各个外设的 device tree binding 去写，然后打开/关闭各个 CONFIG 开关。</p>
+<p>对代码主要的改动是，实现了 DCache 的 flush 功能，因为以太网部分用了 DMA，所以要让外设看到内存的更改，这里采用的是 SiFive 的扩展指令 <code>cflush.d.l1</code>。由于编译器还不支持这个指令，就按照网上的方式去构造了汇编指令。实现完成以后，就可以用网络了。</p>
+<p>一开始的时候，为了简单，直接在 M-mode 中运行 U-Boot，这样不需要 OpenSBI，同时 DTB 也是内置的。但后续为了运行 Linux，还是需要一个 SBI 实现：OpenSBI，然后在 S-mode 中运行 U-Boot，再引导到 Linux。</p>
+<p>此外还花了很多努力来缩小 binary 大小，首先可以用 <code>nm --size -r u-boot | head -20</code> 来找到比较大的一些符号，不考虑其中 BSS 的部分（type=b），主要看哪些代码/数据比较占空间。</p>
+<p>UPDATE: U-Boot 在 v2022.01 版本<a href="https://github.com/u-boot/u-boot/commit/eeaa3fe65270758ab0bdb1515e14f9bf936d3a25">修复了一个 BUG</a>，之前的版本在 riscv 架构下没有 reserve lmb region，使得加载 initrd 的时候，会覆盖掉自己的栈空间，这解释了之前的诸多玄学内存问题，升级到 v2022.01 后就好了。</p>
+<h3 id="opensbi"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#opensbi">OpenSBI</a></h3>
+<p>OpenSBI 移植比较简单，直接参考 template 修改即可，主要就是串口的配置，其他基本不用改。然后，我把 U-Boot 作为 OpenSBI 的 Payload 放到 OpenSBI 的后面，此时要把 U-Boot 配置为 S-mode 模式。接着，遇到了新的问题：<code>cflush.d.l1</code> 指令只能在 M-mode 用，因此我在 OpenSBI 代码中处理了 trap，转而在 M-mode 里面运行这条指令。这样，就可以在 S-mode 里刷新 Cache 了。</p>
+<h3 id="linux"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#linux">Linux</a></h3>
+<p>Linux 目前可以 boot 到寻找 init，还没有碰文件系统，之后计划用 buildroot 打一个 initramfs 出来。为了在 U-Boot 中启动 Linux，用 U-Boot 的 mkimage 工具生成了 FIT 格式的 uImage，里面打包了 kernel image 和 dtb，就可以用 bootm 命令启动了，注意地址不要和加载地址重复。</p>
+<p>此外还遇到一个坑：RV64 里面 Linux dts 的 address cell 得是 2（对应 64 位），否则会有错误。但 U-Boot 对这个没有做要求。</p>
+<h3 id="缓存一致性"><a class="toclink" href="../../../../hardware/2021/10/18/port-system-to-rocket-chip-on-vcu128/#缓存一致性">缓存一致性</a></h3>
+<p>一开始的时候，AXI DMA 直接接到内存上，所以与 CPU 缓存是不一致的，网卡驱动需要经常地刷缓存。在 Rocket Chip 上，可以用 sifive 自己的 cflush 指令来刷缓存，但是它只能在 M 态执行，同时又支持虚拟地址，这种奇怪的设计就使得要在 OpenSBI，U-Boot 和 Linux 三处都添加逻辑：OpenSBI 处理 illegal instruction，如果发现是 cflush 指令，就再次 cflush；U-Boot 和 Linux 修改驱动，在合适的地方添加 cflush 指令。U-Boot 驱动比较简单，工作得比较好，但是 Linux 的网卡驱动怎么都改不好。</p>
+<p>最后决定，打开 Rocket Chip 的 Frontend Bus，添加一个 AXI Slave 接口，然后让 AXI DMA 通过 AXI Slave 接入到 Rocket Chip 中，然后通过 TLBroadcast 实现缓存一致性。这样软件实现会比较简单，但是硬件就更复杂了。</p>
+</div>
+</article>
 <article class="md-post md-post--excerpt">
 <header class="md-post__header">
 <div class="md-post__meta md-meta">
@@ -3699,31 +3762,8 @@ in 1.4.
 <p>然后我又简单研究了一下各个 S.M.A.R.T 各个值的含义是什么。 <code>VALUE</code> 代表当前的值， <code>WORST</code> 代表目前检测到的最差的值， <code>THRESH</code> 代表损坏阈值。这些值都是从 <code>RAW_VALUE</code> 进行计算后归一化而来。然后 <code>TYPE</code> 分为两种，一是 <code>Pre-fail</code> ，代表如果这一项的值小于阈值，代表这个机器很危险了，赶紧拷数据丢掉吧。二是 <code>Old_age</code> ，代表如果这一项小于阈值，代表这个机器比较老了，但还没坏。真正要看是否坏了，可以看 <code>When_Failed</code> 一栏。</p>
 </div>
 </article>
-<article class="md-post md-post--excerpt">
-<header class="md-post__header">
-<div class="md-post__meta md-meta">
-<ul class="md-meta__list">
-<li class="md-meta__item">
-<time datetime="2017-08-08 00:00:00+00:00">2017年8月8日</time></li>
-<li class="md-meta__item">
-            分类于
-            
-              <a class="md-meta__link" href="../../">hardware</a></li>
-<li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-</ul>
-</div>
-</header>
-<div class="md-post__content md-typeset">
-<h2 id="华为随行-wifi-2-mini-开箱"><a class="toclink" href="../../../../hardware/2017/08/08/huawei-portable-wifi/">华为随行 WiFi 2 mini 开箱</a></h2>
-<p>前段时间，我办了 4G 升级，移动送了一张副卡，有不少免费的流量，由于我的手机是 iPhone 不支持双卡，老爸就借了我他的 GlocalMe 当成 MiFi 来用，不过呢 GlocalMe 放在这里当然是大材小用了，所以我就网购了华为随行 WiFi 2 mini，把我的副卡装上一个壳放进去就可以了！把这个 MiFi 插入电脑，会弹出一个目录，里面有 Win/Mac 的驱动安装文件，打开后在网络设置里就有 HUAWEI_MOBILE 的连接了，并自动打开网络配置界面。设置一下 SSID 和密码，就能正常使用了，手机连上也很正常，手机上可以下载 HUAWEI HiLink 来配置 MiFi，挺爽的。随赠的有联通的上网卡，不过我准备在北京买个上网卡放 MiFi 里面用。</p>
-</div>
-</article>
 <nav class="md-pagination">
-<a class="md-pagination__link" href="../../">1</a> <a class="md-pagination__link" href="../2/">2</a> <a class="md-pagination__link" href="../3/">3</a> <span class="md-pagination__current">4</span>
+<a class="md-pagination__link" href="../../">1</a> <a class="md-pagination__link" href="../2/">2</a> <a class="md-pagination__link" href="../3/">3</a> <span class="md-pagination__current">4</span> <a class="md-pagination__link" href="../5/">5</a>
 </nav>
 </div>
 </div>
