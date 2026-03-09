@@ -2161,19 +2161,19 @@
 </ul>
 <p>为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 4 字节 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：</p>
 <p><img alt="" src="../../../../intel-redwood-cove-fetch-bandwidth.png" /></p>
-<p>可以看到 footprint 在 64 KB 之前时可以达到 6 IPC，之后则降到 3.2 IPC，这里的 64 KB 就对应了 L1 ICache 的容量。</p>
+<p>可以看到 footprint 在 64 KB 之前时可以达到 6 IPC，之后则降到 3.2 IPC，这里的 64 KB 就对应了 L1 ICache 的容量。容量相比 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 翻倍，终于和 ARM 看齐。</p>
 <h3 id="l1-itlb">L1 ITLB<a class="headerlink" href="#l1-itlb" title="Permanent link">&para;</a></h3>
 <p>构造一系列的 jmp 指令，使得 jmp 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：</p>
 <p><img alt="" src="../../../../intel-redwood-cove-itlb-size.png" /></p>
 <p>可以看到 256 个 Page 出现了明显的拐点，对应的就是 256 的 L1 ITLB 容量。注意要避免 ICache 和 BTB 的容量成为瓶颈，把 jmp 指令分布在不同的 Cache Line 和 BTB entry 上。</p>
-<p>超过 256 个 Page 以后，如图有周期数突然下降后缓慢上升的情况（例如横坐标 288-&gt;289、320-&gt;321、352-&gt;353、384-&gt;385 等，以 32 为周期），背后的原理需要进一步分析。</p>
-<p>和 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 是一样的。</p>
+<p>超过 256 个 Page 以后，如图有周期数突然下降后缓慢上升的情况（例如横坐标 288-&gt;289、320-&gt;321、352-&gt;353、384-&gt;385 等，以 32 为周期），背后的原理需要进一步分析，猜测和 Linux 的 Huge Page 机制相关。</p>
+<p>Redwood Cove 的 L1 ITLB 容量和 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 是一样的。</p>
 <h3 id="instruction-decode-queue-idq--loop-stream-detector-lsd">Instruction Decode Queue (IDQ) + Loop Stream Detector (LSD)<a class="headerlink" href="#instruction-decode-queue-idq--loop-stream-detector-lsd" title="Permanent link">&para;</a></h3>
 <p>官方信息：</p>
 <ul>
 <li>Improved LSD coverage: the IDQ can hold <strong>192</strong> μops per logical processor in single-thread mode or 96 μops per thread when SMT is active.</li>
 </ul>
-<p>为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 <code>inc %rsi</code> 指令，最后是 <code>dec + jnz</code> 作为循环结尾，通过 <a href="https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS">LSD.UOPS</a> 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 191，说明 Redwood Cove 的 Loop Stream Detector 可以识别最多 191 个 uop 的循环。此时每个循环要执行 192 条指令，最后的 <code>dec + jnz</code> 被融合成了一个 uop。</p>
+<p>为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 <code>inc %rsi</code> 指令，最后是 <code>dec + jnz</code> 作为循环结尾，通过 <a href="https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS">LSD.UOPS</a> 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 191，说明 Redwood Cove 的 Loop Stream Detector 可以识别最多 191 个 uop 的循环。此时每个循环要执行 192 条指令，最后的 <code>dec + jnz</code> 被融合成了一个 uop。相比 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 的 144 uops IDQ 容量有所增加。</p>
 <p>循环体中，如果用 <code>nop</code> 指令来填充，会得到 39 左右的比 192 小得多的容量，猜测是进入了低功耗模式。</p>
 <h3 id="instruction-prefetch-instruction">Instruction Prefetch Instruction<a class="headerlink" href="#instruction-prefetch-instruction" title="Permanent link">&para;</a></h3>
 <p>官方信息：</p>
@@ -2215,10 +2215,12 @@
 <li>0KB-48KB: 5 cycle，对应 L1 DCache</li>
 <li>48KB-384KB: 16 cycle，对应 L2 Cache，且命中了 L1 DTLB；说明 L1 miss L2 hit 带来了 11 cycle 的损失</li>
 </ul>
+<p>L1 DCache 大小和 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 相同。</p>
 <h3 id="l1-dtlb">L1 DTLB<a class="headerlink" href="#l1-dtlb" title="Permanent link">&para;</a></h3>
 <p>用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈：</p>
 <p><img alt="" src="../../../../intel-redwood-cove-dtlb-size.png" /></p>
 <p>可以看到 96 Page 出现了明显的拐点，对应的就是 96 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 5 cycle；超出 L1 DTLB 容量后，Load to use latency 是 12 cycle，说明 L1 DTLB miss 带来了 7 cycle 的损失。</p>
+<p>L1 DTLB 大小和 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 相同。</p>
 <h3 id="执行单元">执行单元<a class="headerlink" href="#执行单元" title="Permanent link">&para;</a></h3>
 <p>官方信息：</p>
 <ul>
@@ -2317,12 +2319,12 @@
 <h3 id="reorder-buffer">ReOrder Buffer<a class="headerlink" href="#reorder-buffer" title="Permanent link">&para;</a></h3>
 <p>为了测试 ROB 的大小，设计了一个循环，循环开始和结束是长延迟的 long latency load。中间是若干条 NOP 指令，当 NOP 指令比较少时，循环的时候取决于 load 指令的时间；当 NOP 指令数量过多，填满了 ROB 以后，就会导致 ROB 无法保存循环末尾的 load 指令，性能出现下降。测试结果如下：</p>
 <p><img alt="" src="../../../../intel-redwood-cove-rob-size.png" /></p>
-<p>当 NOP 数量达到 512 时，性能开始急剧下滑，说明 Redwood Cove 的 ROB 大小是 512。</p>
+<p>当 NOP 数量达到 512 时，性能开始急剧下滑，说明 Redwood Cove 的 ROB 大小是 512。这和 <a href="../../../01/10/intel-golden-cove/">Golden Cove</a> 是一样的。</p>
 <h2 id="总结">总结<a class="headerlink" href="#总结" title="Permanent link">&para;</a></h2>
 <p>Redwood Cove 相比 Golden Cove 是比较小的一个迭代，更新的部分主要有：</p>
 <ol>
 <li>扩大了 L1 ICache 容量</li>
-<li>扩大了分支预测器的容量</li>
+<li>扩大了分支预测器的容量（通过 MPKI 看出）</li>
 <li>增加了更多预取器</li>
 </ol>
 <p>因此性能提升也比较小，希望 Intel 可以更加给力一些，给 AMD 一些竞争压力。</p>
@@ -2348,7 +2350,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年8月10日 01:29:47 UTC">2025年8月10日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月9日 06:48:36 UTC">2026年3月9日</span>
   </span>
 
     
