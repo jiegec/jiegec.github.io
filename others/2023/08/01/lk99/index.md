@@ -1,0 +1,61 @@
+# LK-99 相关链接
+
+收录自己找到的一些和 LK-99 相关的信息，非专业人士，看个热闹。
+
+## 论文
+
+- [The First Room-Temperature Ambient-Pressure Superconductor](https://arxiv.org/abs/2307.12008v1)：作者论文 #1
+- [Superconductor Pb10−xCux(PO4)6O showing levitation at room temperature and atmospheric pressure and mechanism v1](https://arxiv.org/abs/2307.12037v1)：作者论文 #2 v1
+- [Superconductor Pb10−xCux(PO4)6O showing levitation at room temperature and atmospheric pressure and mechanism v2](https://arxiv.org/abs/2307.12037v2)：作者论文 #2 v2
+- [Superconductor Pb10−xCux(PO4)6O showing levitation at room temperature and atmospheric pressure and mechanism v3](https://arxiv.org/abs/2307.12037v3)：作者论文 #2 v3
+- [Consideration for the development of room-temperature ambient-pressure superconductor (LK-99)](http://journal.kci.go.kr/jkcgct/archive/articleView?artiId=ART002955269)：作者论文 #3
+- [First-principles study on the electronic structure of Pb10−xCux(PO4)6O (x=0, 1)](https://arxiv.org/abs/2307.16040v1)：理论
+- [Synthesis of possible room temperature superconductor LK-99:Pb9Cu(PO4)6O](https://arxiv.org/abs/2307.16402v1)：复现，印度
+- [Semiconducting transport in Pb10-xCux(PO4)6O sintered from Pb2SO5 and Cu3P](https://arxiv.org/abs/2307.16802v1)：复现，北航，没有悬浮
+- [Origin of correlated isolated flat bands in copper-substituted lead phosphate apatite](https://arxiv.org/abs/2307.16892v1)：理论
+- [Electronic structure of the putative room-temperature superconductor Pb9Cu(PO4)6O](https://arxiv.org/abs/2308.00676v1)：理论
+- [Pb-apatite framework as a generator of novel flat-band CuO based physics, including possible room temperature superconductivity](https://arxiv.org/abs/2308.00698v1)：理论
+- [Theoretical insight on the LK-99 material](https://arxiv.org/abs/2308.01135v1)：理论
+- [Observation of zero resistance above 100∘ K in Pb10−xCux(PO4)6O](https://arxiv.org/abs/2308.01192v1)：复现，东南大学
+- [Broad Band Mott Localization is all you need for Hot Superconductivity: Atom Mott Insulator Theory for Cu-Pb Apatite](https://arxiv.org/abs/2308.01307v1)：理论
+- [Minimal model for the flat bands in copper-substituted lead phosphate apatite](https://arxiv.org/abs/2308.01315v1)：理论
+- [Successful growth and room temperature ambient-pressure magnetic levitation of LK-99](https://arxiv.org/abs/2308.01516v1)：复现，华科
+- [Some remarks on possible superconductivity of composition Pb9CuP6O25](https://arxiv.org/abs/2308.01723v1)
+- [S-wave pairing in a two-orbital t-J model on triangular lattice: possible application to Pb10−xCux(PO4)6O](https://arxiv.org/abs/2308.02469v1)
+- [Ferromagnetic half levitation of LK-99-like synthetic samples](https://arxiv.org/abs/2308.03110v1)：复现，北大
+- [The Cu induced ultraflat band in the room-temperature superconductor Pb10−xCux(PO4)6O4 (x=0,0.5)](https://arxiv.org/abs/2308.03218v1)
+- [Absence of superconductivity in LK-99 at ambient conditions](https://arxiv.org/abs/2308.03544v1)
+- [Synthesis and characterisation of LK-99](https://arxiv.org/abs/2308.03823v1)
+- [Electronic correlations in promising room-temperature superconductor Pb9Cu(PO4)6O: a DFT+DMFT study](https://arxiv.org/abs/2308.04301v1)
+- [First order transition in Pb10−xCux(PO4)6O (0.9\<x\<1.1) containing Cu2S](https://arxiv.org/abs/2308.04353v1)
+- [{Pb10−xCux(PO4)6O: a Mott or charge transfer insulator \\in need of further doping for (super)conductivity](https://arxiv.org/abs/2308.04427v1)
+- [The 2023 Development of Room-Temperature Ambient-Pressure Superconductor: Vision and Future Trend of Power Systems](https://arxiv.org/abs/2308.04461)
+- [The crystal structure of Pb10(PO4)6O revisited: the evidence of superstructure](https://arxiv.org/abs/2308.04915v1)
+- [Correlated electronic structure of Pb10−xCux(PO4)6O](https://arxiv.org/abs/2308.04976v1)
+- [Observation of abnormal resistance-temperature behavior along with diamagnetic transition in Pb10−xCux(PO4)6O-based composite](https://arxiv.org/abs/2308.05001v1)
+- [Berry curvature and quantum metric in copper-substituted lead phosphate apatite](https://arxiv.org/abs/2308.05124v1)
+- [Ferromagnetic ground state and Spin-orbit coupling induced bandgap open in LK99](https://arxiv.org/abs/2308.05134)
+- [Pb9Cu(PO4)6(OH)2: Phonon bands, Localized Flat Band Magnetism, Models, and Chemical Analysis](https://arxiv.org/abs/2308.05143v1)
+- [Phase transition of copper (I) sulfide and its implication for purported superconductivity of LK-99](https://arxiv.org/abs/2308.05222v1)
+- [Wannier functions, minimal model and charge transfer in Pb9CuP6O25](https://arxiv.org/abs/2308.05528v1)
+- [First-principles calculation on the electronic structures, phonon dynamics, and electrical conductivities of Pb10(PO4)6O and Pb9Cu(PO4)6O compounds](https://arxiv.org/abs/2308.05618)
+- [On the synthesis methodologies to prepare Pb9Cu(PO4)6O -- phase, composition, magnetic analysis and absence of superconductivity](https://arxiv.org/abs/2308.05776)
+- [Single crystal synthesis, structure, and magnetism of Pb10−xCux(PO4)6O](https://arxiv.org/abs/2308.06256)
+- [On the Experimental Evidence for Possible Superconductivity in LK99](https://arxiv.org/abs/2308.06589)
+- [Entertaining the Possibility of RT Superconductivity in LK-99](https://arxiv.org/abs/2308.06684)
+- [No superconductivity in Pb9Cu1(PO4)6O found in orbital and spin fluctuation exchange calculations](https://arxiv.org/abs/2308.07261)
+- [Cu-doped Pb10(PO4)6O, and V doped SrTiO3 -- a tutorial on electron-crystal lattice coupling in insulating materials with transition metal dopants](https://arxiv.org/abs/2308.07295)
+- [Cu-substituted lead phosphate apatite as an inversion-asymmetric Weyl semimetal](https://arxiv.org/abs/2308.07408)
+- [Phases and magnetism at microscale in compounds containing nominal Pb10−xCux(PO4)6O](https://arxiv.org/abs/2308.07800)
+- [Phase Stability of Lead Phosphate Apatite Pb10−xCux(PO4)6O, Pb10−xCux(PO4)6(OH)2, and Pb8Cu2(PO4)6](https://arxiv.org/abs/2308.07941)
+- [Different phase leads to different transport behavior in Pb9Cu(PO4)6O compounds](https://arxiv.org/abs/2308.08454)
+- [Comment on "Origin of correlated isolated flat bands in copper-substituted lead phosphate apatite"](https://arxiv.org/abs/2308.08458)
+
+## 视频
+
+- [LK-99 验证 关山口男子技师](https://www.bilibili.com/video/BV14p4y1V7kS/)
+- [补充视频 关山口男子技师](https://www.bilibili.com/video/BV13k4y1G7i1/)
+- [室温超导复现实验 - 全流程 科学调查局](https://www.bilibili.com/video/BV1yj41167Xd/)
+- [LK99，110K 零电阻观测成功 科学调查局](https://www.bilibili.com/video/BV1pM4y1p7u5/?p=1)
+- [半导体与物理](https://www.zhihu.com/question/613850973/answer/3136586869)
+- [LK-99 室温超导材料验证 炼丹师阿翔](https://www.bilibili.com/video/BV1sM4y1H7MX/)
