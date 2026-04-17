@@ -4,7 +4,7 @@
 
 测试环境如下：
 
-1. 大部分测试：Debian Bookworm, GCC 12.2.0
+1. Debian Trixie 发布前的测试：Debian Bookworm, GCC 12.2.0
 1. LoongArch 以及 Debian Trixie 发布后的测试：Debian Trixie, GCC 14.2.0
 1. HarmonyOS NEXT 测试：HarmonyOS NEXT 5，Clang 15.0.4 + Flang 20.1.7，详见 [jiegec/SPECCPU2017Harmony](https://github.com/jiegec/SPECCPU2017Harmony/tree/master/results)；X90 带有 VM 的代表是在 Linux 虚拟机中测试
 1. 此外有针对不同编译器和编译器版本对比的测试，相关测试结果都进行了标注
@@ -197,6 +197,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -flto -ljemalloc`）: [9.31](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3-flto-ljemalloc_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -flto -ljemalloc`）: [3.58](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3-flto-ljemalloc_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto -ljemalloc`）: [9.08](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto-ljemalloc_001.txt)
+- Intel Core i7-13700 P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto -ljemalloc`）: [10.9](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700_P-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto -ljemalloc`）: [6.96](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto -ljemalloc`）: [6.63](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto -ljemalloc`）: [10.6](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto-ljemalloc_001.txt)
@@ -210,6 +211,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -flto`）: [8.57](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3-flto_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -flto`）: [3.34](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3-flto_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto`）: [8.33](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto_001.txt)
+- Intel Core i7-13700 P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto`）: [10.1](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700_P-Core_O3-flto_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto`）: [6.57](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3-flto_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto`）: [6.31](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto`）: [10.0](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto_001.txt)
@@ -223,6 +225,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [8.19](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.20](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [7.92](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3_001.txt)
+- Intel Core i7-13700 P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [9.84](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [6.31](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [6.10](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [9.74](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
@@ -689,6 +692,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -march=native`）: [11.7](https://jia.je/benchmark/data-trixie/fp2017_rate1/AMD_Ryzen_7_5700X_O3-march%3Dnative_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -march=native`）: [3.93](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_E-Core_O3-march%3Dnative_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native`）: [12.1](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3-march%3Dnative_001.txt)
+- Intel Core i7-13700 P-Core @ 5.2 GHz Raptor Cove（`-O3 -march=native`）: [14.9](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz (AVX-512 @ 4.0 GHz) Cascade Lake（`-O3 -march=native`）: [7.85](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-10980XE_O3-march%3Dnative_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -march=native`）: [7.23](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-12900KS_E-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -march=native`）: [15.4](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-12900KS_P-Core_O3-march%3Dnative_001.txt)
@@ -702,6 +706,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [10.9](https://jia.je/benchmark/data-trixie/fp2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.93](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_E-Core_O3_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [12.0](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3_001.txt)
+- Intel Core i7-13700 P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [13.8](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [7.24](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-10980XE_O3_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [6.97](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [14.4](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
@@ -1200,6 +1205,8 @@ ulimit -s unlimited && cd /mnt && . ./shrc && runcpu fpspeed
 
 ## 更新历史
 
+- 2026.04.17:
+  - 测试 Intel Core i7-13700 性能
 - 2026.02.23:
   - 测试 IBM POWER8 和 IBM POWER9 性能
 - 2026.01.28:
