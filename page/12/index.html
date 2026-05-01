@@ -604,6 +604,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#在-fpga-上实现路由器2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 FPGA 上实现路由器（2）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#每周分享第-23-期" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -861,17 +872,6 @@
     <span class="md-ellipsis">
       
         使用 Rust 实现 e1000 驱动
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-12-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        每周分享第 12 期
       
     </span>
   </a>
@@ -2065,6 +2065,58 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2019-05-15 00:00:00+00:00">2019年5月15日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-fpga-上实现路由器2"><a class="toclink" href="../../hardware/2019/05/15/router-on-fpga-2/">在 FPGA 上实现路由器（2）</a></h2>
+<h3 id="前言"><a class="toclink" href="../../hardware/2019/05/15/router-on-fpga-2/#前言">前言</a></h3>
+<p>月初的时候，有了一个完整可用的路由器（上一篇系列<a href="../../hardware/2019/04/24/router-on-fpga/">博文</a>），但当时测了一下速度，只有几十 Mb/s，只要往上提就会失效，得 reset 才能继续。当时也先没管性能的事情，先把和 OS 交互的部分做了。现在又回头来做性能调优。</p>
+<p>之前，逻辑部分的主频只有 10 MHz，这自然不行，不提高肯定做不到千兆。于是试着把主频拉高，FIFO 加大，然后遇到了很多问题，慢慢修复了，学到了很多新知识，目前也接近千兆的水平了吧，贴图：</p>
+<p>TCP 测速：</p>
+<p><img alt="" src="../../hardware/router-tcp.jpg" /></p>
+<p>UDP 测速：</p>
+<p><img alt="" src="../../hardware/router-udp.jpg" /></p>
+<p>测试环境是 macOS 虚拟机外打虚拟机内，走网桥把虚拟机和一个 USB 网卡接起来，然后从另一个 USB 网卡打到路由器。</p>
+<h3 id="尝试-700mbs"><a class="toclink" href="../../hardware/2019/05/15/router-on-fpga-2/#尝试-700mbs">尝试 700Mb/s</a></h3>
+<p>接下来讲讲，在这个过程中遇到了什么问题，怎么解决的。第一个是速度过快就会挂，这肯定是丢包逻辑没写对，后来在仿真里开够了时间，于是就找到了一个 BUG，其实就是一行的修复。接着就是提高主频，但大家也知道，CPU 不能随便超频，由于各种延迟的原因，比如 Setup 时间，如果超了一个时钟周期的时间，本来应该下个周期就得到新数据的，结果到了下下周期才有，那有的状态可能就乱了，我目前遇到的也主要就是这个问题。</p>
+<p>于是就对着 Timing 里汇报的各种问题修啊修，发现了很多以前没有注意到的问题，它们不影响功能，但是会让逻辑变慢。第一个问题是 High Fanout，以上就是说一个输出接到了很多输入，这看起来没啥问题，但数设课上也讲过，每个门的输入输出电流是有限制的，例如按书上的数据，一个门输出只能带十个门，更多只能级联一层。级联的话，延迟自然就高了。后来发现，这里的原因是，开了一个大的数组，但是没有变成 RAM，综合出了几千个逻辑单元，自然是出问题。解决方法很简单，用 xpm_memory_tpdram 即可。这样一搞，主频就能上 200MHz 了。</p>
+<p>这个时候测了一下，发现 UDP 能打到 700Mb/s 了，TCP 由于丢包率比较高，只有 400Mb/s，距离预期还有一段距离。于是继续进行优化。</p>
+<h3 id="向-900mbs-进发"><a class="toclink" href="../../hardware/2019/05/15/router-on-fpga-2/#向-900mbs-进发">向 900Mb/s 进发</a></h3>
+<p>要继续提速，自然要提高主频。下一个主频目标就是 250MHz。随着提高主频，时序的要求也会更高，自然也出现了新的问题。</p>
+<p>这次的问题主要在于，一个路径上逻辑门数过多，多的有 7 到 10 个，每一步零点几到一点几纳秒，叠起来 4 纳秒哪里够用。于是把一些不需要依赖条件的逻辑挪到条件外面，这样就减少了一些路径的依赖。</p>
+<p>解决了这个以后，现在的 WNS（Worst Negative Slack）只剩下 0.6 ns 了。这时候的问题一部分还是来自于逻辑门过多，但这个时候就没这么简单了，只能继续细化流水线，打一拍，这样才能把延迟降下来。</p>
+<p>虽然 Timing 没有完全解决，但还是写进了 FPGA 中。幸好工作一切正常，就得到了上面那个图片的结果，接近千兆的速度了。</p>
+<h3 id="后续优化途径"><a class="toclink" href="../../hardware/2019/05/15/router-on-fpga-2/#后续优化途径">后续优化途径</a></h3>
+<p>后续优化途径的话，一方面是继续对逻辑进行细化和拆分，另一方面是对架构进行优化。当初设计的时候，可能没有考虑地那么周全，例如现在发现，其实 ARP Cache 可以放到每个网口一份，这样会降低花在仲裁上的时间。另外，路由表其实也可以分多份存，只要改的时候同一改就可以了。这样应该会更快。</p>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3284,60 +3336,6 @@
 <p>下载 QEMU，自己改，然后自己编译。</p>
 <p>这个方法果然很有效啊，经过简单的几个修改，很快就定位到问题所在了，原来就是一个简单的错误，把 4 写成了 8。这个过程中我也发现 QEMU 在 incremental build 的时候似乎会 segfault，我没管这么多，反正编译也不慢，次数也不多，每次 clean 再 build 问题也不大。</p>
 <p>接下来要摸索 82559 的网卡适用情况如何，因为有一个真实的 82559 网卡可供测试。另一方面就要开始考虑 socket 那一套 syscall 怎么做了。</p>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-02-23 00:00:00+00:00">2019年2月23日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-12-期"><a class="toclink" href="../../misc/2019/02/23/weekly-sharing-12/">每周分享第 12 期</a></h2>
-<p>看脑王迟到了（</p>
-<ol>
-<li>Rust Embedded Graphics 库 https://github.com/jamwaffles/embedded-graphics</li>
-<li>Wireguard for macOS https://lists.zx2c4.com/pipermail/wireguard/2019-February/003853.html</li>
-<li>Wireguard-go UI https://github.com/aequitas/macos-menubar-wireguard</li>
-<li>T2 逆向 https://duo.com/labs/research/apple-t2-xpc</li>
-<li>脑王剪辑 https://www.bilibili.com/video/av43972717</li>
-<li>dram 推荐的工具 notion.so</li>
-<li>带授权和审计的 sudo https://github.com/square/sudo_pair</li>
-<li>rust 的 manpage 生成器 https://github.com/rust-cli/man</li>
-<li>才发现 Github 有 Project 功能 https://help.github.com/en/articles/about-project-boards</li>
-<li>rust 的 elf/macho 生成 https://github.com/m4b/faerie</li>
-<li>rust 的 elf/macho/pe 读取 https://github.com/m4b/goblin</li>
-<li>rust 的 glob 实现 https://github.com/rust-lang-nursery/glob</li>
-<li>基于 BoringSSL 的 rust 加密库 https://mundane.googlesource.com/mundane</li>
-<li>从 linux 交叉编译到 macOS 的方法 https://github.com/tpoechtrager/osxcross</li>
-<li>cargo-deb 后又有了 cargo-rpm https://github.com/RustRPM/cargo-rpm</li>
-<li>自带 diff 的 assert_eq 宏 https://github.com/colin-kiegel/rust-pretty-assertions</li>
-<li>Learn Helper 4.0 哈利版发布 https://chrome.google.com/webstore/detail/learn-helper/mdehapphdlihjjgkhmoiknmnhcjpjall</li>
-<li>检查依赖中存在的 unsafe https://github.com/anderejd/cargo-geiger</li>
-</ol>
     
     
   </div>

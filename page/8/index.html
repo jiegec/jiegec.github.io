@@ -604,6 +604,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#在-esxi-中用-perccli-换-raid-中的盘" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 ESXi 中用 PERCCli 换 RAID 中的盘
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#用-fluentd-收集-k8s-中容器的日志" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -861,17 +872,6 @@
     <span class="md-ellipsis">
       
         在 arm64 上使用 rust-analyzer
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#在-rpi4-上运行-buildroot" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        在 Rpi4 上运行 buildroot
       
     </span>
   </a>
@@ -2065,6 +2065,189 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-04-15 00:00:00+00:00">2021年4月15日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 4 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="在-esxi-中用-perccli-换-raid-中的盘"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/">在 ESXi 中用 PERCCli 换 RAID 中的盘</a></h2>
+<h3 id="背景"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/#背景">背景</a></h3>
+<p>最近有一台机器的盘出现了报警，需要换掉，然后重建 RAID5 阵列。iDRAC 出现报错：</p>
+<ol>
+<li>Disk 2 in Backplane 1 of Integrated RAID Controller 1 is not functioning correctly.</li>
+<li>Virtual Disk 1 on Integrated RAID Controller 1 has become degraded.</li>
+<li>Error occurred on Disk2 in Backplane 1 of Integrated RAID Controller 1 : (Error 2)</li>
+</ol>
+<h3 id="安装-perccli"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/#安装-perccli">安装 PERCCli</a></h3>
+<p>首先，因为系统是 VMware ESXi 6.7，所以在<a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">DELL 官网</a>下载对应的文件。按照里面的 README 安装 vib：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>esxcli<span class="w"> </span>software<span class="w"> </span>vib<span class="w"> </span>install<span class="w"> </span>-v<span class="w"> </span>/vmware-perccli-007.1420.vib
+</span></code></pre></div>
+<p>如果要升级系统，需要先卸载 vib：<code>esxcli software vib remove -n vmware-perccli</code>，因为升级的时候会发现缺少新版系统的 perccli，建议先卸载，升级后再安装新的。</p>
+<p>需要注意的是，如果复制上去 Linux 版本的 PERCCli，虽然也可以运行，但是找不到控制器。安装好以后，就可以运行 <code>/opt/lsi/perccli/perccli</code> 。接着，运行 <code>perccli show all</code>，可以看到类似下面的信息：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>show<span class="w"> </span>all
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>--------------------------------------------------------------------------------
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>EID:Slt<span class="w"> </span>DID<span class="w"> </span>State<span class="w">  </span>DG<span class="w">     </span>Size<span class="w"> </span>Intf<span class="w"> </span>Med<span class="w"> </span>SED<span class="w"> </span>PI<span class="w"> </span>SeSz<span class="w"> </span>Model<span class="w">               </span>Sp<span class="w"> </span>Type
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>--------------------------------------------------------------------------------
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="m">32</span>:2<span class="w">      </span><span class="m">2</span><span class="w"> </span>Failed<span class="w">  </span><span class="m">1</span><span class="w"> </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>SATA<span class="w"> </span>HDD<span class="w"> </span>N<span class="w">   </span>N<span class="w">  </span>512B<span class="w"> </span>ST4000NM0033-9ZM170<span class="w"> </span>U<span class="w">  </span>-
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="m">32</span>:4<span class="w">      </span><span class="m">4</span><span class="w"> </span>UGood<span class="w">   </span>F<span class="w"> </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>SATA<span class="w"> </span>HDD<span class="w"> </span>N<span class="w">   </span>N<span class="w">  </span>512B<span class="w"> </span>ST4000NM0033-9ZM170<span class="w"> </span>U<span class="w">  </span>-
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>--------------------------------------------------------------------------------
+</span></code></pre></div>
+<p>其中 E32S2 是 Failed 的盘，属于 Disk Group 1；E32S4 是新插入的盘，准备替换掉 E32S2，目前不属于任何的 Disk Group。查看一下 Disk Group：<code>perccli /c0/dall show</code></p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/dall<span class="w"> </span>show
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>-----------------------------------------------------------------------------
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>DG<span class="w"> </span>Arr<span class="w"> </span>Row<span class="w"> </span>EID:Slot<span class="w"> </span>DID<span class="w"> </span>Type<span class="w">  </span>State<span class="w"> </span>BT<span class="w">       </span>Size<span class="w"> </span>PDC<span class="w">  </span>PI<span class="w"> </span>SED<span class="w"> </span>DS3<span class="w">  </span>FSpace<span class="w"> </span>TR
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>-----------------------------------------------------------------------------
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">   </span>N<span class="w">    </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">   </span>N<span class="w">    </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">0</span><span class="w">   </span><span class="m">32</span>:1<span class="w">     </span><span class="m">1</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">   </span>N<span class="w">    </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">1</span><span class="w">   </span><span class="m">32</span>:2<span class="w">     </span><span class="m">2</span><span class="w">   </span>DRIVE<span class="w"> </span>Failed<span class="w"> </span>N<span class="w">    </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">2</span><span class="w">   </span><span class="m">32</span>:3<span class="w">     </span><span class="m">3</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">   </span>N<span class="w">    </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span></code></pre></div>
+<p>可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 <a href="https://dl.dell.com/topicspdf/cli_guide_en-us.pdf">PERCCli 文档</a>，它告诉我们要这么做：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span><span class="nb">set</span><span class="w"> </span>offline
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span><span class="nb">set</span><span class="w"> </span>missing
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>perccli<span class="w"> </span>/cx<span class="w"> </span>/dall<span class="w"> </span>show
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span>insert<span class="w"> </span><span class="nv">dg</span><span class="o">=</span>a<span class="w"> </span><span class="nv">array</span><span class="o">=</span>b<span class="w"> </span><span class="nv">row</span><span class="o">=</span>c
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>perccli<span class="w"> </span>/cx<span class="o">[</span>/ex<span class="o">]</span>/sx<span class="w"> </span>start<span class="w"> </span>rebuild
+</span></code></pre></div>
+<p>具体到我们这个情景，就是把 E32S2 设为 offline，然后用 E32S4 来替换它：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span><span class="nb">set</span><span class="w"> </span>offline
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span><span class="nb">set</span><span class="w"> </span>missing
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>perccli<span class="w"> </span>/cx<span class="w"> </span>/dall<span class="w"> </span>show
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>perccli<span class="w"> </span>/cx/e32/s4<span class="w"> </span>insert<span class="w"> </span><span class="nv">dg</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">array</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="nv">row</span><span class="o">=</span><span class="m">2</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>perccli<span class="w"> </span>/cx/e32/s4<span class="w"> </span>start<span class="w"> </span>rebuild
+</span></code></pre></div>
+<p>完成以后的状态：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>TOPOLOGY<span class="w"> </span>:
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="o">========</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>---------------------------------------------------------------------------
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>DG<span class="w"> </span>Arr<span class="w"> </span>Row<span class="w"> </span>EID:Slot<span class="w"> </span>DID<span class="w"> </span>Type<span class="w">  </span>State<span class="w"> </span>BT<span class="w">     </span>Size<span class="w"> </span>PDC<span class="w">  </span>PI<span class="w"> </span>SED<span class="w"> </span>DS3<span class="w">  </span>FSpace<span class="w"> </span>TR
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>---------------------------------------------------------------------------
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
+</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">0</span><span class="w">   </span><span class="m">32</span>:1<span class="w">     </span><span class="m">1</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">1</span><span class="w">   </span><span class="m">32</span>:4<span class="w">     </span><span class="m">4</span><span class="w">   </span>DRIVE<span class="w"> </span>Rbld<span class="w">  </span>Y<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">2</span><span class="w">   </span><span class="m">32</span>:3<span class="w">     </span><span class="m">3</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>---------------------------------------------------------------------------
+</span></code></pre></div>
+<p>可以看到 E32S4 替换了原来 E32S2 的位置，并且开始重建。查看重建进度：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/32/s4<span class="w"> </span>show<span class="w"> </span>rebuild
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>-----------------------------------------------------
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>Drive-ID<span class="w">   </span>Progress%<span class="w"> </span>Status<span class="w">      </span>Estimated<span class="w"> </span>Time<span class="w"> </span>Left
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>-----------------------------------------------------
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>/c0/e32/s4<span class="w">         </span><span class="m">3</span><span class="w"> </span>In<span class="w"> </span>progress<span class="w"> </span>-
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>-----------------------------------------------------
+</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>$<span class="w"> </span>perccli<span class="w"> </span>show<span class="w"> </span>all
+</span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>Need<span class="w"> </span>Attention<span class="w"> </span>:
+</span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="o">==============</span>
+</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>
+</span><span id="__span-26-11"><a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>Controller<span class="w"> </span><span class="m">0</span><span class="w"> </span>:
+</span><span id="__span-26-12"><a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a><span class="o">============</span>
+</span><span id="__span-26-13"><a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>
+</span><span id="__span-26-14"><a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>-------------------------------------------------------------------------------
+</span><span id="__span-26-15"><a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>EID:Slt<span class="w"> </span>DID<span class="w"> </span>State<span class="w"> </span>DG<span class="w">     </span>Size<span class="w"> </span>Intf<span class="w"> </span>Med<span class="w"> </span>SED<span class="w"> </span>PI<span class="w"> </span>SeSz<span class="w"> </span>Model<span class="w">               </span>Sp<span class="w"> </span>Type
+</span><span id="__span-26-16"><a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>-------------------------------------------------------------------------------
+</span><span id="__span-26-17"><a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a><span class="m">32</span>:4<span class="w">      </span><span class="m">4</span><span class="w"> </span>Rbld<span class="w">   </span><span class="m">1</span><span class="w"> </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>SATA<span class="w"> </span>HDD<span class="w"> </span>N<span class="w">   </span>N<span class="w">  </span>512B<span class="w"> </span>ST4000NM0033-9ZM170<span class="w"> </span>U<span class="w">  </span>-
+</span><span id="__span-26-18"><a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a>-------------------------------------------------------------------------------
+</span></code></pre></div>
+<p>然后，查看一下出错的盘：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span>show<span class="w"> </span>all
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>Drive<span class="w"> </span>/c0/e32/s2<span class="w"> </span>State<span class="w"> </span>:
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="o">======================</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>Shield<span class="w"> </span><span class="nv">Counter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>Media<span class="w"> </span>Error<span class="w"> </span><span class="nv">Count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>Other<span class="w"> </span>Error<span class="w"> </span><span class="nv">Count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">6</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>Drive<span class="w"> </span><span class="nv">Temperature</span><span class="w"> </span><span class="o">=</span><span class="w">  </span>36C<span class="w"> </span><span class="o">(</span><span class="m">96</span>.80<span class="w"> </span>F<span class="o">)</span>
+</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>Predictive<span class="w"> </span>Failure<span class="w"> </span><span class="nv">Count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>
+</span><span id="__span-27-9"><a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>S.M.A.R.T<span class="w"> </span>alert<span class="w"> </span>flagged<span class="w"> </span>by<span class="w"> </span><span class="nv">drive</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>No
+</span></code></pre></div>
+<p>果然有错误，但是也看不到更多信息了。</p>
+<p>坏块统计：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0<span class="w"> </span>show<span class="w"> </span>badblocks
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>Detailed<span class="w"> </span>Status<span class="w"> </span>:
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="o">===============</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>-------------------------------------------------------------
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>Ctrl<span class="w"> </span>Status<span class="w"> </span>Ctrl_Prop<span class="w">       </span>Value<span class="w"> </span>ErrMsg<span class="w">               </span>ErrCd
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>-------------------------------------------------------------
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">   </span><span class="m">0</span><span class="w"> </span>Failed<span class="w"> </span>Bad<span class="w"> </span>Block<span class="w"> </span>Count<span class="w"> </span>-<span class="w">     </span>BadBlockCount<span class="w"> </span>failed<span class="w">     </span><span class="m">2</span>
+</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>-------------------------------------------------------------
+</span></code></pre></div>
+<p>经过检查以后，发现 E32S2 盘的 SMART 并没有报告什么问题，所以也没有把盘取走，而是作为 hot spare 当备用：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/e32/s2<span class="w"> </span>add<span class="w"> </span>hotsparedrive<span class="w"> </span><span class="nv">DG</span><span class="o">=</span><span class="m">1</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>$<span class="w"> </span>perccli<span class="w"> </span>/c0/d1<span class="w"> </span>show
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>TOPOLOGY<span class="w"> </span>:
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="o">========</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>---------------------------------------------------------------------------
+</span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>DG<span class="w"> </span>Arr<span class="w"> </span>Row<span class="w"> </span>EID:Slot<span class="w"> </span>DID<span class="w"> </span>Type<span class="w">  </span>State<span class="w"> </span>BT<span class="w">     </span>Size<span class="w"> </span>PDC<span class="w">  </span>PI<span class="w"> </span>SED<span class="w"> </span>DS3<span class="w">  </span>FSpace<span class="w"> </span>TR
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>---------------------------------------------------------------------------
+</span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
+</span><span id="__span-29-10"><a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span>-<span class="w">   </span>-<span class="w">        </span>-<span class="w">   </span>RAID5<span class="w"> </span>Dgrd<span class="w">  </span>N<span class="w">  </span><span class="m">7</span>.276<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>N<span class="w">      </span>N
+</span><span id="__span-29-11"><a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">0</span><span class="w">   </span><span class="m">32</span>:1<span class="w">     </span><span class="m">1</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-29-12"><a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">1</span><span class="w">   </span><span class="m">32</span>:4<span class="w">     </span><span class="m">4</span><span class="w">   </span>DRIVE<span class="w"> </span>Rbld<span class="w">  </span>Y<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-29-13"><a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">0</span><span class="w">   </span><span class="m">2</span><span class="w">   </span><span class="m">32</span>:3<span class="w">     </span><span class="m">3</span><span class="w">   </span>DRIVE<span class="w"> </span>Onln<span class="w">  </span>N<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>dflt<span class="w"> </span>N<span class="w">  </span>N<span class="w">   </span>dflt<span class="w"> </span>-<span class="w">      </span>N
+</span><span id="__span-29-14"><a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a><span class="w"> </span><span class="m">1</span><span class="w"> </span>-<span class="w">   </span>-<span class="w">   </span><span class="m">32</span>:2<span class="w">     </span><span class="m">2</span><span class="w">   </span>DRIVE<span class="w"> </span>DHS<span class="w">   </span>-<span class="w">  </span><span class="m">3</span>.637<span class="w"> </span>TB<span class="w"> </span>-<span class="w">    </span>-<span class="w">  </span>-<span class="w">   </span>-<span class="w">    </span>-<span class="w">      </span>N
+</span><span id="__span-29-15"><a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>---------------------------------------------------------------------------
+</span><span id="__span-29-16"><a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>
+</span><span id="__span-29-17"><a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a><span class="nv">DG</span><span class="o">=</span>Disk<span class="w"> </span>Group<span class="w"> </span>Index<span class="p">|</span><span class="nv">Arr</span><span class="o">=</span>Array<span class="w"> </span>Index<span class="p">|</span><span class="nv">Row</span><span class="o">=</span>Row<span class="w"> </span>Index<span class="p">|</span><span class="nv">EID</span><span class="o">=</span>Enclosure<span class="w"> </span>Device<span class="w"> </span>ID
+</span><span id="__span-29-18"><a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a><span class="nv">DID</span><span class="o">=</span>Device<span class="w"> </span>ID<span class="p">|</span><span class="nv">Type</span><span class="o">=</span>Drive<span class="w"> </span>Type<span class="p">|</span><span class="nv">Onln</span><span class="o">=</span>Online<span class="p">|</span><span class="nv">Rbld</span><span class="o">=</span>Rebuild<span class="p">|</span><span class="nv">Optl</span><span class="o">=</span>Optimal<span class="p">|</span><span class="nv">Dgrd</span><span class="o">=</span>Degraded
+</span><span id="__span-29-19"><a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="nv">Pdgd</span><span class="o">=</span>Partially<span class="w"> </span>degraded<span class="p">|</span><span class="nv">Offln</span><span class="o">=</span>Offline<span class="p">|</span><span class="nv">BT</span><span class="o">=</span>Background<span class="w"> </span>Task<span class="w"> </span>Active
+</span><span id="__span-29-20"><a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a><span class="nv">PDC</span><span class="o">=</span>PD<span class="w"> </span>Cache<span class="p">|</span><span class="nv">PI</span><span class="o">=</span>Protection<span class="w"> </span>Info<span class="p">|</span><span class="nv">SED</span><span class="o">=</span>Self<span class="w"> </span>Encrypting<span class="w"> </span>Drive<span class="p">|</span><span class="nv">Frgn</span><span class="o">=</span>Foreign
+</span><span id="__span-29-21"><a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a><span class="nv">DS3</span><span class="o">=</span>Dimmer<span class="w"> </span>Switch<span class="w"> </span><span class="m">3</span><span class="p">|</span><span class="nv">dflt</span><span class="o">=</span>Default<span class="p">|</span><span class="nv">Msng</span><span class="o">=</span>Missing<span class="p">|</span><span class="nv">FSpace</span><span class="o">=</span>Free<span class="w"> </span>Space<span class="w"> </span>Present
+</span><span id="__span-29-22"><a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a><span class="nv">TR</span><span class="o">=</span>Transport<span class="w"> </span>Ready
+</span></code></pre></div>
+<p>这样就可以做后备盘，当别的盘坏的时候，作为备用。</p>
+<h3 id="相关软件下载"><a class="toclink" href="../../devops/2021/04/15/vmware-esxi-perccli/#相关软件下载">相关软件下载</a></h3>
+<p>可以在<a href="https://www.broadcom.com/products/storage/raid-controllers/megaraid-9660-16i">这里</a>和<a href="https://www.broadcom.com/support/download-search?dk=storcli">这里</a>寻找 StorCLI 版本。</p>
+<p>StorCLI：</p>
+<ul>
+<li>007.3007.0000.0000 May 16, 2024 <a href="https://docs.broadcom.com/docs-and-downloads/007.3007.0000.0000_MR7.30_Storcli.zip">007.3007.0000.0000_MR7.30_Storcli.zip</a></li>
+<li>007.1613.0000.0000 Oct 29, 2020 <a href="https://docs.broadcom.com/docs/007.1613.0000.0000_Unified_StorCLI.zip">007.1613.0000.0000_Unified_StorCLI.zip</a></li>
+<li>007.1506.0000.0000 Aug 11, 2020 <a href="https://downloadcenter.intel.com/download/30286/StorCLI-Standalone-Utility">StorCLI_MR7.15.zip</a> </li>
+<li>008.0010.0000.0010 Jun 14, 2024 <a href="https://docs.broadcom.com/docs-and-downloads/008.0010.0000.0010_MR8.10_Storcli2.zip">008.0010.0000.0010_MR8.10_Storcli2.zip</a>，注：不支持旧型号</li>
+<li>008.0005.0000.0010 Feb 22, 2023 <a href="https://docs.broadcom.com/docs/1232743171">008.0005.0000.0010_StorCLI.zip</a>，注：不支持旧型号</li>
+<li>1.15.12 Apr 23, 2015 <a href="https://docs.broadcom.com/docs/12354905">MR_SAS_StorCLI_6-7-1-15-12-SCGCQ00852539.zip</a></li>
+<li>1.15.05 Jan 22, 2015 <a href="https://docs.broadcom.com/docs/12354804">1-15-05_StorCLI.zip</a></li>
+</ul>
+<p>MegaCLI:</p>
+<ul>
+<li>8.07.07 Dec 19, 2012 <a href="https://docs.broadcom.com/docs/12351585">8-07-07_MegaCLI.zip</a></li>
+</ul>
+<p>PercCLI:</p>
+<ul>
+<li>007.1420.0000.0000 Dec 10, 2020 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=n65f1">PERCCLI_N65F1_7.1420.00_A10_Linux.tar.gz</a> <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx">PERCCLI_5V7XX_7.1420.0_A10_VMware.tar.gz</a></li>
+<li>007.1327.0000.0000 July 27, 2020 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=d6ywp">PERCCLI_D6YWP_7.1327.00_A09_Linux.tar.gz</a></li>
+<li>007.0127.0000.0000 July 13, 2017 <a href="https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=f48c2">perccli_7.1-007.0127_linux.tar.gz</a></li>
+</ul>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -4758,80 +4941,6 @@ in 1.4.
 </span></code></pre></div>
 <p>路径在 <code>~/.vscode-server/data/Machine/settings.json</code>。</p>
 <p>参考：https://github.com/rust-analyzer/rust-analyzer/issues/5256</p>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2020-09-12 00:00:00+00:00">2020年9月12日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/devops/" class="md-meta__link">devops</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-rpi4-上运行-buildroot"><a class="toclink" href="../../devops/2020/09/12/buildroot-rpi-pxe/">在 Rpi4 上运行 buildroot</a></h2>
-<h3 id="背景"><a class="toclink" href="../../devops/2020/09/12/buildroot-rpi-pxe/#背景">背景</a></h3>
-<p>需要给 rpi 配置一个 pxe 的最小环境，在上一篇博文了提到可以用 alpine，但发现有一些不好用的地方，所以试了试 buildroot。</p>
-<h3 id="pxe-设置和路由器设置"><a class="toclink" href="../../devops/2020/09/12/buildroot-rpi-pxe/#pxe-设置和路由器设置">PXE 设置和路由器设置</a></h3>
-<p>见“在 Rpi4 上运行 Alpine Linux”文章。</p>
-<h3 id="buildroot-配置"><a class="toclink" href="../../devops/2020/09/12/buildroot-rpi-pxe/#buildroot-配置">Buildroot 配置</a></h3>
-<p>下载 buildroot：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>&gt;<span class="w"> </span>wget<span class="w"> </span>https://buildroot.org/downloads/buildroot-2020.08.tar.gz
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>&gt;<span class="w"> </span>unar<span class="w"> </span>buildroot-2020.08.tar.gz
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>&gt;<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>buildroot-2020.08
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>&gt;<span class="w"> </span>make<span class="w"> </span>raspberrypi4_64_defconfig
-</span></code></pre></div>
-<p>然后运行 <code>make menuconfig</code> ，在 <code>Filesystem images</code> 中打开 initramfs，并设置 cpio 压缩为 gz。然后直接编译：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>&gt;<span class="w"> </span>make<span class="w"> </span>-j4
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>$<span class="w"> </span>ls<span class="w"> </span>-al<span class="w"> </span>target/images
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bcm2711-rpi-4-b.dtb*<span class="w">  </span>boot.vfat<span class="w">  </span>Image<span class="w">  </span>rootfs.cpio<span class="w">  </span>rootfs.cpio.gz<span class="w">  </span>rootfs.ext2<span class="w">  </span>rootfs.ext4@<span class="w">  </span>rpi-firmware/<span class="w">  </span>sdcard.img
-</span></code></pre></div>
-<p>接着，在一个单独的目录里，把这些文件整理一下</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>&gt;<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/rpi-buildroot
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>&gt;<span class="w"> </span>cp<span class="w"> </span>-r<span class="w"> </span>~/buildroot-2020.08/output/images/rpi-firmware/*<span class="w"> </span>.
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>&gt;<span class="w"> </span>cp<span class="w"> </span>~/buildroot-2020.08/output/images/bcm2711-rpi-4-b.dtb<span class="w"> </span>.
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>&gt;<span class="w"> </span>cp<span class="w"> </span>~/buildroot-2020.08/output/images/Image<span class="w"> </span>.
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>&gt;<span class="w"> </span>cp<span class="w"> </span>~/buildroot-2020.08/output/images/rootfs.cpio.gz<span class="w"> </span>.
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>&gt;<span class="w"> </span><span class="c1"># edit cmdline.txt: remove root= and rootwait</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>&gt;<span class="w"> </span><span class="c1"># edit config.txt: uncomment initramfs rootfs.cpio.gz line</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="c1"># ls</span>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>bcm2711-rpi-4-b.dtb*<span class="w">  </span>cmdline.txt<span class="w">  </span>config.txt<span class="w">  </span>fixup.dat<span class="w">  </span>Image<span class="w">  </span>overlays/<span class="w">  </span>rootfs.cpio.gz<span class="w">  </span>start.elf
-</span></code></pre></div>
-<p>最后开启 TFTP 服务器即可：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>&gt;<span class="w"> </span>sudo<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>py3tftp<span class="w"> </span>-p<span class="w"> </span><span class="m">69</span>
-</span></code></pre></div>
-<h3 id="树莓派启动"><a class="toclink" href="../../devops/2020/09/12/buildroot-rpi-pxe/#树莓派启动">树莓派启动</a></h3>
-<p>连接树莓派的串口，用 115200 Baudrate 打开，可以看到启动信息：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>PM_RSTS: 0x00001000
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>RPi: BOOTLOADER release VERSION:a5e1b95f DATE: Apr 16 2020 TIME: 18:11:29 BOOTMODE: 0x00000006 part: 0 BUILD_TIMESTAMP=1587057086 0xa049cc2f 0x00c03111
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>uSD voltage 3.3V
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>... 
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>Welcome to Buildroot
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>buildroot login: root
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>#
-</span></code></pre></div>
-<p>默认用户是 root，没有密码。</p>
     
     
   </div>
