@@ -246,7 +246,8 @@ IPC
 - Google Axion C4A @ Neoverse V2（`-O3 -flto -ljemalloc`）: [8.23](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_C4A_O3-flto-ljemalloc_001.txt)
 - Google Axion N4A @ Neoverse N3（`-O3 -flto -ljemalloc`）: [7.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_N4A_O3-flto-ljemalloc_001.txt)
 - IBM POWER8 @ 3.2 GHz POWER8（`-O3 -flto -ljemalloc`）: [3.63](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER8_O3-flto-ljemalloc_001.txt)
-- IBM POWER9 @ 3.2 GHz POWER9（`-O3 -flto -ljemalloc`）: [3.53](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_O3-flto-ljemalloc_001.txt)
+- IBM POWER9 3.2 GHz @ 3.2 GHz POWER9（`-O3 -flto -ljemalloc`）: [3.53](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.2_GHz_O3-flto-ljemalloc_001.txt)
+- IBM POWER9 3.8 GHz @ 3.2 GHz POWER9（`-O3 -flto -ljemalloc`）: [4.81](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.8_GHz_O3-flto-ljemalloc_001.txt)
 - Intel Xeon 6975P-C @ 3.9 GHz Redwood Cove（`-O3 -flto -ljemalloc`）: [8.03](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_6975P-C_O3-flto-ljemalloc_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto -ljemalloc`）: [4.95](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_E5-2680_v4_O3-flto-ljemalloc_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3 -flto -ljemalloc`）: [5.39](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_Gold_6430_O3-flto-ljemalloc_001.txt)
@@ -263,7 +264,8 @@ IPC
 - Google Axion C4A @ Neoverse V2（`-O3 -flto`）: [7.68](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_C4A_O3-flto_001.txt)
 - Google Axion N4A @ Neoverse N3（`-O3 -flto`）: [7.44](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_N4A_O3-flto_001.txt)
 - IBM POWER8 @ 3.2 GHz POWER8（`-O3 -flto`）: [3.45](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER8_O3-flto_001.txt)
-- IBM POWER9 @ 3.2 GHz POWER9（`-O3 -flto`）: [3.30](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_O3-flto_001.txt)
+- IBM POWER9 3.2 GHz @ 3.2 GHz POWER9（`-O3 -flto`）: [3.30](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.2_GHz_O3-flto_001.txt)
+- IBM POWER9 3.8 GHz @ 3.2 GHz POWER9（`-O3 -flto`）: [4.41](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.8_GHz_O3-flto_001.txt)
 - Intel Xeon 6975P-C @ 3.9 GHz Redwood Cove（`-O3 -flto`）: [7.65](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_6975P-C_O3-flto_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto`）: [4.59](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_E5-2680_v4_O3-flto_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3 -flto`）: [5.16](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_Gold_6430_O3-flto_001.txt)
@@ -280,7 +282,8 @@ IPC
 - Google Axion C4A @ Neoverse V2（`-O3`）: [7.25](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_C4A_O3_001.txt)
 - Google Axion N4A @ Neoverse N3（`-O3`）: [7.16](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_N4A_O3_001.txt)
 - IBM POWER8 @ 3.2 GHz POWER8（`-O3`）: [3.24](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER8_O3_001.txt)
-- IBM POWER9 @ 3.2 GHz POWER9（`-O3`）: [3.01](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_O3_001.txt)
+- IBM POWER9 3.2 GHz @ 3.2 GHz POWER9（`-O3`）: [3.01](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.2_GHz_O3_001.txt)
+- IBM POWER9 3.8 GHz @ 3.2 GHz POWER9（`-O3`）: [4.14](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.8_GHz_O3_001.txt)
 - Intel Xeon 6975P-C @ 3.9 GHz Redwood Cove（`-O3`）: [7.38](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_6975P-C_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [4.39](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3`）: [4.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_Gold_6430_O3_001.txt)
@@ -745,7 +748,8 @@ IPC
 - Google Axion C4A @ Neoverse V2（`-O3`）: [10.8](https://jia.je/benchmark/data-trixie/fp2017_rate1/Google_Axion_C4A_O3_001.txt)
 - Google Axion N4A @ Neoverse N3（`-O3`）: [9.18](https://jia.je/benchmark/data-trixie/fp2017_rate1/Google_Axion_N4A_O3_001.txt)
 - IBM POWER8 @ 3.2 GHz POWER8（`-O3`）: [3.47](https://jia.je/benchmark/data-trixie/fp2017_rate1/IBM_POWER8_O3_001.txt)
-- IBM POWER9 @ 3.2 GHz POWER9（`-O3`）: [3.84](https://jia.je/benchmark/data-trixie/fp2017_rate1/IBM_POWER9_O3_001.txt)
+- IBM POWER9 3.2 GHz @ 3.2 GHz POWER9（`-O3`）: [3.84](https://jia.je/benchmark/data-trixie/fp2017_rate1/IBM_POWER9_3.2_GHz_O3_001.txt)
+- IBM POWER9 3.8 GHz @ 3.2 GHz POWER9（`-O3`）: [4.75](https://jia.je/benchmark/data-trixie/fp2017_rate1/IBM_POWER9_3.8_GHz_O3_001.txt)
 - Intel Xeon 6975P-C @ 3.9 GHz Redwood Cove（`-O3`）: [10.3](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Xeon_6975P-C_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [5.49](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3`）: [7.01](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Xeon_Gold_6430_O3_001.txt)
@@ -1180,7 +1184,8 @@ ulimit -s unlimited && cd /mnt && . ./shrc && runcpu fpspeed
 - Hygon C86 7390(Aliyun g7h.large, 2C 8G): w/o PMU
 - IBM POWER8NVL
 - IBM POWER8(SMT8)
-- IBM POWER9(SMT4)
+- IBM POWER9 3.2 GHz(SMT4, 4C16T)
+- IBM POWER9 3.8 GHz(SMT4, 44C176T)
 - Intel Core i9-10980XE: Cascade Lake
 - Intel Core i9-12900KS: Golden Cove + Gracemont, Alder Lake
 - Intel Core i9-14900K: Raptor Cove + Gracemont, Raptor Lake
@@ -1210,10 +1215,12 @@ ulimit -s unlimited && cd /mnt && . ./shrc && runcpu fpspeed
 
 ## 更新历史
 
+- 2026.05.02:
+  - 测试 IBM POWER9 3.8 GHz (44C176T) 性能
 - 2026.04.17:
   - 测试 Intel Core i7-13700 性能
 - 2026.02.23:
-  - 测试 IBM POWER8 和 IBM POWER9 性能
+  - 测试 IBM POWER8 和 IBM POWER9 3.2 GHz (4C16T) 性能
 - 2026.01.28:
   - 在 GCP n4a-standard-4 实例上测试 Google Axion N4A 的性能
   - 在 GCP c4a-standard-4 实例上测试 Google Axion C4A 的性能
