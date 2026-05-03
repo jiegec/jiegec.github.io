@@ -197,6 +197,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -flto -ljemalloc`）: [9.31](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3-flto-ljemalloc_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -flto -ljemalloc`）: [3.58](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3-flto-ljemalloc_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto -ljemalloc`）: [9.14](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto-ljemalloc_001.txt)
+- Intel Core i5-1135G7 @ 4.2 GHz Willow Cove（`-O3 -flto -ljemalloc`）: [7.21](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i5-1135G7_O3-flto-ljemalloc_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3 -flto -ljemalloc`）: [7.42](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_E-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto -ljemalloc`）: [10.9](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_P-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto -ljemalloc`）: [6.96](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3-flto-ljemalloc_001.txt)
@@ -212,6 +213,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -flto`）: [8.57](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3-flto_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -flto`）: [3.34](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3-flto_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto`）: [8.40](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto_001.txt)
+- Intel Core i5-1135G7 @ 4.2 GHz Willow Cove（`-O3 -flto`）: [6.71](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i5-1135G7_O3-flto_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3 -flto`）: [6.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_E-Core_O3-flto_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto`）: [10.3](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_P-Core_O3-flto_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto`）: [6.57](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3-flto_001.txt)
@@ -227,6 +229,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [8.19](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.20](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [7.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3_001.txt)
+- Intel Core i5-1135G7 @ 4.2 GHz Willow Cove（`-O3`）: [6.48](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i5-1135G7_O3_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3`）: [6.71](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_E-Core_O3_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [9.85](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [6.31](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3_001.txt)
@@ -698,6 +701,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -march=native`）: [11.7](https://jia.je/benchmark/data-trixie/fp2017_rate1/AMD_Ryzen_7_5700X_O3-march%3Dnative_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -march=native`）: [3.93](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_E-Core_O3-march%3Dnative_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native`）: [12.2](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3-march%3Dnative_001.txt)
+- Intel Core i5-1135G7 @ 4.2 GHz Willow Cove（`-O3 -march=native`）: [9.88](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i5-1135G7_O3-march%3Dnative_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3 -march=native`）: [7.22](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_E-Core_O3-march%3Dnative_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -march=native`）: [15.0](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz (AVX-512 @ 4.0 GHz) Cascade Lake（`-O3 -march=native`）: [7.85](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-10980XE_O3-march%3Dnative_001.txt)
@@ -713,6 +717,7 @@ IPC
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [10.9](https://jia.je/benchmark/data-trixie/fp2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.93](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_E-Core_O3_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [12.2](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3_001.txt)
+- Intel Core i5-1135G7 @ 4.2 GHz Willow Cove（`-O3`）: [9.01](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i5-1135G7_O3_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3`）: [6.92](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_E-Core_O3_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [14.0](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [7.24](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-10980XE_O3_001.txt)
@@ -1188,8 +1193,10 @@ ulimit -s unlimited && cd /mnt && . ./shrc && runcpu fpspeed
 - IBM POWER8(SMT8)
 - IBM POWER9 3.2 GHz(SMT4, 4C16T)
 - IBM POWER9 3.8 GHz(SMT4, 44C176T)
+- Intel Core i5-1135G7: Willow Cove, Tiger Lake
 - Intel Core i9-10980XE: Cascade Lake
 - Intel Core i9-12900KS: Golden Cove + Gracemont, Alder Lake
+- Intel Core i7-13700K: Raptor Cove + Gracemont, Raptor Lake
 - Intel Core i9-14900K: Raptor Cove + Gracemont, Raptor Lake
 - Intel Xeon 6975P-C(AWS m8i.xlarge, 4C 16G): Redwood Cove, Granite Rapids
 - Intel Xeon 6981E(TencentCloud s9.large8, 4C 8G): Crestmont, Sierra Forest, w/o PMU
@@ -1219,8 +1226,9 @@ ulimit -s unlimited && cd /mnt && . ./shrc && runcpu fpspeed
 
 - 2026.05.02:
   - 测试 IBM POWER9 3.8 GHz (44C176T) 性能
+  - 测试 Intel Core i5-1135G7 性能
 - 2026.04.17:
-  - 测试 Intel Core i7-13700 性能
+  - 测试 Intel Core i7-13700K 性能
 - 2026.02.23:
   - 测试 IBM POWER8 和 IBM POWER9 3.2 GHz (4C16T) 性能
 - 2026.01.28:
