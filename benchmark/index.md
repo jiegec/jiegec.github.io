@@ -196,7 +196,7 @@ IPC
 
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -flto -ljemalloc`）: [9.31](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3-flto-ljemalloc_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -flto -ljemalloc`）: [3.58](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3-flto-ljemalloc_001.txt)
-- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto -ljemalloc`）: [9.08](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto-ljemalloc_001.txt)
+- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto -ljemalloc`）: [9.14](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3 -flto -ljemalloc`）: [7.42](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_E-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto -ljemalloc`）: [10.9](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_P-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto -ljemalloc`）: [6.96](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3-flto-ljemalloc_001.txt)
@@ -211,7 +211,7 @@ IPC
 
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -flto`）: [8.57](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3-flto_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -flto`）: [3.34](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3-flto_001.txt)
-- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto`）: [8.33](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto_001.txt)
+- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto`）: [8.40](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3-flto_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3 -flto`）: [6.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_E-Core_O3-flto_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto`）: [10.3](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_P-Core_O3-flto_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto`）: [6.57](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3-flto_001.txt)
@@ -226,7 +226,7 @@ IPC
 
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [8.19](https://jia.je/benchmark/data-trixie/int2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.20](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_E-Core_O3_001.txt)
-- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [7.92](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3_001.txt)
+- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [7.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Apple_M1_P-Core_O3_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3`）: [6.71](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_E-Core_O3_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [9.85](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [6.31](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-10980XE_O3_001.txt)
@@ -697,7 +697,7 @@ IPC
 
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3 -march=native`）: [11.7](https://jia.je/benchmark/data-trixie/fp2017_rate1/AMD_Ryzen_7_5700X_O3-march%3Dnative_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3 -march=native`）: [3.93](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_E-Core_O3-march%3Dnative_001.txt)
-- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native`）: [12.1](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3-march%3Dnative_001.txt)
+- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native`）: [12.2](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3 -march=native`）: [7.22](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_E-Core_O3-march%3Dnative_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -march=native`）: [15.0](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz (AVX-512 @ 4.0 GHz) Cascade Lake（`-O3 -march=native`）: [7.85](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-10980XE_O3-march%3Dnative_001.txt)
@@ -712,7 +712,7 @@ IPC
 
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [10.9](https://jia.je/benchmark/data-trixie/fp2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.93](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_E-Core_O3_001.txt)
-- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [12.0](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3_001.txt)
+- Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [12.2](https://jia.je/benchmark/data-trixie/fp2017_rate1/Apple_M1_P-Core_O3_001.txt)
 - Intel Core i7-13700K E-Core @ 4.2 GHz Gracemont（`-O3`）: [6.92](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_E-Core_O3_001.txt)
 - Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [14.0](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [7.24](https://jia.je/benchmark/data-trixie/fp2017_rate1/Intel_Core_i9-10980XE_O3_001.txt)
@@ -1147,6 +1147,8 @@ ulimit -s unlimited && cd /mnt && . ./shrc && runcpu fpspeed
 ## 固定频率方法
 
 可以尝试用 cpupower frequency-set 来固定频率，但是一些平台不支持，还可能有 Linux 内无法关闭的 Boost。设置频率后，用 `cpupower frequency-info` 验证：`current CPU frequency: 4.29 GHz (asserted by call to kernel)` 是否和预期频率一致并且不变。
+
+此外，还需要注意 cpufreq governor（`cuupower frequency-info`），以及 boost 是否启用（`/sys/devices/system/cpu/cpufreq/boost`）。
 
 对于 AMD CPU，在 Linux 下为了固定 CPU 的频率，需要通过 MSR 进行设置：[jiegec/ZenStates-Linux](https://github.com/jiegec/ZenStates-Linux)：
 
