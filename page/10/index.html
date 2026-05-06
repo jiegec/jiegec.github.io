@@ -604,6 +604,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#研究-rocket-chip-的-bscan-调试原理" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        研究 Rocket Chip 的 BSCAN 调试原理
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#在-macos-上带执行权限-mmap-一个已删除文件遇到的问题和解决方案" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -861,17 +872,6 @@
     <span class="md-ellipsis">
       
         在 macOS 上创建 ESP 镜像文件
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#每周分享第-40-期" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        每周分享第 40 期
       
     </span>
   </a>
@@ -2065,6 +2065,202 @@
       <header class="md-typeset">
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2020-02-09 00:00:00+00:00">2020年2月9日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/hardware/" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 2 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="研究-rocket-chip-的-bscan-调试原理"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/">研究 Rocket Chip 的 BSCAN 调试原理</a></h2>
+<h3 id="前言"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/#前言">前言</a></h3>
+<p>最近 <a href="https://github.com/KireinaHoro">@jsteward</a> 在研究如何通过 JTAG 对 FPGA 里的 Rocket Chip 进行调试。之前 <a href="https://github.com/sequencer">@sequencer</a> 已经做了一些实践，我们在重复他的工作，同时也研究了一下这是怎么工作的。</p>
+<h3 id="原理"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/#原理">原理</a></h3>
+<p>我们从 @sequencer 得到了一份可用的 <a href="https://github.com/sequencer/rocket-playground/blob/7fa3c51113be607add2034f3abe0ae973caac04a/playground/src/FPGA.scala#L83">Scala 代码</a> 和 <a href="https://github.com/sequencer/rocket-playground/blob/7fa3c51113be607add2034f3abe0ae973caac04a/playground/debugger/openocd.cfg#L16">OpenOCD 配置</a>，并且了解到：</p>
+<ol>
+<li>可以通过 openocd 找到并调试 Rocket Chip</li>
+<li>openocd 是通过 JTAG 向 FPGA 的 TAP 的 IR 写入 USER4，然后往 DR 写入特定格式的数据，然后控制 Rocket Chip 的 JTAG。</li>
+</ol>
+<p>这里涉及到一个“封装”的过程，在一个仅可以控制 DR 的 JTAG 中控制另一个 JTAG。首先可以找到 OpenOCD 端的<a href="https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361">操作代码</a>：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_zero</span><span class="p">;</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_tunnel_ir_width</span><span class="p">;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ir_dtmcontrol</span><span class="p">;</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">7</span><span class="p">;</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tunneled_ir_width</span><span class="p">;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">num_bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">out_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bscan_zero</span><span class="p">;</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">tunneled_ir</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">in_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span></code></pre></div>
+<p>如果画成图，大概是这个样子（IR）：</p>
+<table>
+<thead>
+<tr>
+<th>3 bits</th>
+<th>IR Width bits</th>
+<th>7 bits</th>
+<th>1 bit</th>
+<th>TDI</th>
+<th>Data Register</th>
+<th>TDO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Payload</td>
+<td>Tunneled IR Width</td>
+<td>0</td>
+<td>-&gt;</td>
+<td>Rocket Chip TAP</td>
+<td>-&gt;</td>
+</tr>
+</tbody>
+</table>
+<p>DR：</p>
+<table>
+<thead>
+<tr>
+<th>3 bits</th>
+<th>DR Width bits</th>
+<th>7 bits</th>
+<th>1 bit</th>
+<th>TDI</th>
+<th>Data Register</th>
+<th>TDO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Payload</td>
+<td>Tunneled DR Width</td>
+<td>1</td>
+<td>-&gt;</td>
+<td>Rocket Chip TAP</td>
+<td>-&gt;</td>
+</tr>
+</tbody>
+</table>
+<p>这里 TDI 和 TDO 是直接接到 Rocket Chip 的 JTAG 中的，所以我们期望，当 Rocket Chip TAP 在 Shift-IR/Shift-DR 阶段的时候，刚好通过的是 Payload 部分。而控制 TAP 状态机，需要控制 TMS，这个则是通过一段 <a href="https://github.com/sifive/fpga-shells/blob/c099bd9b4f916bc0ba88030939a9614d0b0daf2d/src/main/scala/ip/xilinx/Xilinx.scala#L13">HDL</a> 来完成的：</p>
+<div class="language-verilog highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">always</span><span class="p">@(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mh">8&#39;h04</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TDI_REG</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mh">8&#39;h05</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b1</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mh">8&#39;h08</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shiftreg_cnt</span><span class="p">))</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">counter_neg</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mh">8&#39;h08</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shiftreg_cnt</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mh">8&#39;h01</span><span class="p">)))</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b1</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">                </span><span class="n">jtag_tms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">1</span><span class="mb">&#39;b0</span><span class="p">;</span><span class="w"> </span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="k">end</span><span class="w"> </span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">end</span>
+</span></code></pre></div>
+<p>这里 <code>TDI_REG</code> 取的是第一个 bit 的反（也就是上面 IR 对应 0，DR 对应 1 的那一位），<code>shiftreg_cnf</code> 则是之后 7 个 bit，对应上面的 Tunneled IR/DR Width。那么，在选择 IR 时 TMS 的序列为：</p>
+<table>
+<thead>
+<tr>
+<th>4 cycles</th>
+<th>1 cycle</th>
+<th>1 cycle</th>
+<th>2 cycles</th>
+<th>shiftreg_cnt-1 cycles</th>
+<th>2 cycles</th>
+<th>rest cycles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Run-Test/Idle</td>
+<td>Select-DR-Scan</td>
+<td>Select-IR-Scan</td>
+<td>Capture-IR, Shift-IR</td>
+<td>Shift-IR</td>
+<td>Exit1-IR, Update-IR</td>
+<td>Run-Test/Idle</td>
+</tr>
+</tbody>
+</table>
+<p>类似地，如果是选择 DR：</p>
+<table>
+<thead>
+<tr>
+<th>4 cycles</th>
+<th>1 cycle</th>
+<th>1 cycle</th>
+<th>2 cycles</th>
+<th>shiftreg_cnt-1 cycles</th>
+<th>2 cycles</th>
+<th>rest cycles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Run-Test/Idle</td>
+<td>Run-Test/Idle</td>
+<td>Select-DR-Scan</td>
+<td>Capture-DR, Shift-DR</td>
+<td>Shift-DR</td>
+<td>Exit1-DR, Update-DR</td>
+<td>Run-Test/Idle</td>
+</tr>
+</tbody>
+</table>
+<p>这样，刚好在 Shift-IR/DR 状态下，Payload 会被写入 IR/DR，从而完成了期望的操作。通过规定一个特定格式的 Data Register，可以实现嵌套的 TAP 的 IR 和 DR 的操作。</p>
+<h3 id="参考"><a class="toclink" href="../../hardware/2020/02/09/rocket-chip-bscan-analysis/#参考">参考</a></h3>
+<ol>
+<li>JTAG Standard</li>
+<li><a href="https://github.com/sequencer/rocket-playground">sequencer/rocket-playground</a></li>
+<li>SiFive's JTAG Tunnel: https://github.com/sifive/fpga-shells/blob/c099bd9b4f916bc0ba88030939a9614d0b0daf2d/src/main/scala/ip/xilinx/Xilinx.scala#L13</li>
+<li>https://github.com/watz0n/arty_xjtag</li>
+<li>https://github.com/riscv/riscv-openocd/blob/7cb8843794a258380b7c37509e5c693977675b2a/src/target/riscv/riscv.c#L361</li>
+<li>UG740: 7 Series FPGAs Configuration</li>
+</ol>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3446,54 +3642,6 @@ P.P.S MacBookPro11,2 的网卡是 BCM4360，直接用 broadcom-wl 驱动就可�
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>qemu-img<span class="w"> </span>convert<span class="w"> </span>-O<span class="w"> </span>vmdk<span class="w"> </span>uefi.cdr<span class="w"> </span>uefi.vmdk
 </span></code></pre></div>
 <p>这样就可以了。</p>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2019-09-06 00:00:00+00:00">2019年9月6日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/misc/" class="md-meta__link">misc</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="每周分享第-40-期"><a class="toclink" href="../../misc/2019/09/06/weekly-sharing-40/">每周分享第 40 期</a></h2>
-<ol>
-<li>TeX Typesetting Game https://texnique.xyz/</li>
-<li>Writing Linux Kernel Module in Rust https://github.com/fishinabarrel/linux-kernel-module-rust</li>
-<li>Sipeed Longan Nano RISC-V 开发板 https://readhacker.news/s/48EBG</li>
-<li>Systemd 加载 BPF 防火墙 https://kailueke.gitlab.io/systemd-bpf-firewall-loader/</li>
-<li>方舟编译器 https://code.opensource.huaweicloud.com/HarmonyOS/OpenArkCompiler.git</li>
-<li>XLOOKUP 函数 https://techcommunity.microsoft.com/t5/Excel-Blog/Announcing-XLOOKUP/ba-p/811376</li>
-<li>SystemVerilog to Verilog 转译 https://github.com/zachjs/sv2v</li>
-<li>USB 4.0 发布 http://www.phoronix.com/scan.php?page=news_item&amp;px=USB-4.0-Specification-Published</li>
-<li>Android 10 发布 http://www.phoronix.com/scan.php?page=news_item&amp;px=Android-10-Released</li>
-<li>iOS 13.1 beta 2 发布</li>
-<li>对 iOS 设备抓包 http://blog.imaou.com/opensource/2014/12/14/pcapd_diagnostic_packet_capture.html</li>
-<li>Google 的差分隐私库 https://developers.googleblog.com/2019/09/enabling-developers-and-organizations.html</li>
-<li>Apple Music 第三方 App https://github.com/Musish/Musish</li>
-</ol>
     
     
   </div>
