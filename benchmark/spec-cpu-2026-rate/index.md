@@ -1,8 +1,34 @@
 # SPEC CPU 2026 Rate
 
-## SPEC INT 2017 Rate-1
+可通过[交互式图表](https://jia.je/benchmark/viewer.html)查看和筛选本文的测试数据。
 
-TODO
+## SPEC INT 2026 Rate-1
+
+下面贴出自己测的数据（SPECint2026，Estimated，rate，base，1 copy），不保证满足 SPEC 的要求，仅供参考。
+
+### 原始数据
+
+#### Debian Trixie
+
+桌面平台：
+
+- Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [2.73](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
+- Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [4.84](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
+- Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3`）: [3.05](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_E-Core_O3_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3`）: [5.27](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)
+
+桌面平台（LTO）：
+
+- Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto`）: [2.78](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto_001.txt)
+- Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto`）: [4.94](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto_001.txt)
+- Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3 -flto`）: [3.10](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_E-Core_O3-flto_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3 -flto`）: [5.39](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3-flto_001.txt) 桌面平台（LTO + Jemalloc）：
+- Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto -ljemalloc`）: [2.96](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto-ljemalloc_001.txt)
+- Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto -ljemalloc`）: [5.25](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto-ljemalloc_001.txt)
+- Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3 -flto -ljemalloc`）: [3.28](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_E-Core_O3-flto-ljemalloc_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3 -flto -ljemalloc`）: [5.63](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3-flto-ljemalloc_001.txt)
+
+#### 备注
 
 ### 网上的数据
 
@@ -15,9 +41,29 @@ TODO
 | [NVIDIA GB10](https://www.spec.org/cpu2026/results/res2026q2/cpu2026-20260210-00020.html)           | 5.97  | -fuse-ld=lld -O3 -ffast-math -mcpu=native -flto=thin -fomit-frame-pointer |
 | [Apple M5 Pro](https://www.spec.org/cpu2026/results/res2026q2/cpu2026-20260422-00243.html)          | 7.64  | -O3                                                                       |
 
-## SPEC FP 2017 Rate-1
+## SPEC FP 2026 Rate-1
 
-TODO
+下面贴出自己测的数据（SPECfp2026，Estimated，rate，base，1 copy），不保证满足 SPEC 的要求，仅供参考。
+
+### 原始数据
+
+#### Debian Trixie
+
+桌面平台（`-march=native`）：
+
+- Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -march=native`）: [3.97](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-march%3Dnative_001.txt)
+- Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -march=native`）: [8.05](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-march%3Dnative_001.txt)
+- Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3 -march=native`）: [4.19](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_E-Core_O3-march%3Dnative_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3 -march=native`）: [8.92](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3-march%3Dnative_001.txt)
+
+桌面平台：
+
+- Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [3.46](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
+- Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [6.44](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
+- Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3`）: [3.66](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_E-Core_O3_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3`）: [7.02](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)
+
+#### 备注
 
 ### 网上的数据
 
