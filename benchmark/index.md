@@ -33,12 +33,10 @@
 
 ## 测试结果
 
-要查看 SPEC CPU 不同版本以及测试项的测试结果，请点击对应链接：
+要查看 SPEC CPU 不同版本以及测试项的测试结果，可通过[交互式图表](https://jia.je/benchmark/viewer.html)查看，或点击以下链接查看原始数据：
 
 - [SPEC CPU INT/FP 2026 Rate](https://jia.je/benchmark/spec-cpu-2026-rate/index.md)
 - [SPEC CPU INT/FP 2017 Rate](https://jia.je/benchmark/spec-cpu-2017-rate/index.md)
-- [SPEC CPU INT/FP 2017 Speed](https://jia.je/benchmark/spec-cpu-2017-speed/index.md)
-- [SPEC CPU INT/FP 2006 Rate/Speed](https://jia.je/benchmark/spec-cpu-2006/index.md)
 
 ## 浮点峰值性能
 
