@@ -685,10 +685,10 @@ function renderTable(data) {
     tdChk.appendChild(chk);
     tr.appendChild(tdChk);
     const labelTd = document.createElement('td');
-    labelTd.style.cursor = 'pointer';
     labelTd.textContent = e.cpu_name;
-    labelTd.addEventListener('click', () => { if (e.benchmarks) showDetail(e); });
     tr.appendChild(labelTd);
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => { if (e.benchmarks) showDetail(e); });
     if (lastFlags !== null && e.opt_flags !== lastFlags) tr.classList.add('sep');
     lastFlags = e.opt_flags;
     const cells = [
@@ -747,12 +747,13 @@ function updateCompareBtn() {
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function fmt(v) {
+function fmt(v, key) {
   if (v === undefined || v === null) return '-';
   if (typeof v !== 'number') return v;
+  if (key === 'time') return v.toFixed(1);
+  if (key === 'ratio') return v.toFixed(2);
   if (Math.abs(v) >= 1e9) return (v / 1e9).toFixed(2) + 'B';
   if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (Number.isInteger(v)) return v.toString();
   return v.toFixed(4);
 }
 
@@ -792,7 +793,7 @@ function showDetail(item) {
     html += '<tr><td><strong>' + esc(n) + '</strong></td>';
     for (const k of keys) {
       const v = d[k];
-      html += '<td>' + fmt(v) + '</td>';
+      html += '<td>' + fmt(v, k) + '</td>';
       if (v !== undefined && v !== null && typeof v === 'number') sums[k].push(v);
     }
     html += '</tr>';
@@ -802,7 +803,7 @@ function showDetail(item) {
     html += '<tr style="border-top:2px solid #4f6ef7;font-weight:600"><td>' + esc(_t('arithmetic_mean')) + '</td>';
     for (const k of keys) {
       const vals = sums[k];
-      html += '<td>' + (vals.length ? fmt(vals.reduce((a, b) => a + b, 0) / vals.length) : '-') + '</td>';
+      html += '<td>' + (vals.length ? fmt(vals.reduce((a, b) => a + b, 0) / vals.length, k) : '-') + '</td>';
     }
     html += '</tr>';
     html += '<tr style="font-weight:600"><td>' + esc(_t('geo_mean')) + '</td>';
@@ -810,7 +811,7 @@ function showDetail(item) {
       const vals = sums[k];
       if (k === 'ratio' && vals.length) {
         const gm = Math.pow(vals.reduce((a, b) => a * b, 1), 1 / vals.length);
-        html += '<td>' + fmt(gm) + '</td>';
+        html += '<td>' + fmt(gm, k) + '</td>';
       } else {
         html += '<td>-</td>';
       }
@@ -822,11 +823,13 @@ function showDetail(item) {
   document.getElementById('modal').classList.add('show');
 }
 
-document.getElementById('modal-close').addEventListener('click', () => {
-  document.getElementById('modal').classList.remove('show');
-});
+const closeModal = () => document.getElementById('modal').classList.remove('show');
+document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('modal').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) document.getElementById('modal').classList.remove('show');
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('modal').classList.contains('show') && (e.key === 'Escape' || e.key === 'q')) closeModal();
 });
 
 // ── compare ──
@@ -917,12 +920,12 @@ function renderCompareTable(entries, bmNames) {
         const ipc = d.ipc;
         const mpki = d.mpki;
         const mispred = d.misprediction_rate;
-        tip = `ratio=${fmt(ratio)} time=${fmt(time)}ms clock=${fmt(clock)}MHz IPC=${fmt(ipc)} MPKI=${fmt(mpki)} mispred=${fmt(mispred)}`;
+        tip = `ratio=${fmt(ratio, 'ratio')} time=${fmt(time, 'time')}ms clock=${fmt(clock)}MHz IPC=${fmt(ipc)} MPKI=${fmt(mpki)} mispred=${fmt(mispred)}`;
       }
       const valid = v !== undefined && v !== null && typeof v === 'number';
       if (valid) vals.push(v);
       const title = tip ? ` title="${esc(tip)}"` : '';
-      html += `<td${title}>${valid ? fmt(v) : '-'}</td>`;
+      html += `<td${title}>${valid ? fmt(v, metric) : '-'}</td>`;
     }
     // ratio column
     if (vals.length >= 2) {

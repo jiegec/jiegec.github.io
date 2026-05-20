@@ -16,7 +16,7 @@
 
 桌面平台（LTO + Jemalloc）：
 
-- Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto -ljemalloc`）: [3.04](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3-flto-ljemalloc_001.txt)
+- Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto -ljemalloc`）: [3.17](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto -ljemalloc`）: [2.96](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto -ljemalloc`）: [5.37](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3 -flto -ljemalloc`）: [3.28](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_E-Core_O3-flto-ljemalloc_001.txt)
@@ -24,7 +24,7 @@
 
 桌面平台（LTO）：
 
-- Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto`）: [2.85](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3-flto_001.txt)
+- Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto`）: [2.97](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3-flto_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto`）: [2.78](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto`）: [5.05](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto_001.txt)
 - Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3 -flto`）: [3.10](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_E-Core_O3-flto_001.txt)
@@ -32,7 +32,7 @@
 
 桌面平台：
 
-- Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [2.78](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3_001.txt)
+- Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [2.90](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [2.73](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [4.94](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
 - Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3`）: [3.05](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_E-Core_O3_001.txt)
