@@ -1740,6 +1740,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#gnome-的-fractional-scaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gnome 的 Fractional Scaling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#使用-sssd-的-ldap-认证" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2003,17 +2014,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#编写-010-editor-的-flv-template" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        编写 010 Editor 的 FLV Template
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -2074,6 +2074,179 @@
       <header class="md-typeset">
         <h1 id="software">software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-03-13 00:00:00+00:00">2021年3月13日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="gnome-的-fractional-scaling"><a class="toclink" href="../../../../software/2021/03/13/gnome-fractional-scaling/">Gnome 的 Fractional Scaling</a></h2>
+<h3 id="背景"><a class="toclink" href="../../../../software/2021/03/13/gnome-fractional-scaling/#背景">背景</a></h3>
+<p>最近发现部分软件（包括 Google Chrome，Firefox 和 Visual Studio Code）在 125% 的 Fractional Scaling 模式下会很卡。找到了一些临时解决方法，但是很不优雅，也很麻烦。所以深入研究了一下 Fractional Scaling 的工作方式。</p>
+<h3 id="临时解决方法"><a class="toclink" href="../../../../software/2021/03/13/gnome-fractional-scaling/#临时解决方法">临时解决方法</a></h3>
+<p>根据关键字，找到了 <a href="https://askubuntu.com/questions/1274719/chrome-menus-too-slow-after-enabling-fractional-scaling-in-ubuntu-20-04">Chrome menus too slow after enabling fractional scaling in Ubuntu 20.04</a>。按它的方法，关闭 Google Chrome 的硬件加速，发现卡顿问题确实解决了。</p>
+<p>类似地，也可以<a href="https://gist.github.com/andriyudatama/fe5d00deb36feeea30ef35a5ea0f7eff">关闭 VSCode 的硬件加速</a>，在 Firefox 里也可以找到相应的设置。这样操作确实可以解决问题。但是，对于每一个出问题的应用都这样搞一遍，还是挺麻烦的。</p>
+<p>另一个思路是，<a href="https://askubuntu.com/questions/1230208/fractional-scaling-does-not-work-properly-ubuntu-20-04/1272794#1272794">不使用 Fractional Scaling，而只是把字体变大</a>。但毕竟和我们想要的效果不大一样。</p>
+<h3 id="一些发现"><a class="toclink" href="../../../../software/2021/03/13/gnome-fractional-scaling/#一些发现">一些发现</a></h3>
+<p>在物理机进行了一些实验以后，发现一个现象：125% 的时候卡顿，而其他比例（100%，150%，175%，200%）都不卡顿。</p>
+<p>网上一顿搜到，找到了 xrandr 工具。下面是观察到的一些现象（GNOME 设置分辨率一直是 1920x1080）：</p>
+<table>
+<thead>
+<tr>
+<th>放缩比例</th>
+<th>xrandr 显示的分辨率</th>
+<th>xrandr 显示的 transform</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100%</td>
+<td>1920x1080</td>
+<td>diag(1.0, 1.0, 1.0)</td>
+</tr>
+<tr>
+<td>125%</td>
+<td>3072x1728</td>
+<td>diag(1.6, 1.6, 1.0)</td>
+</tr>
+<tr>
+<td>150%</td>
+<td>2560x1440</td>
+<td>diag(1.33, 1.33, 1.0)</td>
+</tr>
+<tr>
+<td>175%</td>
+<td>2208x1242</td>
+<td>diag(1.15, 1.15, 1.0)</td>
+</tr>
+<tr>
+<td>200%</td>
+<td>1920x1080</td>
+<td>diag(1.0, 1.0, 1.0)</td>
+</tr>
+</tbody>
+</table>
+<p>在 <a href="https://www.x.org/releases/X11R7.5/doc/man/man1/xrandr.1.html">xrandr 文档</a> 中，写了：transform 是一个 3x3 矩阵，矩阵乘以输出的点的坐标得到图形缓存里面的坐标。</p>
+<p>由此可以猜想：fractional scaling 的工作方式是，把绘制的 buffer 调大，然后再用 transform 把最终输出分辨率调成 1920x1080。可以看到，xrandr 显示的分辨率除以 transform 对应的值，就是 1920x1080。但这并不能解释 100% 和 200% 的区别，所以肯定还漏了什么信息。</p>
+<p>翻了翻 <a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_376_422">mutter 实现 fractional scaling 的 pr</a>，找到了实现 scale 的一部分：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">clutter_actor_get_resource_scale</span><span class="w"> </span><span class="p">(</span><span class="n">priv</span><span class="o">-&gt;</span><span class="n">actor</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">resource_scale</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="n">resource_scale</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mf">1.0f</span><span class="p">)</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="p">{</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="kt">float</span><span class="w"> </span><span class="n">paint_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0f</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">resource_scale</span><span class="p">;</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="n">cogl_matrix_scale</span><span class="w"> </span><span class="p">(</span><span class="o">&amp;</span><span class="n">modelview</span><span class="p">,</span><span class="w"> </span><span class="n">paint_scale</span><span class="p">,</span><span class="w"> </span><span class="n">paint_scale</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="p">}</span>
+</span></code></pre></div>
+<p>然后找到了一段对 scale 做 ceiling 的<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_238_265">代码</a>：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">_clutter_actor_get_real_resource_scale</span><span class="w"> </span><span class="p">(</span><span class="n">priv</span><span class="o">-&gt;</span><span class="n">actor</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">resource_scale</span><span class="p">))</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="p">{</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="n">ceiled_resource_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ceilf</span><span class="w"> </span><span class="p">(</span><span class="n">resource_scale</span><span class="p">);</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="n">stage_width</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="n">ceiled_resource_scale</span><span class="p">;</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="n">stage_height</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="n">ceiled_resource_scale</span><span class="p">;</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="p">}</span>
+</span></code></pre></div>
+<p>这样，100% 和其他比例就区分开了。</p>
+<p>另外，也在<a href="https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#d66a28cda989fbb17c8a7302b3f6360640c3c152_33_33">代码</a> 中发现：</p>
+<div class="language-cpp highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="cp">#define SCALE_FACTORS_PER_INTEGER 4</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="cp">#define SCALE_FACTORS_STEPS (1.0 / (float) SCALE_FACTORS_PER_INTEGER)</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="cp">#define MINIMUM_SCALE_FACTOR 1.0f</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="cp">#define MAXIMUM_SCALE_FACTOR 4.0f</span>
+</span></code></pre></div>
+<p>这段代码规定了比例只能是 25% 的倍数。</p>
+<p>我也试了一下用 xrandr --scale 1.5x1.5：效果就是窗口看起来都更小了，分辨率变成了 2880x1620，transform 是 diag(1.5, 1.5, 1.0)。</p>
+<h3 id="虚拟机测试"><a class="toclink" href="../../../../software/2021/03/13/gnome-fractional-scaling/#虚拟机测试">虚拟机测试</a></h3>
+<p>接着，用虚拟机做了一些测试。为了在 GNOME over Wayland 上使用 fractional scaling，需要运行：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$<span class="w"> </span>gsettings<span class="w"> </span><span class="nb">set</span><span class="w"> </span>org.gnome.mutter<span class="w"> </span>experimental-features<span class="w"> </span><span class="s2">&quot;[&#39;scale-monitor-framebuffer&#39;]&quot;</span>
+</span></code></pre></div>
+<p>接着又做了类似上面的测试（GNOME 设置分辨率一直是 2560x1600）：</p>
+<table>
+<thead>
+<tr>
+<th>放缩比例</th>
+<th>xrandr 显示的分辨率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100%</td>
+<td>2560x1600</td>
+</tr>
+<tr>
+<td>125%</td>
+<td>2048x1280</td>
+</tr>
+<tr>
+<td>150%</td>
+<td>1704x1065</td>
+</tr>
+<tr>
+<td>175%</td>
+<td>1464x915</td>
+</tr>
+<tr>
+<td>200%</td>
+<td>1280x800</td>
+</tr>
+</tbody>
+</table>
+<p>在这个测试中，xrandr 显示的 transform 一直都是单位矩阵；还用了来自 <a href="https://github.com/xyproto/wallutils">xyproto/wallutils</a> 的 <code>wayinfo</code> 命令查看输出的分辨率，一直是 2560x1600，DPI 一直是 96。用 wallutils 的 xinfo 看到的结果和 xrandr 一致（通过 XWayland）。但是和物理机有一点不同：物理机有一个选项问要不要打开 fractional scaling，下面还会提示性能下降的问题；但是虚拟机上并没有这个提示，而是直接给了一些 Scale 比例的选项。</p>
+<p>尝试了一下，在 GNOME over X11 上是找不到 fractional scaling 的（没有出现设置 scale 的选项）。找到一个实现这个功能的 fork：https://github.com/puxplaying/mutter-x11-scaling，不过没有尝试过。</p>
+<p>我也尝试在虚拟机中用 xrandr --scale，结果就是输出黑屏，需要重启 gdm 来恢复到登录界面。</p>
+<p>更新：由于物理机使用的是 Ubuntu，想到是不是 Ubuntu 采用了上面那个 fork 的 patch，然后就在 <a href="https://changelogs.ubuntu.com/changelogs/pool/main/m/mutter/mutter_3.38.1-1ubuntu1/changelog">changelog</a> 中看到：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>mutter (3.38.1-1ubuntu1) groovy; urgency=medium
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>  * Merge with debian, including new upstream version, remaining changes:
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    - debian/gbp.conf: update upstream branch to point to ubuntu/master
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    - debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch:
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>      + X11: Add support for fractional scaling using Randr
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>  * d/p/clutter-backend-x11-Don-t-set-the-font-dpi-computed-on-X1.patch:
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    - Dropped, applied upstream
+</span></code></pre></div>
+<p>也找到了对应的 <a href="https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch?h=applied/ubuntu/groovy">patch 文件</a>。这也就解释了，为什么网上会说 GNOME over X11 支持 fractional scaling，并且需要用 gsettings 打开，而我在 Debian 和 Arch Linux 上设置这个选项也没有用了。原来是 Ubuntu 加的私货啊。</p>
+<p>在 patch 中，找到了这么一段配置的解释：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>+    &lt;key name=&quot;fractional-scale-mode&quot; enum=&quot;org.gnome.mutter.X11.scale-mode&quot;&gt;
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>+      &lt;default&gt;&quot;scale-ui-down&quot;&lt;/default&gt;
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>+      &lt;description&gt;
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>+        Choose the scaling mode to be used under X11 via Randr extension.
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>+
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>+        Supported methods are:
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>+
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>+        • “scale-up”     — Scale everything up to the requested scale, shrinking
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>+                           the UI. The applications will look blurry when scaling
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>+                           at higher values and the resolution will be lowered.
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>+        • “scale-ui-down — Scale up the UI toolkits to the closest integer
+</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>+                           scaling value upwards, while scale down the display
+</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>+                           to match the requested scaling level.
+</span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>+                           It increases the resolution of the logical display.
+</span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>+      &lt;/description&gt;
+</span><span id="__span-17-16"><a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>+    &lt;/key&gt;
+</span></code></pre></div>
+<p>这样就可以解释前面看到的现象了：默认是 <code>scale-ui-down</code>，也就是先放大到两倍（closest integer scaling value upwards），再缩小（scale down the display to match the requested scaling level）。</p>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3754,41 +3927,6 @@
 <p><img alt="" src="../../../../software/vote18-speed.png" /></p>
 <p>这显现出了很有意思的一个趋势，就是每天十二点左右都有一个高峰期，然后在零点前大概熄灯附近的时间也是一个高峰期，另外就是截止前最后的抢票阶段，大家都在疯狂拉票，从中午拉到最后时刻。由于停电的原因，在零点附近的数据都比较的鬼畜，不过影响不大，趋势一目了然。</p>
 <p>Grafana 真香！期望可以学到更多高端的查询语法和可视化的骚操作，现在有很多东西不知道该怎么可视化，比较苦恼，不知道大家有没有什么经验可以分享。</p>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2018-12-06 00:00:00+00:00">2018年12月6日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="编写-010-editor-的-flv-template"><a class="toclink" href="../../../../software/2018/12/06/010-editor-flv-parsing/">编写 010 Editor 的 FLV Template</a></h2>
-<p>最近在做 FLV 和 H264 方面的研究，研究了很多标准和文档，然后用 010 Editor 对着文件进行分析。这个软件真的很好用，对研究二进制结构用处特别大。不过它自带的 FLV.bt 功能不是很好，我对它加上了 H264(AVC) 的部分支持，放在了 <a href="https://github.com/jiegec/tools/blob/master/myFLV.bt">myFLV.bt</a> 里。我也写了 H264 的解析，不过效率不高，大文件要卡好一会。</p>
-<p>除此之外，很多格式，010 editor 都有支持，特别好用，它的解析器语法也很好写。</p>
     
     
   </div>
