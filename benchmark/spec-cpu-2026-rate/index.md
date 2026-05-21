@@ -42,20 +42,24 @@
 服务器平台（`-march=native` + LTO + Jemalloc）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -march=native -flto -ljemalloc`）: [1.52](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-march%3Dnative-flto-ljemalloc_001.txt)
+- Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -march=native -flto -ljemalloc`）: [2.17](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-march%3Dnative-flto-ljemalloc_001.txt)
 
 服务器平台（LTO + Jemalloc）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto -ljemalloc`）: [1.50](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto-ljemalloc_001.txt)
+- Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto -ljemalloc`）: [2.14](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto-ljemalloc_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto -ljemalloc`）: [1.55](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3-flto-ljemalloc_001.txt)
 
 服务器平台（LTO）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto`）: [1.42](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto_001.txt)
+- Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto`）: [2.06](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto`）: [1.48](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3-flto_001.txt)
 
 服务器平台：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3`）: [1.37](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3_001.txt)
+- Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.01](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.43](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3_001.txt)
 
 #### 备注
@@ -85,7 +89,7 @@
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -march=native`）: [3.97](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -march=native`）: [8.09](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3 -march=native`）: [4.19](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_E-Core_O3-march%3Dnative_001.txt)
-- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3 -march=native`）: [8.92](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3-march%3Dnative_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3 -march=native`）: [9.36](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3-march%3Dnative_001.txt)
 
 桌面平台：
 
@@ -93,14 +97,18 @@
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [3.46](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [6.56](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
 - Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3`）: [3.66](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_E-Core_O3_001.txt)
-- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3`）: [7.02](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)
+- Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3`）: [7.44](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)
 
 服务器平台（`-march=native`）：
 
+- AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -march=native`）: [2.04](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7551_O3-march%3Dnative_001.txt)
+- Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -march=native`）: [2.74](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3-march%3Dnative_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -march=native`）: [1.59](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3-march%3Dnative_001.txt)
 
 服务器平台：
 
+- AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3`）: [1.86](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7551_O3_001.txt)
+- Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.43](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.52](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3_001.txt)
 
 #### 备注
