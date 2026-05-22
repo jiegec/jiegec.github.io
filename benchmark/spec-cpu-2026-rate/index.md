@@ -140,13 +140,13 @@
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -march=native`）: [2.04](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7551_O3-march%3Dnative_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -march=native`）: [2.74](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3-march%3Dnative_001.txt)
-- Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -march=native`）: [1.59](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3-march%3Dnative_001.txt)
+- Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -march=native`）: [1.62](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3-march%3Dnative_001.txt)
 
 服务器平台：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3`）: [1.86](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7551_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.43](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
-- Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.52](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3_001.txt)
+- Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.54](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3_001.txt)
 
 #### 备注
 
