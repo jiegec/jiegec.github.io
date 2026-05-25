@@ -1,0 +1,3594 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="杰哥的{运维，编程，调板子}小笔记">
+      
+      
+      
+        <link rel="canonical" href="https://jia.je/software/2026/05/22/spec-cpu-2026-workload-analysis-int-rate/">
+      
+      
+        <link rel="prev" href="../../21/spec-cpu-2026-other-isa/">
+      
+      
+      
+        
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS 订阅" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="已更新内容的 RSS 订阅" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>SPEC CPU 2026 负载特性分析（INT Rate 篇） - 杰哥的{运维，编程，调板子}小笔记</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../stylesheets/main.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3109FRSVTT"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-3109FRSVTT');
+</script>
+
+<script
+    src="https://analytics.jiege.pro/api/script.js"
+    data-site-id="1"
+    defer
+></script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="SPEC CPU 2026 负载特性分析（INT Rate 篇） - 杰哥的{运维，编程，调板子}小笔记" />
+<meta property="og:description" content="杰哥的{运维，编程，调板子}小笔记" />
+<meta property="og:image" content="https://jia.je/assets/images/social/software/2026/05/22/spec-cpu-2026-workload-analysis-int-rate.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://jia.je/software/2026/05/22/spec-cpu-2026-workload-analysis-int-rate/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="SPEC CPU 2026 负载特性分析（INT Rate 篇） - 杰哥的{运维，编程，调板子}小笔记" />
+<meta property="twitter:description" content="杰哥的{运维，编程，调板子}小笔记" />
+<meta property="twitter:image" content="https://jia.je/assets/images/social/software/2026/05/22/spec-cpu-2026-workload-analysis-int-rate.png" />
+</head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#spec-cpu-2026-负载特性分析int-rate-篇" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-header__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            杰哥的{运维，编程，调板子}小笔记
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SPEC CPU 2026 负载特性分析（INT Rate 篇）
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jiegec/blog-source" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  博客
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  关于
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../open-source-contributions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开源
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tags/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  标签
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/kb/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  知识库
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/cpu/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CPU
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/ctf-writeups/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CTF
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../series/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  系列
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../projects/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  项目
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../tools/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  工具
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="/feed.xml" class="md-tabs__link">
+        
+  
+  
+    
+  
+  订阅
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../benchmark/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  SPEC
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../archive/2026/" class="md-tabs__link">
+          
+  
+  
+  归档
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../category/crypto/" class="md-tabs__link">
+          
+  
+  
+  分类
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="杰哥的{运维，编程，调板子}小笔记" class="md-nav__button md-logo" aria-label="杰哥的{运维，编程，调板子}小笔记" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    杰哥的{运维，编程，调板子}小笔记
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jiegec/blog-source" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    博客
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    关于
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../open-source-contributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开源
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    标签
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/kb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    知识库
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/cpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/ctf-writeups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CTF
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../series/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    系列
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    项目
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    工具
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/feed.xml" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    订阅
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPEC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    归档
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    归档
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2026/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2026
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2025
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2024/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2024
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2023/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2023
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2022/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2022
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2021/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2021
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2020/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2020
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2019/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2019
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2018/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2018
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2017/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2017
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2016/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2016
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../archive/2014/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2014
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分类
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    分类
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/crypto/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    crypto
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/csdn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    csdn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/ctf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ctf
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/devops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    devops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/meta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    meta
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/misc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    misc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/networking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    networking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/os/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    os
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/others/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    others
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/programming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    programming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/software/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    software
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../category/system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    system
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                  <span class="md-ellipsis">
+                    回到主页
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    元数据
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
+                        <time datetime="2026-05-22 00:00:00+00:00" class="md-ellipsis">2026年5月22日</time>
+                      </div>
+                    </li>
+                    
+                    
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3zm3 2 4 13 3-1-4-13zM5 5v13h3V5zM3 19v2h18v-2z"/></svg>
+                          <span class="md-ellipsis">
+                            分类于
+                            
+                              <a href="../../../../../category/software/">software</a></span>
+                        </div>
+                      </li>
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              需要 32 分钟阅读时间
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+            
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#背景" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        背景
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-int-2026-rate-分析" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SPEC INT 2026 Rate 分析
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SPEC INT 2026 Rate 分析">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#706stockfish_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        706.stockfish_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="706.stockfish_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1to6_classical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1to6_classical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1to6_nnue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1to6_nnue
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7to11_nnue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7to11_nnue
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#707ntest_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        707.ntest_r
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#708sqlite_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        708.sqlite_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="708.sqlite_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        main
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cte" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cte
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#710omnetpp_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        710.omnetpp_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="710.omnetpp_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#randommesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        randomMesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#其余的-9-条-queuenet-命令" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        其余的 9 条 queuenet 命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#714cpython_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        714.cpython_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="714.cpython_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resnet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resnet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mobilenet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mobilenet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dna" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dna
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#721gcc_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        721.gcc_r
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#723llvm_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        723.llvm_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="723.llvm_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transformsplus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        transformsplus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#codegen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        codegen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#727cppcheck_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        727.cppcheck_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="727.cppcheck_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#738_diamond" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        738_diamond
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#747_dealii" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        747_dealii
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#770_7z" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        770_7z
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#729abc_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        729.abc_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="729.abc_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#twoexact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        twoexact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beem6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        beem6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vga" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vga
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mcml
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#des" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        des
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#734vpr_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        734.vpr_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="734.vpr_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#jpeg_place-和-smithwaterman_place" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        jpeg_place 和 smithwaterman_place
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jpeg_route-和-smithwaterman_route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        jpeg_route 和 smithwaterman_route
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#735gem5_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        735.gem5_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="735.gem5_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        o3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        timing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#traffic_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        traffic_21
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#traffic_74_ruby" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        traffic_74_ruby
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#750sealcrypto_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        750.sealcrypto_r
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#753ns3_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        753.ns3_r
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="753.ns3_r">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mobile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mobile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tcp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lena" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lena
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dctcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dctcp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wifi_mixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wifi_mixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wifi_eht" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wifi_eht
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#小结_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#777zstd_r" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        777.zstd_r
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#讨论" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        讨论
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="讨论">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#编译器选项对比" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        编译器选项对比
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#编译器版本对比" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        编译器版本对比
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#局限性" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        局限性
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#总结" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        总结
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../../../tags/#tag:benchmark" class="md-tag">benchmark</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../../../../tags/#tag:spec" class="md-tag">spec</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="spec-cpu-2026-负载特性分析int-rate-篇">SPEC CPU 2026 负载特性分析（INT Rate 篇）<a class="headerlink" href="#spec-cpu-2026-负载特性分析int-rate-篇" title="Permanent link">&para;</a></h1>
+<h2 id="背景">背景<a class="headerlink" href="#背景" title="Permanent link">&para;</a></h2>
+<p>最近用 SPEC CPU 2026 跑了一些测试，打算结合<a href="../../../../../benchmark/spec-cpu-2026-rate/">测试结果</a>做一些深入的负载特性分析。本篇主要是分析 SPEC INT 2026 Rate 的负载特性。</p>
+<!-- more -->
+
+<p>本文测试环境：CPU 为 Intel i9-14900K P-Core @ 5.7 GHz，Linux 发行版为 Debian Trixie，编译器是 GCC 14.2.0，默认编译选项是 <code>-O3</code>。其实这款 CPU 最快能 Boost 到 6.0 GHz，但是时不时因为未知原因（防缩缸？）在只有单核负载的情况下也 Boost 不上去，现象是每跑一段时间负载，CPU 核心就会强制降频到 4.7 GHz，故退而求其次，选择在更容易稳定达到的 5.7 GHz 频率来跑，因为能跑 6.0 GHz 的就是那一个物理 P 核，其他的物理 P 核都能上 5.7 GHz，降频了只要换一个就好。6.0 GHz 下的性能可以参考之前的测试结果：<a href="../../../../../benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt">INT</a> 和 <a href="../../../../../benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt">FP</a>，基本上，从 5.7 GHz 到 6.0 GHz，性能可以按频率线性放缩。本文所用的脚本已开源到 <a href="https://github.com/jiegec/spec2026">jiegec/spec2026</a>。</p>
+<p>推荐阅读：<a href="https://chipsandcheese.com/p/evaluating-spec-cpu2026">Evaluating SPEC CPU2026</a> 和 <a href="https://arxiv.org/abs/2605.03713v2">SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison</a></p>
+<h2 id="spec-int-2026-rate-分析">SPEC INT 2026 Rate 分析<a class="headerlink" href="#spec-int-2026-rate-分析" title="Permanent link">&para;</a></h2>
+<h3 id="706stockfish_r">706.stockfish_r<a class="headerlink" href="#706stockfish_r" title="Permanent link">&para;</a></h3>
+<p>stockfish 是一个著名的国际象棋引擎，测试会用如下三种参数分别运行：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. 1to6_classical</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>stockfish<span class="w"> </span>bench<span class="w"> </span><span class="m">1600</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">26</span><span class="w"> </span>spec_ref_pos_1to6.fen<span class="w"> </span>depth<span class="w"> </span>classical
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># 2. 1to6_nnue</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>stockfish<span class="w"> </span>bench<span class="w"> </span><span class="m">1600</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">26</span><span class="w"> </span>spec_ref_pos_1to6.fen<span class="w"> </span>depth<span class="w"> </span>nnue
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 3. 7to11_nnue</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>stockfish<span class="w"> </span>bench<span class="w"> </span><span class="m">1600</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">26</span><span class="w"> </span>spec_ref_pos_7to11.fen<span class="w"> </span>depth<span class="w"> </span>nnue
+</span></code></pre></div>
+<p>实测数据显示，三条命令耗费的时间分别是 47s、77s 和 72s，共计 196s。reftime 是 1260s，对应 6.4 分。开启 <code>-march=native</code> 后，1to6_classical 时间缩短 10% 到 43s，而 1to6_nnue 和 7to11_nnue 时间明显缩短到 32s 和 31s，总时间 105s，对应 12 分，分数提升显著。下面逐一分析这三条命令的性能特性。</p>
+<h4 id="1to6_classical">1to6_classical<a class="headerlink" href="#1to6_classical" title="Permanent link">&para;</a></h4>
+<p>通过 <code>perf</code> 观察性能瓶颈，运行第一个命令 1to6_classical 时，这几个函数耗费的时间占比较多，百分比代表这个函数执行时间的占比，后续都用这个方法表示：</p>
+<ul>
+<li><code>Stockfish::TranspositionTable::probe(const Key key, bool&amp; found)</code> 来自 <code>src/tt.cpp</code>: 19.26%，主要的瓶颈来自于随机访存，在 <code>first_entry(key)</code> 当中有 <code>&amp;table[mul_hi64(key, clusterCount)].entry[0]</code>，其中 mul_hi64 计算两个 64 位整数乘法结果的高 64 位，因此访存地址是根据参数计算得出</li>
+<li><code>Stockfish::Eval::evaluate(const Position&amp; pos)</code> 来自 <code>src/evaluate.cpp</code>: 17.23%，inline 了 <code>Evaluation&lt;NO_TRACE&gt;(pos).value()</code> 的调用，里面主要是对局面的评估，涉及比较多零散的访存和计算</li>
+<li><code>Stockfish::MovePicker::next_move(bool skipQuiets)</code> 来自 <code>src/movepick.cpp</code>: 10.43%，里面比较慢的是 <code>partial_insertion_sort</code></li>
+<li><code>Stockfish::search(Position&amp; pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode)</code> 来自 <code>src/search.cpp</code>: 9.52%，搜索逻辑主要在这里实现</li>
+<li><code>__popcountdi2</code>: 7.60%，被 <code>Stockfish::Eval::evaluate(const Position&amp; pos)</code> 调用，用来判断局面上满足某种条件</li>
+</ul>
+<p>开了 <code>-march=native</code> 后，能观察到 <code>__popcountdi2</code> 被内联为 <code>popcnt</code> 指令。经过测试，开了 <code>-mpopcnt</code> 后，时间即从 47s 降低到 44s，接近 <code>-march=native</code> 的性能，可见在开启 popcnt 指令集的前提下，内联 <code>__popcountdi2</code> 调用就可以明显减少时间。</p>
+<p><code>-O3</code> 编译选项下，1to6_classical 执行的指令数为 532.9B，其中分支指令有 56.1B 次，其中有 2.6B 次错误预测。可见，1to6_classical 的 MPKI 还是比较高的：<code>2.6B/532.9B*1000=4.88</code>，即使是在 SPEC INT 2017 当中，也是比较高的，高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。</p>
+<h4 id="1to6_nnue">1to6_nnue<a class="headerlink" href="#1to6_nnue" title="Permanent link">&para;</a></h4>
+<p>后两个命令的引擎从 classical 变为了 nnue，涉及神经网络，因此它的计算模式会不太一样。通过 <code>perf</code> 观察到 1to6_nnue 的主要耗时函数：</p>
+<ul>
+<li><code>Stockfish::Eval::NNUE:evaluate(const Position&amp; pos, bool adjusted)</code> 来自 <code>src/nnue/evaluate_nnue.cpp</code>：80.59%，主要耗时在 <code>affine_transform_non_ssse3</code> 的 <code>sum += weights[offset + j] * input[j]</code>，即神经网络的推理过程，它的计算过程是，进行 int8_t 乘 uint8_t，再累加到 int32_t 类型的结果，默认编译选项下，只能用基础的 SSE 指令如 pmaddwd/paddd，而不能用 AVX</li>
+<li><code>Stockfish::TranspositionTable::probe(const Key key, bool&amp; found)</code> 来自 <code>src/tt.cpp</code>: 仅 4.81%，瓶颈和前面分析的一样是随机访存</li>
+</ul>
+<p>分析 <code>Stockfish::Eval::NNUE:evalute</code> 的指令，可以看到，它为了实现上述逻辑，核心思路是采用 pmaddwd 指令，进行 4 次 16 位有符号的乘法计算，累加到 32 位的结果。但是，在这之前，需要先把输入的 8 位有符号 weights 和无符号 input 转换到 16 位有符号数。其中 8 位有符号 weights 转换比较简单，而 8 位无符号 weights 的处理逻辑比较复杂。首先，它对 input 的每个元素加上 128，然后当成有符号数来看待，这相当于对每个元素减去了 128，把 uint8_t 映射到了 int8_t。这样，input 就可以用和 weights 相同的方法进行符号扩展。但是，这样会导致结果计算错误，为了纠正这个偏差，又减去了 128 倍的 weights 之和。汇编代码如下（<a href="https://godbolt.org/z/ox7q63Er8">Godbolt</a>）：</p>
+<div class="language-asm highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="err">1:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># 加载有符号 weights 的 16 个元素</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nf">movdqu</span><span class="w"> </span><span class="p">(</span><span class="nv">%rdx</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%xmm2</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm5</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># 加载无符号 input 的 16 个元素</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nf">movdqa</span><span class="w"> </span><span class="p">(</span><span class="nv">%r12</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%xmm10</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nf">add</span><span class="w"> </span><span class="no">$0x10</span><span class="p">,</span><span class="nv">%rcx</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># 对 weights 进行符号扩展</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nf">pcmpgtb</span><span class="w"> </span><span class="nv">%xmm2</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm2</span><span class="p">,</span><span class="nv">%xmm9</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># 每个 input 元素加上 128，即减去 128 转为有符号 int8_t</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nf">paddb</span><span class="w"> </span><span class="nv">%xmm6</span><span class="p">,</span><span class="w"> </span><span class="nv">%xmm10</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># 符号扩展 weights</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nf">punpckhbw</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm2</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="nf">punpcklbw</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm9</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm2</span><span class="p">,</span><span class="nv">%xmm11</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm9</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1"># 计算 weights 之和乘以 128</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="nf">pmaddwd</span><span class="w"> </span><span class="nv">%xmm3</span><span class="p">,</span><span class="nv">%xmm11</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="nf">pmaddwd</span><span class="w"> </span><span class="nv">%xmm7</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm11</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm11</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm5</span><span class="p">,</span><span class="nv">%xmm11</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="c1"># 对 input 进行符号扩展</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="nf">pcmpgtb</span><span class="w"> </span><span class="nv">%xmm10</span><span class="p">,</span><span class="nv">%xmm11</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm10</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="nf">punpckhbw</span><span class="w"> </span><span class="nv">%xmm11</span><span class="p">,</span><span class="nv">%xmm10</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="nf">punpcklbw</span><span class="w"> </span><span class="nv">%xmm11</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="c1"># 计算 weights * input</span>
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="nf">pmaddwd</span><span class="w"> </span><span class="nv">%xmm10</span><span class="p">,</span><span class="nv">%xmm2</span>
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="nf">pmaddwd</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm9</span>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="c1"># 结果累加</span>
+</span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm2</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-1-36"><a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm9</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="nf">cmp</span><span class="w"> </span><span class="no">$0x400</span><span class="p">,</span><span class="nv">%rcx</span>
+</span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="nf">jne</span><span class="w"> </span><span class="mi">1</span><span class="no">b</span>
+</span></code></pre></div>
+<p>经验告诉我们，对于这种适合 SIMD 的代码，在开了 <code>-march=native</code> 的情况下应当有明显的性能提升，实际测试也证明了这一点，开了 <code>-march=native</code> 后，时间从 73s 降低到 32s，<code>Stockfish::Eval::NNUE::evaluate</code> 时间占比降到 54.20%，此时主要的计算指令变为 <a href="https://www.felixcloutier.com/x86/vpdpbusd">vpdpbusd (Multiply and Add Unsigned and Signed Bytes)</a>，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（<a href="https://godbolt.org/z/zoeqc4zch">Godbolt</a>）：</p>
+<div class="language-asm highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="err">1:</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># 加载无符号 input</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nf">vmovdpa</span><span class="w"> </span><span class="p">(</span><span class="nv">%r8</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%ymm0</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># 加载有符号 weights 并计算 sum += weights[offset + j] * input[j]</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="err">{</span><span class="nf">vex</span><span class="p">}</span><span class="w"> </span><span class="no">vpdpbusd</span><span class="w"> </span><span class="p">(</span><span class="nv">%rdx</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%ymm0</span><span class="p">,</span><span class="nv">%ymm2</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nf">add</span><span class="w"> </span><span class="no">$0x20</span><span class="p">,</span><span class="nv">%rcx</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nf">cmp</span><span class="w"> </span><span class="no">$0x400</span><span class="p">,</span><span class="nv">%rcx</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nf">jne</span><span class="w"> </span><span class="mi">1</span><span class="no">b</span>
+</span></code></pre></div>
+<p>需要注意的是，单纯开 <code>-mavx2</code> 仅能把时间从 77s 减少到 50s，距离 <code>-march=native</code> 的 32s 还有明显的差距，即使开启了 AVX（<a href="https://godbolt.org/z/e9dPsqddh">Godbolt</a>），由于没有开 AVX-VNNI，不能用 vpdpbusd，还是需要先格式转换到 16 位，再用 32 位累加器的 16 位整数乘加指令。Stockfish 的 NNUE 这样的计算方式，就是奔着 vpdpbusd 这条指令去的。所以一些没有这种指令的 CPU，或者有但是编译器没用上，就会比较吃亏。</p>
+<p>例如在 ARM64 下，对应的 <a href="https://developer.arm.com/documentation/ddi0487/maa/-Part-C-The-AArch64-Instruction-Set/-Chapter-C7-A64-Advanced-SIMD-and-Floating-point-Instruction-Descriptions/-C7-2-Alphabetical-list-of-A64-Advanced-SIMD-and-floating-point-instructions/-C7-2-448-USDOT--vector-">USDOT (Dot product with unsigned and signed integers (vector))</a> 指令被包括在 i8mm 扩展当中，有这个扩展的话，<code>-march=native</code> 性能提升显著（<a href="https://godbolt.org/z/MxY3YYTYo">Godbolt</a>），例如 Apple M2；而如果没有这个扩展，开不开 <code>-march=native</code> 就没什么区别，例如 Apple M1，此时就要回退到类似 AMD64 那样，先扩展到 16 位，再求和（<a href="https://godbolt.org/z/TfdvW4f75">Godbolt</a>）。RISC-V Vector 指令集扩展则有 vwmulsu.vv 指令可以使用，得到 16 位乘法结果之后，再用 vwadd.wv 指令累加到 32 位（<a href="https://godbolt.org/z/ha5oEb4hE">Godbolt</a>）。LoongArch 也有对应的 xvmulwev.h.b/xvmulwod.h.b 指令，得到 16 位乘法结果之后，用 xvhaddw.w.h 指令累加到 32 位（<a href="https://godbolt.org/z/xxr5rovxW">Godbolt</a>）。</p>
+<p>除了是否开启对应指令集扩展以外，还观察到 GCC 15 在 1to6_nnue 上相比 GCC 14 有明显的性能提升（编译选项为 <code>-O3</code>），时间从 77s 降低到了 49s。观察生成的指令，虽然它还是用的 SSE 指令，但指令序列更简洁（<a href="https://godbolt.org/z/exKaP5jKb">Godbolt</a>）：</p>
+<div class="language-asm highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># %xmm5 初始化为全零</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="err">1:</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># 加载有符号 weights 的 16 个元素</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nf">movdqu</span><span class="w"> </span><span class="p">(</span><span class="nv">%rdx</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%xmm4</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm5</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># 加载无符号 input 的 16 个元素</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nf">movdqa</span><span class="w"> </span><span class="p">(</span><span class="nv">%r12</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%xmm2</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nf">add</span><span class="w"> </span><span class="no">$0x10</span><span class="p">,</span><span class="nv">%rcx</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># 将 weights 和零比较，非负得 0，负数得 0xFF</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nf">pcmpgtb</span><span class="w"> </span><span class="nv">%xmm4</span><span class="p">,</span><span class="nv">%xmm8</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm2</span><span class="p">,</span><span class="nv">%xmm6</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="nf">movdqa</span><span class="w"> </span><span class="nv">%xmm4</span><span class="p">,</span><span class="nv">%xmm7</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># 把 input 从 8 位无符号扩展到 16 位，保存到 %xmm2 和 %xmm6</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="nf">punpckhbw</span><span class="w"> </span><span class="nv">%xmm5</span><span class="p">,</span><span class="nv">%xmm2</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="nf">punpcklbw</span><span class="w"> </span><span class="nv">%xmm5</span><span class="p">,</span><span class="nv">%xmm6</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1"># 结合前面的 pcmpgtb，把 weights 从 8 位有符号扩展到 16 位，保存到 %xmm4 和 %xmm7</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="nf">punpckhbw</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm4</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="nf">punpcklbw</span><span class="w"> </span><span class="nv">%xmm8</span><span class="p">,</span><span class="nv">%xmm7</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="c1"># 每条 pmaddwd 指令进行 4 次 16-bit * 16-bit + 16-bit * 16-bit = 32-bit 的计算</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="c1"># 两条 pmaddwd 共完成 8 次 16-bit 乘法和 8 次 32-bit 加法</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="nf">pmaddwd</span><span class="w"> </span><span class="nv">%xmm4</span><span class="p">,</span><span class="nv">%xmm2</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="nf">pmaddwd</span><span class="w"> </span><span class="nv">%xmm7</span><span class="p">,</span><span class="nv">%xmm6</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="c1"># 每条 paddd 指令进行 4 次 32 bit 的累加</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm2</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="nf">paddd</span><span class="w"> </span><span class="nv">%xmm6</span><span class="p">,</span><span class="nv">%xmm0</span>
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="nf">cmp</span><span class="w"> </span><span class="no">$0x400</span><span class="p">,</span><span class="nv">%rcx</span>
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="nf">jne</span><span class="w"> </span><span class="mi">1</span><span class="no">b</span>
+</span></code></pre></div>
+<p>可见，即使没有对口的 vpdpbusd 指令，仅用 SSE 还是有优化空间的，GCC 15 通过用 SSE 实现高效的有符号和无符号符号扩展，获得了介于 GCC 14 比较差的指令序列与专用 vpdpbusd 指令的性能。这在 <a href="https://arxiv.org/abs/2605.03713v2">SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison</a> 论文中也有提及：<code>For example, gcc-15 reduces the instruction count of 706.stockfish_r by up to 3x</code>，不过这个数字是相比 GCC 13 的；相比 GCC 14 也有减少，不过没有那么明显，详情见论文中的 Figure 10 和 Figure 16，这里实测下来是从 GCC 14 的 1342B 条指令降低到 GCC 15 的 1015B。相比之下，LLVM 22 生成的 SSE（<code>-O3</code>，<a href="https://godbolt.org/z/Tsd1YhrWe">Godbolt</a>）或 AVX（<code>-O3 -march=alderlake</code>，<a href="https://godbolt.org/z/WM1xWjqc3">Godbolt</a>）指令都没有 GCC 15 高效。</p>
+<p><code>-O3</code> 编译选项下，1to6_nnue 执行的指令数为 1342B，其中分支指令有 77.6B 次，其中有 1.6B 次错误预测。它的 MPKI 只有 <code>1.6B/1342B*1000=1.19</code>，主要瓶颈还是在上述的神经网络推理当中。</p>
+<h4 id="7to11_nnue">7to11_nnue<a class="headerlink" href="#7to11_nnue" title="Permanent link">&para;</a></h4>
+<p>7to11_nnue 的行为与 1to6_nnue 类似，瓶颈也是在 <code>Stockfish::Eval::NNUE:evaluate</code> 函数上。开启 <code>-march=native</code> 后，时间从 72s 降到了 31s。GCC 15 的性能提升也和 1to6_nnue 类似。<code>-O3</code> 编译选项下，7to11_nnue 执行的指令数为 1253B，其中分支指令有 75.5B 次，其中有 1.5B 次错误预测。它的 MPKI 只有 <code>1.5B/1253B*1000=1.20</code>，主要瓶颈还是在神经网络推理当中。</p>
+<h4 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h4>
+<p>1to6_classical 比较像传统的各种棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.88 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。</p>
+<h3 id="707ntest_r">707.ntest_r<a class="headerlink" href="#707ntest_r" title="Permanent link">&para;</a></h3>
+<p>ntest 是黑白棋的引擎，测试会用如下参数运行：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ntest_r<span class="w"> </span>Othello.154.ggf<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">16</span>
+</span></code></pre></div>
+<p>实测数据显示，运行这条命令耗费的时间是 140s。reftime 是 592s，对应 4.2 分。开启各项优化编译选项，<code>-O3 -flto</code> 相比 <code>-O3</code> 能带来 4% 的性能提升，进一步 <code>-O3 -flto -march=native</code> 相比 <code>-O3 -flto</code> 还能带来 10% 的性能提升。下面分析它的具体负载特性。通过 <code>perf</code> 观察性能瓶颈，这几个函数耗费的时间占比较多：</p>
+<ul>
+<li><code>flips(int sq, u64 mover, u64 enemy)</code> 来自 <code>src/flips.cpp</code>：34.80%，最主要的开销，根据棋盘状态，经过一系列的访存和位运算，判断下子以后是否出现翻转，主要是一些数据依赖的访存</li>
+<li><code>solveNParity(int alpha, int beta, u64 mover, u64 enemy, u64 parity, EndgameSearch* search, bool hasPassed)</code> 来自 <code>src/solve.cpp</code>：14.21%，进行 alpha-beta 减枝的 minimax 算法，遍历棋盘上的位置，如果可以下子，就尝试下子进行递归，主要的瓶颈在访存以及依赖访存结果的分支（如判断位置是否为空）</li>
+<li><code>__popcountdi2</code>：9.65%，因为没开 <code>-march=native</code>，故需要它来代替 popcnt 指令，用来计算场面上各颜色棋子的数量等等</li>
+<li><code>solveNFlipParity</code>：8.95%，与 solveNParity 配合完成 minimax 算法</li>
+<li><code>solve2</code>：5.38%，minimax 算法的一部分，处理棋盘只有两个空位的最终局面</li>
+</ul>
+<p>这也是个比较典型的棋类引擎的模式了，整个 minimax 算法占了 70%+ 的时间，为了搜索局面，有大量的位运算和访存，还有根据访存结果决定方向的分支。果不其然，执行 2688B 条指令，其中有 228B 条是分支指令，有 6.1B 次错误预测，MPKI 达到了 <code>6.1B/2688B*1000=2.27</code>。和 706.stockfish_r 类似，它也有不少的 popcnt 调用，那么打开 <code>-mpopcnt</code> 就会得到不错的性能提升：时间从 140s 降低到 126s，减少 11% 时间。而即使开 <code>-march=native</code>，性能也只是进一步降到 122s，只有少量的地方用到了 AVX2。</p>
+<p>另一方面，LLVM 22 的性能在 707.ntest_r 上比 GCC 14 要快：同样是 <code>-O3</code> 的编译选项，运行时间从 GCC 14 的 140s 降低到 126s。深入研究汇编发现，LLVM 22 在没有开 <code>-mpopcnt</code> 的时候，它的行为是，直接把类似 libgcc 的 <code>__popcountdi2</code> 的代码内联到了程序当中，省去了 call libgcc 的开销，不过代价就是代码体积会增加。类似地，706.stockfish_r 的 1to6_classical 也是 LLVM 22 比 GCC 14 快，从 47s 降低到 44s。</p>
+<p>同时，GCC 15 相比 GCC 14 也有性能提升，运行时间从 140s 降低到了 130s。分析汇编，发现主要优化点在 <code>flips(int sq, u64 mover, u64 enemy)</code> 函数当中。性能区别有两点：</p>
+<ol>
+<li>首先是对 callee-saved 寄存器的使用，GCC 14 会在 epilogue/prologue 直接进行一系列的 push/pop，而 GCC 15 更加聪明，仅在 <code>if (neighbors[sq]&amp;enemy)</code> 条件成立的情况下，需要执行复杂函数体，需要 callee-saved 寄存器时才会进行 push/pop，否则就直接 ret，因为检查条件的时候并没有用到 callee-saved 寄存器，避免了保存和恢复。</li>
+<li>自己编译的 GCC 15 默认是 -no-pie 模式，而发行版的 GCC 14 默认是 -pie，而 -no-pie 模式因为采用绝对地址，可以在 imul 等指令的操作数直接访问内存，节省寄存器，于是 callee-saved register 就都可以不用了，开启 -static 也能带来类似的效果。上面的第一条分析是手动给 GCC 15 开 -pie 后观察到的。不过主要的性能提升还是来自于减少 push/pop 的执行次数。</li>
+</ol>
+<p>结合 706.stockfish_r 和 707.ntest_r，可以看到，popcnt 还是比较常用的，但可惜 AMD64 的基线并不提供这条指令，因此如果开了 x86-64-v2 或以上的编译优化选项，这类应用就可以获得性能提升，免去了 libgcc 的 __popcountdi2 开销，本来一条指令就能完成的事情，因为额外的 call 以及 PLT 开销，带来了可观的性能开销。期待一个优雅的解决方法。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。</p>
+<h3 id="708sqlite_r">708.sqlite_r<a class="headerlink" href="#708sqlite_r" title="Permanent link">&para;</a></h3>
+<p>sqlite 就是大名鼎鼎的数据库了，不必多介绍。测试中，又是包括三条命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 1. main</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>sqlite_r<span class="w"> </span>--memdb<span class="w"> </span>--size<span class="w"> </span><span class="m">2000</span><span class="w"> </span>--testset<span class="w"> </span>main<span class="w"> </span>--verify
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># 2. cte</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>sqlite_r<span class="w"> </span>--memdb<span class="w"> </span>--size<span class="w"> </span><span class="m">2000</span><span class="w"> </span>--testset<span class="w"> </span>cte<span class="w"> </span>--verify
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># 3. fp</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>sqlite_r<span class="w"> </span>--memdb<span class="w"> </span>--size<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--testset<span class="w"> </span>fp<span class="w"> </span>--verify
+</span></code></pre></div>
+<p>实测数据显示，三条命令耗费的时间分别是 69s、12s 和 25s，共计 106s。reftime 是 528s，对应 5.0 分。开启 -flto/-ljemalloc 对性能影响很小，-march=native 甚至带来了负优化。下面逐一分析这三条命令的性能特性。</p>
+<h4 id="main">main<a class="headerlink" href="#main" title="Permanent link">&para;</a></h4>
+<p>通过 <code>perf</code> 观察性能瓶颈，这几个函数耗费的时间占比较多：</p>
+<ul>
+<li><code>sqlite3BtreeMovetoUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey, i64 intKey, int biasRight, int *pRes)</code> 来自 <code>src/sqlite3.c</code>：24.66%，在 Btree 上进行搜索，根据 key，查找对应的 entry</li>
+<li><code>sqlite3VdbeExec(Vdbe *p)</code> 来自 <code>src/sqlite3.c</code>：22.36%，用 Loop+Switch 实现的执行字节码的虚拟机，执行编译好的 SQL 语句，VDBE 是 SQLite 的执行引擎，全称是 Virtual Database Engine</li>
+<li><code>pcache1Fetch(sqlite3_pcache *p, unsigned int iKey, int createFlag)</code> 来自 <code>src/sqlite3.c</code>：8.26%，对应一个用哈希表维护的 Page Cache，用于在内存里缓存硬盘上的数据</li>
+<li><code>sqlite3GetVarint(const unsigned char *p, u64 *v)</code> 来自 <code>src/sqlite3.c</code>：3.70%，恢复内存中可变长度的整数</li>
+</ul>
+<p>都是一些比较经典的数据结构和算法的应用，Btree，Loop+Switch 的解释执行，加哈希表查询。主要瓶颈在内存上。执行了 897.6B 条指令，其中 178.2B 是分支指令，错误预测了 1.5B 次，MPKI 是 <code>1.5B/897.6B*1000=1.67</code>。</p>
+<h4 id="cte">cte<a class="headerlink" href="#cte" title="Permanent link">&para;</a></h4>
+<p>通过 <code>perf</code> 观察性能瓶颈，这几个函数耗费的时间占比较多：</p>
+<ul>
+<li><code>sqlite3VdbeExec(Vdbe *p)</code> 来自 <code>src/sqlite3.c</code>：41.15%，主要时间花费在查询的执行，因为这个 cte 测例，其计算过程比较复杂，用 SQL 实现了数独（递归和非递归版本）、Mandelbrot，还测试了 EXCEPT SELECT 语法</li>
+<li><code>sqlite3VdbeRecordCompareWithSkip(int nKey1, const void *pKey1, UnpackedRecord *pPKey2, int bSkip)</code> 来自 <code>src/sqlite3.c</code>：7.37%，比较表里的两个行</li>
+<li><code>sqlite3VdbeSerialGet(const unsigned char *buf, u32 serial_type, Mem *pMem)</code> 来自 <code>src/sqlite3.c</code>：5.95%，反序列化，根据内存中保存的数据类型，解析对应的数据</li>
+<li><code>vdbeSorterSort(SortSubtask *pTask, SorterList *pList)</code> 来自 <code>src/sqlite3.c</code>：5.95%，实现排序</li>
+</ul>
+<p>瓶颈主要在解释器上，和 CPython 这类解释型语言的解释器的行为模式类似。执行了 307.2B 条指令，其中 62.8B 是分支指令，错误预测了 41M 次，MPKI 是 <code>41M/307.2B*1000=0.13</code>。</p>
+<h4 id="fp">fp<a class="headerlink" href="#fp" title="Permanent link">&para;</a></h4>
+<p>通过 <code>perf</code> 观察性能瓶颈，这几个函数耗费的时间占比较多：</p>
+<ul>
+<li><code>sqlite3VdbeExec(Vdbe *p)</code> 来自 <code>src/sqlite3.c</code>：30.66%，主要时间花费在查询的执行，因为这个 fp 测例，其计算过程引入了不少浮点运算</li>
+<li><code>sqlite3AtoF(const char *z, double *pResult, int length, u8 enc)</code> 来自 <code>src/sqlite3.c</code>：19.18%，实现从字符串到浮点数的转换，因为 SQL 内有很多浮点字面量</li>
+<li><code>vdbeSorterSort(SortSubtask *pTask, SorterList *pList)</code> 来自 <code>src/sqlite3.c</code>：10.44%，描述见上</li>
+<li><code>sqlite3VdbeRecordCompareWithSkip(int nKey1, const void *pKey1, UnpackedRecord *pPKey2, int bSkip)</code> 来自 <code>src/sqlite3.c</code>：6.76%，描述见上</li>
+</ul>
+<p>瓶颈主要在解释器上，不过因为 SQL 语句的设计，有很多时间花在字符串转浮点数上。执行了 555.5B 条指令，其中 111.7B 是分支指令，错误预测了 395M 次，MPKI 是 <code>395M/555.5B*1000=0.71</code>。</p>
+<h4 id="小结_1">小结<a class="headerlink" href="#小结_1" title="Permanent link">&para;</a></h4>
+<p>通过上面的分析，可见 sqlite_r 确实是比较难优化的那一类，大量访存、计算和分支混合在一起，对内存子系统的负担比较重，难以向量化，开 <code>-march=native</code> 后运行时间从 106s 增加到 112s。整体来看，执行了 1760B 条指令，其中有 353B 条是分支指令，MPKI 仅有 1.08，主要由 main 贡献。</p>
+<h3 id="710omnetpp_r">710.omnetpp_r<a class="headerlink" href="#710omnetpp_r" title="Permanent link">&para;</a></h3>
+<p>SPEC INT 2017 就有的老面孔 520.omnetpp_r，不过跑的内容还是不太一样。520.omnetpp_r 做的是 10 Gbps 网络的模拟，而 710.omnetpp_r 有足足十项测试，负载的多样性有了明显的增强。十项测试的命令行参数如下：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>randomMesh.ini<span class="w"> </span>-c<span class="w"> </span>General
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>OneFifo
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>TandemFifos
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>SmallCQN
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>Ring
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>Terminal
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>CallCenter
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>ForkJoin
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>ResourceAllocation
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>queuenet.ini<span class="w"> </span>-c<span class="w"> </span>AllocDealloc
+</span></code></pre></div>
+<p>实测数据显示，十条命令耗费的时间分别是 24.6s、7.8s、3.8s、4.6s、9.1s、3.7s、2.6s、9.4s、6.6s 和 14.0s，共计 86.2s。reftime 是 486s，对应 5.6 分。</p>
+<h4 id="randommesh">randomMesh<a class="headerlink" href="#randommesh" title="Permanent link">&para;</a></h4>
+<p>首先分析第一条命令的热点函数：</p>
+<ul>
+<li><code>omnetpp::cTopology::calculateUnweightedSingleShortestPathsTo(Node *_target)</code> 来自 <code>src/simulator/sim/ctopology.c</code>：16.22%，实现了经典的单源最短路算法，且每条边的权重都是一，所以就是 BFS</li>
+<li><code>__do_dyncast</code> 和 <code>__dynamic_cast</code> 来自 libstdc++.so：4.73%+3.24%+2.22%+0.81%=11.0%，代码中有一些 dynamic_cast 的使用，如上面的 Routing::handleMessage</li>
+<li><code>Routing::handleMessage(cMessage *msg)</code> 来自 <code>src/model/Routing.cc</code>：7.10%，模拟路由表的功能，主要逻辑是内联了一个 <code>std::map&lt;int, int&gt;</code> 的 <code>find</code> 操作（<a href="https://godbolt.org/z/ne6oEb9Md">Godbolt</a>），在一个红黑树上进行查询</li>
+<li><code>cEvent::shouldPrecede(const cEvent *other)</code> 来自 <code>src/simulator/sim/cevent.cc</code>：4.64%，一个 cEvent 结构体的比较函数</li>
+</ul>
+<p>整体来看，它的瓶颈分散在比较多的地方。执行了 306B 条指令，其中有 62B 条是分支指令，错误预测 659M 次，MPKI 为 <code>659M/306B*1000=2.15</code>。</p>
+<h4 id="其余的-9-条-queuenet-命令">其余的 9 条 queuenet 命令<a class="headerlink" href="#其余的-9-条-queuenet-命令" title="Permanent link">&para;</a></h4>
+<p>用 <code>perf</code> 观察，其余 9 条 queuenet 命令的瓶颈主要集中在这些函数：</p>
+<ul>
+<li>strcmp（<code>__strcmp_avx2</code>）</li>
+<li>dynamic_cast（<code>__do_dyncast</code> 和 <code>__dynamic_cast</code>）</li>
+<li>malloc、free 和 operator new</li>
+<li>printf（<code>__printf_buffer</code>）</li>
+</ul>
+<p>还有些 omnetpp 自己的函数（如 <code>omnetpp::common::StringPool::obtain(const char *s)</code>，主要是对 <code>std::unordered_map&lt;const char *,int,str_hash, str_eq&gt; pool</code> 进行查询和修改操作），散落各处，每个函数都只占用不到 5% 的时间。对于这么大比例使用 libc/libstdc++ 中函数的情况，标准库和内存分配器的实现就很重要了。</p>
+<h4 id="小结_2">小结<a class="headerlink" href="#小结_2" title="Permanent link">&para;</a></h4>
+<p>针对上面的分析，尝试不同的编译选项：</p>
+<ul>
+<li>开 <code>-O3 -ljemalloc</code> 后，十条命令的性能都有了一定的提升，总时间从 86.2s 降低到 80.6s，分数从 5.6 分提升到 6.0 分。</li>
+<li>开 <code>-O3 -flto</code> 也能带来不错的提升，总时间从 86.2s 降低到 76.1s，分数从 5.6 分提升到 6.4 分。</li>
+<li>开 <code>-O3 -flto -ljemalloc</code>，则总时间从 86.2s 降低到 69.7s，分数从 5.6 分提升到 7.0 分。</li>
+</ul>
+<p>类似的现象在 SPEC INT 2017 已经出现了，<code>-O3 -flto</code> 比 <code>-O3</code> 快 3%，<code>-O3 -flto -ljemalloc</code> 比 <code>-O3 -flto</code> 快 20%。</p>
+<p><code>-O3</code> 下，执行的指令数是 1447B，其中 291B 是分支指令，MPKI 是 0.78。虽然 randomMesh 因为图计算，MPKI 比较高，但整体的 MPKI 被其余命令拉低了。相比之下，SPEC INT 2017 Rate 的 520.omnetpp_r 的 MPKI 足足有 4.33。虽然还是同一个框架，但是负载行为还是出现了明显的变化。</p>
+<h3 id="714cpython_r">714.cpython_r<a class="headerlink" href="#714cpython_r" title="Permanent link">&para;</a></h3>
+<p>前面提到才提到过解释器，这就到 CPython 了。测试包含三条命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 1. resnet</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cpython_r<span class="w"> </span>-I<span class="w"> </span>-B<span class="w"> </span>coreml_pb.py<span class="w"> </span>-i<span class="w"> </span><span class="m">2</span><span class="w"> </span>-a<span class="w"> </span>-m<span class="w"> </span>Resnet50Headless.mlmodel<span class="w"> </span>-d<span class="w"> </span><span class="m">10</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># 2. mobilenet</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>cpython_r<span class="w"> </span>-I<span class="w"> </span>-B<span class="w"> </span>coreml_pb.py<span class="w"> </span>-i<span class="w"> </span><span class="m">5</span><span class="w"> </span>-a<span class="w"> </span>-c<span class="w"> </span>-m<span class="w"> </span>MobileNetV2.mlmodel<span class="w"> </span>-d<span class="w"> </span><span class="m">20</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># 3. dna</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>cpython_r<span class="w"> </span>-I<span class="w"> </span>-B<span class="w"> </span>dna_bench.py<span class="w"> </span><span class="m">600000</span>
+</span></code></pre></div>
+<p>三条命令的运行时间分别为 31s、20s 和 20s，总时间 71s，reftime 是 479s，对应 6.7 分。开启 <code>-O3 -flto</code> 后，三条命令的运行时间分别为 29s、19s 和 18s，总时间 66s，对应 7.3 分。<code>-O3 -ljemalloc</code> 影响很小，<code>-O3 -march=native</code> 有负优化。下面具体分析三条命令的负载特性。</p>
+<h4 id="resnet">resnet<a class="headerlink" href="#resnet" title="Permanent link">&para;</a></h4>
+<p>还是用 <code>perf</code>，统计出热点函数：</p>
+<ul>
+<li><code>_PyEval_EvalFrameDefault(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)</code> 来自 <code>src/cpython/Python/ceval.c</code>：24.09%，解释器中的 Loop + Switch 核心代码，对 Python 字节码进行解释执行</li>
+<li><code>PyUnicode_FromFormatV(const char *format, va_list vargs)</code> 来自 <code>src/cpython/Objects/unicodeobject.c</code>，4.51%，把结果写到 Python 字符串的 sprintf 版本</li>
+<li><code>_PyObject_Free(void *ctx, void *p)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：3.48%，释放 PyObject</li>
+<li><code>_PyObject_Malloc(void *ctx, size_t nbytes)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：3.15%，分配 PyObject</li>
+</ul>
+<p>剩下就比较零散了，主要还是围绕着解释器的循环。执行了 653B 条指令，其中有 137B 是分支指令，错误预测 7.8M 次，MPKI 等于 <code>7.8M/653B*1000=0.01</code> 可以忽略不计。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 618B，其中分支有 128B，错误预测 46M 次。</p>
+<h4 id="mobilenet">mobilenet<a class="headerlink" href="#mobilenet" title="Permanent link">&para;</a></h4>
+<p>统计出热点函数，发现前四依然是上面四个，且时间占比差不多。可能是因为，resnet 和 mobilenet 测例用的是同一个 .py 源码，只是用的模型不同。执行了 439B 条指令，其中有 92B 是分支指令，错误预测 9.3M 次，MPKI 等于 <code>9.3M/439B*1000=0.02</code> 可以忽略不计。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 417B，其中分支有 86B，错误预测 35M 次。</p>
+<h4 id="dna">dna<a class="headerlink" href="#dna" title="Permanent link">&para;</a></h4>
+<p>统计热点函数：</p>
+<ul>
+<li><code>_PyEval_EvalFrameDefault(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)</code> 来自 <code>src/cpython/Python/ceval.c</code>：36.75%，描述见上</li>
+<li><code>_PyObject_Free(void *ctx, void *p)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：5.31%，描述见上</li>
+<li><code>PyUnicode_Contains(PyObject *str, PyObject *substr)</code> 来自 <code>src/cpython/Objects/unicodeobject.c</code>，4.59%，Python 字符串的 contains 操作，对应 <code>data/all/input/knucleotide.py</code> 代码中的 <code>chat in "GATC"</code> 判断</li>
+<li><code>_PyObject_Malloc(void *ctx, size_t nbytes)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：3.52%，描述见上</li>
+</ul>
+<p>主要热点还是解释执行，不过因为字符串的 contains 调用次数较多，所以 <code>PyUnicode_Contains</code> 时间占比有所上升。执行了 394B 条指令，其中有 77B 是分支指令，错误预测 228M 次，MPKI 等于 <code>228M/394B*1000=0.58</code> 也还是很低。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 380B，其中分支有 72B，错误预测 228M 次。</p>
+<h4 id="小结_3">小结<a class="headerlink" href="#小结_3" title="Permanent link">&para;</a></h4>
+<p>714.cpython_r 就是一个典型的字节码解释器，在一个 Loop + Switch 结构当中完成解释执行。整体 MPKI 很低，只有 0.17，即使开了 <code>-O3 -flto</code>，虽然预测错误多了，总指令数少了，MPKI 会变大，但绝对数字也还是很小，只有 0.23。</p>
+<h3 id="721gcc_r">721.gcc_r<a class="headerlink" href="#721gcc_r" title="Permanent link">&para;</a></h3>
+<p>又一个熟悉的面孔，之前是 SPEC INT 2017 的 502.gcc_r。之前是 GCC 4.5.0 版本，针对 gcc-pp.c、gcc-smaller.c 和 ref32.c 进行五次编译，这次 721.gcc_r 对着三个同名文件（其中 gcc-pp.c 内容更新了，其余两个不变）分别进行一次编译，基于 GCC 11.2.0 版本，命令行参数如下，相比 502.gcc_r 有所简化：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 1. gcc-pp</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cc1_r<span class="w"> </span>gcc-pp.c<span class="w"> </span>-O2<span class="w"> </span>-fpic<span class="w"> </span>-o<span class="w"> </span>gcc-pp.c.opts-O2_-fpic.s
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># 2. gcc-smaller</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>cc1_r<span class="w"> </span>gcc-smaller.c<span class="w"> </span>-O3<span class="w"> </span>-fipa-pta<span class="w"> </span>-o<span class="w"> </span>gcc-smaller.c.opts-O3_-fipa-pta.s
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># 3. ref32</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>cc1_r<span class="w"> </span>ref32.c<span class="w"> </span>-O3<span class="w"> </span>-finline-limit<span class="o">=</span><span class="m">12000</span><span class="w"> </span>-fno-tree-vrp<span class="w"> </span>-o<span class="w"> </span>ref32.c.opts-O3_-finline-limit_12000_-fno-tree-vrp.s
+</span></code></pre></div>
+<p><code>-O3</code> 运行时间分别为 44s、21s 和 51s，总时间 116s，reftime 是 686s，对应 5.9 分。开了 <code>-O3 -flto</code> 后，时间略微降低到 115s，开 <code>-O3 -flto -ljemalloc</code> 后时间进一步降低到 111s，主要针对的是占用时间约 2% 的 malloc/free。开 <code>-march=native</code> 对性能几乎没有影响。</p>
+<p>与 502.gcc_r 的行为类似（见 <a href="https://webdocs.cs.ualberta.ca/~amaral/AlbertaWorkloadsForSPECCPU2017/reports/gcc_report.html">The Alberta Workloads for the SPEC CPU® 2017 Benchmark Suite 的分析</a>），721.gcc_r 的时间分布在大量函数，除了 ref32 花费了 10.76% 的时间在 dominated_by_p、5.92% 的时间在 bitmap_set_bit 以外，其他函数的占用时间基本都在 3% 以下，没有一个特别明显的热点函数。</p>
+<p>三次运行的性能计数器如下：</p>
+<ol>
+<li>gcc-pp: 执行 471B 条指令，其中有 100B 条分支指令，错误预测 2.2B 次，MPKI 等于 <code>2.2B/471B*1000=4.67</code></li>
+<li>gcc-smaller: 执行 244B 条指令，其中有 52B 条分支指令，错误预测 0.91B 次，MPKI 等于 <code>0.91B/244B*1000=3.72</code></li>
+<li>ref32: 执行 405B 条指令，其中有 86B 条分支指令，错误预测 0.61B 次，MPKI 等于 <code>0.61B/405B*1000=1.51</code></li>
+</ol>
+<p>整体指令数是 1120B，其中有 238B 条分支指令，MPKI 等于 3.37，在 SPEC INT 2026 中属于比较高的了。在 SPEC INT 2017 Rate 当中，502.gcc_r 的 MPKI 是 3.13，变化不大。</p>
+<p>意料之中的是，用 GCC 14 编译的 721.gcc_r，运行得比用 LLVM 22 编译的 721.gcc_r 更快。</p>
+<h3 id="723llvm_r">723.llvm_r<a class="headerlink" href="#723llvm_r" title="Permanent link">&para;</a></h3>
+<p>随着 LLVM 的发展，SPEC CPU 2026 终于是把 LLVM 也加入了进来。和 721.gcc_r 类似，也是跑 LLVM 的优化器，只不过输入直接就是 .bc 中间代码文件，而不是 C 代码。它包括两条命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># 1. transformsplus</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>llvm-opt_r<span class="w"> </span>transformsplus.bc<span class="w"> </span>-S<span class="w"> </span>-O3<span class="w"> </span>-mcpu<span class="o">=</span>pwr9
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># 2. codegen</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>llvm-opt_r<span class="w"> </span>codegen.bc<span class="w"> </span>-S<span class="w"> </span>-O3<span class="w"> </span>-mcpu<span class="o">=</span>pwr9
+</span></code></pre></div>
+<p><code>-O3</code> 运行时间分别为 62s 和 53s，总时间 115s，reftime 是 507s，对应 4.4 分。开 <code>-O3 -flto</code> 性能反而变差，不过开 <code>-O3 -ljemalloc</code> 有明显性能提升，运行时间降低为 59s 和 47s，总时间 106s，分数提高到 4.8 分。开 <code>-march=native</code> 对性能几乎没有影响。</p>
+<p>有意思的是，用 GCC 14 编译的 723.llvm_r，运行得比用 LLVM 22 编译的 723.llvm_r 更快，当然快得并不多。下面针对这两条命令进行具体的分析。</p>
+<h4 id="transformsplus">transformsplus<a class="headerlink" href="#transformsplus" title="Permanent link">&para;</a></h4>
+<p>使用 <code>perf</code> 观察热点函数：</p>
+<ul>
+<li><code>llvm::InstCombinerImpl::foldIntegerTypedPHI(llvm::PHINode&amp; PN)</code> 来自 <code>src/lib/Transforms/InstCombine/InstCombinePHI.cpp</code>: 4.06%，对 IR 中的 PHI 结点进行处理，这个函数还挺复杂的</li>
+<li><code>_int_malloc/cfree/malloc</code>：2.38%+0.89%+0.82%=4.09%，大量的内存分配和释放，因此 <code>-ljemalloc</code> 能带来不错的性能提升</li>
+<li><code>llvm::DenseMapBase::FindAndConstruct()</code>: 1.69%，LLVM 自己用数组实现的哈希表</li>
+</ul>
+<p>其他用很多小的函数，占时间比例不高，和 721.gcc_r 类似，也是时间分散得比较开。执行指令数为 575B，其中分支指令有 119B，错误预测有 3.5B 次，MPKI 等于 <code>3.5B/575B*1000=6.09</code>，挺高的。</p>
+<h4 id="codegen">codegen<a class="headerlink" href="#codegen" title="Permanent link">&para;</a></h4>
+<p>使用 <code>perf</code> 观察热点函数：</p>
+<ul>
+<li><code>llvm::InstCombinerImpl::foldIntegerTypedPHI(llvm::PHINode&amp; PN)</code> 来自 <code>src/lib/Transforms/InstCombine/InstCombinePHI.cpp</code>: 20.85%，描述见上</li>
+<li><code>_int_malloc/cfree/malloc</code>：1.91%+0.72%+0.65%=3.28%，描述见上</li>
+<li><code>llvm::DenseMapBase::FindAndConstruct()</code>: 1.29%，描述见上</li>
+</ul>
+<p>整体的情况和 transformsplusplus 类似，只不过 <code>foldIntegerTypedPHI</code> 时间占比更高，其他还是有很多函数耗费很短的时间，分散得比较开。执行指令数为 417B，其中分支指令有 86B，错误预测有 2.4B 次，MPKI 等于 <code>2.4B/417B*1000=5.76</code>，依然很高。</p>
+<h4 id="小结_4">小结<a class="headerlink" href="#小结_4" title="Permanent link">&para;</a></h4>
+<p>llvm 和 gcc 同为编译器的双子星，在负载特性上也有类似之处：有很多的内存分配和释放，受益于 <code>-ljemalloc</code>；时间分布在大量小函数当中，热点不明显；MPKI 较高，尤其是 723.llvm_r 直接一跃成为 SPEC INT 2026 Rate 中 MPKI 最高的一项测试，可能是因为它有大量数据依赖的分支。723.llvm_r 整体的指令数有 991B，其中有 205B 是分支指令，MPKI 达到 5.98，即使放在 SPEC INT 2017 Rate 里，也能紧跟在 505.mcf_r 和 541.leela_r 两位大哥身后，成为 MPKI 第三高的项目。</p>
+<h3 id="727cppcheck_r">727.cppcheck_r<a class="headerlink" href="#727cppcheck_r" title="Permanent link">&para;</a></h3>
+<p>cppcheck 是一个 cpp 静态分析工具，输入 C++ 文件，提供代码的分析报告，汇报数组越界访问或变量未初始化等等问题。它会分析三个不同的代码，根据命名看，应该是从其他测例里找的。747 和 770 不在 SPEC CPU 2026 当中，应该没被选上，只有 738 diamond 以 838.diamond_s 保留了下来：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># 1. 738_diamond</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>cppcheck_r<span class="w"> </span>--force<span class="w"> </span><span class="m">738</span>-diamond-record.cpp<span class="w"> </span>--checkers-report<span class="o">=</span>738_report.txt<span class="w"> </span>--enable<span class="o">=</span>all<span class="w"> </span>--output-file<span class="o">=</span>738_bogey.txt
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># 2. 747_dealii</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>cppcheck_r<span class="w"> </span>--force<span class="w"> </span><span class="m">747</span>-dealii-data_out_base.cc<span class="w"> </span>--checkers-report<span class="o">=</span>747_report.txt<span class="w"> </span>--enable<span class="o">=</span>all<span class="w"> </span>--output-file<span class="o">=</span>747_bogey.txt
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># 3. 770_7z</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>cppcheck_r<span class="w"> </span>--force<span class="w"> </span><span class="m">770</span>-7z-SystemPage.cpp<span class="w"> </span>--checkers-report<span class="o">=</span>770_report.txt<span class="w"> </span>--output-file<span class="o">=</span>770_bogey.txt
+</span></code></pre></div>
+<p>三条指令的运行时间分别为 27s、22s 和 33s，共 82s，reftime 是 359s，对应 4.4 分。开 <code>-O3 -flto</code> 或 <code>-O3 -march=native</code> 仅能略微提升 1% 的性能，但 <code>-O3 -ljemalloc</code> 能显著提升性能，运行时间缩短到 24s、18s 和 29s，总时间 71s，对应 5.1 分。</p>
+<p>下面对这三条命令进行深入的分析。</p>
+<h4 id="738_diamond">738_diamond<a class="headerlink" href="#738_diamond" title="Permanent link">&para;</a></h4>
+<p>热点函数如下：</p>
+<ul>
+<li><code>multiCompareImpl(const Token *tok, const char *haystack, nonneg int varid)</code> 来自 <code>src/lib/token.cpp</code>：40.82%，字符串匹配函数，比如用 abc|def 去匹配一个 token</li>
+<li><code>Token::Match(const Token *tok, const char pattern[], nonneg int varid)</code> 来自 <code>src/lib/token.cpp</code>：12.08%，也是类似的字符串匹配函数，语法有些不同，类似自研正则表达式子集</li>
+<li><code>ScopeInfo3::findScope(const std::string &amp; scope)</code> 来自 <code>src/lib/tokenize.cpp</code>：5.49%，循环，从当前作用域开始寻找对应的符号，如果没有，则检查更高一级的作用域，一般用于从变量名找到作用域里定义的符号</li>
+<li><code>Tokenizer::simplifyUsing()</code>：3.57%，把 <code>using N::x;</code> 变为 <code>using x = N::x</code>，里面就会用到上面说的 <code>Token::Match</code>，参数是 <code>"using ::| %name% ::"</code></li>
+<li><code>cfree/malloc/_int_malloc</code>：0.47%+0.33%+0.45%=1.25%，内存分配相关</li>
+</ul>
+<p>可以看到，主要的瓶颈是字符串匹配上，它的实现就是一个循环，用指针去扫描字符串，没有做数据结构上的优化。执行了 401B 条指令，其中有 109B 条分支指令，错误预测 174M 次，MPKI 等于 <code>174M/401B*1000=0.43</code> 不算高。</p>
+<h4 id="747_dealii">747_dealii<a class="headerlink" href="#747_dealii" title="Permanent link">&para;</a></h4>
+<p>热点函数类似：</p>
+<ul>
+<li><code>multiCompareImpl(const Token *tok, const char *haystack, nonneg int varid)</code> 来自 <code>src/lib/token.cpp</code>：27.42%，描述见上</li>
+<li><code>Token::Match(const Token *tok, const char pattern[], nonneg int varid)</code> 来自 <code>src/lib/token.cpp</code>：14.55%，描述见上</li>
+<li><code>cfree/malloc/_int_malloc</code>：2.14%+1.57%+0.53%=4.24%，内存分配的比例更高</li>
+<li><code>Token::simpleMatch(const Token *tok, const char pattern[], size_t pattern_len)</code> 来自 <code>src/lib/token.cpp</code>：3.88%，又一个字符串匹配函数，换了种格式，比如 <code>"abc def"</code> 代表匹配 <code>abc</code> 或 <code>def</code></li>
+<li><code>TemplateSimplifier::addInstantiation(Token *token, const std::string &amp;scope)</code> 来自 <code>src/lib/templatesimplifier.cpp</code>：2.98%，在 token 级别上做一些代码简化的变换</li>
+<li><code>isAliasOf(const Token* tok, const Token* expr, int* indirect, bool* inconclusive)</code> 来自 <code>src/lib/astutils.cpp</code>：2.55%，判断两个变量是否 alias</li>
+</ul>
+<p>依然有大量的字符串匹配，不知道为啥还要搞好几种语法，实现好几个字符串匹配函数。执行了 304B 条指令，其中有 83B 条分支指令，错误预测 298M 次，MPKI 等于 <code>298M/304B*1000=0.98</code> 也不算高。</p>
+<h4 id="770_7z">770_7z<a class="headerlink" href="#770_7z" title="Permanent link">&para;</a></h4>
+<p>热点如下：</p>
+<ul>
+<li><code>multiCompareImpl(const Token *tok, const char *haystack, nonneg int varid)</code> 来自 <code>src/lib/token.cpp</code>：32.25%，描述见上</li>
+<li><code>Token::Match(const Token *tok, const char pattern[], nonneg int varid)</code> 来自 <code>src/lib/token.cpp</code>：18.82%，描述见上</li>
+<li><code>__memcmp_avx2_movbe</code>：8.99%，被用于字符串匹配</li>
+<li><code>std::map&lt;std::string&gt;::equal_range</code>：7.34%，红黑树上的字符串匹配</li>
+<li><code>__strchr_avx2</code>：7.34%，被用于字符串匹配</li>
+<li><code>cfree/malloc/_int_malloc</code>：0.37%+0.27%+0.17%=0.81%，内存分配的比例较低</li>
+</ul>
+<p>依然是字符串匹配为主。执行了 506B 条指令，其中有 138B 条分支指令，错误预测 393M 次，MPKI 等于 <code>393M/506B*1000=0.78</code> 也不算高。</p>
+<h4 id="小结_5">小结<a class="headerlink" href="#小结_5" title="Permanent link">&para;</a></h4>
+<p>整体看下来，727.cppcheck_r 就是在不断地做字符串匹配。我就纳闷了，为啥不能直接过一遍 tokenizer，把 token 都转为数字呢，这样比较起来多快。在 token 级别上做各种变换，就在不停地对 token 进行字符串比较，导致最后的性能瓶颈，不是在 cppcheck 自己写的字符串比较，就是在 libc 的字符串比较里了。</p>
+<p>整体执行了 1211B 指令，其中有 329B 分支指令，分支指令的比例足足有 27%，傲视 SPEC INT 2026 Rate 全场，这都是拜字符串匹配所赐，读一点就比较一点。但同时，MPKI 仅为 0.71，在 SPEC INT 2026 Rate 中倒数第三，仅高于 714.cpython_r 的 0.17 和 750.sealcrypto_r 的 0.14，说明大部分字符串匹配的结果都是很好预测的，比如比较到第一个字节就对不上了。</p>
+<h3 id="729abc_r">729.abc_r<a class="headerlink" href="#729abc_r" title="Permanent link">&para;</a></h3>
+<p>之前第一次看到 abc 还是在 yosys，它是一个 EDA 软件，和后面的 734.vpr_r 都是开源 EDA 工具里的重量级人物，分别实现了逻辑综合以及布局布线。测试包括 6 条命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># 1. twoexact</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>./abc_r<span class="w"> </span>-F<span class="w"> </span>twoexact.in
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># 2. beem6</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>./abc_r<span class="w"> </span>-F<span class="w"> </span>beem6-fraig.in
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1"># 3. mem</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>./abc_r<span class="w"> </span>-F<span class="w"> </span>mem_ctrl.in
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># 4. vga</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>./abc_r<span class="w"> </span>-F<span class="w"> </span>vga_lcd_miter.in
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1"># 5. mcml</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>./abc_r<span class="w"> </span>-F<span class="w"> </span>mcml.in
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="c1"># 6. des</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>./abc_r<span class="w"> </span>-F<span class="w"> </span>des_system90.in
+</span></code></pre></div>
+<p>六个命令运行时间都不长，分别是 6.3s、10.1s、13.5s、32.3s、13.6s 和 17.0s，总时间 92.8s，reftime 是 459s，对应 4.9 分。</p>
+<p>开 -flto/-march=native/-ljemalloc 都没有什么提升，性能差距在 1% 之内，属于是油盐不进了。下面进行具体热点分析。</p>
+<h4 id="twoexact">twoexact<a class="headerlink" href="#twoexact" title="Permanent link">&para;</a></h4>
+<p>主要的热点函数：</p>
+<ul>
+<li><code>sat_solver_propagate(sat_solver* s)</code> 来自 <code>src/berkeley-abc/src/sat/bsat/satSolver.c</code>：75.33%，应该是 SAT Solver 中的 Unit Propagation，寻找那些只剩下一个变量还没确定的语句，给它进行赋值，然后传播到其他语句</li>
+<li><code>sat_solver_analyze(sat_solver* s, int h, veci* learnt)</code> 来自 <code>src/berkeley-abc/src/sat/bsat/satSolver</code>：15.85%，应该是针对出现冲突的语句进行分析，属于 CDCL（Conflict Driven Clause Learning） 的一部分</li>
+<li><code>sat_solver_solve_internal(sat_solver* s)</code> 来自 <code>src/berkeley-abc/src/sat/bsat/satSolver.c</code>：3.80%，是 SAT Solver 的入口函数</li>
+</ul>
+<p>很少能见到这种瓶颈如此高度集中的情况了，不过确实，SAT Solver 大部分时间都在做 Unit Propagation，出现冲突了就做 CDCL。唤起了很久以前在《软件分析与验证》课上写 DPLL SAT Solver 的<a href="https://github.com/jiegec/dpll">回忆</a>，当然了，abc 的实现肯定比我那课程作业要更加复杂和高级。主要的瓶颈就是一堆访存以及依赖内存结果的分支，在 SAT 问题的解空间内进行搜索。</p>
+<p>指令数 53B，其中分支指令 8.4B，错误预测 606M，MPKI 等于 <code>606M/53B*1000=11.43</code>，非常的高，接近 SPEC INT 2017 的 541.leela_r 大帝。</p>
+<h4 id="beem6">beem6<a class="headerlink" href="#beem6" title="Permanent link">&para;</a></h4>
+<p>主要的热点函数：</p>
+<ul>
+<li><code>Cec4_ManPackAddPatterns(Gia_Man_t * p, int iBit, Vec_Int_t * vLits)</code> 来自 <code>src/proof/cec/cecSatG2.c</code>：54.65%，CEC 指的是 Combinational Equivalence Checking，函数的用途没仔细研究，不过它就是一个两层循环，对数组元素进行访存和位运算</li>
+<li><code>Cec4_ManGeneratePatterns_rec(Gia_Man_t * p, Gia_Obj_t * pObj, int Value, Vec_Int_t * vPat, Vec_Int_t * vVisit)</code> 来自 <code>src/proof/cec/cecSatG2.c</code>：29.01%，看起来也是一堆复杂的访存和逻辑运算混合</li>
+</ul>
+<p>热点依然很集中，不过因为缺少领域知识，不太明白它在跑什么。运行 256B 条指令，其中分支有 40B，错误预测 192M 次，MPKI 等于 <code>192M/256B*1000=0.75</code>，相比 SAT 来说低了很多。</p>
+<h4 id="mem">mem<a class="headerlink" href="#mem" title="Permanent link">&para;</a></h4>
+<p>热点函数依然是 sat solver 相关，相比 twoexact，<code>sat_solver_canceluntil</code> 时间占比高了一些，达到了 8.46%，不过整体的特性基本是一样的。运行 151B 条指令，其中分支有 24B，错误预测 1.2B，MPKI 等于 <code>1.2B/151B*1000=7.95</code>，非常高。</p>
+<h4 id="vga">vga<a class="headerlink" href="#vga" title="Permanent link">&para;</a></h4>
+<p>热点函数依然是 sat solver，整体特性一致。运行 490B 条指令，分支有 77B，错误预测 2.1B 次，MPKI 等于 <code>2.1B/490B*1000=4.29</code>，还是很高。</p>
+<h4 id="mcml">mcml<a class="headerlink" href="#mcml" title="Permanent link">&para;</a></h4>
+<p>热点函数终于有了新面孔：</p>
+<ul>
+<li><code>Abc_ObjDeleteFanin(Abc_Obj_t * pObj, Abc_Obj_t * pFanin)</code> 来自 <code>src/base/abc/abcFanio.c</code>：12.57%，逻辑很简单，就是调用 <code>Vec_IntRemove</code> 从数组里删除一个元素，遍历数组，找到匹配的元素，把后面的元素都往前挪</li>
+<li><code>Gia_ManSwiSimulate(Gia_Man_t * pAig, Gia_ParSwi_t * pPars)</code> 来自 <code>src/aig/gia/giaSwitch.c</code>：8.87%，依然看不懂在干啥，不过似乎是一些比较适合 SIMD 的循环，在 <code>-O3</code> 下能看到一些 SSE 指令</li>
+<li><code>Abc_AigAndLookup(Abc_Aig_t * pMan, Abc_Obj_t * p0, Abc_Obj_t * p1)</code> 来自 <code>src/base/abc/abcAig.c</code>：7.03%，主要时间是在内部一个循环当中，访存加位运算，不知道在实现什么功能</li>
+<li><code>If_ObjPerformMappingAnd(If_Man_t * p, If_Obj_t * pObj, int Mode, int fPreprocess, int fFirst)</code> 来自 <code>src/map/if/ifMap.c</code>：6.72%，又是一堆不知道在干啥的复杂位运算</li>
+<li><code>Lpk_NodeCutsOneFilter(Lpk_Cut_t * pCuts, int nCuts, Lpk_Cut_t * pCutNew)</code> 来自 <code>src/berkeely-abc/src/opt/lpk/lpkCut.c</code>：5.47%，主要时间在循环里，不知道在实现什么</li>
+</ul>
+<p>运行 209B 条指令，其中 40B 条分支指令，错误预测 535M 次，MPKI 等于 <code>535M/209B*1000=2.56</code>，不低。</p>
+<h4 id="des">des<a class="headerlink" href="#des" title="Permanent link">&para;</a></h4>
+<p>再次出现了新的热点函数：</p>
+<ul>
+<li><code>__strcmp_avx2</code> 来自 libc：22.04%，没想到瓶颈居然又出现在了 strcmp 上</li>
+<li><code>Nm_ManTableLookupId(Nm_Man_t * p, int ObjId)</code> 来自 <code>src/misc/nm/nmTable.c</code>：21.56%，遍历一个哈希表，哈希表的每个桶是个链表，遍历链表中的元素，寻找匹配</li>
+<li><code>Nm_ManTableAdd(Nm_Man_t * p, Nm_Entry_t * pEntry)</code> 来自 <code>src/misc/nm/nmTable.c</code>：12.19%，经典的哈希表插入算法，把新元素插入到对应桶的链表当中</li>
+<li><code>Nm_ManTableLookupName(Nm_Man_t * p, char * pName, int Type)</code> 来自 <code>src/misc/nm/nmTable.c</code>：5.78%，同样是遍历哈希表查询，只不过这次用的是字符串匹配，解释了为啥 strcmp 调用次数那么多，其实是在找哈希表的字符串匹配</li>
+<li><code>Gia_ManSwiSimulate</code> 来自 <code>src/aig/gia/giaSwitch.c</code>：5.49%，描述见上</li>
+<li><code>spec_qsort</code>：3.98%，好久不见的熟悉面孔，在 SPEC INT 2017 年代，在 505.mcf_r 中有出色表现（指瓶颈在 qsort 上，且很大一部分开销来自于调用 comparator 函数指针，开 -flto 后因为把函数指针调用内联，性能直接提升 13%）</li>
+</ul>
+<p>这次又是经典数据结构哈希表了，而且还混入了大量的字符串匹配，最后瓶颈都在查哈希表上了。</p>
+<p>运行 137B 条指令，其中有 23.5B 是分支指令，错误预测 374M 次，MPKI 等于 <code>374M/137B*1000=2.73</code>，依然不低。</p>
+<h4 id="小结_6">小结<a class="headerlink" href="#小结_6" title="Permanent link">&para;</a></h4>
+<p>综合以上六条命令，可以看到它触碰了 abc 不同地方的代码，所以热点不尽相同，有 SAT，有看不懂的一些 EDA 相关逻辑，还有带字符串匹配的哈希表查询，其中 SAT 的占比是最大的。由于 SAT 的存在，最终的 MPKI 足足有 3.87，在 SPEC INT 2026 Rate 当中仅次于 723.llvm_r，超过了 721.gcc_r 和 777.zstd_r。共执行 1296B 条指令，其中有 213B 是分支指令，这个比例不算高，但预测错误率足够高。</p>
+<h3 id="734vpr_r">734.vpr_r<a class="headerlink" href="#734vpr_r" title="Permanent link">&para;</a></h3>
+<p>接下来就到了 EDA 的下一步，逻辑综合后，进行布局（place）布线（route），这就是 vpr_r 干的活。测试分为四条命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># 1. jpeg_place</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>vpr<span class="w"> </span>stratixiv_arch.timing.xml<span class="w"> </span>JPEG_stratixiv_arch_timing.blif<span class="w"> </span>--RL_agent_placement<span class="w"> </span>off<span class="w"> </span>--place_algorithm<span class="w"> </span>bounding_box<span class="w"> </span>--max_criticality<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span>--init_t<span class="w"> </span><span class="m">512</span><span class="w"> </span>--alpha_t<span class="w"> </span><span class="m">0</span>.75<span class="w"> </span>--exit_t<span class="w"> </span><span class="m">1</span><span class="w"> </span>--router_initial_timing<span class="w"> </span>all_critical<span class="w"> </span>--routing_failure_predictor<span class="w"> </span>off<span class="w"> </span>--route_chan_width<span class="w"> </span><span class="m">300</span><span class="w"> </span>--max_router_iterations<span class="w"> </span><span class="m">20</span><span class="w"> </span>--router_lookahead<span class="w"> </span>classic<span class="w"> </span>--initial_pres_fac<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--pres_fac_mult<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span>--astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--router_profiler_astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--seed<span class="w"> </span><span class="m">3</span><span class="w"> </span>--sdc_file<span class="w"> </span>JPEG_stratixiv_arch_timing.sdc<span class="w"> </span>--pack_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--netlist_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--base_cost_type<span class="w"> </span>demand_only<span class="w"> </span>--inner_num<span class="w"> </span><span class="m">4</span><span class="w"> </span>--read_initial_place_file<span class="w"> </span>ref_JPEG_stratixiv_arch_timing.init.place<span class="w"> </span>--place
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="c1"># 2. jpeg_route</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>vpr<span class="w"> </span>stratixiv_arch.timing.xml<span class="w"> </span>JPEG_stratixiv_arch_timing.blif<span class="w"> </span>--place_algorithm<span class="w"> </span>bounding_box<span class="w"> </span>--place_static_notiming_move_prob<span class="w"> </span><span class="m">50</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">25</span><span class="w"> </span>--max_criticality<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span>--router_initial_timing<span class="w"> </span>all_critical<span class="w"> </span>--routing_failure_predictor<span class="w"> </span>off<span class="w"> </span>--route_chan_width<span class="w"> </span><span class="m">300</span><span class="w"> </span>--max_router_iterations<span class="w"> </span><span class="m">20</span><span class="w"> </span>--router_lookahead<span class="w"> </span>classic<span class="w"> </span>--initial_pres_fac<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--pres_fac_mult<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span>--astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--router_profiler_astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--seed<span class="w"> </span><span class="m">3</span><span class="w"> </span>--sdc_file<span class="w"> </span>JPEG_stratixiv_arch_timing.sdc<span class="w"> </span>--pack_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--netlist_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--base_cost_type<span class="w"> </span>demand_only<span class="w"> </span>--place_file<span class="w"> </span>ref_JPEG_stratixiv_arch_timing.place<span class="w"> </span>--analysis<span class="w"> </span>--route
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># 3. smithwaterman_place</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>vpr<span class="w"> </span>stratixiv_arch.timing.xml<span class="w"> </span>smithwaterman_stratixiv_arch_timing.blif<span class="w"> </span>--RL_agent_placement<span class="w"> </span>off<span class="w"> </span>--place_algorithm<span class="w"> </span>bounding_box<span class="w"> </span>--max_criticality<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span>--init_t<span class="w"> </span><span class="m">512</span><span class="w"> </span>--alpha_t<span class="w"> </span><span class="m">0</span>.75<span class="w"> </span>--exit_t<span class="w"> </span><span class="m">1</span><span class="w"> </span>--router_initial_timing<span class="w"> </span>all_critical<span class="w"> </span>--routing_failure_predictor<span class="w"> </span>off<span class="w"> </span>--route_chan_width<span class="w"> </span><span class="m">300</span><span class="w"> </span>--max_router_iterations<span class="w"> </span><span class="m">20</span><span class="w"> </span>--router_lookahead<span class="w"> </span>classic<span class="w"> </span>--initial_pres_fac<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--pres_fac_mult<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span>--astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--router_profiler_astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--seed<span class="w"> </span><span class="m">3</span><span class="w"> </span>--sdc_file<span class="w"> </span>smithwaterman_stratixiv_arch_timing.sdc<span class="w"> </span>--pack_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--netlist_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--base_cost_type<span class="w"> </span>demand_only<span class="w"> </span>--inner_num<span class="w"> </span><span class="m">1</span>.8<span class="w"> </span>--read_initial_place_file<span class="w"> </span>ref_smithwaterman_stratixiv_arch_timing.init.place<span class="w"> </span>--place
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># 4. smithwaterman_route</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>vpr<span class="w"> </span>stratixiv_arch.timing.xml<span class="w"> </span>smithwaterman_stratixiv_arch_timing.blif<span class="w"> </span>--place_algorithm<span class="w"> </span>bounding_box<span class="w"> </span>--place_static_notiming_move_prob<span class="w"> </span><span class="m">50</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">25</span><span class="w"> </span>--max_criticality<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span>--router_initial_timing<span class="w"> </span>all_critical<span class="w"> </span>--routing_failure_predictor<span class="w"> </span>off<span class="w"> </span>--route_chan_width<span class="w"> </span><span class="m">300</span><span class="w"> </span>--max_router_iterations<span class="w"> </span><span class="m">20</span><span class="w"> </span>--router_lookahead<span class="w"> </span>classic<span class="w"> </span>--initial_pres_fac<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--pres_fac_mult<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span>--astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--router_profiler_astar_fac<span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--seed<span class="w"> </span><span class="m">3</span><span class="w"> </span>--sdc_file<span class="w"> </span>smithwaterman_stratixiv_arch_timing.sdc<span class="w"> </span>--pack_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--netlist_verbosity<span class="w"> </span><span class="m">0</span><span class="w"> </span>--base_cost_type<span class="w"> </span>demand_only<span class="w"> </span>--place_file<span class="w"> </span>ref_smithwaterman_stratixiv_arch_timing.place<span class="w"> </span>--analysis<span class="w"> </span>--route
+</span></code></pre></div>
+<p>这里的 Stratix IV 是经典的 Altera FPGA，时代的眼泪了。四条命令的运行时间分别是 21s、29s、18s 和 19s，总时间 87s，reftime 是 461s，对应 5.3 分。开 <code>-O3 -flto</code> 后，时间降低到 19s、25s、17s 和 17s，总时间 78s，对应 5.9 分，提升显著。如果进一步开到 <code>-O3 -flto -ljemalloc</code>，时间进一步降低到 17s、24s、15s 和 16s，总时间 72s，对应 6.4 分，相比 <code>-O3</code> 提升了 20%。开 <code>-march=native</code> 只能带来不到 1% 的提升。</p>
+<p>下面进行具体分析。</p>
+<h4 id="jpeg_place-和-smithwaterman_place">jpeg_place 和 smithwaterman_place<a class="headerlink" href="#jpeg_place-和-smithwaterman_place" title="Permanent link">&para;</a></h4>
+<p>因为这两条命令都是做的布局（place），所以就放在一起分析了。它们的热点函数是类似的：</p>
+<ul>
+<li><code>get_non_updateable_bb(ClusterNetId net_id, t_bb* bb_coord_new)</code> 来自 <code>src/vtr-vpr/vpr/src/place/place.cpp</code>：jpeg_place 占比 13.98%，smithwaterman_place 占比 18.26%，遍历 pin，根据它的 x 和 y 坐标，找到 bounding box，即 xmin/xmax/ymin/ymax</li>
+<li><code>try_swap(...)</code> 来自 <code>src/vtr-vpr/vpr/src/place/place.cpp</code>：jpeg_place 占比 12.39%，smithwaterman_place 占比 11.46%，里面做的事情还挺复杂的，看不太懂</li>
+<li><code>physical_tile_type(ClusterBlockId blk)</code> 来自 <code>src/vtr-vpr/vpr/src/util/vpr_utils.cpp</code>：jpeg_place 占比 7.59%，smithwaterman_place 占比 7.75%，看起来就是比较简单的访存，这个函数会在 <code>get_non_updateable_bb</code> 和 <code>get_bb_from_scratch</code> 等地方被频繁调用</li>
+<li><code>get_bb_from_scratch(ClusterNetId net_id, t_bb* coords, t_bb* num_on_edges)</code> 来自 <code>src/vtr-vpr/vpr/src/place/place.cpp</code>：jpeg_place 占比 6.73%，smithwaterman_place 占比 2.78%，和 <code>get_non_updateable_bb</code> 类似，也是求 bounding box</li>
+<li><code>malloc/_int_mallloc/cfree</code> 来自 libc：jpeg_place 占比 1.62%+1.26%+1.06%=3.94%，smithwaterman_place 占比 1.76%+1.42%+1.11%=4.29%</li>
+</ul>
+<p>开 <code>-O3 -flto</code> 后，能看到的是 <code>physical_tile_type</code> 被内联了进去，节省了频繁调用函数的开销。考虑到这个内存分配和释放的时间占比，<code>-O3 -ljemalloc</code> 提升性能并不意外。</p>
+<p><code>-O3</code> 下，jpeg_place 执行了 275B 条指令，其中分支有 52B 条，错误预测 785M 次，MPKI 等于 <code>785M/275B*1000=2.85</code>，不低。smithwaterman_place 执行了 247B 条指令，其中分支有 45.6B 条，错误预测 663M 次，MPKI 等于 <code>663M/247B*1000=2.68</code>。在 bounding box 计算 min/max 过程中，能看到一些 cmov 指令的使用，因此实际上已经少了一些容易预测错误的分支了。在一些没有 cmov 指令的 ISA 下，可能 MPKI 还会更高。</p>
+<h4 id="jpeg_route-和-smithwaterman_route">jpeg_route 和 smithwaterman_route<a class="headerlink" href="#jpeg_route-和-smithwaterman_route" title="Permanent link">&para;</a></h4>
+<p>到了布线，热点函数出现了一些不同：</p>
+<ul>
+<li><code>ConnectionRouter&lt;BinaryHeap&gt;::evaluate_timing_driven_node_costs(...)</code> 来自 <code>src/vtr-vpr/vpr/src/route/connection_router.cpp</code>：jpeg_route 占比 9.35%，smithwaterman_route 占比 6.91%，有一些浮点运算，不知道具体在算什么</li>
+<li><code>ConnectionRouter&lt;BinaryHeap&gt;::timing_driven_add_to_heap(...)</code> 来自 <code>src/vtr-vpr/vpr/src/route/connection_router.cpp</code>：jpeg_route 占比 9.34%，smithwaterman_route 占比 6.82%，会调用 <code>evaluate_timing_driven_node_costs</code> 计算 cost，然后插入到 Binary Heap 当中</li>
+<li><code>ConnectionRouter&lt;BinaryHeap&gt;::timing_driven_expand_neighbours(...)</code> 来自 <code>src/vtr-vpr/vpr/src/route/connection_router.cpp</code>：jpeg_route 占比 8.14%，smithwaterman_route 占比 4.00%，不确定在干啥，看起来在遍历邻居结点，符合一定条件后，调用 <code>timing_driven_add_to_heap</code></li>
+<li><code>ClassicLookahead::get_expected_delay_and_cong(...)</code> 来自 <code>src/vtr-vpr/vpr/src/route/router_lookahead.cpp</code>：jpeg_route 占比 7.86%，smithwaterman_route 占比 5.14%，看起来也是在进行一些延迟的计算，涉及到很多浮点数</li>
+<li><code>BinaryHeap::get_heap_head()</code> 来自 <code>src/vtr-vpr/vpr/src/route/binary_heap.cpp</code>：jpeg_route 占比 3.14%，smithwaterman_route 占比 1.64%，就是经典的最小二叉堆的实现，获取最小值</li>
+<li><code>malloc/_int_mallloc/cfree</code> 来自 libc：jpeg_route 占比 1.10%+1.02%+0.78%=2.90%，smithwaterman_route 占比 1.62%+1.49%+1.08%=4.19%</li>
+</ul>
+<p>虽然不清楚具体算法，但看起来，就像是在做一些 cost 计算，然后通过 BinaryHeap 选择最小的 cost 去做一些扩展，有点类似搜索算法。</p>
+<p>开 <code>-O3 -flto</code> 后，能看到的是 <code>evaluate_timing_driven_node_costs</code> 和 <code>timing_driven_add_to_heap</code> 被内联进 <code>timing_driven_expand_neighbours</code>，节省了频繁调用函数的开销，这个函数的时间占比提升到 jpeg_route 的 21.40% 和 smithwaterman_route 的 12.48%，类似的事情应该也发生在 <code>get_expected_delay_and_cong</code> 身上。考虑到这个内存分配和释放的时间占比，<code>-O3 -ljemalloc</code> 提升性能并不意外。</p>
+<p><code>-O3</code> 下，jpeg_route 执行了 425B 条指令，其中分支有 79B 条，错误预测 1.1B 次，MPKI 等于 <code>1.1B/425B*1000=2.59</code>，不低。smithwaterman_route 执行了 307B 条指令，其中分支有 59.6B 条，错误预测 613M 次，MPKI 等于 <code>613M/307B*1000=2.00</code>。</p>
+<h4 id="小结_7">小结<a class="headerlink" href="#小结_7" title="Permanent link">&para;</a></h4>
+<p>734.vpr_r 的负载分为两部分，place 和 route，其中 place 主要在做 bounding box 的计算，route 主要在做搜索和优化。开 <code>-flto</code> 和 <code>-ljemalloc</code> 后有明显的性能提升，主要是靠内联了热点函数以及更快的性能分配。整体指令数为 1254B，分支指令数 237B，MPKI 是 2.51，处于中游偏高的水平。</p>
+<h3 id="735gem5_r">735.gem5_r<a class="headerlink" href="#735gem5_r" title="Permanent link">&para;</a></h3>
+<p>gem5 是大家很熟悉的模拟器了，在 GEM5 里跑 SPEC CPU 2017 养活了很多博士生，这下终于完成闭环，在 GEM5 里跑 SPEC INT 2026 的 GEM5，自己跑自己。当然，735.gem5_r 的 workload 就不是 SPEC CPU 2026 了，没有继续套娃，而是跑的 RISC-V Linux 内核，以及生成访存序列对内存子系统进行测试。这也是唯一一个看到函数名就知道函数来自哪个文件的项目了，实在太熟悉了。包括如下四条命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># 1. o3</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>gem5sim<span class="w"> </span>--stats-file<span class="o">=</span>run_riscv_boot.py_o3_10_--max-ticks_10_000_000_000_stats.stats.txt<span class="w"> </span>run_riscv_boot.py<span class="w"> </span>o3<span class="w"> </span><span class="m">10</span><span class="w"> </span>--max-ticks<span class="w"> </span>10_000_000_000
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1"># 2. timing</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>gem5sim<span class="w"> </span>--stats-file<span class="o">=</span>run_riscv_boot.py_timing_4_--max-ticks_20_000_000_000.stats.txt<span class="w"> </span>run_riscv_boot.py<span class="w"> </span>timing<span class="w"> </span><span class="m">4</span><span class="w"> </span>--max-ticks<span class="w"> </span>20_000_000_000
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># 3. traffic_21</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>gem5sim<span class="w"> </span>--stats-file<span class="o">=</span>synthetic_traffic.py_LinearGenerator_21.stats.txt<span class="w"> </span>synthetic_traffic.py<span class="w"> </span>LinearGenerator<span class="w"> </span><span class="m">21</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># 4. traffic_74_ruby</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>gem5sim<span class="w"> </span>--stats-file<span class="o">=</span>synthetic_traffic.py_LinearGenerator_74_--ruby.stats.txt<span class="w"> </span>synthetic_traffic.py<span class="w"> </span>LinearGenerator<span class="w"> </span><span class="m">74</span><span class="w"> </span>--ruby
+</span></code></pre></div>
+<p>运行时间分别为 16s、21s、21s 和 31s，总时间 89s，reftime 是 487s，对应 5.4 分。各种编译选项的优化效果：</p>
+<ul>
+<li>开 <code>-O3 -flto</code> 后运行时间降为 15s、20s、20s 和 29s，共 84s，对应 5.8 分，相比 <code>-O3</code> 提升 6%。对四条命令都有加速效果。</li>
+<li>开 <code>-O3 -flto -ljemalloc</code> 后降为 14s、18s、16s 和 26s，共 74s，对应 6.6 分，相比 <code>-O3</code> 提升 20%。对四条命令都有比较显著的加速效果。</li>
+<li>开 <code>-O3 -march=native -flto -ljemalloc</code> 后 12s、18s、16s 和 26s，共 72s，对应 6.8 分，相比 <code>-O3</code> 提升 24%。仅对第一条命令有加速效果。</li>
+</ul>
+<p>看到这个性能提升的幅度，结合前面的经验，已经可以预估一下后面会见到的瓶颈大概是什么类型了。</p>
+<h4 id="o3">o3<a class="headerlink" href="#o3" title="Permanent link">&para;</a></h4>
+<p>第一个测例是用 O3 CPU 模拟 RISC-V Linux 内核启动，热点函数如下：</p>
+<ul>
+<li><code>malloc/_int_malloc/cfree/_int_free_chunk/operator new</code> 来自 libc/libstdc++：4.78%+3.46%+3.29%+1.35%+1.16%=13.29%，这个比例无敌了，不过确实，Gem5 有大量的动态内存分配，比如各种内存请求，都要 new 一个 Packet 出来</li>
+<li><code>gem5::TimeBuffer&lt;*&gt;::advance()</code> 来自 <code>src/gem5/cpu/timebuf.hh</code>：3.05%+2.43%+2.39%+2.28+1.98%=12.13%，用于在各流水线级之间传递数据，维护一个滚动的时间窗口，主要的时间花在了 rep stos 对内存进行初始化，还有调用构造/析构函数，涉及到一些引用计数的更新</li>
+<li><code>gem5::o3::IEW::tick()</code> 来自 <code>src/gem5/cpu/o3/iew.cc</code>：3.32%，IEW 代表 Issue Execute Writeback，后端各执行单元的时序在这里模拟</li>
+</ul>
+<p>其他就是很多零散的函数了，每个函数的耗时都不高。开启 <code>-O3 lfto</code> 后，热点函数变为：</p>
+<ul>
+<li><code>std::_Function_handler&lt;void (), gem5::o3::CPU::CPU(gem5::BaseO3CPUParams const&amp;)::{lambda()#1}&gt;::_M_invoke(std::_Any_data const&amp;)</code>：20.80% 实际上是 <code>tickEvent([this]{ tick(); }, "O3CPU tick", false, Event::CPU_Tick_Pri)</code> 当中调用 <code>tick()</code> 的 lambda，就是整个 O3 CPU 各种组件的单步模拟被融合到了一个巨大的函数里，仔细看里面的热点指令，其实还是 <code>gem5::TimeBuffer&lt;*&gt;::advance()</code> 相关的比较多</li>
+<li><code>gem5::o3::IEW::tick()</code> 来自 <code>src/gem5/cpu/o3/iew.cc</code>：8.58%，描述见上</li>
+<li><code>malloc/_int_malloc/cfree/_int_free_chunk/operator new</code> 来自 libc/libstdc++：5.55%+3.88%+3.72%+1.45%+1.22%=15.83%，随着其余部分被优化，内存分配的瓶颈更加明显了</li>
+</ul>
+<p>进一步开启 <code>-O3 -lfto -ljemalloc</code> 后，内存分配时间减少，热点函数：</p>
+<ul>
+<li><code>std::_Function_handler&lt;void (), gem5::o3::CPU::CPU(gem5::BaseO3CPUParams const&amp;)::{lambda()#1}&gt;::_M_invoke(std::_Any_data const&amp;)</code>：23.20%，描述见上</li>
+<li><code>gem5::o3::IEW::tick()</code> 来自 <code>src/gem5/cpu/o3/iew.cc</code>：9.19%，描述见上</li>
+<li><code>gem5::o3::Commit::commit()</code> 来自 <code>src/gem5/cpu/o3/commit.cc</code>：4.56%，模拟 CPU 的 Commit 阶段</li>
+<li><code>malloc/_int_malloc/cfree/_int_free_chunk/operator new/operator delete</code> 来自 libjemalloc：3.12%+1.02%+0.53%=4.67%，明显变少</li>
+</ul>
+<p>开启 <code>-O3 -march=native</code> 带来的效果是，用 memset 调用取代了之前的 rep stos，进而可以用更加高效的 AVX2 版本的 memset 来进行初始化，优化了 <code>gem5::TimeBuffer&lt;*&gt;::advance()</code> 的性能。</p>
+<p><code>-O3</code> 下，执行 212B 条指令，其中有 43B 条分支指令，错误预测 176M 次，MPKI 等于 <code>176M/212B*1000=0.83</code>，比较低。</p>
+<h4 id="timing">timing<a class="headerlink" href="#timing" title="Permanent link">&para;</a></h4>
+<p>第二个测例则是把 O3 换成了 TimingSimpleCPU，相比 O3 模拟的复杂度低很多，此时主要的瓶颈挪到了 RISC-V 架构相关的代码、缓存模拟，以及内存分配上：</p>
+<ul>
+<li><code>cfree/malloc/operator new</code> 来自 libc：5.92%+4.56%+1.55%=12.03%，依然有很多内存分配的瓶颈</li>
+<li><code>gem5::RiscvISA::Decoder::decode(ExtMachInst mach_inst, Addr addr)</code> 来自 <code>src/gem5/arch/riscv/decoder.cc</code>：8.97%，实现 RISC-V 指令集的 Decode，有很大一部分实现是自动生成的，在 <code>src/gem5/arch/riscv/generated/decode-method.cc.inc</code> 文件里</li>
+<li><code>gem5::BaseTags::findBlock(Addr addr, bool is_secure)</code> 来自 <code>src/gem5/mem/cache/tags/base.cc</code>：5.19%，用来实现组相连的 tag 比较，就是一个循环比较 tag 找匹配的算法</li>
+<li><code>gem5::PMAChecker::check(const RequestPtr &amp;req)</code> 来自 <code>src/gem5/arch/riscv/pma_checker.cc</code>：4.86%，实现 RISC-V 的 PMA 检查，属于 MMU 的一部分，逻辑很简单，就是判断一下是否 Uncacheable，如果是，就标记 STRICT_ORDER，避免重排</li>
+<li><code>gem5::RiscvISA::ISA::readMiscReg(RegIndex idx)</code> 来自 <code>src/gem5/arch/riscv/isa.cc</code>：3.34%，用于读取 RISC-V 的 CSR</li>
+<li><code>gem5::BaseCache::access(PacketPtr pkt, CacheBlk *&amp;blk, Cycles &amp;lat, PacketList &amp;writebacks)</code> 来自 <code>src/gem5/mem/cache/base.cc</code>：2.84%，用于模拟缓存的访问</li>
+<li><code>gem5::PMP::pmpCheck(const RequestPtr &amp;req, BaseMMU::Mode mode, RiscvISA::PrivilegeMode pmode, ThreadContext *tc, Addr vaddr)</code> 来自 <code>src/gem5/arch/riscv/pmp.cc</code>：2.66%，实现 RISC-V 的 PMP 检查，属于 MMU 的一部分，扫描 PMP 配置，逐个判断是否匹配</li>
+</ul>
+<p>开 <code>-O3 -flto</code> 后，<code>readMiscReg</code> 被内联。开 <code>-O3 -flto -ljemalloc</code> 后，内存分配的开销降低到 4.48%+1.34%=5.82%。<code>-march=native</code> 影响比较小。</p>
+<p><code>-O3</code> 下，执行 334B 条指令，其中有 69.8B 条分支指令，错误预测 207.8M 次，MPKI 等于 <code>207.8M/334B*1000=0.62</code>，比较低。</p>
+<h4 id="traffic_21">traffic_21<a class="headerlink" href="#traffic_21" title="Permanent link">&para;</a></h4>
+<p>热点函数：</p>
+<ul>
+<li><code>cfree/malloc/operator new</code> 来自 libc：6.01%+4.62%+1.44%+1.40%=13.47%，依然有很多内存分配的瓶颈</li>
+<li><code>gem5::SnoopFilter::lookupRequest(const Packet* cpkt, const ResponsePort&amp; cpu_side_port)</code> 来自 <code>src/gem5/mem/snoop_filter.c</code>：5.93%，在总线上对 Snoop 请求进行 Filter，减少缓存一致性开销；此外它还有一个 <code>std::map</code>，查询和更新也耗费了不少时间</li>
+<li><code>gem5::AddrRange::removeIntlvBits(Addr a)</code> 来自 <code>src/gem5/base/addr_range.hh</code>：3.39%，针对地址的 interleaving，进行一系列位运算，把 interleaving 的那部分比特去掉，保留其他的，具体实现方法是，找到要去掉的比特的位置，从小到大进行排序，然后把要保留的比特分段插入到结果当中</li>
+<li><code>gem5::BaseTags::findBlock(Addr addr, bool is_secure)</code> 来自 <code>src/gem5/mem/cache/tags/base.cc</code>：3.18%，描述见上</li>
+</ul>
+<p>开启 <code>-O3 -flto</code> 后，热点函数中 <code>removeIntlvBits</code> 消失，时间转移到了 <code>gem5::memory::DRAMInterface::decodePacket</code> 和 <code>gem5::memory::DRAMInterface::chooseNextFRFCFS</code>。开 <code>-O3 -flto -ljemalloc</code> 后，内存分配的开销降低到 4.08%+1.39%=5.47%。<code>-march=native</code> 影响比较小。</p>
+<p><code>-O3</code> 下，执行 226.5B 条指令，其中有 50.8B 条分支指令，错误预测 760.5M 次，MPKI 等于 <code>760.5M/226.5B*1000=3.35</code>，明显变高。</p>
+<h4 id="traffic_74_ruby">traffic_74_ruby<a class="headerlink" href="#traffic_74_ruby" title="Permanent link">&para;</a></h4>
+<p>相比 traffic_21，traffic_74_ruby 开启了 ruby（不是那个 ruby 编程语言），因此瓶颈来到了 <code>gem5::ruby</code> 相关：</p>
+<ul>
+<li><code>cfree/malloc/operator new</code> 来自 libc：4.43%+3.52%+1.29%+0.98%=10.22%，依然有很多内存分配的瓶颈</li>
+<li><code>gem5::ruby::Cache_Controller::processNextState(Cache_TBE*&amp; m_tbe_ptr, Cache_CacheEntry*&amp; m_cache_entry_ptr, Addr addr)</code> 来自 <code>src/gem5/mem/ruby/protocol/Cache_Controller.cc</code>：4.44%，维护缓存的状态机，还挺复杂的</li>
+<li><code>gem5::ruby::NetDest::intersectionIsNotEmpty(const NetDest&amp; other_netDest)</code> 来自 <code>src/gem5/mem/ruby/common/NetDest.cc</code>：4.03%，做的是一些 std::bitset 的与操作</li>
+<li><code>gem5::ruby::MessageBuffer::isReady(Tick current_time)</code> 来自 <code>src/gem5/mem/ruby/network/MessageBuffer.cc</code>：3.94%，维护了消息队列，判断当前时间是否有 ready 的消息</li>
+<li><code>gem5::ruby::Cache_Controller::getDirEntry(const Addr&amp; param_addr)</code> 来自 <code>src/gem5/mem/ruby/protocol/Cache_Controller.cc</code>：3.80%，根据地址找到 cache 对应的 entry，实现类似 <code>gem5::BaseTags::findBlock</code></li>
+</ul>
+<p>开启 <code>-O3 -flto</code> 后，<code>gem5::ruby::NetDest::intersectionIsNotEmpty</code> 被内联到 <code>gem5::ruby::WeightBased::route</code> 函数里，成为占时间最多的函数，占 6.45%。开启 <code>-O3 -flto -ljemalloc</code> 后，内存分配开销降低到 3.01%+0.83%=3.84%。<code>-march=native</code> 影响比较小。</p>
+<p><code>-O3</code> 下，执行 391.8B 条指令，其中有 82.1B 条分支指令，错误预测 1.25B 次，MPKI 等于 <code>1.25B/391.8B*1000=3.19</code>，依然较高。</p>
+<h4 id="小结_8">小结<a class="headerlink" href="#小结_8" title="Permanent link">&para;</a></h4>
+<p>735.gem5_r 四个测试跑的是挺不一样的代码路径，第一个 o3 的主要瓶颈就是 O3CPU，第二个 timing 的主要瓶颈是 RISC-V 指令集相关的代码，第三个 traffic_21 主要是缓存和内存控制器，而 traffic_74_ruby 主要是用 ruby 模拟的内存子系统。由于 gem5 高度模块化，有些时候一些可以 inline 函数没有被 inline，所以 <code>-flto</code> 可以带来不错的性能提升。此外，gem5 很喜欢动态分配内存，运行过程中有很多动态产生的对象，比如 Packet 等等，所以用 <code>-ljemalloc</code> 能带来不错的提升。<code>-march=native</code> 确实不太有用武之地。</p>
+<p>整体下来，执行 1164B 条指令，其中有 246B 条分支指令，MPKI 等于 2.05，不算高，主要由后两个 traffic 测例贡献。</p>
+<h3 id="750sealcrypto_r">750.sealcrypto_r<a class="headerlink" href="#750sealcrypto_r" title="Permanent link">&para;</a></h3>
+<p>sealcrypto 做的是同态加密，只有一条命令做测试：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>sealcrypto_r<span class="w"> </span>refrate<span class="w"> </span>ecuador_province_capitals_refrate.csv<span class="w"> </span>Galapagos
+</span></code></pre></div>
+<p>运行时间 108s，reftime 是 536s，对应 5.0 分。</p>
+<p>很奇特的是，开 <code>-O3 -flto</code> 性能倒退，<code>-O3 -flto -ljemalloc</code> 性能没啥变化，开 <code>-O3 -march=native -flto -ljemalloc</code> 性能进一步倒退。但是，LLVM 22 异军突起，以接近两倍的性能超越了 GCC 和 LLVM 的其他版本，仅用 50.5s 跑完，对应 10.6 分。可以说，完全就靠 750.sealcrypto_r，才让 LLVM 22 在 SPEC INT 2026 整体性能上超越了 GCC 14。下面就来看看是怎么一回事。</p>
+<p>首先还是对 <code>-O3</code> 的 GCC 14 进行热点分析：</p>
+<ul>
+<li><code>seal::util::DWTHandler::transform_to_rev(ValueType *values, int log_n, const RootType *roots, const ScalarType *scalar = nullptr)</code> 来自 <code>src/seal/util/dwthandler.h</code>：25.65%，这里 DWT 是离散小波变换 Discrete Wavelet Transform，上一次看到小波变换还是 Ghost Hunter，没想到在这里又遇到了，具体到指令上，就是一堆 imul/add/shr/shl 的运算指令</li>
+<li><code>seal::util::DWTHandler::transform_from_rev(ValueType *values, int log_n, const RootType *roots, const ScalarType *scalar = nullptr)</code> 来自 <code>src/seal/util/DWTHandler.h</code>：16.58%，应该是 DWT 的逆过程，计算模式基本一样</li>
+<li><code>seal::util::multiply_uint64_generic(T operand1, S operand2, unsigned long long *result128)</code> 来自 <code>src/seal/util/uintarith.h</code>：11.60%，实现了 64 位乘以 64 位得到 128 位结果的乘法，也是一堆乘法、加法和位运算</li>
+<li><code>seal::util::dot_product_mod(const uint64_t *operand1, const uint64_t *operand2, size_t count, const Modulus &amp;modulus)</code> 来自 <code>src/seal/util/uintarithsmallmod.cpp</code>：11.48%，实现的是点乘后取模的操作，调用 <code>multiply_accumulate_uint64</code> 函数进行乘法和累加，最后用 <code>barrett_reduce_128</code> 进行取模</li>
+<li><code>seal::util::dyadic_product_coeffmod(ConstCoeffIter operand1, ConstCoeffIter operand2, size_t coeff_count, const Modulus &amp;modulus, CoeffIter result)</code> 来自 <code>src/seal/util/polyarithsmallmod.cpp</code>：9.08%，实现的是 element wise 的模乘</li>
+<li><code>seal::util::BaseConverter::fast_convert_array(ConstRNSIter in, RNSIter out, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.88%，这里的 RNS 应该是 Residue Numebr System 的缩写，指令上还是大量的 imul/add 等运算</li>
+<li><code>seal::util::RNSTool::sm_mrq(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.40%，不确定在做什么，也是大量的运算</li>
+</ul>
+<p>总而言之，既然是密码学，就会有大量的整数运算，其中有不少的乘法，在素数域下做各种操作。执行指令数足足有 3113.8B，但分支只有 78.6B，MPKI 只有 0.14，全场最低，甚至低于 714.cpython_r，同时 IPC 全场最高，达到了 5.09。</p>
+<p>开了 <code>-O3 -march=native</code> 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行的计算，而是在不断地倒腾向量寄存器里数据的位置。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 <code>-O3</code> 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。</p>
+<p>那么，LLVM 22 做了什么优化呢？执行的指令数直接降低到 1214B，分支只有 57.2B。以 <code>seal::util::DWTHandler::transform_to_rev</code> 为例，可以看到：seal 为了实现 64 位乘 64 位到 128 位的乘法，它自己实现了这个过程，不仅在 <code>seal::util::multiply_uint64_generic</code> 中有实现，实际上也内联到了 <code>seal::util::DWTHandler::transform_to_rev</code> 当中；GCC 14 忠实地实现了这个算法，因此指令数很多（见 <a href="https://godbolt.org/z/KKTa1aMP8">Godbolt</a>）；但其实，AMD64 的 mul 指令本来就是一个 64 位乘 64 位得到 128 位的乘法，所以 LLVM 12 直接识别出这段代码做的事情，然后编译成了 mul 指令（见 <a href="https://godbolt.org/z/bc6xPjEMc">Godbolt</a>，甚至如果开了 BMI2 扩展，还有 <a href="https://www.felixcloutier.com/x86/mulx">mulx</a> 指令可以用），而且这种 64 位乘法保留高位的指令在各种 ISA 都挺常见的，比如 ARM64 的 umulh，RISC-V 的 mulhu，LoongArch 的 mulh.du。当然，seal 的源码其实已经考虑了这个问题，在编译器支持的情况下，直接用 __int128 来完成<a href="https://github.com/microsoft/SEAL/blob/e3476fad1d5bb5e5222c51a551b5a4d7e2cb4f91/native/src/seal/util/gcc.h#L44">这件事情</a>。然而，这类依赖编译器行为或具体指令集扩展的代码，由于 SPEC CPU 2026 的编译器中立性，都被去掉了，都会回落到最通用的写法上。此时，就只能依赖编译器去自己识别和优化了。</p>
+<p>但是，这样某种意义上也无法反映真实场景中的应用优化情况了，因为很多应用已经实际上和处理器的指令集扩展/编译器扩展共进化，实现的时候，脑子里是默认有这些东西，再去做的调优，甚至会写一些指令集相关的优化，用一些 intrinsics，比如原版 stockfish 就有针对 AVX512/AVX2/SSSE3/NEON_DOTPROD/LASX/LSX 的<a href="https://github.com/official-stockfish/Stockfish/blob/77a8f6ccf31846d63452f79e143fbc6dc62ae3a8/src/nnue/layers/affine_transform.h#L201">优化</a>。到最后，就是编译器又实现各种 pass，识别程序里的 fallback generic 代码，再映射回高效的实现。其实类似的事情之前就出现过，网上用来证明编译器很聪明的一个例子，就是说识别 popcount 的循环，直接翻译成 popcnt 指令，然而很多程序直接用 <code>__builtin_popcount</code> 而不会真的去手写，这次只不过是换了个 pattern 罢了。当然，好消息是，C++20 引入了 std::popcount，可以一定程度避免类似的情况发生，只是来得太晚了。</p>
+<p>相比之下，Geekbench 对这类指令集扩展的优化就比较持开放态度，愿意针对指令集扩展进行针对性的优化，比如经典引入 AMX/SME 对分数的巨大影响，当然这也让它被人骂 AppleBench，只能说见仁见智了。</p>
+<h3 id="753ns3_r">753.ns3_r<a class="headerlink" href="#753ns3_r" title="Permanent link">&para;</a></h3>
+<p>753.ns3_r 和 710.omnetpp_r 做的事情类似，也是网络中的离散事件模拟器。它包括这些命令：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># 1. mobile</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>ns3_r<span class="w"> </span>mobile-scenario<span class="w"> </span>--simTimeMinutes<span class="o">=</span><span class="m">3</span><span class="w"> </span>--RngSeed<span class="o">=</span><span class="m">1</span><span class="w"> </span>--RngRun<span class="o">=</span><span class="m">1</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># 2. tcp</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>ns3_r<span class="w"> </span>tcp-pacing<span class="w"> </span>--simulationEndTime<span class="o">=</span><span class="m">500</span><span class="w"> </span>--useEcn<span class="o">=</span><span class="nb">false</span><span class="w"> </span>--RngSeed<span class="o">=</span><span class="m">1</span><span class="w"> </span>--RngRun<span class="o">=</span><span class="m">1</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1"># 3. lena</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>ns3_r<span class="w"> </span>lena-radio-link-failure<span class="w"> </span>--numberOfEnbs<span class="o">=</span><span class="m">2</span><span class="w"> </span>--interSiteDistance<span class="o">=</span><span class="m">800</span><span class="w"> </span>--simTime<span class="o">=</span><span class="m">200</span><span class="w"> </span>--RngSeed<span class="o">=</span><span class="m">1</span><span class="w"> </span>--RngRun<span class="o">=</span><span class="m">1</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># 4. dctcp</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>ns3_r<span class="w"> </span>dctcp-example<span class="w"> </span>--enableSwitchEcn<span class="o">=</span><span class="nb">true</span><span class="w"> </span>--flowStartupWindow<span class="o">=</span><span class="m">0</span>.4<span class="w"> </span>--convergenceTime<span class="o">=</span><span class="m">0</span>.4<span class="w"> </span>--measurementWindow<span class="o">=</span><span class="m">0</span>.4<span class="w"> </span>--RngSeed<span class="o">=</span><span class="m">1</span><span class="w"> </span>--RngRun<span class="o">=</span><span class="m">1</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="c1"># 5. wifi_mixed</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>ns3_r<span class="w"> </span>wifi-mixed-network<span class="w"> </span>--isUdp<span class="o">=</span><span class="m">0</span><span class="w"> </span>--payloadSize<span class="o">=</span><span class="m">3072</span><span class="w"> </span>--simulationTime<span class="o">=</span><span class="m">25</span><span class="w"> </span>--RngSeed<span class="o">=</span><span class="m">1</span><span class="w"> </span>--RngRun<span class="o">=</span><span class="m">1</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="c1"># 6. wifi_eht</span>
+</span><span id="__span-15-12"><a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>ns3_r<span class="w"> </span>wifi-eht-network<span class="w"> </span>--simulationTime<span class="o">=</span><span class="m">0</span>.2<span class="w"> </span>--frequency<span class="o">=</span><span class="m">5</span><span class="w"> </span>--useRts<span class="o">=</span><span class="m">1</span><span class="w"> </span>--minExpectedThroughput<span class="o">=</span><span class="m">6</span><span class="w"> </span>--maxExpectedThroughput<span class="o">=</span><span class="m">547</span><span class="w"> </span>--RngSeed<span class="o">=</span><span class="m">1</span><span class="w"> </span>--RngRun<span class="o">=</span><span class="m">1</span>
+</span></code></pre></div>
+<p>六条命令的耗时分别为 18s、15s、3s、19s、23s 和 14s，一共 92s，reftime 是 613s，对应 6.7 分。各编译选项对性能影响：</p>
+<ul>
+<li><code>-O3 -flto</code>：时间降到 16s、14s、3s、17s、19s 和 13s，一共 82s，对应 7.5 分，相比 <code>-O3</code> 提升 12% 的性能</li>
+<li><code>-O3 -flto -ljemalloc</code>：时间进一步降到 14s、12s、3s、13s、18s 和 11s，一共 71s，对应 8.6 分，相比 <code>-O3 -flto</code> 又提升 15% 性能</li>
+</ul>
+<p>都有巨大提升，只有 <code>-march=native</code> 影响很小，仅 0.5%。下面来进行具体的分析。</p>
+<h4 id="mobile">mobile<a class="headerlink" href="#mobile" title="Permanent link">&para;</a></h4>
+<p>热点分析：</p>
+<ul>
+<li><code>cfree/malloc/_int_malloc/_int_free_chunk/operator new</code> 来自 libc/libstdc++：6.99%+5.66%+4.15%+1.83%+1.81%=20.44%，又是内存分配密集型应用</li>
+<li><code>ns3::LteMiErrorModel::GetTbDecodificationStats(const SpectrumValue&amp; sinr, const std::vector&lt;int&gt;&amp; map, uint16_t size, uint8_t mcs, HarqProcessInfoList_t miHistory)</code> 来自 <code>src/ns-3.38/src/lte/model/lte-mi-error-model.cc</code>：9.57%，首先是一个循环，带有一些浮点运算，做一些累加和乘加操作，然后是一段二分查找，看起来主要瓶颈是在二分查找上面，此外在函数开头还会调用下面的 <code>Mib</code> 函数</li>
+<li><code>ns3::LteMiErrorModel::Mib(const SpectrumValue&amp; sinr, const std::vector&lt;int&gt;&amp; map, uint8_t mcs)</code> 来自 <code>src/ns-3.38/src/lte/model/lte-mi-error-model.cc</code>：4.39%，又是一些浮点运算，不知道在算什么</li>
+<li><code>ns3::LteMiErrorModel::MappingMiBler(double mib, uint8_t ecrId, uint16_t cbSize)</code> 来自 <code>src/ns-3.38/src/lte/model/lte-mi-error-model.cc</code>：3.53%，主要的开销是调用 erf 函数和做一些查表，<code>__erf</code> 函数占了总时间的 1.63%</li>
+<li><code>ns3::MapScheduler::Insert(const Event&amp; ev)</code> 来自 <code>src/ns-3.38/src/core/model/map-scheduler.cc</code>：2.66%，对 <code>std::map</code> 红黑树的插入</li>
+</ul>
+<p>首先能看到的是，又是一个内存分配密集型应用。开了 <code>-O3 -flto</code> 后，<code>GetTbDecodificationStats</code> 把 <code>Mib</code> 内联了进去，时间占比提升到 12.68%，但还是内存分配占了最多的时间：7.82%+6.22%+4.51%+1.90%=20.45%。进一步开 <code>-O3 -flto -ljemalloc</code>，内存分配的时间占比终于降低到 6.23%+1.78%=8.01%，其实还是挺高的。</p>
+<p>比较少见的是，作为 SPEC INT 2026 Rate 的一员，mobile 涉及不少浮点运算，还包括一些对 libm 的调用，比如 erf/atan2/pow/log，但实际瓶颈又是内存分配，属于是半步踏入了 SPEC FP 2026，又被 libc 退了回来。</p>
+<p><code>-O3</code> 下，执行指令 257B，其中分支指令有 54B，错误预测 627M，MPKI 等于 <code>627M/257B*1000=2.43</code>，并不低。</p>
+<h4 id="tcp">tcp<a class="headerlink" href="#tcp" title="Permanent link">&para;</a></h4>
+<p>第二条命令测的又是不一样的代码了，这次的热点函数：</p>
+<ul>
+<li><code>cfree/malloc/_int_malloc/_int_free_chunk/operator new</code> 来自 libc/libstdc++：7.02%+5.20%+3.68%+2.29%+1.56%=19.75%，又是内存分配密集型应用</li>
+<li><code>ns3::TcpTxBuffer::NextSeg(SequenceNumber32* seq, SequenceNumber32* seqHigh, bool isRecovery)</code> 来自 <code>src/ns-3.38/src/internet/model/tcp-tx-buffer.cc</code>：4.35%，是一个的 TCP 协议栈实现，这里做的是 RFC 6675 SACK 的部分，想起来之前设计的 <a href="https://lab.cs.tsinghua.edu.cn/tcp/doc/">TCP 实验</a>，这里主要的瓶颈是循环里对 sequence number 的更新</li>
+<li><code>ns3::MapScheduler::Insert(const Event&amp; ev)</code> 来自 <code>src/ns-3.38/src/core/model/map-scheduler.cc</code>：4.05%，描述见上</li>
+<li><code>__do_dyncast/__dynamic_cast</code> 来自 libstdc++：1.80%+1.55%=3.35%</li>
+</ul>
+<p><code>-O3</code> 下，执行指令 205B，其中分支指令有 45B，错误预测 148M，MPKI 等于 <code>148M/205B*1000=0.72</code>，比较低。</p>
+<h4 id="lena">lena<a class="headerlink" href="#lena" title="Permanent link">&para;</a></h4>
+<p>第三条命令测的又是不一样的代码了，这次的热点函数：</p>
+<ul>
+<li><code>cfree/malloc/_int_malloc/_int_free_chunk/operator new</code> 来自 libc/libstdc++：7.78%+6.13%+3.13%+2.08%+1.52%=20.64%，又是内存分配密集型应用</li>
+<li><code>ns3::MapScheduler::Insert(const Event&amp; ev)</code> 来自 <code>src/ns-3.38/src/core/model/map-scheduler.cc</code>：2.41%，描述见上</li>
+<li><code>__do_dyncast/__dynamic_cast</code> 来自 libstdc++：1.73%+0.82%=2.55%</li>
+</ul>
+<p><code>-O3</code> 下，执行指令 467B，其中分支指令有 10B，错误预测 52M，MPKI 等于 <code>52M/467B*1000=0.11</code>，非常低。</p>
+<h4 id="dctcp">dctcp<a class="headerlink" href="#dctcp" title="Permanent link">&para;</a></h4>
+<p>第四条命令测的又是不一样的代码了，这次的热点函数：</p>
+<ul>
+<li><code>cfree/malloc/_int_malloc/_int_free_chunk/operator new</code> 来自 libc/libstdc++：6.30%+5.56%+4.03%+1.53%+1.43%+1.12%=40.61%，又是内存分配密集型应用</li>
+<li><code>ns3::MapScheduler::Insert(const Event&amp; ev)</code> 来自 <code>src/ns-3.38/src/core/model/map-scheduler.cc</code>：6.94%，描述见上</li>
+</ul>
+<p><code>-O3</code> 下，执行指令 225B，其中分支指令有 52B，错误预测 295M，MPKI 等于 <code>295M/225B*1000=1.31</code>，略高一点。</p>
+<h4 id="wifi_mixed">wifi_mixed<a class="headerlink" href="#wifi_mixed" title="Permanent link">&para;</a></h4>
+<p>热点函数就不列举了，基本还是内存分配，外加 <code>ns3::TcpTxBuffer::NextSeg</code>。<code>-O3</code> 下，执行指令 292B，其中分支指令有 67B，错误预测 202M，MPKI 等于 <code>202M/292B*1000=0.69</code>，不高。</p>
+<h4 id="wifi_eht">wifi_eht<a class="headerlink" href="#wifi_eht" title="Permanent link">&para;</a></h4>
+<p>热点函数除了内存分配，多了 <code>ns3::InterferenceHelper::AppendEvent</code> 和 <code>ns3::WifiSpectrumValueHelper::GetBandPowerW</code>。<code>-O3</code> 下，执行指令 194B，其中分支指令有 44B，错误预测 371M，MPKI 等于 <code>371M/194B*1000=1.91</code>，略高。</p>
+<h4 id="小结_9">小结<a class="headerlink" href="#小结_9" title="Permanent link">&para;</a></h4>
+<p>与 727.cppcheck_r 类似，753.ns3_r 又是一个内存分配器 benchmark，大量时间花在 malloc/free 上了，此外还有不少 std::map 或 libm 的调用。<code>-O3</code> 下，执行指令 1221B，分支指令 273B，MPKI 是 1.39。</p>
+<h3 id="777zstd_r">777.zstd_r<a class="headerlink" href="#777zstd_r" title="Permanent link">&para;</a></h3>
+<p>作为 SPEC INT 2026 中唯一一个压缩算法，把 SPEC INT 2017 的 557.xz_r 替换掉了，也能见到压缩算法的变迁。从没有被选中的 770.7z_r 来看，zstd 也是成功杀出重围，被认为是更加重要的压缩算法。它一共包括八条命令，但其实压缩的都是同一个文件，不像 557.xz_r 那样会压缩不同的输入文件，只是在代码里对输入数据做了随机修改：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 1. b3</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>zstd<span class="w"> </span>-b3<span class="w"> </span>-e3<span class="w"> </span>--verbose<span class="w"> </span>-i40<span class="w"> </span>cld.tar
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="c1"># 2. b5</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>zstd<span class="w"> </span>-b5<span class="w"> </span>-e5<span class="w"> </span>--verbose<span class="w"> </span>-i25<span class="w"> </span>cld.tar
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="c1"># 3. b7</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>zstd<span class="w"> </span>-b7<span class="w"> </span>-e7<span class="w"> </span>--verbose<span class="w"> </span>-i12<span class="w"> </span>cld.tar
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># 4. b10</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>zstd<span class="w"> </span>-b10<span class="w"> </span>-e10<span class="w"> </span>--verbose<span class="w"> </span>-i6<span class="w"> </span>cld.tar
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="c1"># 5. b14</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>zstd<span class="w"> </span>-b14<span class="w"> </span>-e14<span class="w"> </span>--verbose<span class="w"> </span>-i4<span class="w"> </span>cld.tar
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="c1"># 6. b16</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>zstd<span class="w"> </span>-b16<span class="w"> </span>-e16<span class="w"> </span>--verbose<span class="w"> </span>-i1<span class="w"> </span>cld.tar
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># 7. b18</span>
+</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>zstd<span class="w"> </span>-b18<span class="w"> </span>-e18<span class="w"> </span>--verbose<span class="w"> </span>-i1<span class="w"> </span>cld.tar
+</span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="c1"># 8. b19</span>
+</span><span id="__span-16-16"><a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>zstd<span class="w"> </span>-b19<span class="w"> </span>-e19<span class="w"> </span>--verbose<span class="w"> </span>-i1<span class="w"> </span>cld.tar
+</span></code></pre></div>
+<p>这里的 <code>-b</code> 代表 compression level 下界，<code>-e</code> 代表 compression level 上界，都相等，其实就是每次只测一种 compression level 的意思。8 条命令的运行时间：11.0s、14.5s、13.0s、11.6s、24.5s、10.9s、20.1s 和 25.5s，一共是 131.2s，reftime 是 644s，对应 4.9 分。</p>
+<p>开 <code>-O3 -flto</code> 或 <code>-O3 -ljemalloc</code> 没有什么性能提升，但 <code>-O3 -march=native</code> 提升不错，运行时间降低到 10.5s、13.7s、12.6s、11.4s、23.4s、10.3s、18.6s 和 23.5s，一共是 124.0s，对应 5.2 分，提升 6%。</p>
+<p>以第一条命令 b3 为例，热点函数：</p>
+<ul>
+<li><code>ZSTD_compressBlock_doubleFast_noDict_generic</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_double_fast.c</code>：56.82%，主要在对数据计算哈希，寻找匹配，进而用于压缩，具体算法没有仔细看</li>
+<li><code>ZSTD_decompressBlock_internal.part.0</code> 来自 <code>src/zstd-1.5.6/lib/decompress/zstd_decompress_block.c</code>：16.63%，解压缩的主要逻辑，会调用 <code>ZSTD_decompressSequences</code>，挺复杂的</li>
+<li><code>ZSTD_encodeSequences</code> 来自 <code>src/zstd-1.5.6/lib/decompress/zstd_compress_sequences.c</code>：10.91%，分为 bmi2 和 generic 版本，不出意外 bmi2 版本也被 SPEC 禁用了，只能用 generic 版本，逻辑也挺复杂的，没有仔细看</li>
+</ul>
+<p><code>-O3</code> 下，b3 执行 183B 条指令，其中有 19B 分支指令，错误预测 546M 次，MPKI 等于 <code>546M/183B*1000=2.98</code>，属于比较高的。</p>
+<p>第二条命令 b5 的热点函数：</p>
+<ul>
+<li><code>ZSTD_RowFindBestMatch.constprop.0</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_lazy.c</code>：67.91%，对数组进行循环，找到匹配最长的一项</li>
+<li><code>ZSTD_compressBlock_lazy_generic.constprop.0</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_lazy.c</code>：9.12%，也是比较复杂的匹配算法</li>
+<li><code>ZSTD_decompressBlock_internal.part.0</code> 来自 <code>src/zstd-1.5.6/lib/decompress/zstd_decompress_block.c</code>：7.80%，描述见上</li>
+</ul>
+<p><code>-O3</code> 下，b5 执行 274B 条指令，其中有 28B 分支指令，错误预测 563M 次，MPKI 等于 <code>563M/274B*1000=2.05</code>，属于比较高的。</p>
+<p>第五条命令 b14 的热点函数：</p>
+<ul>
+<li><code>ZSTD_DUBT_findBestMatch</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_lazy.c</code>：85.74%，也是在循环中做最长匹配</li>
+<li><code>ZSTD_searchMax.constprop.0</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_lazy.c</code>：9.04%，根据 dict mode 派发到不同的实现，实现也挺复杂</li>
+</ul>
+<p><code>-O3</code> 下，b14 执行 198B 条指令，其中有 29B 分支指令，错误预测 1608M 次，MPKI 等于 <code>1608M/198B*1000=8.12</code>，属于特别高的。</p>
+<p>第六条命令 b16 的热点函数：</p>
+<ul>
+<li><code>ZSTD_insertBtAndGetAllMatches</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_opt.c</code>：38.62%，这里 Bt 代表的是 binary tree 二叉树</li>
+<li><code>ZSTD_insertBt1</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_opt.c</code>：35.15%</li>
+<li><code>ZSTD_compressBlock_opt_generic.constprop.1</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_opt.c</code>：16.50%</li>
+</ul>
+<p><code>-O3</code> 下，b16 执行 129B 条指令，其中有 18B 分支指令，错误预测 652M 次，MPKI 等于 <code>652M/129B*1000=5.05</code>，属于特别高的。</p>
+<p>第三/四条命令 b7/b10 的热点与第二条命令 b5 类似；第七/八条命令 b18/b19 的热点函数和第六条命令 b16 类似，就不重复了。可见 zstd 会根据 compression level 选择不同路径，从而在压缩率和性能之间做出权衡。</p>
+<p>那么开 <code>-march=native</code> 以后，发生了什么？能看到的是，由于 BMI 指令的引入，一些位运算的指令数变少了，比如 <a href="https://www.felixcloutier.com/x86/bzhi">bzhi</a> 和 <a href="https://www.felixcloutier.com/x86/tzcnt">tzcnt</a>，还有一些是三操作数且不影响 flags 的运算，如 <a href="https://www.felixcloutier.com/x86/bzhi">shrx</a>，有点类似一些 RISC 指令集（如 RISC-V）的对应指令。</p>
+<p>整体来看，<code>-O3</code> 下 777.zstd_r 执行 1827B 指令，其中 232B 是分支指令，但 MPKI 有 3.58，仅次于 729.abc_r 和 723.llvm_r。</p>
+<h2 id="讨论">讨论<a class="headerlink" href="#讨论" title="Permanent link">&para;</a></h2>
+<h3 id="编译器选项对比">编译器选项对比<a class="headerlink" href="#编译器选项对比" title="Permanent link">&para;</a></h3>
+<p>综合下来，编译选项对 SPEC INT 2026 Rate 的性能影响还是不小的，比如：</p>
+<ul>
+<li><code>-flto</code> 对 707.ntest_r、710.omnetpp_r、714.cpython_r、734.vpr_r、735.gem5_r、753.ns3_r 都有一定的性能提升，凡是热点分散在多个函数，且很多函数都很小的时候，开 LTO 能一定程度上带来优化，本质上就是挽回了因可读性而拆分文件带来的性能开销</li>
+<li><code>-ljemalloc</code> 对 710.omnetpp_r、721.gcc_r、723.llvm_r、727.cppcheck_r、734.vpr_r、735.gem5_r、753.ns3_r 有性能提升，只能说这些软件做了太多的动态内存分配，有一些 benchmark 直接就是内存分配器 benchmark 了，此时替换 glibc 为 jemalloc/mimalloc 都有不错的性能提升，不过最新 glibc 也在改进 malloc 性能，不知道改进得怎样了？</li>
+<li><code>-march=native</code> 对 706.stockfish_r、707.ntest_r、735.gem5_r、777.zstd_r 有不错的提升，一方面是诸如 AVX 等 SIMD 指令，另一方面就是一些位运算指令，比如 popcnt 和 BMI 扩展；事实上，现在很多软件在实现的时候，就已经考虑了硬件的加速指令，实际编译的时候，往往会直接用对应的 intrinsics，但 SPEC 禁用了这些 intrinsics，退而使用它的 generic 版本，此时就非常依赖 -march=native，以及需要编译器正确识别并翻译为对应的优化指令</li>
+</ul>
+<p>还有一些常用的编译参数，比如 <code>-static</code>、<code>-fomit-frame-pointer</code>、<code>-Ofast</code>、<code>-ffast-math</code> 等等，目前没有做太多测试，以后说不定会加上。</p>
+<h3 id="编译器版本对比">编译器版本对比<a class="headerlink" href="#编译器版本对比" title="Permanent link">&para;</a></h3>
+<p>本测试的主要编译器是 GCC 14.2.0，因为它是 Debian Trixie 的编译器版本。有意思的是，即使在 2026 年，随着编译器版本更新，硬件不变的情况下软件性能还在持续增长。GCC 15 能给 706.stockfish_r 生成更快的 SSE/AVX 指令序列，LLVM 22 能识别出 750.sealcrypto_r 的 64 位乘法模式，这些都是很好的例子。此外 LLVM 默认内联 popcount 的优化实现，而 GCC 会转化为对 libgcc 的 popcount 调用，前者代码体积膨胀，后者有额外的 call 开销，这些都会带来可观的性能差距。这些优化其实很具体，完全可以互相移植。在 SPEC INT 2017 时代，基本是 GCC 性能压制 LLVM，而目前 LLVM 凭借 750.sealcrypto_r 的优化相比 GCC 14 扳回一城，又被 GCC 15/16 反超。随着对 SPEC CPU 2026 的研究深入，未来还会编译出更快的程序。</p>
+<h3 id="局限性">局限性<a class="headerlink" href="#局限性" title="Permanent link">&para;</a></h3>
+<p>目前的测试仅限于 Intel i9-14900K P-Core，还需要在 ARM64/RISC-V/LoongArch 上做类似的分析。指令集不同，结论应该也会不一样。此外，目前的分析集中在 perf 统计的热点函数上，对程序行为的挖掘还不够深入，后续还可以做更细粒度的分析，比如统计各类指令的使用比例，以及 POPCNT/BMI/AVX 等指令扩展的使用情况。</p>
+<p>本文只跑了 Rate 1（单副本）。多副本下内存带宽和缓存竞争会更激烈，MPKI、IPC 等指标可能会有较大差异。此外，分析集中在指令级和分支预测层面，缺少微架构级的深入分析，例如 L1/L2/LLC 的缓存缺失率、TLB miss 等，这些对处理器设计者来说更直接。功耗数据也未纳入考量，综合能效比还需要用 RAPL 等工具进一步测量。最后，PGO（<code>-fprofile-generate</code> / <code>-fprofile-use</code>）也没有尝试。</p>
+<h2 id="总结">总结<a class="headerlink" href="#总结" title="Permanent link">&para;</a></h2>
+<p>本文深入分析了 SPEC CPU 2026 中 INT Rate 的负载，供编译器和处理器的设计者参考。从编译器的角度来说，可以集 GCC 和 LLVM 之长，进一步提升性能；从处理器的角度来说，针对程序的瓶颈进行优化，也能进一步提高分数。</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="最后更新">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月25日 17:29:08 UTC">2026年5月25日</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="创建日期">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月21日 10:49:09 UTC">2026年5月21日</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+  
+
+
+  
+
+
+<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+  <button onclick="openBibtexModal()" class="md-button">
+    引用本文
+  </button>
+</div>
+<style>
+.bibtex-modal-copy {
+    background-color: var(--md-primary-fg-color);
+    color: var(--md-primary-bg-color);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: opacity 0.2s;
+}
+.bibtex-modal-copy:hover {
+    opacity: 0.85;
+}
+.bibtex-modal-close {
+    background: none;
+    border: 1px solid var(--md-typeset-color);
+    color: var(--md-typeset-color);
+    border-radius: 4px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+.bibtex-modal-close:hover {
+    background: var(--md-code-bg-color);
+}
+</style>
+<script>
+const BIBTEX_TITLE = "SPEC CPU 2026 \u8d1f\u8f7d\u7279\u6027\u5206\u6790\uff08INT Rate \u7bc7\uff09";
+const BIBTEX_DATE = "2026-05-22";
+const BIBTEX_URL = "https://jia.je/software/2026/05/22/spec-cpu-2026-workload-analysis-int-rate/";
+
+function generateBibtex() {
+  var author = "Jiajie Chen";
+  var year = BIBTEX_DATE ? BIBTEX_DATE.substring(0, 4) : '';
+  var slug = BIBTEX_TITLE.toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^(.{40}).*$/, '$1');
+  var key = "chen" + year + slug;
+  return "@misc{" + key + ",\n  author = {" + author + "},\n  title  = {" + BIBTEX_TITLE + "},\n  year   = {" + year + "},\n  url    = {" + BIBTEX_URL + "},\n}";
+}
+function openBibtexModal() {
+  var existing = document.getElementById('bibtex-modal');
+  if (existing) document.body.removeChild(existing);
+
+  var overlay = document.createElement('div');
+  overlay.id = 'bibtex-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--md-default-bg-color,#fff);border-radius:8px;padding:24px;max-width:640px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-height:80vh;display:flex;flex-direction:column';
+
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px';
+  header.innerHTML = '<span style="font-weight:700;font-size:1.1rem">BibTeX</span>';
+
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--md-typeset-color)';
+  closeBtn.onclick = function () { document.body.removeChild(overlay); };
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+
+  var pre = document.createElement('pre');
+  pre.style.cssText = 'background:var(--md-code-bg-color,#f5f5f5);border-radius:4px;padding:16px;overflow:auto;font-size:0.85rem;line-height:1.4;margin:0;flex:1';
+  var code = document.createElement('code');
+  code.textContent = generateBibtex();
+  pre.appendChild(code);
+  box.appendChild(pre);
+
+  var actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:12px';
+
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'bibtex-modal-copy';
+  copyBtn.textContent = '复制';
+  copyBtn.onclick = function () {
+    navigator.clipboard.writeText(generateBibtex()).then(function () {
+      var orig = copyBtn.textContent;
+      copyBtn.textContent = '已复制';
+      setTimeout(function () { copyBtn.textContent = orig; }, 2000);
+    });
+  };
+  actions.appendChild(copyBtn);
+
+  var closeActionBtn = document.createElement('button');
+  closeActionBtn.className = 'bibtex-modal-close';
+  closeActionBtn.textContent = '关闭';
+  closeActionBtn.onclick = function () { document.body.removeChild(overlay); };
+  actions.appendChild(closeActionBtn);
+
+  box.appendChild(actions);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
+}
+</script>
+
+<h2 id="__comments">评论</h2>
+<!-- Insert generated snippet here -->
+<script src="https://giscus.app/client.js"
+  data-repo="jiegec/blog-source"
+  data-repo-id="MDEwOlJlcG9zaXRvcnk1MTgyMTUzMQ=="
+  data-category="General"
+  data-category-id="DIC_kwDOAxa7284CkIjI"
+  data-mapping="pathname"
+  data-strict="1"
+  data-reactions-enabled="1"
+  data-emit-metadata="0"
+  data-input-position="top"
+  data-theme="light"
+  data-lang="zh-CN"
+  data-loading="lazy"
+  crossorigin="anonymous"
+  async>
+</script>
+      
+    </article>
+  </div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../21/spec-cpu-2026-other-isa/" class="md-footer__link md-footer__link--prev" aria-label="上一页: SPEC CPU 2026 在其他指令集上的编译">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                SPEC CPU 2026 在其他指令集上的编译
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2016-2025 Jiajie Chen
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jiegec" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/llms.txt" target="_blank" rel="noopener" title="" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M352 0c0-17.7-14.3-32-32-32s-32 14.3-32 32v64h-96c-53 0-96 43-96 96v224c0 53 43 96 96 96h256c53 0 96-43 96-96V160c0-53-43-96-96-96h-96zM160 368c0-13.3 10.7-24 24-24h32c13.3 0 24 10.7 24 24s-10.7 24-24 24h-32c-13.3 0-24-10.7-24-24m120 0c0-13.3 10.7-24 24-24h32c13.3 0 24 10.7 24 24s-10.7 24-24 24h-32c-13.3 0-24-10.7-24-24m120 0c0-13.3 10.7-24 24-24h32c13.3 0 24 10.7 24 24s-10.7 24-24 24h-32c-13.3 0-24-10.7-24-24M224 176a48 48 0 1 1 0 96 48 48 0 1 1 0-96m144 48a48 48 0 1 1 96 0 48 48 0 1 1-96 0m-304 0c0-17.7-14.3-32-32-32S0 206.3 0 224v96c0 17.7 14.3 32 32 32s32-14.3 32-32zm544-32c-17.7 0-32 14.3-32 32v96c0 17.7 14.3 32 32 32s32-14.3 32-32v-96c0-17.7-14.3-32-32-32"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.footer", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
