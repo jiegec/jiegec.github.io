@@ -2691,7 +2691,7 @@
 <li><code>Stockfish::Eval::NNUE:evaluate(const Position&amp; pos, bool adjusted)</code> 来自 <code>src/nnue/evaluate_nnue.cpp</code>：80.59%，主要耗时在 <code>affine_transform_non_ssse3</code> 的 <code>sum += weights[offset + j] * input[j]</code>，即神经网络的推理过程，它的计算过程是，进行 int8_t 乘 uint8_t，再累加到 int32_t 类型的结果，默认编译选项下，只能用基础的 SSE 指令如 pmaddwd/paddd，而不能用 AVX</li>
 <li><code>Stockfish::TranspositionTable::probe(const Key key, bool&amp; found)</code> 来自 <code>src/tt.cpp</code>: 仅 4.81%，瓶颈和前面分析的一样是随机访存</li>
 </ul>
-<p>分析 <code>Stockfish::Eval::NNUE:evalute</code> 的指令，可以看到，它为了实现上述逻辑，核心思路是采用 pmaddwd 指令，进行 4 次 16 位有符号的乘法计算，累加到 32 位的结果。但是，在这之前，需要先把输入的 8 位有符号 weights 和无符号 input 转换到 16 位有符号数。其中 8 位有符号 weights 转换比较简单，而 8 位无符号 weights 的处理逻辑比较复杂。首先，它对 input 的每个元素加上 128，然后当成有符号数来看待，这相当于对每个元素减去了 128，把 uint8_t 映射到了 int8_t。这样，input 就可以用和 weights 相同的方法进行符号扩展。但是，这样会导致结果计算错误，为了纠正这个偏差，又减去了 128 倍的 weights 之和。汇编代码如下（<a href="https://godbolt.org/z/ox7q63Er8">Godbolt</a>）：</p>
+<p>分析 <code>Stockfish::Eval::NNUE:evaluate</code> 的指令，可以看到，它为了实现上述逻辑，核心思路是采用 pmaddwd 指令，进行 4 次 16 位有符号的乘法计算，累加到 32 位的结果。但是，在这之前，需要先把输入的 8 位有符号 weights 和无符号 input 转换到 16 位有符号数。其中 8 位有符号 weights 转换比较简单，而 8 位无符号 input 的处理逻辑比较复杂。首先，它对 input 的每个元素加上 128，然后当成有符号数来看待，这相当于对每个元素减去了 128，把 uint8_t 映射到了 int8_t。这样，input 就可以用和 weights 相同的方法进行符号扩展。但是，这样会导致结果计算错误，为了纠正这个偏差，又减去了 128 倍的 weights 之和。汇编代码如下（<a href="https://godbolt.org/z/ox7q63Er8">Godbolt</a>）：</p>
 <div class="language-asm highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="err">1:</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># 加载有符号 weights 的 16 个元素</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nf">movdqu</span><span class="w"> </span><span class="p">(</span><span class="nv">%rdx</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%xmm2</span>
@@ -2879,7 +2879,7 @@
 <p>类似的现象在 SPEC INT 2017 已经出现了，<code>-O3 -flto</code> 比 <code>-O3</code> 快 3%，<code>-O3 -flto -ljemalloc</code> 比 <code>-O3 -flto</code> 快 20%。</p>
 <p><code>-O3</code> 下，执行的指令数是 1447B，其中 291B 是分支指令，MPKI 是 0.78。虽然 randomMesh 因为图计算，MPKI 比较高，但整体的 MPKI 被其余命令拉低了。相比之下，SPEC INT 2017 Rate 的 520.omnetpp_r 的 MPKI 足足有 4.33。虽然还是同一个框架，但是负载行为还是出现了明显的变化。</p>
 <h3 id="714cpython_r">714.cpython_r<a class="headerlink" href="#714cpython_r" title="Permanent link">&para;</a></h3>
-<p>前面提到才提到过解释器，这就到 CPython 了。测试包含三条命令：</p>
+<p>前面才提到过解释器，这就到 CPython 了。测试包含三条命令：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 1. resnet</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cpython_r<span class="w"> </span>-I<span class="w"> </span>-B<span class="w"> </span>coreml_pb.py<span class="w"> </span>-i<span class="w"> </span><span class="m">2</span><span class="w"> </span>-a<span class="w"> </span>-m<span class="w"> </span>Resnet50Headless.mlmodel<span class="w"> </span>-d<span class="w"> </span><span class="m">10</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># 2. mobilenet</span>
@@ -2953,7 +2953,7 @@
 <li><code>_int_malloc/cfree/malloc</code>：1.91%+0.72%+0.65%=3.28%，描述见上</li>
 <li><code>llvm::DenseMapBase::FindAndConstruct()</code>: 1.29%，描述见上</li>
 </ul>
-<p>整体的情况和 transformsplusplus 类似，只不过 <code>foldIntegerTypedPHI</code> 时间占比更高，其他还是有很多函数耗费很短的时间，分散得比较开。执行指令数为 417B，其中分支指令有 86B，错误预测有 2.4B 次，MPKI 等于 <code>2.4B/417B*1000=5.76</code>，依然很高。</p>
+<p>整体的情况和 transformsplus 类似，只不过 <code>foldIntegerTypedPHI</code> 时间占比更高，其他还是有很多函数耗费很短的时间，分散得比较开。执行指令数为 417B，其中分支指令有 86B，错误预测有 2.4B 次，MPKI 等于 <code>2.4B/417B*1000=5.76</code>，依然很高。</p>
 <h4 id="小结_4">小结<a class="headerlink" href="#小结_4" title="Permanent link">&para;</a></h4>
 <p>llvm 和 gcc 同为编译器的双子星，在负载特性上也有类似之处：有很多的内存分配和释放，受益于 <code>-ljemalloc</code>；时间分布在大量小函数当中，热点不明显；MPKI 较高，尤其是 723.llvm_r 直接一跃成为 SPEC INT 2026 Rate 中 MPKI 最高的一项测试，可能是因为它有大量数据依赖的分支。723.llvm_r 整体的指令数有 991B，其中有 205B 是分支指令，MPKI 达到 5.98，即使放在 SPEC INT 2017 Rate 里，也能紧跟在 505.mcf_r 和 541.leela_r 两位大哥身后，成为 MPKI 第三高的项目。</p>
 <h3 id="727cppcheck_r">727.cppcheck_r<a class="headerlink" href="#727cppcheck_r" title="Permanent link">&para;</a></h3>
@@ -3046,7 +3046,7 @@
 <li><code>Gia_ManSwiSimulate(Gia_Man_t * pAig, Gia_ParSwi_t * pPars)</code> 来自 <code>src/aig/gia/giaSwitch.c</code>：8.87%，依然看不懂在干啥，不过似乎是一些比较适合 SIMD 的循环，在 <code>-O3</code> 下能看到一些 SSE 指令</li>
 <li><code>Abc_AigAndLookup(Abc_Aig_t * pMan, Abc_Obj_t * p0, Abc_Obj_t * p1)</code> 来自 <code>src/base/abc/abcAig.c</code>：7.03%，主要时间是在内部一个循环当中，访存加位运算，不知道在实现什么功能</li>
 <li><code>If_ObjPerformMappingAnd(If_Man_t * p, If_Obj_t * pObj, int Mode, int fPreprocess, int fFirst)</code> 来自 <code>src/map/if/ifMap.c</code>：6.72%，又是一堆不知道在干啥的复杂位运算</li>
-<li><code>Lpk_NodeCutsOneFilter(Lpk_Cut_t * pCuts, int nCuts, Lpk_Cut_t * pCutNew)</code> 来自 <code>src/berkeely-abc/src/opt/lpk/lpkCut.c</code>：5.47%，主要时间在循环里，不知道在实现什么</li>
+<li><code>Lpk_NodeCutsOneFilter(Lpk_Cut_t * pCuts, int nCuts, Lpk_Cut_t * pCutNew)</code> 来自 <code>src/berkeley-abc/src/opt/lpk/lpkCut.c</code>：5.47%，主要时间在循环里，不知道在实现什么</li>
 </ul>
 <p>运行 209B 条指令，其中 40B 条分支指令，错误预测 535M 次，MPKI 等于 <code>535M/209B*1000=2.56</code>，不低。</p>
 <h4 id="des">des<a class="headerlink" href="#des" title="Permanent link">&para;</a></h4>
@@ -3127,13 +3127,13 @@
 <li><code>gem5::TimeBuffer&lt;*&gt;::advance()</code> 来自 <code>src/gem5/cpu/timebuf.hh</code>：3.05%+2.43%+2.39%+2.28+1.98%=12.13%，用于在各流水线级之间传递数据，维护一个滚动的时间窗口，主要的时间花在了 rep stos 对内存进行初始化，还有调用构造/析构函数，涉及到一些引用计数的更新</li>
 <li><code>gem5::o3::IEW::tick()</code> 来自 <code>src/gem5/cpu/o3/iew.cc</code>：3.32%，IEW 代表 Issue Execute Writeback，后端各执行单元的时序在这里模拟</li>
 </ul>
-<p>其他就是很多零散的函数了，每个函数的耗时都不高。开启 <code>-O3 lfto</code> 后，热点函数变为：</p>
+<p>其他就是很多零散的函数了，每个函数的耗时都不高。开启 <code>-O3 -flto</code> 后，热点函数变为：</p>
 <ul>
 <li><code>std::_Function_handler&lt;void (), gem5::o3::CPU::CPU(gem5::BaseO3CPUParams const&amp;)::{lambda()#1}&gt;::_M_invoke(std::_Any_data const&amp;)</code>：20.80% 实际上是 <code>tickEvent([this]{ tick(); }, "O3CPU tick", false, Event::CPU_Tick_Pri)</code> 当中调用 <code>tick()</code> 的 lambda，就是整个 O3 CPU 各种组件的单步模拟被融合到了一个巨大的函数里，仔细看里面的热点指令，其实还是 <code>gem5::TimeBuffer&lt;*&gt;::advance()</code> 相关的比较多</li>
 <li><code>gem5::o3::IEW::tick()</code> 来自 <code>src/gem5/cpu/o3/iew.cc</code>：8.58%，描述见上</li>
 <li><code>malloc/_int_malloc/cfree/_int_free_chunk/operator new</code> 来自 libc/libstdc++：5.55%+3.88%+3.72%+1.45%+1.22%=15.83%，随着其余部分被优化，内存分配的瓶颈更加明显了</li>
 </ul>
-<p>进一步开启 <code>-O3 -lfto -ljemalloc</code> 后，内存分配时间减少，热点函数：</p>
+<p>进一步开启 <code>-O3 -flto -ljemalloc</code> 后，内存分配时间减少，热点函数：</p>
 <ul>
 <li><code>std::_Function_handler&lt;void (), gem5::o3::CPU::CPU(gem5::BaseO3CPUParams const&amp;)::{lambda()#1}&gt;::_M_invoke(std::_Any_data const&amp;)</code>：23.20%，描述见上</li>
 <li><code>gem5::o3::IEW::tick()</code> 来自 <code>src/gem5/cpu/o3/iew.cc</code>：9.19%，描述见上</li>
@@ -3192,12 +3192,12 @@
 <li><code>seal::util::multiply_uint64_generic(T operand1, S operand2, unsigned long long *result128)</code> 来自 <code>src/seal/util/uintarith.h</code>：11.60%，实现了 64 位乘以 64 位得到 128 位结果的乘法，也是一堆乘法、加法和位运算</li>
 <li><code>seal::util::dot_product_mod(const uint64_t *operand1, const uint64_t *operand2, size_t count, const Modulus &amp;modulus)</code> 来自 <code>src/seal/util/uintarithsmallmod.cpp</code>：11.48%，实现的是点乘后取模的操作，调用 <code>multiply_accumulate_uint64</code> 函数进行乘法和累加，最后用 <code>barrett_reduce_128</code> 进行取模</li>
 <li><code>seal::util::dyadic_product_coeffmod(ConstCoeffIter operand1, ConstCoeffIter operand2, size_t coeff_count, const Modulus &amp;modulus, CoeffIter result)</code> 来自 <code>src/seal/util/polyarithsmallmod.cpp</code>：9.08%，实现的是 element wise 的模乘</li>
-<li><code>seal::util::BaseConverter::fast_convert_array(ConstRNSIter in, RNSIter out, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.88%，这里的 RNS 应该是 Residue Numebr System 的缩写，指令上还是大量的 imul/add 等运算</li>
+<li><code>seal::util::BaseConverter::fast_convert_array(ConstRNSIter in, RNSIter out, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.88%，这里的 RNS 应该是 Residue Number System 的缩写，指令上还是大量的 imul/add 等运算</li>
 <li><code>seal::util::RNSTool::sm_mrq(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.40%，不确定在做什么，也是大量的运算</li>
 </ul>
 <p>总而言之，既然是密码学，就会有大量的整数运算，其中有不少的乘法，在素数域下做各种操作。执行指令数足足有 3113.8B，但分支只有 78.6B，MPKI 只有 0.14，全场最低，甚至低于 714.cpython_r，同时 IPC 全场最高，达到了 5.09。</p>
 <p>开了 <code>-O3 -march=native</code> 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行的计算，而是在不断地倒腾向量寄存器里数据的位置。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 <code>-O3</code> 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。</p>
-<p>那么，LLVM 22 做了什么优化呢？执行的指令数直接降低到 1214B，分支只有 57.2B。以 <code>seal::util::DWTHandler::transform_to_rev</code> 为例，可以看到：seal 为了实现 64 位乘 64 位到 128 位的乘法，它自己实现了这个过程，不仅在 <code>seal::util::multiply_uint64_generic</code> 中有实现，实际上也内联到了 <code>seal::util::DWTHandler::transform_to_rev</code> 当中；GCC 14 忠实地实现了这个算法，因此指令数很多（见 <a href="https://godbolt.org/z/KKTa1aMP8">Godbolt</a>）；但其实，AMD64 的 mul 指令本来就是一个 64 位乘 64 位得到 128 位的乘法，所以 LLVM 12 直接识别出这段代码做的事情，然后编译成了 mul 指令（见 <a href="https://godbolt.org/z/bc6xPjEMc">Godbolt</a>，甚至如果开了 BMI2 扩展，还有 <a href="https://www.felixcloutier.com/x86/mulx">mulx</a> 指令可以用），而且这种 64 位乘法保留高位的指令在各种 ISA 都挺常见的，比如 ARM64 的 umulh，RISC-V 的 mulhu，LoongArch 的 mulh.du。当然，seal 的源码其实已经考虑了这个问题，在编译器支持的情况下，直接用 __int128 来完成<a href="https://github.com/microsoft/SEAL/blob/e3476fad1d5bb5e5222c51a551b5a4d7e2cb4f91/native/src/seal/util/gcc.h#L44">这件事情</a>。然而，这类依赖编译器行为或具体指令集扩展的代码，由于 SPEC CPU 2026 的编译器中立性，都被去掉了，都会回落到最通用的写法上。此时，就只能依赖编译器去自己识别和优化了。</p>
+<p>那么，LLVM 22 做了什么优化呢？执行的指令数直接降低到 1214B，分支只有 57.2B。以 <code>seal::util::DWTHandler::transform_to_rev</code> 为例，可以看到：seal 为了实现 64 位乘 64 位到 128 位的乘法，它自己实现了这个过程，不仅在 <code>seal::util::multiply_uint64_generic</code> 中有实现，实际上也内联到了 <code>seal::util::DWTHandler::transform_to_rev</code> 当中；GCC 14 忠实地实现了这个算法，因此指令数很多（见 <a href="https://godbolt.org/z/KKTa1aMP8">Godbolt</a>）；但其实，AMD64 的 mul 指令本来就是一个 64 位乘 64 位得到 128 位的乘法，所以 LLVM 22 直接识别出这段代码做的事情，然后编译成了 mul 指令（见 <a href="https://godbolt.org/z/bc6xPjEMc">Godbolt</a>，甚至如果开了 BMI2 扩展，还有 <a href="https://www.felixcloutier.com/x86/mulx">mulx</a> 指令可以用），而且这种 64 位乘法保留高位的指令在各种 ISA 都挺常见的，比如 ARM64 的 umulh，RISC-V 的 mulhu，LoongArch 的 mulh.du。当然，seal 的源码其实已经考虑了这个问题，在编译器支持的情况下，直接用 __int128 来完成<a href="https://github.com/microsoft/SEAL/blob/e3476fad1d5bb5e5222c51a551b5a4d7e2cb4f91/native/src/seal/util/gcc.h#L44">这件事情</a>。然而，这类依赖编译器行为或具体指令集扩展的代码，由于 SPEC CPU 2026 的编译器中立性，都被去掉了，都会回落到最通用的写法上。此时，就只能依赖编译器去自己识别和优化了。</p>
 <p>但是，这样某种意义上也无法反映真实场景中的应用优化情况了，因为很多应用已经实际上和处理器的指令集扩展/编译器扩展共进化，实现的时候，脑子里是默认有这些东西，再去做的调优，甚至会写一些指令集相关的优化，用一些 intrinsics，比如原版 stockfish 就有针对 AVX512/AVX2/SSSE3/NEON_DOTPROD/LASX/LSX 的<a href="https://github.com/official-stockfish/Stockfish/blob/77a8f6ccf31846d63452f79e143fbc6dc62ae3a8/src/nnue/layers/affine_transform.h#L201">优化</a>。到最后，就是编译器又实现各种 pass，识别程序里的 fallback generic 代码，再映射回高效的实现。其实类似的事情之前就出现过，网上用来证明编译器很聪明的一个例子，就是说识别 popcount 的循环，直接翻译成 popcnt 指令，然而很多程序直接用 <code>__builtin_popcount</code> 而不会真的去手写，这次只不过是换了个 pattern 罢了。当然，好消息是，C++20 引入了 std::popcount，可以一定程度避免类似的情况发生，只是来得太晚了。</p>
 <p>相比之下，Geekbench 对这类指令集扩展的优化就比较持开放态度，愿意针对指令集扩展进行针对性的优化，比如经典引入 AMX/SME 对分数的巨大影响，当然这也让它被人骂 AppleBench，只能说见仁见智了。</p>
 <h3 id="753ns3_r">753.ns3_r<a class="headerlink" href="#753ns3_r" title="Permanent link">&para;</a></h3>
@@ -3237,7 +3237,7 @@
 <p>第二条命令测的又是不一样的代码了，这次的热点函数：</p>
 <ul>
 <li><code>cfree/malloc/_int_malloc/_int_free_chunk/operator new</code> 来自 libc/libstdc++：7.02%+5.20%+3.68%+2.29%+1.56%=19.75%，又是内存分配密集型应用</li>
-<li><code>ns3::TcpTxBuffer::NextSeg(SequenceNumber32* seq, SequenceNumber32* seqHigh, bool isRecovery)</code> 来自 <code>src/ns-3.38/src/internet/model/tcp-tx-buffer.cc</code>：4.35%，是一个的 TCP 协议栈实现，这里做的是 RFC 6675 SACK 的部分，想起来之前设计的 <a href="https://lab.cs.tsinghua.edu.cn/tcp/doc/">TCP 实验</a>，这里主要的瓶颈是循环里对 sequence number 的更新</li>
+<li><code>ns3::TcpTxBuffer::NextSeg(SequenceNumber32* seq, SequenceNumber32* seqHigh, bool isRecovery)</code> 来自 <code>src/ns-3.38/src/internet/model/tcp-tx-buffer.cc</code>：4.35%，是一个 TCP 协议栈实现，这里做的是 RFC 6675 SACK 的部分，想起来之前设计的 <a href="https://lab.cs.tsinghua.edu.cn/tcp/doc/">TCP 实验</a>，这里主要的瓶颈是循环里对 sequence number 的更新</li>
 <li><code>ns3::MapScheduler::Insert(const Event&amp; ev)</code> 来自 <code>src/ns-3.38/src/core/model/map-scheduler.cc</code>：4.05%，描述见上</li>
 <li><code>__do_dyncast/__dynamic_cast</code> 来自 libstdc++：1.80%+1.55%=3.35%</li>
 </ul>
@@ -3288,7 +3288,7 @@
 <ul>
 <li><code>ZSTD_compressBlock_doubleFast_noDict_generic</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_double_fast.c</code>：56.82%，主要在对数据计算哈希，寻找匹配，进而用于压缩，具体算法没有仔细看</li>
 <li><code>ZSTD_decompressBlock_internal.part.0</code> 来自 <code>src/zstd-1.5.6/lib/decompress/zstd_decompress_block.c</code>：16.63%，解压缩的主要逻辑，会调用 <code>ZSTD_decompressSequences</code>，挺复杂的</li>
-<li><code>ZSTD_encodeSequences</code> 来自 <code>src/zstd-1.5.6/lib/decompress/zstd_compress_sequences.c</code>：10.91%，分为 bmi2 和 generic 版本，不出意外 bmi2 版本也被 SPEC 禁用了，只能用 generic 版本，逻辑也挺复杂的，没有仔细看</li>
+<li><code>ZSTD_encodeSequences</code> 来自 <code>src/zstd-1.5.6/lib/compress/zstd_compress_sequences.c</code>：10.91%，分为 bmi2 和 generic 版本，不出意外 bmi2 版本也被 SPEC 禁用了，只能用 generic 版本，逻辑也挺复杂的，没有仔细看</li>
 </ul>
 <p><code>-O3</code> 下，b3 执行 183B 条指令，其中有 19B 分支指令，错误预测 546M 次，MPKI 等于 <code>546M/183B*1000=2.98</code>，属于比较高的。</p>
 <p>第二条命令 b5 的热点函数：</p>
@@ -3373,7 +3373,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月25日 18:09:36 UTC">2026年5月25日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月25日 18:22:31 UTC">2026年5月25日</span>
   </span>
 
     
