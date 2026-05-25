@@ -2,7 +2,7 @@
 
 ## 背景
 
-最近用 SPEC CPU 2026 跑了一些测试，打算结合[测试结果](https://jia.je/benchmark/spec-cpu-2026-rate/index.md)做一些深入的负载特性分析。本篇主要是分析 SPEC INT 2026 Rate 的负载特性。
+最近用 SPEC CPU 2026 跑了一些测试，打算结合[测试结果](https://jia.je/benchmark/spec-cpu-2026-rate/index.md)做一些深入的负载特性分析。本篇主要是分析 SPEC INT 2026 Rate 的负载特性，后续再更新 SPEC FP 2026 Rate。
 
 本文测试环境：CPU 为 Intel i9-14900K P-Core @ 5.7 GHz，Linux 发行版为 Debian Trixie，编译器是 GCC 14.2.0，默认编译选项是 `-O3`。其实这款 CPU 最快能 Boost 到 6.0 GHz，但是时不时因为未知原因（防缩缸？）在只有单核负载的情况下也 Boost 不上去，现象是每跑一段时间负载，CPU 核心就会强制降频到 4.7 GHz，故退而求其次，选择在更容易稳定达到的 5.7 GHz 频率来跑，因为能跑 6.0 GHz 的就是那一个物理 P 核，其他的物理 P 核都能上 5.7 GHz，降频了只要换一个就好。6.0 GHz 下的性能可以参考之前的测试结果：[INT](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt) 和 [FP](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)，基本上，从 5.7 GHz 到 6.0 GHz，性能可以按频率线性放缩。本文所用的脚本已开源到 [jiegec/spec2026](https://github.com/jiegec/spec2026)。
 
