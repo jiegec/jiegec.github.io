@@ -4,7 +4,7 @@
 
 最近用 SPEC CPU 2026 跑了一些测试，打算结合[测试结果](https://jia.je/benchmark/spec-cpu-2026-rate/index.md)做一些深入的负载特性分析。本篇主要是分析 SPEC INT 2026 Rate 的负载特性，后续再更新 SPEC FP 2026 Rate。
 
-本文测试环境：CPU 为 Intel i9-14900K P-Core @ 5.7 GHz，Linux 发行版为 Debian Trixie，编译器是 GCC 14.2.0，默认编译选项是 `-O3`。其实这款 CPU 最快能 Boost 到 6.0 GHz，但是时不时因为未知原因（防缩缸？）在只有单核负载的情况下也 Boost 不上去，现象是每跑一段时间负载，CPU 核心就会强制降频到 4.7 GHz，故退而求其次，选择在更容易稳定达到的 5.7 GHz 频率来跑，因为能跑 6.0 GHz 的就是那一个物理 P 核，其他的物理 P 核都能上 5.7 GHz，降频了只要换一个就好。6.0 GHz 下的性能可以参考之前的测试结果：[INT](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt) 和 [FP](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)，基本上，从 5.7 GHz 到 6.0 GHz，性能可以按频率线性放缩。本文所用的脚本已开源到 [jiegec/spec2026](https://github.com/jiegec/spec2026)。
+本文测试环境：CPU 为 Intel i9-14900K P-Core @ 5.7 GHz，Linux 发行版为 Debian Trixie，编译器是 GCC 14.2.0，默认编译选项是 `-O3`。其实这颗 CPU 最快能 Boost 到 6.0 GHz，但时不时因为未知原因（防缩缸？）在单核负载下也 Boost 不上去，具体表现为每跑一段时间后 CPU 核心就会强制降频到 4.7 GHz。故退而求其次，选择在更容易稳定达到的 5.7 GHz 频率来跑。能稳定跑到 6.0 GHz 的只有那一个物理 P 核，其他 P 核也都能上 5.7 GHz，降频了换一个核心即可。6.0 GHz 下的性能可以参考之前的测试结果：[INT](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt) 和 [FP](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)，基本上，从 5.7 GHz 到 6.0 GHz，性能可以按频率线性放缩。本文所用的脚本已开源到 [jiegec/spec2026](https://github.com/jiegec/spec2026)。
 
 推荐阅读：[Evaluating SPEC CPU2026](https://chipsandcheese.com/p/evaluating-spec-cpu2026) 和 [SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison](https://arxiv.org/abs/2605.03713v2)
 
@@ -27,7 +27,7 @@ stockfish bench 1600 1 26 spec_ref_pos_7to11.fen depth nnue
 
 #### 1. 1to6_classical
 
-通过 `perf` 观察性能瓶颈，运行第一个命令 1to6_classical 时，这几个函数耗费的时间占比较多，百分比代表这个函数执行时间的占比，后续都用这个方法表示：
+通过 `perf` 观察性能瓶颈，以下列出 1to6_classical 的主要热点函数及其时间占比（后续各测例均采用相同表示方法）：
 
 - `Stockfish::Eval::evaluate(const Position& pos)` 来自 `src/evaluate.cpp`: 19.16%，inline 了 `Evaluation<NO_TRACE>(pos).value()` 的调用，里面主要是对局面的评估，涉及比较多零散的访存和计算，没有特别集中的热点指令；
 - `Stockfish::TranspositionTable::probe(const Key key, bool& found)` 来自 `src/tt.cpp`: 17.91%，主要的瓶颈来自于随机访存，在 `first_entry(key)` 当中有 `&table[mul_hi64(key, clusterCount)].entry[0]` 的代码，其中 `mul_hi64` 计算两个 64 位整数乘法结果的高 64 位，因此访存地址是根据参数计算得出；对于 `mul_hi64`，GCC 14 会忠实地按照源码把 64 位拆分成高低 32 位分别计算，而 LLVM 22 能够正确识别出这段代码的意图，并直接用 AMD64 的 mul 指令实现；事实上，Stockfish 原本的代码里会用 \_\_int128，此时 GCC 14 也能生成高效的代码，只可惜因为用到了 C 语法扩展，被 SPEC 禁用了（汇编对比见 [Godbolt](https://godbolt.org/z/x3j89xqWP)）；
@@ -35,13 +35,13 @@ stockfish bench 1600 1 26 spec_ref_pos_7to11.fen depth nnue
 - `Stockfish::search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode)` 来自 `src/search.cpp`: 9.49%，搜索逻辑主要在这里实现；
 - `__popcountdi2`: 7.52%，被 `Stockfish::Eval::evaluate(const Position& pos)` 调用，用来判断局面上满足某种条件，内部实现就是位运算，有兴趣的读者可以阅读 Hacker's Delight 这本书。
 
-开了 `-march=native` 后，能观察到 `__popcountdi2` 被内联为 `popcnt` 指令。经过测试，开了 `-mpopcnt` 后，时间即从 47s 降低到 44s，接近 `-march=native` 的性能，可见在开启 popcnt 指令集的前提下，内联 `__popcountdi2` 调用就可以明显减少时间。
+开了 `-march=native` 后，能观察到 `__popcountdi2` 被内联为 `popcnt` 指令。经过测试，开 `-mpopcnt` 后时间即从 47s 降低到 44s，接近 `-march=native` 的性能。可见仅开启 popcnt 指令集并消除 `__popcountdi2` 的函数调用开销，就能带来明显的性能提升。
 
-`-O3` 编译选项下，1to6_classical 执行的指令数为 531.8B（`instructions` 性能计数器），其中 Load 指令有 135.7B 条（`mem_inst_retired.all_loads` 性能计数器），Store 有 59.7B 条（`mem_inst_retired.all_stores` 性能计数器），分支指令有 56.0B 条（`branch-instructions` 性能计数器），其中有 2.6B 次错误预测（`branch-misses` 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：`2.6B/532.9B*1000=4.88`，即使是在 SPEC INT 2017 当中，也是比较高的，高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。
+`-O3` 编译选项下，1to6_classical 执行的指令数为 531.8B（`instructions` 性能计数器），其中 Load 指令有 135.7B 条（`mem_inst_retired.all_loads` 性能计数器），Store 有 59.7B 条（`mem_inst_retired.all_stores` 性能计数器），分支指令有 56.0B 条（`branch-instructions` 性能计数器），其中有 2.6B 次错误预测（`branch-misses` 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：`2.6B/531.8B*1000=4.89`。即使是在 SPEC INT 2017 当中，这一数值也高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。
 
-使用 `perf record -e branch-misses:pp`，观察到主要的分支错误预测来自于 `Stockfish::MovePicker::next_move()` 函数，贡献了 27.48% 的错误预测，主要是插入排序的部分，一是循环找到插入的位置，二是循环搬运数组内原有元素。其次是 `Stockfish::Eval::evalute()` 函数，贡献了 17.42% 的错误预测。再其次是 `Stockfish::search()` 函数，贡献了 13.06% 的错误预测。
+使用 `perf record -e branch-misses:pp`，观察到主要的分支错误预测来自于 `Stockfish::MovePicker::next_move()` 函数，贡献了 27.48% 的错误预测，主要是插入排序的部分，一是循环找到插入的位置，二是循环搬运数组内原有元素。其次是 `Stockfish::Eval::evaluate()` 函数，贡献了 17.42% 的错误预测。再其次是 `Stockfish::search()` 函数，贡献了 13.06% 的错误预测。
 
-开 `-O3 -mpopcnt` 后，指令数减少到 453.9B，其中 Load 有 124.2B 条，Store 有 53.1B 条，分支指令有 46.1B 条，错误预测还是 2.6B 次，所以光是内联了 `__popcountdi2` 的调用，就可以少掉 77.9B，原来的约 15% 的指令。`__popcountdi2` 本身的实现包括 21 条指令，此外还有 `__popcountdi2@plt` 里的一次 jmp，和 `call __popcountdi2@plt` 本身和前后保存和恢复寄存器的开销。
+开 `-O3 -mpopcnt` 后，指令数减少到 453.9B，其中 Load 有 124.2B 条，Store 有 53.1B 条，分支指令有 46.1B 条，错误预测还是 2.6B 次，光是内联 `__popcountdi2` 的调用，便可减少 77.9B 条指令，约占原来的 15%。`__popcountdi2` 本身的实现包括 21 条指令，此外还有 `__popcountdi2@plt` 里的一次 jmp，和 `call __popcountdi2@plt` 本身和前后保存和恢复寄存器的开销。
 
 #### 2. 1to6_nnue
 
@@ -93,7 +93,7 @@ cmp $0x400,%rcx
 jne 1b
 ```
 
-经验告诉我们，对于这种适合 SIMD 的代码，在开了 `-march=native` 的情况下应当有明显的性能提升，实际测试也证明了这一点，开了 `-march=native` 后，时间从 77s 降低到 32s，`Stockfish::Eval::NNUE::evaluate` 时间占比降到 54.20%，此时主要的计算指令变为 [vpdpbusd (Multiply and Add Unsigned and Signed Bytes)](https://www.felixcloutier.com/x86/vpdpbusd)，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（[Godbolt](https://godbolt.org/z/zoeqc4zch)）：
+对于这种适合 SIMD 的代码，开启 `-march=native` 后通常会有明显的性能提升，实际测试也证明了这一点，开了 `-march=native` 后，时间从 77s 降低到 32s，`Stockfish::Eval::NNUE::evaluate` 时间占比降到 54.20%，此时主要的计算指令变为 [vpdpbusd (Multiply and Add Unsigned and Signed Bytes)](https://www.felixcloutier.com/x86/vpdpbusd)，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（[Godbolt](https://godbolt.org/z/zoeqc4zch)）：
 
 ```asm
 1:
@@ -106,11 +106,11 @@ cmp $0x400,%rcx
 jne 1b
 ```
 
-需要注意的是，单纯开 `-mavx2` 仅能把时间从 77s 减少到 50s，距离 `-march=native` 的 32s 还有明显的差距，即使开启了 AVX（[Godbolt](https://godbolt.org/z/e9dPsqddh)），由于没有开 AVX-VNNI，不能用 vpdpbusd，还是需要先格式转换到 16 位，再用 32 位累加器的 16 位整数乘加指令。Stockfish 的 NNUE 这样的计算方式，就是奔着 vpdpbusd 这条指令去的。所以一些没有这种指令的 CPU，或者有但是编译器没用上，就会比较吃亏。
+需要注意的是，单纯开 `-mavx2` 仅能把时间从 77s 减少到 50s，距离 `-march=native` 的 32s 还有明显的差距，即使开启了 AVX（[Godbolt](https://godbolt.org/z/e9dPsqddh)），由于没有开 AVX-VNNI，不能用 vpdpbusd，还是需要先格式转换到 16 位，再用 32 位累加器的 16 位整数乘加指令。Stockfish 的 NNUE 这样的计算方式，就是奔着 vpdpbusd 这条指令去的。因此缺乏这类指令的 CPU，或者虽有指令但编译器未加利用，性能就会明显落后。
 
 例如在 ARM64 下，对应的 [USDOT (Dot product with unsigned and signed integers (vector))](https://developer.arm.com/documentation/ddi0487/maa/-Part-C-The-AArch64-Instruction-Set/-Chapter-C7-A64-Advanced-SIMD-and-Floating-point-Instruction-Descriptions/-C7-2-Alphabetical-list-of-A64-Advanced-SIMD-and-floating-point-instructions/-C7-2-448-USDOT--vector-) 指令被包括在 i8mm 扩展当中，有这个扩展的话，`-march=native` 性能提升显著（[Godbolt](https://godbolt.org/z/MxY3YYTYo)），例如 Apple M2；而如果没有这个扩展，开不开 `-march=native` 就没什么区别，例如 Apple M1，此时就要回退到类似 AMD64 那样，先扩展到 16 位，再求和（[Godbolt](https://godbolt.org/z/TfdvW4f75)）。RISC-V Vector 指令集扩展则有 vwmulsu.vv 指令可以使用，得到 16 位乘法结果之后，再用 vwadd.wv 指令累加到 32 位（[Godbolt](https://godbolt.org/z/ha5oEb4hE)）。LoongArch 也有对应的 xvmulwev.h.b/xvmulwod.h.b 指令，得到 16 位乘法结果之后，用 xvhaddw.w.h 指令累加到 32 位（[Godbolt](https://godbolt.org/z/xxr5rovxW)）。
 
-除了是否开启对应指令集扩展以外，还观察到 GCC 15 在 1to6_nnue 上相比 GCC 14 有明显的性能提升（编译选项为 `-O3`），时间从 77s 降低到了 49s。观察生成的指令，虽然它还是用的 SSE 指令，但指令序列更简洁（[Godbolt](https://godbolt.org/z/exKaP5jKb)）：
+除了是否开启对应指令集扩展以外，还观察到 GCC 15 在 1to6_nnue 上相比 GCC 14 有明显的性能提升（编译选项为 `-O3`），时间从 77s 降低到了 49s。观察生成的指令，虽然仍使用 SSE 指令，但指令序列更简洁（[Godbolt](https://godbolt.org/z/exKaP5jKb)）：
 
 ```asm
 # %xmm5 初始化为全零
@@ -142,7 +142,7 @@ cmp $0x400,%rcx
 jne 1b
 ```
 
-可见，即使没有对口的 vpdpbusd 指令，仅用 SSE 还是有优化空间的，GCC 15 通过用 SSE 实现高效的有符号和无符号符号扩展，获得了介于 GCC 14 比较差的指令序列与专用 vpdpbusd 指令的性能。这在 [SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison](https://arxiv.org/abs/2605.03713v2) 论文中也有提及：`For example, gcc-15 reduces the instruction count of 706.stockfish_r by up to 3x`，不过这个数字是相比 GCC 13 的；相比 GCC 14 也有减少，不过没有那么明显，详情见论文中的 Figure 10 和 Figure 16，这里实测下来是从 GCC 14 的 1342B 条指令降低到 GCC 15 的 1015B。相比之下，LLVM 22 生成的 SSE（`-O3`，[Godbolt](https://godbolt.org/z/Tsd1YhrWe)）或 AVX（`-O3 -march=alderlake`，[Godbolt](https://godbolt.org/z/WM1xWjqc3)）指令都没有 GCC 15 高效。
+可见，即使没有专用的 vpdpbusd 指令，仅用 SSE 也仍有优化空间。GCC 15 通过 SSE 高效实现了有符号和无符号数的符号扩展，获得了介于 GCC 14 次优指令序列与专用 vpdpbusd 指令之间的性能。这在 [SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison](https://arxiv.org/abs/2605.03713v2) 论文中也有提及：`For example, gcc-15 reduces the instruction count of 706.stockfish_r by up to 3x`，不过这个数字是相比 GCC 13 的；相比 GCC 14 也有减少，不过没有那么明显，详情见论文中的 Figure 10 和 Figure 16，这里实测下来是从 GCC 14 的 1342B 条指令降低到 GCC 15 的 1015B。相比之下，LLVM 22 生成的 SSE（`-O3`，[Godbolt](https://godbolt.org/z/Tsd1YhrWe)）或 AVX（`-O3 -march=alderlake`，[Godbolt](https://godbolt.org/z/WM1xWjqc3)）指令都没有 GCC 15 高效。
 
 `-O3` 编译选项下，1to6_nnue 执行的指令数为 1342.1B，其中 Load 指令有 182.2B 条，Store 指令有 61.8B 条，128 位整数向量指令（如 SSE）有 229.1B 条（`int_vec_retired.128bit` 性能计数器），分支指令有 77.6B 条，其中有 1.6B 次错误预测。它的 MPKI 只有 `1.6B/1342B*1000=1.19`，主要瓶颈还是在上述的神经网络推理当中。
 
@@ -175,7 +175,7 @@ GCC 14 用 `-march=native` 编译选项下，7to11_nnue 执行的指令数锐减
 | 7to11_nnue     | GCC 15 `-O3`           | 46       | 955.3    | 169.4    | 57.8      | 75.2     |
 | 7to11_nnue     | GCC 14 `-march=native` | 31       | 425.9    | 115.1    | 43.7      | 47.1     |
 
-1to6_classical 比较像传统的各种棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.88 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。
+1to6_classical 类似传统的棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.88 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。
 
 ### 707.ntest_r
 
@@ -193,7 +193,7 @@ ntest_r Othello.154.ggf 20 16
 - `solveNFlipParity`：8.95%，与 solveNParity 配合完成 minimax 算法；
 - `solve2`：5.38%，minimax 算法的一部分，处理棋盘只有两个空位的最终局面，此时判断最终胜败是比较容易的。
 
-这也是个比较典型的棋类引擎的模式了，整个 minimax 算法占了 70%+ 的时间，为了搜索局面，有大量的位运算和访存，还有根据访存结果决定方向的分支。果不其然，执行 2688.3B 条指令，其中有 647.8B 条 Load 指令，255.2B 条 Store 指令，228.2B 条是分支指令，有 6.1B 次错误预测，MPKI 达到了 `6.1B/2688B*1000=2.27`。通过 `perf record -e branch-misses:pp`，看到 `solveNParity` 和 `solveNFlipParity` 一起贡献了 60.37% 的错误预测，主要就是上面说的，循环内对 good 还是 bad parity 的判断，以及链表插入时是否为 NULL 的判断，都是方向依赖数据的分支。
+这也是典型的棋类引擎模式，整个 minimax 算法占了 70%+ 的时间，为了搜索局面，有大量的位运算和访存，还有根据访存结果决定方向的分支。果不其然，执行 2688.3B 条指令，其中有 647.8B 条 Load 指令，255.2B 条 Store 指令，228.2B 条是分支指令，有 6.1B 次错误预测，MPKI 达到了 `6.1B/2688B*1000=2.27`。通过 `perf record -e branch-misses:pp`，看到 `solveNParity` 和 `solveNFlipParity` 一起贡献了 60.37% 的错误预测，主要就是上面说的，循环内对 good 还是 bad parity 的判断，以及链表插入时是否为 NULL 的判断，都是方向依赖数据的分支。
 
 和 706.stockfish_r 类似，它也有不少的 popcnt 调用，那么打开 `-mpopcnt` 就会得到不错的性能提升：时间从 140s 降低到 126s，减少 11% 时间，指令数减少到 2286.9B，其中有 586.9B 条 Load 指令，206.7B 条 Store 指令，187.6B 条分支指令。而即使开 `-march=native`，性能也只是进一步降到 122s，只有少量的地方用到了 AVX2。
 
@@ -202,7 +202,7 @@ ntest_r Othello.154.ggf 20 16
 同时，GCC 15 相比 GCC 14 也有性能提升，运行时间从 140s 降低到了 130s。分析汇编，发现主要优化点在 `flips(int sq, u64 mover, u64 enemy)` 函数当中。性能区别有两点：
 
 1. 首先是对 callee-saved 寄存器的使用，GCC 14 会在 epilogue/prologue 直接进行一系列的 push/pop，而 GCC 15 更加聪明，仅在 `if (neighbors[sq]&enemy)` 条件成立的情况下，需要执行复杂函数体，需要 callee-saved 寄存器时才会进行 push/pop，否则就直接 ret，因为检查条件的时候并没有用到 callee-saved 寄存器，避免了保存和恢复。
-1. 自己编译的 GCC 15 默认是 -no-pie 模式，而发行版的 GCC 14 默认是 -pie，而 -no-pie 模式因为采用绝对地址，可以在 imul 等指令的操作数直接访问内存，节省寄存器，于是 callee-saved register 就都可以不用了，开启 -static 也能带来类似的效果。上面的第一条分析是手动给 GCC 15 开 -pie 后观察到的。不过主要的性能提升还是来自于减少 push/pop 的执行次数。
+1. 自己编译的 GCC 15 默认是 -no-pie 模式，而发行版的 GCC 14 默认是 -pie，而 -no-pie 模式因为采用绝对地址，可以在 imul 等指令的操作数直接访问内存，节省寄存器，此时不再需要 callee-saved register，直接免去了 push/pop 的开销，开启 -static 也能带来类似的效果。上面的第一条分析是手动给 GCC 15 开 -pie 后观察到的。不过主要的性能提升还是来自于减少 push/pop 的执行次数。
 
 GCC 15 编译的 707.ntest_r，实际执行 2429.3B 条指令，其中有 610.9B 的 Load 指令，206.2B 的 Store 指令，224.7B 的分支指令。各命令在不同编译器和编译选项下的情况如下：
 
@@ -213,7 +213,7 @@ GCC 15 编译的 707.ntest_r，实际执行 2429.3B 条指令，其中有 610.9B
 | ntest  | LLVM 22 `-O3`         | 126      | 2416.9   | 542.7    | 202.9     | 168.2    |
 | ntest  | GCC 15 `-O3`          | 130      | 2429.3   | 610.9    | 206.2     | 224.7    |
 
-结合 706.stockfish_r 和 707.ntest_r，可以看到，popcnt 还是比较常用的，但可惜 AMD64 的基线并不提供这条指令，因此如果开了 x86-64-v2 或以上的编译优化选项，这类应用就可以获得性能提升，免去了 libgcc 的 \_\_popcountdi2 开销，本来一条指令就能完成的事情，因为额外的 call 以及 PLT 开销，带来了可观的性能开销。期待一个优雅的解决方法。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。
+结合 706.stockfish_r 和 707.ntest_r 可以看到，popcnt 还是比较常用的。但可惜 AMD64 的基线并不提供这条指令，因此开了 x86-64-v2 或以上的编译优化选项后，这类应用便可以通过一条 popcnt 指令免去 libgcc 的 \_\_popcountdi2 调用开销，节省因额外 call 及 PLT 带来的性能损失。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。
 
 ### 708.sqlite_r
 
@@ -228,7 +228,7 @@ sqlite_r --memdb --size 2000 --testset cte --verify
 sqlite_r --memdb --size 1000 --testset fp --verify
 ```
 
-实测数据显示，三条命令耗费的时间分别是 69s、12s 和 25s，共计 106s。reftime 是 528s，对应 5.0 分。开启 -flto/-ljemalloc 对性能影响很小，-march=native 甚至带来了负优化。下面逐一分析这三条命令的性能特性。
+实测数据显示，三条命令耗费的时间分别是 69s、12s 和 25s，共计 106s。reftime 是 528s，对应 5.0 分。开启 `-flto`/`-ljemalloc` 对性能影响很小，`-march=native` 甚至带来了负优化。下面逐一分析这三条命令的性能特性。
 
 #### 1. main
 
@@ -263,7 +263,7 @@ addr  opcode         p1    p2    p3    p4             p5  comment
 
 能看到它的实现方式是，扫描 test 表的每一行，读取 key 列，如果不等于 1，则直接进入下一行；如果等于 1，则把所有列读出来，加入到结果当中。
 
-这个测例的主要瓶颈在内存上。执行了 896.3B 条指令，其中 252.4B 是 Load 指令，105.1B 是 Store 指令，178.0B 是分支指令，错误预测了 1.5B 次，MPKI 是 `1.5B/897.6B*1000=1.67`。
+这个测例的主要瓶颈在内存上。执行了 896.3B 条指令，其中 252.4B 是 Load 指令，105.1B 是 Store 指令，178.0B 是分支指令，错误预测了 1.5B 次，MPKI 是 `1.5B/896.3B*1000=1.67`。
 
 #### 2. cte
 
@@ -274,7 +274,7 @@ addr  opcode         p1    p2    p3    p4             p5  comment
 - `sqlite3VdbeSerialGet(const unsigned char *buf, u32 serial_type, Mem *pMem)` 来自 `src/sqlite3.c`：5.95%，反序列化，根据内存中保存的数据类型，解析对应的数据，比如整数或者浮点，它的 switch-case 也被 GCC 编译成了跳转表；
 - `vdbeSorterSort(SortSubtask *pTask, SorterList *pList)` 来自 `src/sqlite3.c`：5.95%，实现归并排序，主要时间是在通过函数指针调用比较器函数，以及根据比较结果进行归并。
 
-瓶颈主要在解释器上，和 CPython 这类解释型语言的解释器的行为模式类似。执行了 306.0B 条指令，其中 82.8B 是 Load 指令，39.6B 是 Store 指令，62.6B 是分支指令，错误预测了 40.9M 次，MPKI 是 `40.9M/30602B*1000=0.13`，处于很低的水平。
+瓶颈主要在解释器上，与 CPython 解释器的行为模式类似。执行了 306.0B 条指令，其中 82.8B 是 Load 指令，39.6B 是 Store 指令，62.6B 是分支指令，错误预测了 40.9M 次，MPKI 是 `40.9M/306.0B*1000=0.13`，处于很低的水平。
 
 #### 3. fp
 
@@ -301,7 +301,7 @@ addr  opcode         p1    p2    p3    p4             p5  comment
 
 ### 710.omnetpp_r
 
-SPEC INT 2017 就有的老面孔 520.omnetpp_r，不过跑的内容还是不太一样。520.omnetpp_r 做的是 10 Gbps 网络的模拟，而 710.omnetpp_r 有足足十项测试，负载的多样性有了明显的增强。十项测试的命令行参数如下：
+SPEC INT 2017 就有的老面孔 520.omnetpp_r，不过运行的内容也和以往不同。520.omnetpp_r 做的是 10 Gbps 网络的模拟，而 710.omnetpp_r 有足足十项测试，负载的多样性有了明显的增强。十项测试的命令行参数如下：
 
 ```shell
 omnetpp_r -f randomMesh.ini -c General
@@ -322,7 +322,7 @@ omnetpp_r -f queuenet.ini -c AllocDealloc
 
 首先分析第一条命令的热点函数：
 
-- `omnetpp::cTopology::calculateUnweightedSingleShortestPathsTo(Node *_target)` 来自 `src/simulator/sim/ctopology.c`：16.22%，实现了经典的单源最短路算法，且由于每条边的权重都是一，约等于 BFS，主要瓶颈来自于随机访存和计算距离的双精度浮点运算；
+- `omnetpp::cTopology::calculateUnweightedSingleShortestPathsTo(Node *_target)` 来自 `src/simulator/sim/ctopology.c`：16.22%，实现了经典的单源最短路算法，且由于每条边的权重都是一，实际上就是 BFS，主要瓶颈来自于随机访存和计算距离的双精度浮点运算；
 - `__do_dyncast` 和 `__dynamic_cast` 来自 libstdc++.so：4.73%+3.24%+2.22%+0.81%=11.0%，代码中有一些 dynamic_cast 的使用，如 `Routing::handleMessage`；
 - `Routing::handleMessage(cMessage *msg)` 来自 `src/model/Routing.cc`：7.10%，模拟路由表的功能，主要逻辑是内联了一个 `std::map<int, int>` 的 `find` 操作（[Godbolt](https://godbolt.org/z/ne6oEb9Md)），在一个红黑树上进行查询，读取结点，比较 key，走左子树或右子树继续查询；
 - `cEvent::shouldPrecede(const cEvent *other)` 来自 `src/simulator/sim/cevent.cc`：4.64%，一个 cEvent 结构体的多关键字比较函数。
@@ -350,13 +350,13 @@ randomMesh 在不同编译选项下的情况如下：
 
 #### 小结
 
-针对上面的分析，尝试不同的编译选项：
+基于以上分析，尝试了不同的编译选项，结果如下：
 
 - 开 `-O3 -ljemalloc` 后，十条命令的性能都有了一定的提升，总时间从 86.2s 降低到 80.6s，分数从 5.6 分提升到 6.0 分。
 - 开 `-O3 -flto` 也能带来不错的提升，总时间从 86.2s 降低到 76.1s，分数从 5.6 分提升到 6.4 分。
 - 开 `-O3 -flto -ljemalloc`，则总时间从 86.2s 降低到 69.7s，分数从 5.6 分提升到 7.0 分。
 
-类似的现象在 SPEC INT 2017 已经出现了，`-O3 -flto` 比 `-O3` 快 3%，`-O3 -flto -ljemalloc` 比 `-O3 -flto` 快 20%。
+类似现象在 SPEC INT 2017 中就曾出现，`-O3 -flto` 比 `-O3` 快 3%，`-O3 -flto -ljemalloc` 比 `-O3 -flto` 快 20%。
 
 `-O3` 下，执行的指令数是 1447B，其中 291B 是分支指令，MPKI 是 0.78。虽然 randomMesh 因为图计算，MPKI 比较高，但整体的 MPKI 被其余命令拉低了。相比之下，SPEC INT 2017 Rate 的 520.omnetpp_r 的 MPKI 足足有 4.33。虽然还是同一个框架，但是负载行为还是出现了明显的变化。
 
@@ -384,11 +384,11 @@ cpython_r -I -B dna_bench.py 600000
 - `_PyObject_Free(void *ctx, void *p)` 来自 `src/cpython/Objects/obmalloc.c`：3.48%，释放 PyObject，Python 有一个自己的针对 PyObject 的内存分配器，而不是直接使用 malloc/free；
 - `_PyObject_Malloc(void *ctx, size_t nbytes)` 来自 `src/cpython/Objects/obmalloc.c`：3.15%，分配 PyObject。
 
-剩下就比较零散了，主要还是围绕着解释器的循环。执行了 651.6B 条指令，其中有 180.4B 是 Load 指令，104.1B 是 Store 指令，136.6B 是分支指令，错误预测仅 7.9M 次，MPKI 等于 `7.9M/651.6B*1000=0.01` 可以忽略不计。开启 `-O3 -flto` 后，热点函数不变，指令数降低为 618.0B，其中 Load 有 176.6B，Store 有 93.9B，分支有 128.6B，错误预测 48.6M 次。
+剩下就比较零散了，主要还是围绕着解释器的循环。执行了 651.6B 条指令，其中有 180.4B 是 Load 指令，104.1B 是 Store 指令，136.6B 是分支指令，错误预测仅 7.9M 次，MPKI 等于 `7.9M/651.6B*1000=0.01`，可以忽略不计。开启 `-O3 -flto` 后，热点函数不变，指令数降低为 618.0B，其中 Load 有 176.6B，Store 有 93.9B，分支有 128.6B，错误预测 48.6M 次。
 
 #### 2. mobilenet
 
-统计出热点函数，发现前四依然是上面四个，且时间占比差不多。可能是因为，resnet 和 mobilenet 测例用的是同一个 .py 源码，只是用的模型不同。执行了 438.9B 条指令，其中有 121.4B 是 Load 指令，70.5B 是 Store 指令，91.6B 是分支指令，错误预测 9.1M 次，MPKI 等于 `9.1M/438.9B*1000=0.02` 可以忽略不计。开启 `-O3 -flto` 后，热点函数不变，指令数降低为 416.4B，其中 Load 指令有 119.0B，Store 指令有 63.8B，分支有 86.2B，错误预测 35.0M 次。
+统计出热点函数，发现前四依然是上面四个，且时间占比差不多。可能是因为，resnet 和 mobilenet 测例用的是同一个 .py 源码，只是用的模型不同。执行了 438.9B 条指令，其中有 121.4B 是 Load 指令，70.5B 是 Store 指令，91.6B 是分支指令，错误预测 9.1M 次，MPKI 等于 `9.1M/438.9B*1000=0.02`，可以忽略不计。开启 `-O3 -flto` 后，热点函数不变，指令数降低为 416.4B，其中 Load 指令有 119.0B，Store 指令有 63.8B，分支有 86.2B，错误预测 35.0M 次。
 
 #### 3. dna
 
@@ -399,7 +399,7 @@ cpython_r -I -B dna_bench.py 600000
 - `PyUnicode_Contains(PyObject *str, PyObject *substr)` 来自 `src/cpython/Objects/unicodeobject.c`，4.59%，Python 字符串的 contains 操作，对应 `data/all/input/knucleotide.py` 代码中的 `chat in "GATC"` 判断；
 - `_PyObject_Malloc(void *ctx, size_t nbytes)` 来自 `src/cpython/Objects/obmalloc.c`：3.52%，描述见上。
 
-主要热点还是解释执行，不过因为字符串的 contains 调用次数较多，所以 `PyUnicode_Contains` 时间占比有所上升。执行了 394.9B 条指令，其中有 113.3B 是 Load 指令，62.1B 是 Store 指令，77.1B 是分支指令，错误预测 228.1M 次，MPKI 等于 `228M/394B*1000=0.58` 也还是很低。开启 `-O3 -flto` 后，热点函数不变，指令数降低为 379.3B，其中 Load 有 113.4B，Store 有 58.5B，分支有 71.6B，错误预测 223.8M 次。
+主要热点还是解释执行，不过因为字符串的 contains 调用次数较多，所以 `PyUnicode_Contains` 时间占比有所上升。执行了 394.9B 条指令，其中有 113.3B 是 Load 指令，62.1B 是 Store 指令，77.1B 是分支指令，错误预测 228.1M 次，MPKI 等于 `228M/394B*1000=0.58`，也还是很低。开启 `-O3 -flto` 后，热点函数不变，指令数降低为 379.3B，其中 Load 有 113.4B，Store 有 58.5B，分支有 71.6B，错误预测 223.8M 次。
 
 #### 小结
 
@@ -418,7 +418,7 @@ cpython_r -I -B dna_bench.py 600000
 
 ### 721.gcc_r
 
-又一个熟悉的面孔，之前是 SPEC INT 2017 的 502.gcc_r。之前是 GCC 4.5.0 版本，针对 gcc-pp.c、gcc-smaller.c 和 ref32.c 进行五次编译，这次 721.gcc_r 对着三个同名文件（其中 gcc-pp.c 内容更新了，其余两个不变）分别进行一次编译，基于 GCC 11.2.0 版本，命令行参数如下，相比 502.gcc_r 有所简化：
+SPEC INT 2017 中的 502.gcc_r 便已存在，当时基于 GCC 4.5.0，针对 gcc-pp.c、gcc-smaller.c 和 ref32.c 进行五次编译，这次 721.gcc_r 对着三个同名文件（其中 gcc-pp.c 内容更新了，其余两个不变）分别进行一次编译，基于 GCC 11.2.0 版本，命令行参数如下，相比 502.gcc_r 有所简化：
 
 ```shell
 # 1. gcc-pp
@@ -441,7 +441,7 @@ cc1_r ref32.c -O3 -finline-limit=12000 -fno-tree-vrp -o ref32.c.opts-O3_-finline
 
 1. gcc-pp: 执行 470.2B 条指令，其中有 125.6B 条 Load 指令，58.8B 条 Store 指令，99.9B 条分支指令，错误预测 2.2B 次，MPKI 等于 `2.2B/470.2B*1000=4.68`
 1. gcc-smaller: 执行 243.4B 条指令，其中有 65.0B 条 Load 指令，30.3B 条 Store 指令，51.8B 条分支指令，错误预测 0.91B 次，MPKI 等于 `0.91B/243.4B*1000=3.74`
-1. ref32: 执行 403.7B 条指令，其中有 118.9 条 Load 指令，45.8B 条 Store 指令，86.1B 条分支指令，错误预测 0.61B 次，MPKI 等于 `0.61B/403.7B*1000=1.51`
+1. ref32: 执行 403.7B 条指令，其中有 118.9B 条 Load 指令，45.8B 条 Store 指令，86.1B 条分支指令，错误预测 0.61B 次，MPKI 等于 `0.61B/403.7B*1000=1.51`
 
 各命令的情况如下：
 
@@ -451,7 +451,7 @@ cc1_r ref32.c -O3 -finline-limit=12000 -fno-tree-vrp -o ref32.c.opts-O3_-finline
 | gcc-smaller | GCC 14 `-O3` | 21       | 243.2    | 65.0     | 30.3      | 51.8     | 0.91         | 3.74 |
 | ref32       | GCC 14 `-O3` | 51       | 403.8    | 118.9    | 45.8      | 86.1     | 0.61         | 1.51 |
 
-整体指令数是 1120B，其中有 238B 条分支指令，MPKI 等于 3.37，在 SPEC INT 2026 中属于比较高的了。在 SPEC INT 2017 Rate 当中，502.gcc_r 的 MPKI 是 3.13，变化不大。
+整体指令数是 1120B，其中有 238B 条分支指令，MPKI 等于 3.37，在 SPEC INT 2026 中属于比较高的了。作为对比，SPEC INT 2017 Rate 中 502.gcc_r 的 MPKI 是 3.13，两者差异不大。
 
 意料之中的是，用 GCC 14 编译的 721.gcc_r，运行得比用 LLVM 22 编译的 721.gcc_r 更快。
 
@@ -468,7 +468,7 @@ llvm-opt_r codegen.bc -S -O3 -mcpu=pwr9
 
 `-O3` 运行时间分别为 62s 和 53s，总时间 115s，reftime 是 507s，对应 4.4 分。开 `-O3 -flto` 性能反而变差，不过开 `-O3 -ljemalloc` 有明显性能提升，运行时间降低为 59s 和 47s，总时间 106s，分数提高到 4.8 分。开 `-march=native` 对性能几乎没有影响。
 
-有意思的是，用 GCC 14 编译的 723.llvm_r，运行得比用 LLVM 22 编译的 723.llvm_r 更快，当然快得并不多。下面针对这两条命令进行具体的分析。
+有意思的是，用 GCC 14 编译的 723.llvm_r 比用 LLVM 22 编译的运行更快，不过优势并不大。下面针对这两条命令进行具体的分析。
 
 #### 1. transformsplus
 
@@ -501,7 +501,7 @@ llvm-opt_r codegen.bc -S -O3 -mcpu=pwr9
 | transformsplus | GCC 14 `-O3` | 62       | 572.8    | 137.7    | 78.6      | 118.7    | 3.5          | 6.11 |
 | codegen        | GCC 14 `-O3` | 53       | 415.9    | 100.4    | 57.5      | 86.0     | 2.4          | 5.77 |
 
-llvm 和 gcc 同为编译器的双子星，在负载特性上也有类似之处：有很多的内存分配和释放，受益于 `-ljemalloc`；时间分布在大量小函数当中，热点不明显；MPKI 较高，尤其是 723.llvm_r 直接一跃成为 SPEC INT 2026 Rate 中 MPKI 最高的一项测试，可能是因为它有大量数据依赖的分支。723.llvm_r 整体的指令数有 991B，其中有 205B 是分支指令，MPKI 达到 5.98，即使放在 SPEC INT 2017 Rate 里，也能紧跟在 505.mcf_r 和 541.leela_r 两位大哥身后，成为 MPKI 第三高的项目。
+LLVM 和 GCC 同为编译器领域的双子星，在负载特性上也有相似之处：有很多的内存分配和释放，受益于 `-ljemalloc`；时间分布在大量小函数当中，热点不明显；MPKI 较高，尤其是 723.llvm_r 直接一跃成为 SPEC INT 2026 Rate 中 MPKI 最高的一项测试，可能是因为它有大量数据依赖的分支。723.llvm_r 整体的指令数有 991B，其中有 205B 是分支指令，MPKI 达到 5.98，即使放在 SPEC INT 2017 Rate 里，也能紧跟在 505.mcf_r 和 541.leela_r 两位大哥身后，成为 MPKI 第三高的项目。
 
 ### 727.cppcheck_r
 
@@ -530,7 +530,7 @@ cppcheck_r --force 770-7z-SystemPage.cpp --checkers-report=770_report.txt --outp
 - `Tokenizer::simplifyUsing()`：3.57%，把 `using N::x;` 变为 `using x = N::x`，里面就会用到上面说的 `Token::Match`，参数如 `"using ::| %name% ::"`，来做一些模式的匹配并进行相应的简化；
 - `cfree/malloc/_int_malloc`：0.47%+0.33%+0.45%=1.25%，内存分配相关。
 
-可以看到，主要的瓶颈是字符串匹配上，它的实现就是一个循环，用指针去扫描字符串，没有做数据结构上的优化。执行了 399.9B 条指令，其中有 81.2B 条 Load 指令，25.5B 条 Store 指令，108.9B 条分支指令，错误预测 173.2M 次，MPKI 等于 `173M/399.9B*1000=0.43` 不算高。
+可以看到，主要瓶颈在字符串匹配上，它的实现就是一个循环，用指针去扫描字符串，没有做数据结构上的优化。执行了 399.9B 条指令，其中有 81.2B 条 Load 指令，25.5B 条 Store 指令，108.9B 条分支指令，错误预测 173.2M 次，MPKI 等于 `173M/399.9B*1000=0.43`，不算高。
 
 #### 2. 747_dealii
 
@@ -543,7 +543,7 @@ cppcheck_r --force 770-7z-SystemPage.cpp --checkers-report=770_report.txt --outp
 - `TemplateSimplifier::addInstantiation(Token *token, const std::string &scope)` 来自 `src/lib/templatesimplifier.cpp`：2.98%，在 token 级别上做一些代码简化的变换，主要的耗时在对 `std::list` 的遍历；
 - `isAliasOf(const Token* tok, const Token* expr, int* indirect, bool* inconclusive)` 来自 `src/lib/astutils.cpp`：2.55%，判断两个变量是否 alias。
 
-依然有大量的字符串匹配，不知道为啥还要搞好几种语法，实现好几个字符串匹配函数。执行了 303.9B 条指令，其中有 67.3B 条 Load 指令，31.5B 条 Store 指令，82.5B 条分支指令，错误预测 298.9M 次，MPKI 等于 `298.9M/303.9B*1000=0.98` 也不算高。
+依然有大量的字符串匹配，不太理解为何要设计多种语法，并分别实现多个字符串匹配函数。执行了 303.9B 条指令，其中有 67.3B 条 Load 指令，31.5B 条 Store 指令，82.5B 条分支指令，错误预测 298.9M 次，MPKI 等于 `298.9M/303.9B*1000=0.98`，也不算高。
 
 #### 3. 770_7z
 
@@ -556,11 +556,11 @@ cppcheck_r --force 770-7z-SystemPage.cpp --checkers-report=770_report.txt --outp
 - `__strchr_avx2`：7.34%，被用于字符串匹配；
 - `cfree/malloc/_int_malloc`：0.37%+0.27%+0.17%=0.81%，这次内存分配的比例较低。
 
-依然是字符串匹配为主。执行了 505.2B 条指令，其中有 111.0B 条 Load 指令，43.8B 条 Store 指令，137.5B 条分支指令，错误预测 421.0M 次，MPKI 等于 `421M/505.2B*1000=0.83` 也不算高。
+依然是字符串匹配为主。执行了 505.2B 条指令，其中有 111.0B 条 Load 指令，43.8B 条 Store 指令，137.5B 条分支指令，错误预测 421.0M 次，MPKI 等于 `421M/505.2B*1000=0.83`，也不算高。
 
 #### 小结
 
-整体看下来，727.cppcheck_r 就是在不断地做字符串匹配。我就纳闷了，为啥不能直接过一遍 tokenizer，把 token 都转为数字呢，这样比较起来多快。在 token 级别上做各种变换，就在不停地对 token 进行字符串比较，导致最后的性能瓶颈，不是在 cppcheck 自己写的字符串比较，就是在 libc 的字符串比较里了。
+整体看下来，727.cppcheck_r 就是在不断地做字符串匹配。一个值得思考的问题是，为何不直接通过 tokenizer 将 token 转为数字，这样比较起来快得多。在 token 级别上做各种变换，就在不停地对 token 进行字符串比较，导致最后的性能瓶颈，不是在 cppcheck 自己写的字符串比较，就是在 libc 的字符串比较里了。
 
 各命令的情况如下：
 
@@ -593,7 +593,7 @@ cppcheck_r --force 770-7z-SystemPage.cpp --checkers-report=770_report.txt --outp
 
 六个命令运行时间都不长，分别是 6.3s、10.1s、13.5s、32.3s、13.6s 和 17.0s，总时间 92.8s，reftime 是 459s，对应 4.9 分。
 
-开 -flto/-march=native/-ljemalloc 都没有什么提升，性能差距在 1% 之内，属于是油盐不进了。下面进行具体热点分析。
+开 `-flto`、`-march=native` 或 `-ljemalloc` 都没有什么提升，性能差距在 1% 以内，属于是油盐不进，各种优化都难以生效。下面进行具体热点分析。
 
 #### 1. twoexact
 
@@ -649,7 +649,7 @@ cppcheck_r --force 770-7z-SystemPage.cpp --checkers-report=770_report.txt --outp
 - `Gia_ManSwiSimulate` 来自 `src/aig/gia/giaSwitch.c`：5.49%，描述见上；
 - `spec_qsort`：3.98%，好久不见的熟悉面孔，在 SPEC INT 2017 年代，在 505.mcf_r 中有出色表现（指瓶颈在 qsort 上，且很大一部分开销来自于调用 comparator 函数指针，开 -flto 后因为把函数指针调用内联，性能直接提升 13%）。
 
-这次又是经典数据结构哈希表了，而且还混入了大量的字符串匹配，最后瓶颈都在查哈希表上了，然后对链表的访问的空间局部性也很差。
+这次又回归到经典的哈希表数据结构，且混入了大量字符串匹配，最终瓶颈落在哈希表查询上，然后对链表的访问的空间局部性也很差。
 
 运行 135.7B 条指令，其中有 29.7B 是 Load 指令，11.5B 是 Store 指令，23.3B 是分支指令，错误预测 372.9M 次，MPKI 等于 `372.9M/135.7B*1000=2.75`，依然不低，从 `perf record -e branch-misses:pp` 来看，错误预测主要出自 `__strcmp_avx2` 和 `spec_qsort`。
 
@@ -683,7 +683,7 @@ vpr stratixiv_arch.timing.xml smithwaterman_stratixiv_arch_timing.blif --RL_agen
 vpr stratixiv_arch.timing.xml smithwaterman_stratixiv_arch_timing.blif --place_algorithm bounding_box --place_static_notiming_move_prob 50 25 25 --max_criticality 0.0 --router_initial_timing all_critical --routing_failure_predictor off --route_chan_width 300 --max_router_iterations 20 --router_lookahead classic --initial_pres_fac 1.0 --pres_fac_mult 2.0 --astar_fac 1.5 --router_profiler_astar_fac 1.5 --seed 3 --sdc_file smithwaterman_stratixiv_arch_timing.sdc --pack_verbosity 0 --netlist_verbosity 0 --base_cost_type demand_only --place_file ref_smithwaterman_stratixiv_arch_timing.place --analysis --route
 ```
 
-这里的 Stratix IV 是经典的 Altera FPGA，时代的眼泪了。四条命令的运行时间分别是 21s、29s、18s 和 19s，总时间 87s，reftime 是 461s，对应 5.3 分。开 `-O3 -flto` 后，时间降低到 19s、25s、17s 和 17s，总时间 78s，对应 5.9 分，提升显著。如果进一步开到 `-O3 -flto -ljemalloc`，时间进一步降低到 17s、24s、15s 和 16s，总时间 72s，对应 6.4 分，相比 `-O3` 提升了 20%。开 `-march=native` 只能带来不到 1% 的提升。
+这里涉及的 Stratix IV 是经典的 Altera FPGA，如今已经是时代的眼泪了。四条命令的运行时间分别是 21s、29s、18s 和 19s，总时间 87s，reftime 是 461s，对应 5.3 分。开 `-O3 -flto` 后，时间降低到 19s、25s、17s 和 17s，总时间 78s，对应 5.9 分，提升显著。如果进一步开到 `-O3 -flto -ljemalloc`，时间进一步降低到 17s、24s、15s 和 16s，总时间 72s，对应 6.4 分，相比 `-O3` 提升了 20%。开 `-march=native` 只能带来不到 1% 的提升。
 
 下面进行具体分析。
 
@@ -695,7 +695,7 @@ vpr stratixiv_arch.timing.xml smithwaterman_stratixiv_arch_timing.blif --place_a
 - `try_swap(...)` 来自 `src/vtr-vpr/vpr/src/place/place.cpp`：jpeg_place 占比 12.39%，smithwaterman_place 占比 11.46%，里面做的事情还挺复杂的，看不太懂，大概功能是尝试把一个块从一个地方挪到另一个地方；
 - `physical_tile_type(ClusterBlockId blk)` 来自 `src/vtr-vpr/vpr/src/util/vpr_utils.cpp`：jpeg_place 占比 7.59%，smithwaterman_place 占比 7.75%，看起来是一些间接索引访存，先读取 `block_loc` 里的坐标，再从 `grid` 读取对应坐标的 type，这个函数会在 `get_non_updateable_bb` 和 `get_bb_from_scratch` 等地方被频繁调用；
 - `get_bb_from_scratch(ClusterNetId net_id, t_bb* coords, t_bb* num_on_edges)` 来自 `src/vtr-vpr/vpr/src/place/place.cpp`：jpeg_place 占比 6.73%，smithwaterman_place 占比 2.78%，和 `get_non_updateable_bb` 类似，也是求 bounding box；
-- `malloc/_int_mallloc/cfree` 来自 libc：jpeg_place 占比 1.62%+1.26%+1.06%=3.94%，smithwaterman_place 占比 1.76%+1.42%+1.11%=4.29%。
+- `malloc/_int_malloc/cfree` 来自 libc：jpeg_place 占比 1.62%+1.26%+1.06%=3.94%，smithwaterman_place 占比 1.76%+1.42%+1.11%=4.29%。
 
 开 `-O3 -flto` 后，能看到的是 `physical_tile_type` 被内联了进去，节省了频繁调用函数的开销。考虑到这个内存分配和释放的时间占比，`-O3 -ljemalloc` 提升性能并不意外。
 
@@ -710,7 +710,7 @@ vpr stratixiv_arch.timing.xml smithwaterman_stratixiv_arch_timing.blif --place_a
 - `ConnectionRouter<BinaryHeap>::timing_driven_expand_neighbours(...)` 来自 `src/vtr-vpr/vpr/src/route/connection_router.cpp`：jpeg_route 占比 8.14%，smithwaterman_route 占比 4.00%，不确定在干啥，看起来在遍历邻居结点，符合一定条件后，调用 `timing_driven_add_to_heap`；
 - `ClassicLookahead::get_expected_delay_and_cong(...)` 来自 `src/vtr-vpr/vpr/src/route/router_lookahead.cpp`：jpeg_route 占比 7.86%，smithwaterman_route 占比 5.14%，看起来也是在进行一些延迟的计算，涉及到很多浮点数；
 - `BinaryHeap::get_heap_head()` 来自 `src/vtr-vpr/vpr/src/route/binary_heap.cpp`：jpeg_route 占比 3.14%，smithwaterman_route 占比 1.64%，就是经典的最小二叉堆的实现，获取最小值，用的是浮点数做比较；
-- `malloc/_int_mallloc/cfree` 来自 libc：jpeg_route 占比 1.10%+1.02%+0.78%=2.90%，smithwaterman_route 占比 1.62%+1.49%+1.08%=4.19%。
+- `malloc/_int_malloc/cfree` 来自 libc：jpeg_route 占比 1.10%+1.02%+0.78%=2.90%，smithwaterman_route 占比 1.62%+1.49%+1.08%=4.19%。
 
 虽然不清楚具体算法，但看起来，就像是在做一些 cost 计算，然后通过 BinaryHeap 选择最小的 cost 去做一些扩展，有点类似搜索算法。
 
@@ -722,12 +722,12 @@ vpr stratixiv_arch.timing.xml smithwaterman_stratixiv_arch_timing.blif --place_a
 
 各命令的情况如下：
 
-| 子测试              | 编译器+选项  | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) | 错误预测 (M) | MPKI  |
-| ------------------- | ------------ | -------- | -------- | -------- | --------- | -------- | ------------ | ----- |
-| jpeg_place          | GCC 14 `-O3` | 21       | 273.7    | 84.5     | 26.9      | 521.9    | 781.0        | 2.85  |
-| jpeg_route          | GCC 14 `-O3` | 29       | 424.1    | 130.6    | 50.6      | 79.0     | 1094.2       | 2.58  |
-| smithwaterman_place | GCC 14 `-O3` | 18       | 245.0    | 76.4     | 24.7      | 45.4     | 661.9        | 2.70  |
-| smithwaterman_route | GCC 14 `-O3` | 19       | 305.8    | 91.0     | 36.0      | 59.4     | 609.3        | 21.99 |
+| 子测试              | 编译器+选项  | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) | 错误预测 (M) | MPKI |
+| ------------------- | ------------ | -------- | -------- | -------- | --------- | -------- | ------------ | ---- |
+| jpeg_place          | GCC 14 `-O3` | 21       | 273.7    | 84.5     | 26.9      | 51.9     | 781.0        | 2.85 |
+| jpeg_route          | GCC 14 `-O3` | 29       | 424.1    | 130.6    | 50.6      | 79.0     | 1094.2       | 2.58 |
+| smithwaterman_place | GCC 14 `-O3` | 18       | 245.0    | 76.4     | 24.7      | 45.4     | 661.9        | 2.70 |
+| smithwaterman_route | GCC 14 `-O3` | 19       | 305.8    | 91.0     | 36.0      | 59.4     | 609.3        | 1.99 |
 
 734.vpr_r 的负载分为两部分，place 和 route，其中 place 主要在做 bounding box 的计算，route 主要在做搜索和优化。开 `-flto` 和 `-ljemalloc` 后有明显的性能提升，主要是靠内联了热点函数以及更快的性能分配。整体指令数为 1254B，分支指令数 237B，MPKI 是 2.51，处于中游偏高的水平。
 
@@ -759,7 +759,7 @@ gem5sim --stats-file=synthetic_traffic.py_LinearGenerator_74_--ruby.stats.txt sy
 第一个测例是用 O3 CPU 模拟 RISC-V Linux 内核启动，热点函数如下：
 
 - `malloc/_int_malloc/cfree/_int_free_chunk/operator new` 来自 libc/libstdc++：4.78%+3.46%+3.29%+1.35%+1.16%=13.29%，这个比例无敌了，不过确实，Gem5 有大量的动态内存分配，比如各种内存请求，都要 new 一个 Packet 出来；
-- `gem5::TimeBuffer<*>::advance()` 来自 `src/gem5/cpu/timebuf.hh`：3.05%+2.43%+2.39%+2.28+1.98%=12.13%，用于在各流水线级之间传递数据，维护一个滚动的时间窗口，主要的时间花在了 `rep stos` 或用 SSE 指令 `movups` 对内存进行初始化，还有调用构造/析构函数，涉及到一些引用计数的更新；
+- `gem5::TimeBuffer<*>::advance()` 来自 `src/gem5/cpu/timebuf.hh`：3.05%+2.43%+2.39%+2.28%+1.98%=12.13%，用于在各流水线级之间传递数据，维护一个滚动的时间窗口，主要的时间花在了 `rep stos` 或用 SSE 指令 `movups` 对内存进行初始化，还有调用构造/析构函数，涉及到一些引用计数的更新；
 - `gem5::o3::IEW::tick()` 来自 `src/gem5/cpu/o3/iew.cc`：3.32%，IEW 代表 Issue Execute Writeback，后端各执行单元的时序在这里模拟，瓶颈主要是 `rep stos` 指令，用于初始化数据。
 
 其他就是很多零散的函数了，每个函数的耗时都不高。开启 `-O3 -flto` 后，热点函数变为：
@@ -820,7 +820,7 @@ gem5sim --stats-file=synthetic_traffic.py_LinearGenerator_74_--ruby.stats.txt sy
 
 开启 `-O3 -flto` 后，`gem5::ruby::NetDest::intersectionIsNotEmpty` 被内联到 `gem5::ruby::WeightBased::route` 函数里，成为占时间最多的函数，占 6.45%。开启 `-O3 -flto -ljemalloc` 后，内存分配开销降低到 3.01%+0.83%=3.84%。`-march=native` 影响比较小。
 
-`-O3` 下，执行 391.5B 条指令，其中有 103.2B 条 Load 指令，54.4B 条 Store 指令，82.1B 条分支指令，错误预测 1246.0M 次，MPKI 等于 `1246.9M/391.5B*1000=3.18`，依然较高。
+`-O3` 下，执行 391.5B 条指令，其中有 103.2B 条 Load 指令，54.4B 条 Store 指令，82.1B 条分支指令，错误预测 1246.0M 次，MPKI 等于 `1246.0M/391.5B*1000=3.18`，依然较高。
 
 #### 小结
 
@@ -831,7 +831,7 @@ gem5sim --stats-file=synthetic_traffic.py_LinearGenerator_74_--ruby.stats.txt sy
 | o3              | GCC 14 `-O3` | 16       | 211.1    | 69.9     | 31.7      | 43.2     | 175.5        | 0.83 |
 | timing          | GCC 14 `-O3` | 21       | 333.9    | 113.9    | 57.8      | 69.8     | 202.9        | 0.61 |
 | traffic_21      | GCC 14 `-O3` | 21       | 226.4    | 65.5     | 31.3      | 50.8     | 749.3        | 3.31 |
-| traffic_74_ruby | GCC 14 `-O3` | 31       | 391.8    | 103.2    | 54.4      | 82.1     | 1246.0       | 3.18 |
+| traffic_74_ruby | GCC 14 `-O3` | 31       | 391.5    | 103.2    | 54.4      | 82.1     | 1246.0       | 3.18 |
 
 735.gem5_r 四个测试跑的是挺不一样的代码路径，第一个 o3 的主要瓶颈就是 O3CPU，第二个 timing 的主要瓶颈是 RISC-V 指令集相关的代码，第三个 traffic_21 主要是缓存和内存控制器，而 traffic_74_ruby 主要是用 ruby 模拟的内存子系统。由于 gem5 高度模块化，有些时候一些可以 inline 函数没有被 inline，所以 `-flto` 可以带来不错的性能提升。此外，gem5 很喜欢动态分配内存，运行过程中有很多动态产生的对象，比如 Packet 等等，所以用 `-ljemalloc` 能带来不错的提升。`-march=native` 确实不太有用武之地。
 
@@ -861,11 +861,11 @@ sealcrypto_r refrate ecuador_province_capitals_refrate.csv Galapagos
 
 总而言之，既然是密码学，就会有大量的整数运算，其中有不少的乘法和位运算，在素数域下做各种操作。执行指令数足足有 3113.4B，其中有 385.7B 条 Load 指令，161.3B 条 Store 指令，78.5B 条分支指令，错误预测 450.0M 次，MPKI 只有 `450.0M/3113.4B*1000=0.14`，全场最低，甚至低于 714.cpython_r，同时 IPC 全场最高，达到了 5.09。从 Top down 分析来看，80.7% 属于 Retiring，13.5% 属于 Backend Bound，说明处理器基本在全速跑指令。
 
-开了 `-O3 -march=native` 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行计算，而是在不断地倒腾向量寄存器里数据的位置。此时指令数降低到 2757.7B，其中有 370.0B 条 Load 指令，126.7B 条 Store 指令，268.6B 条 256 位整数向量指令（`int_vec_retired.256bit` 性能计数器），76.1B 条分支指令，错误预测 431.0M 次，MPKI 等于 `431.0M/2757.5B*1000=0.16`。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 `-O3` 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。
+开了 `-O3 -march=native` 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行计算，而是在不断地倒腾向量寄存器里数据的位置。此时指令数降低到 2757.7B，其中有 370.0B 条 Load 指令，126.7B 条 Store 指令，268.6B 条 256 位整数向量指令（`int_vec_retired.256bit` 性能计数器），76.1B 条分支指令，错误预测 431.0M 次，MPKI 等于 `431.0M/2757.7B*1000=0.16`。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 `-O3` 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。
 
 那么，LLVM 22 做了什么优化呢？执行的指令数直接降低到 1213.6B，其中 Load 指令有 302.8B，Store 指令有 109.2B，分支只有 57.2B，错误预测 1093.9M，MPKI 等于 `1093.9M/1213.6B*1000=0.90`。以 `seal::util::DWTHandler::transform_to_rev` 为例，可以看到：seal 为了实现 64 位乘 64 位到 128 位的乘法，它自己实现了这个过程，不仅在 `seal::util::multiply_uint64_generic` 中有实现，实际上也内联到了 `seal::util::DWTHandler::transform_to_rev` 当中；GCC 14 忠实地实现了这个算法，因此指令数很多（见 [Godbolt](https://godbolt.org/z/KKTa1aMP8)）；但其实，AMD64 的 mul 指令本来就是一个 64 位乘 64 位得到 128 位的乘法，所以 LLVM 22 直接识别出这段代码做的事情，然后编译成了 mul 指令（见 [Godbolt](https://godbolt.org/z/bc6xPjEMc)，甚至如果开了 BMI2 扩展，还有 [mulx](https://www.felixcloutier.com/x86/mulx) 指令可以用），而且这种 64 位乘法保留高位的指令在各种 ISA 都挺常见的，比如 ARM64 的 umulh，RISC-V 的 mulhu，LoongArch 的 mulh.du。当然，seal 的源码其实已经考虑了这个问题，在编译器支持的情况下，直接用 \_\_int128 来完成[这件事情](https://github.com/microsoft/SEAL/blob/e3476fad1d5bb5e5222c51a551b5a4d7e2cb4f91/native/src/seal/util/gcc.h#L44)。类似的事情在 706.stockfish_r 的 1to6_classical 中也出现了。然而，这类依赖编译器行为或具体指令集扩展的代码，由于 SPEC CPU 2026 的编译器中立性，都被去掉了，都会回落到最通用的写法上。此时，就只能依赖编译器去自己识别和优化了。
 
-但是，这样某种意义上也无法反映真实场景中的应用优化情况了，因为很多应用已经实际上和处理器的指令集扩展/编译器扩展共进化，实现的时候，脑子里是默认有这些东西，再去做的调优，甚至会写一些指令集相关的优化，用一些 intrinsics，比如原版 stockfish 就有针对 AVX512/AVX2/SSSE3/NEON_DOTPROD/LASX/LSX 的[优化](https://github.com/official-stockfish/Stockfish/blob/77a8f6ccf31846d63452f79e143fbc6dc62ae3a8/src/nnue/layers/affine_transform.h#L201)。到最后，就是编译器又实现各种 pass，识别程序里的 fallback generic 代码，再映射回高效的实现。其实类似的事情之前就出现过，网上用来证明编译器很聪明的一个例子，就是说识别 popcount 的循环，直接翻译成 popcnt 指令，然而很多程序直接用 `__builtin_popcount` 而不会真的去手写，这次只不过是换了个 pattern 罢了。当然，好消息是，C++20 引入了 std::popcount，可以一定程度避免类似的情况发生，只是来得太晚了。
+但这样某种意义上也无法反映真实场景中应用的优化情况，因为很多应用已经实际上和处理器的指令集扩展/编译器扩展共进化，实现的时候，脑子里是默认有这些东西，再去做的调优，甚至会写一些指令集相关的优化，用一些 intrinsics，比如原版 stockfish 就有针对 AVX512/AVX2/SSSE3/NEON_DOTPROD/LASX/LSX 的[优化](https://github.com/official-stockfish/Stockfish/blob/77a8f6ccf31846d63452f79e143fbc6dc62ae3a8/src/nnue/layers/affine_transform.h#L201)。到最后，就是编译器又实现各种 pass，识别程序里的 fallback generic 代码，再映射回高效的实现。其实类似的事情之前就出现过，网上用来证明编译器很聪明的一个例子，就是说识别 popcount 的循环，直接翻译成 popcnt 指令，然而很多程序直接用 `__builtin_popcount` 而不会真的去手写，这次只不过是换了个 pattern 罢了。当然，好消息是，C++20 引入了 std::popcount，可以一定程度避免类似的情况发生，只是来得太晚了。
 
 相比之下，Geekbench 对这类指令集扩展的优化就比较持开放态度，愿意针对指令集扩展进行针对性的优化，比如经典引入 AMX/SME 对分数的巨大影响，当然这也让它被人骂 AppleBench，只能说见仁见智了。
 
@@ -960,7 +960,7 @@ ns3_r wifi-eht-network --simulationTime=0.2 --frequency=5 --useRts=1 --minExpect
 
 首先能看到的是，又是一个内存分配密集型应用。开了 `-O3 -flto` 后，`GetTbDecodificationStats` 把 `Mib` 内联了进去，时间占比提升到 12.68%，但还是内存分配占了最多的时间：7.82%+6.22%+4.51%+1.90%=20.45%。进一步开 `-O3 -flto -ljemalloc`，内存分配的时间占比终于降低到 6.23%+1.78%=8.01%，其实还是挺高的。
 
-比较少见的是，作为 SPEC INT 2026 Rate 的一员，mobile 涉及不少浮点运算，还包括一些对 libm 的调用，比如 erf/atan2/pow/log，但实际瓶颈又是内存分配，属于是半步踏入了 SPEC FP 2026，又被 libc 退了回来。
+比较少见的是，作为 SPEC INT 2026 Rate 的一员，mobile 涉及不少浮点运算，还包括一些对 libm 的调用，比如 erf/atan2/pow/log，但实际瓶颈又是内存分配，算是半步踏入了 SPEC FP 2026 的领域，但又因为大量 libc 调用而被拉了回来。
 
 `-O3` 下，执行指令 257.2B，其中 Load 指令有 66.6B，Store 指令有 35.4B，分支指令有 54.4B，错误预测 631.1M，MPKI 等于 `631.1M/257.2B*1000=2.45`，并不低。从 `perf record -e branch-misses:pp` 来看，主要的错误预测来自于内存分配器以及 `std::map` 红黑树的插入算法。
 
@@ -1046,7 +1046,7 @@ zstd -b19 -e19 --verbose -i1 cld.tar
 
 以第一条命令 b3 为例，热点函数：
 
-- `ZSTD_compressBlock_doubleFast_noDict_generic` 来自 `src/zstd-1.5.6/lib/compress/zstd_double_fast.c`：56.82%，主要在对数据计算哈希，寻找匹配，进而用于压缩，具体算法没有仔细看，的复杂的；
+- `ZSTD_compressBlock_doubleFast_noDict_generic` 来自 `src/zstd-1.5.6/lib/compress/zstd_double_fast.c`：56.82%，主要在对数据计算哈希，寻找匹配，进而用于压缩，具体算法没有仔细看，挺复杂的；
 - `ZSTD_decompressBlock_internal.part.0` 来自 `src/zstd-1.5.6/lib/decompress/zstd_decompress_block.c`：16.63%，解压缩的主要逻辑，会调用 `ZSTD_decompressSequences`，挺复杂的；
 - `ZSTD_encodeSequences` 来自 `src/zstd-1.5.6/lib/compress/zstd_compress_sequences.c`：10.91%，分为 bmi2 和 generic 版本，不出意外 bmi2 版本也被 SPEC 禁用了，只能用 generic 版本，逻辑也挺复杂的，没有仔细看。
 
@@ -1077,7 +1077,7 @@ zstd -b19 -e19 --verbose -i1 cld.tar
 
 第三/四条命令 b7/b10 的热点与第二条命令 b5 类似；第七/八条命令 b18/b19 的热点函数和第六条命令 b16 类似，就不重复了。可见 zstd 会根据 compression level 选择不同路径，从而在压缩率和性能之间做出权衡。
 
-那么开 `-march=native` 以后，发生了什么？能看到的是，由于 BMI 指令的引入，一些位运算的指令数变少了，比如 [bzhi](https://www.felixcloutier.com/x86/bzhi) 和 [tzcnt](https://www.felixcloutier.com/x86/tzcnt)，还有一些是三操作数且不影响 flags 的运算，如 [shrx](https://www.felixcloutier.com/x86/bzhi)，有点类似一些 RISC 指令集（如 RISC-V）的对应指令。开 `-march=native` 前后各命令的情况如下表：
+那么开 `-march=native` 以后，发生了什么？能看到的是，由于 BMI 指令的引入，一些位运算的指令数变少了，比如 [bzhi](https://www.felixcloutier.com/x86/bzhi) 和 [tzcnt](https://www.felixcloutier.com/x86/tzcnt)，还有一些是三操作数且不影响 flags 的运算，如 [shrx](https://www.felixcloutier.com/x86/sarx:shlx:shrx)，有点类似一些 RISC 指令集（如 RISC-V）的对应指令。开 `-march=native` 前后各命令的情况如下表：
 
 | 子测试 | 编译器+选项                | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) | 错误预测 (M) | MPKI |
 | ------ | -------------------------- | -------- | -------- | -------- | --------- | -------- | ------------ | ---- |
@@ -1106,7 +1106,7 @@ zstd -b19 -e19 --verbose -i1 cld.tar
 
 综合下来，编译选项对 SPEC INT 2026 Rate 的性能影响还是不小的，比如：
 
-- `-flto` 对 707.ntest_r、710.omnetpp_r、714.cpython_r、734.vpr_r、735.gem5_r、753.ns3_r 都有一定的性能提升，凡是热点分散在多个函数，且很多函数都很小的时候，开 LTO 能一定程度上带来优化，本质上就是挽回了因可读性而拆分文件带来的性能开销
+- `-flto` 对 707.ntest_r、710.omnetpp_r、714.cpython_r、734.vpr_r、735.gem5_r、753.ns3_r 都有一定的性能提升，当热点分散在多个函数，且很多函数都很小时，开 LTO 能带来一定程度的优化，本质上挽回了因可读性而拆分文件带来的性能开销
 - `-ljemalloc` 对 710.omnetpp_r、721.gcc_r、723.llvm_r、727.cppcheck_r、734.vpr_r、735.gem5_r、753.ns3_r 有性能提升，只能说这些软件做了太多的动态内存分配，有一些 benchmark 直接就是内存分配器 benchmark 了，此时替换 glibc 为 jemalloc/mimalloc 都有不错的性能提升，不过最新 glibc 也在改进 malloc 性能，不知道改进得怎样了？
 - `-march=native` 对 706.stockfish_r、707.ntest_r、735.gem5_r、777.zstd_r 有不错的提升，一方面是诸如 AVX 等 SIMD 指令，另一方面就是一些位运算指令，比如 popcnt 和 BMI 扩展；事实上，现在很多软件在实现的时候，就已经考虑了硬件的加速指令，实际编译的时候，往往会直接用对应的 intrinsics，但 SPEC 禁用了这些 intrinsics，退而使用它的 generic 版本，此时就非常依赖 -march=native，以及需要编译器正确识别并翻译为对应的优化指令
 
