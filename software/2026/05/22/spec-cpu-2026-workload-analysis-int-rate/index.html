@@ -1794,7 +1794,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 34 分钟阅读时间
+                              需要 36 分钟阅读时间
                             
                           </span>
                         </div>
@@ -2732,7 +2732,7 @@
 </span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="nf">cmp</span><span class="w"> </span><span class="no">$0x400</span><span class="p">,</span><span class="nv">%rcx</span>
 </span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="nf">jne</span><span class="w"> </span><span class="mi">1</span><span class="no">b</span>
 </span></code></pre></div>
-<p>经验告诉我们，对于这种适合 SIMD 的代码，在开了 <code>-march=native</code> 的情况下应当有明显的性能提升，实际测试也证明了这一点，开了 <code>-march=native</code> 后，时间从 73s 降低到 32s，<code>Stockfish::Eval::NNUE::evaluate</code> 时间占比降到 54.20%，此时主要的计算指令变为 <a href="https://www.felixcloutier.com/x86/vpdpbusd">vpdpbusd (Multiply and Add Unsigned and Signed Bytes)</a>，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（<a href="https://godbolt.org/z/zoeqc4zch">Godbolt</a>）：</p>
+<p>经验告诉我们，对于这种适合 SIMD 的代码，在开了 <code>-march=native</code> 的情况下应当有明显的性能提升，实际测试也证明了这一点，开了 <code>-march=native</code> 后，时间从 77s 降低到 32s，<code>Stockfish::Eval::NNUE::evaluate</code> 时间占比降到 54.20%，此时主要的计算指令变为 <a href="https://www.felixcloutier.com/x86/vpdpbusd">vpdpbusd (Multiply and Add Unsigned and Signed Bytes)</a>，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（<a href="https://godbolt.org/z/zoeqc4zch">Godbolt</a>）：</p>
 <div class="language-asm highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="err">1:</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># 加载无符号 input</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nf">vmovdpa</span><span class="w"> </span><span class="p">(</span><span class="nv">%r8</span><span class="p">,</span><span class="nv">%rcx</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="nv">%ymm0</span>
@@ -2783,6 +2783,93 @@
 <p>GCC 15 用 <code>-O3</code> 编译选项下，7to11_nnue 执行的指令数减少到 955.3B，其中 Load 指令有 169.4B 条，Store 指令有 57.8B 条，128 位整数向量指令只有 92.3B 条，分支指令有 75.2B 条，优化效果明显。</p>
 <p>GCC 14 用 <code>-march=native</code> 编译选项下，7to11_nnue 执行的指令数锐减到 425.9B，只剩下三分之一的指令数了，其中 Load 指令有 115.1B 条，Store 指令有 43.7B 条，分支指令有 47.1B 条，256 位的 AVX VNNI 指令有 12.0B 条，优化效果明显。</p>
 <h4 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>子测试</th>
+<th>编译器+选项</th>
+<th>时间 (s)</th>
+<th>指令 (B)</th>
+<th>Load (B)</th>
+<th>Store (B)</th>
+<th>分支 (B)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1to6_classical</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>47</td>
+<td>531.8</td>
+<td>135.7</td>
+<td>59.7</td>
+<td>56.0</td>
+</tr>
+<tr>
+<td>1to6_classical</td>
+<td>GCC 14 <code>-O3 -mpopcnt</code></td>
+<td>44</td>
+<td>453.9</td>
+<td>124.2</td>
+<td>53.1</td>
+<td>46.1</td>
+</tr>
+<tr>
+<td>1to6_nnue</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>77</td>
+<td>1342.1</td>
+<td>182.2</td>
+<td>61.8</td>
+<td>77.6</td>
+</tr>
+<tr>
+<td>1to6_nnue</td>
+<td>GCC 15 <code>-O3</code></td>
+<td>49</td>
+<td>1015.3</td>
+<td>175.0</td>
+<td>57.8</td>
+<td>77.4</td>
+</tr>
+<tr>
+<td>1to6_nnue</td>
+<td>GCC 14 <code>-march=native</code></td>
+<td>32</td>
+<td>446.8</td>
+<td>119.6</td>
+<td>44.4</td>
+<td>48.7</td>
+</tr>
+<tr>
+<td>7to11_nnue</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>72</td>
+<td>1253.2</td>
+<td>176.1</td>
+<td>61.6</td>
+<td>75.4</td>
+</tr>
+<tr>
+<td>7to11_nnue</td>
+<td>GCC 15 <code>-O3</code></td>
+<td>46</td>
+<td>955.3</td>
+<td>169.4</td>
+<td>57.8</td>
+<td>75.2</td>
+</tr>
+<tr>
+<td>7to11_nnue</td>
+<td>GCC 14 <code>-march=native</code></td>
+<td>31</td>
+<td>425.9</td>
+<td>115.1</td>
+<td>43.7</td>
+<td>47.1</td>
+</tr>
+</tbody>
+</table>
 <p>1to6_classical 比较像传统的各种棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.88 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。</p>
 <h3 id="707ntest_r">707.ntest_r<a class="headerlink" href="#707ntest_r" title="Permanent link">&para;</a></h3>
 <p>ntest 是黑白棋的引擎，测试会用如下参数运行：</p>
@@ -2804,6 +2891,57 @@
 <li>自己编译的 GCC 15 默认是 -no-pie 模式，而发行版的 GCC 14 默认是 -pie，而 -no-pie 模式因为采用绝对地址，可以在 imul 等指令的操作数直接访问内存，节省寄存器，于是 callee-saved register 就都可以不用了，开启 -static 也能带来类似的效果。上面的第一条分析是手动给 GCC 15 开 -pie 后观察到的。不过主要的性能提升还是来自于减少 push/pop 的执行次数。</li>
 </ol>
 <p>GCC 15 编译的 707.ntest_r，实际执行 2429.3B 条指令，其中有 610.9B 的 Load 指令，206.2B 的 Store 指令，224.7B 的分支指令。</p>
+<table>
+<thead>
+<tr>
+<th>子测试</th>
+<th>编译器+选项</th>
+<th>时间 (s)</th>
+<th>指令 (B)</th>
+<th>Load (B)</th>
+<th>Store (B)</th>
+<th>分支 (B)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ntest</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>140</td>
+<td>2688.3</td>
+<td>647.8</td>
+<td>255.2</td>
+<td>228.2</td>
+</tr>
+<tr>
+<td>ntest</td>
+<td>GCC 14 <code>-O3 -mpopcnt</code></td>
+<td>126</td>
+<td>2286.9</td>
+<td>586.9</td>
+<td>206.7</td>
+<td>187.6</td>
+</tr>
+<tr>
+<td>ntest</td>
+<td>LLVM 22 <code>-O3</code></td>
+<td>126</td>
+<td>2416.9</td>
+<td>542.7</td>
+<td>202.9</td>
+<td>168.2</td>
+</tr>
+<tr>
+<td>ntest</td>
+<td>GCC 15 <code>-O3</code></td>
+<td>130</td>
+<td>2429.3</td>
+<td>610.9</td>
+<td>206.2</td>
+<td>224.7</td>
+</tr>
+</tbody>
+</table>
 <p>结合 706.stockfish_r 和 707.ntest_r，可以看到，popcnt 还是比较常用的，但可惜 AMD64 的基线并不提供这条指令，因此如果开了 x86-64-v2 或以上的编译优化选项，这类应用就可以获得性能提升，免去了 libgcc 的 __popcountdi2 开销，本来一条指令就能完成的事情，因为额外的 call 以及 PLT 开销，带来了可观的性能开销。期待一个优雅的解决方法。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。</p>
 <h3 id="708sqlite_r">708.sqlite_r<a class="headerlink" href="#708sqlite_r" title="Permanent link">&para;</a></h3>
 <p>sqlite 就是大名鼎鼎的数据库了，不必多介绍。测试中，又是包括三条命令：</p>
@@ -2843,6 +2981,52 @@
 </ul>
 <p>瓶颈主要在解释器上，不过因为 SQL 语句的设计，有很多时间花在字符串转浮点数上。执行了 554.7B 条指令，其中 132.3B 是 Load 指令，61.3B 是 Store 指令，111.5B 是分支指令，错误预测了 392.6M 次，MPKI 是 <code>392.6M/554.7B*1000=0.71</code>。</p>
 <h4 id="小结_1">小结<a class="headerlink" href="#小结_1" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>子测试</th>
+<th>编译器+选项</th>
+<th>时间 (s)</th>
+<th>指令 (B)</th>
+<th>Load (B)</th>
+<th>Store (B)</th>
+<th>分支 (B)</th>
+<th>MPKI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>main</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>69</td>
+<td>896.3</td>
+<td>252.4</td>
+<td>105.1</td>
+<td>178.0</td>
+<td>1.67</td>
+</tr>
+<tr>
+<td>cte</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>12</td>
+<td>306.0</td>
+<td>82.8</td>
+<td>39.6</td>
+<td>62.6</td>
+<td>0.13</td>
+</tr>
+<tr>
+<td>fp</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>25</td>
+<td>554.7</td>
+<td>132.3</td>
+<td>61.3</td>
+<td>111.5</td>
+<td>0.71</td>
+</tr>
+</tbody>
+</table>
 <p>通过上面的分析，可见 sqlite_r 确实是比较难优化的那一类，大量访存、计算和分支混合在一起，对内存子系统的负担比较重，难以向量化，开 <code>-march=native</code> 后运行时间从 106s 增加到 112s，产生了负优化。整体来看，执行了 1760B 条指令，其中有 353B 条是分支指令，MPKI 仅有 1.08，主要由 main 贡献。</p>
 <h3 id="710omnetpp_r">710.omnetpp_r<a class="headerlink" href="#710omnetpp_r" title="Permanent link">&para;</a></h3>
 <p>SPEC INT 2017 就有的老面孔 520.omnetpp_r，不过跑的内容还是不太一样。520.omnetpp_r 做的是 10 Gbps 网络的模拟，而 710.omnetpp_r 有足足十项测试，负载的多样性有了明显的增强。十项测试的命令行参数如下：</p>
@@ -2867,6 +3051,40 @@
 <li><code>cEvent::shouldPrecede(const cEvent *other)</code> 来自 <code>src/simulator/sim/cevent.cc</code>：4.64%，一个 cEvent 结构体的比较函数</li>
 </ul>
 <p>整体来看，它的瓶颈分散在比较多的地方。执行了 306.4B 条指令，其中有 98.7B 条 Load 指令，50.2B 条 Store 指令，62.1B 条分支指令，错误预测 661.2M 次，MPKI 为 <code>661.2M/306.4B*1000=2.16</code>。开 <code>-O3 -flto</code> 后，指令数减少到 284.6B，其中有 91.3B 条 Load 指令，45.4B 条 Store 指令，55.7B 条分支指令。进一步开 <code>-O3 -flto -ljemalloc</code>，指令数进一步减少到 279.8B，其中有 90.3B 条 Load 指令，44.4B 条 Store 指令，54.3B 条分支指令。</p>
+<table>
+<thead>
+<tr>
+<th>编译器+选项</th>
+<th>指令 (B)</th>
+<th>Load (B)</th>
+<th>Store (B)</th>
+<th>分支 (B)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GCC 14 <code>-O3</code></td>
+<td>306.4</td>
+<td>98.7</td>
+<td>50.2</td>
+<td>62.1</td>
+</tr>
+<tr>
+<td>GCC 14 <code>-O3 -flto</code></td>
+<td>284.6</td>
+<td>91.3</td>
+<td>45.4</td>
+<td>55.7</td>
+</tr>
+<tr>
+<td>GCC 14 <code>-O3 -flto -ljemalloc</code></td>
+<td>279.8</td>
+<td>90.3</td>
+<td>44.4</td>
+<td>54.3</td>
+</tr>
+</tbody>
+</table>
 <h4 id="其余的-9-条-queuenet-命令">其余的 9 条 queuenet 命令<a class="headerlink" href="#其余的-9-条-queuenet-命令" title="Permanent link">&para;</a></h4>
 <p>用 <code>perf</code> 观察，其余 9 条 queuenet 命令的瓶颈主要集中在这些函数：</p>
 <ul>
@@ -2916,6 +3134,82 @@
 </ul>
 <p>主要热点还是解释执行，不过因为字符串的 contains 调用次数较多，所以 <code>PyUnicode_Contains</code> 时间占比有所上升。执行了 394.9B 条指令，其中有 113.3B 是 Load 指令，62.1B 是 Store 指令，77.1B 是分支指令，错误预测 228.1M 次，MPKI 等于 <code>228M/394B*1000=0.58</code> 也还是很低。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 379.3B，其中 Load 有 113.4B，Store 有 58.5B，分支有 71.6B，错误预测 223.8M 次。</p>
 <h4 id="小结_3">小结<a class="headerlink" href="#小结_3" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>子测试</th>
+<th>编译器+选项</th>
+<th>时间 (s)</th>
+<th>指令 (B)</th>
+<th>Load (B)</th>
+<th>Store (B)</th>
+<th>分支 (B)</th>
+<th>错误预测 (M)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>resnet</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>31</td>
+<td>651.6</td>
+<td>180.4</td>
+<td>104.1</td>
+<td>136.6</td>
+<td>7.9</td>
+</tr>
+<tr>
+<td>resnet</td>
+<td>GCC 14 <code>-O3 -flto</code></td>
+<td>29</td>
+<td>618.0</td>
+<td>176.6</td>
+<td>93.9</td>
+<td>128.6</td>
+<td>48.6</td>
+</tr>
+<tr>
+<td>mobilenet</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>20</td>
+<td>438.9</td>
+<td>121.4</td>
+<td>70.5</td>
+<td>91.6</td>
+<td>9.1</td>
+</tr>
+<tr>
+<td>mobilenet</td>
+<td>GCC 14 <code>-O3 -flto</code></td>
+<td>19</td>
+<td>416.4</td>
+<td>119.0</td>
+<td>63.8</td>
+<td>86.2</td>
+<td>35.0</td>
+</tr>
+<tr>
+<td>dna</td>
+<td>GCC 14 <code>-O3</code></td>
+<td>20</td>
+<td>394.9</td>
+<td>113.3</td>
+<td>62.1</td>
+<td>77.1</td>
+<td>228.1</td>
+</tr>
+<tr>
+<td>dna</td>
+<td>GCC 14 <code>-O3 -flto</code></td>
+<td>18</td>
+<td>379.3</td>
+<td>113.4</td>
+<td>58.5</td>
+<td>71.6</td>
+<td>223.8</td>
+</tr>
+</tbody>
+</table>
 <p>714.cpython_r 就是一个典型的字节码解释器，在一个 Loop + Switch 结构当中完成解释执行。整体 MPKI 很低，只有 0.17，即使开了 <code>-O3 -flto</code>，虽然预测错误多了，总指令数少了，MPKI 会变大，但绝对数字也还是很小，只有 0.23。</p>
 <h3 id="721gcc_r">721.gcc_r<a class="headerlink" href="#721gcc_r" title="Permanent link">&para;</a></h3>
 <p>又一个熟悉的面孔，之前是 SPEC INT 2017 的 502.gcc_r。之前是 GCC 4.5.0 版本，针对 gcc-pp.c、gcc-smaller.c 和 ref32.c 进行五次编译，这次 721.gcc_r 对着三个同名文件（其中 gcc-pp.c 内容更新了，其余两个不变）分别进行一次编译，基于 GCC 11.2.0 版本，命令行参数如下，相比 502.gcc_r 有所简化：</p>
@@ -3380,7 +3674,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月26日 02:40:41 UTC">2026年5月26日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月26日 02:55:55 UTC">2026年5月26日</span>
   </span>
 
     
