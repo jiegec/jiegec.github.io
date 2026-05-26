@@ -1794,7 +1794,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 32 分钟阅读时间
+                              需要 34 分钟阅读时间
                             
                           </span>
                         </div>
@@ -2684,7 +2684,8 @@
 <li><code>__popcountdi2</code>: 7.60%，被 <code>Stockfish::Eval::evaluate(const Position&amp; pos)</code> 调用，用来判断局面上满足某种条件</li>
 </ul>
 <p>开了 <code>-march=native</code> 后，能观察到 <code>__popcountdi2</code> 被内联为 <code>popcnt</code> 指令。经过测试，开了 <code>-mpopcnt</code> 后，时间即从 47s 降低到 44s，接近 <code>-march=native</code> 的性能，可见在开启 popcnt 指令集的前提下，内联 <code>__popcountdi2</code> 调用就可以明显减少时间。</p>
-<p><code>-O3</code> 编译选项下，1to6_classical 执行的指令数为 532.9B，其中分支指令有 56.1B 次，其中有 2.6B 次错误预测。可见，1to6_classical 的 MPKI 还是比较高的：<code>2.6B/532.9B*1000=4.88</code>，即使是在 SPEC INT 2017 当中，也是比较高的，高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。</p>
+<p><code>-O3</code> 编译选项下，1to6_classical 执行的指令数为 531.8B（<code>instructions</code> 性能计数器），其中 Load 指令有 135.7B 条（<code>mem_inst_retired.all_loads</code> 性能计数器），Store 有 59.7B 条（<code>mem_inst_retired.all_stores</code> 性能计数器），分支指令有 56.0B 条（<code>branch-instructions</code> 性能计数器），其中有 2.6B 次错误预测（<code>branch-misses</code> 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：<code>2.6B/532.9B*1000=4.88</code>，即使是在 SPEC INT 2017 当中，也是比较高的，高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。</p>
+<p>开 <code>-O3 -mpopcnt</code> 后，指令数减少到 453.9B，其中 Load 有 124.2B 条，Store 有 53.1B 条，分支指令有 46.1B 条，错误预测还是 2.6B 次，所以光是内联了 <code>__popcountdi2</code> 的调用，就可以少掉 77.9B，原来的约 15% 的指令。<code>__popcountdi2</code> 本身的实现包括 21 条指令，此外还有 <code>__popcountdi2@plt</code> 里的一次 jmp，和 <code>call __popcountdi2@plt</code> 本身和前后保存和恢复寄存器的开销。</p>
 <h4 id="1to6_nnue">1to6_nnue<a class="headerlink" href="#1to6_nnue" title="Permanent link">&para;</a></h4>
 <p>后两个命令的引擎从 classical 变为了 nnue，涉及神经网络，因此它的计算模式会不太一样。通过 <code>perf</code> 观察到 1to6_nnue 的主要耗时函数：</p>
 <ul>
@@ -2773,11 +2774,16 @@
 </span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="nf">jne</span><span class="w"> </span><span class="mi">1</span><span class="no">b</span>
 </span></code></pre></div>
 <p>可见，即使没有对口的 vpdpbusd 指令，仅用 SSE 还是有优化空间的，GCC 15 通过用 SSE 实现高效的有符号和无符号符号扩展，获得了介于 GCC 14 比较差的指令序列与专用 vpdpbusd 指令的性能。这在 <a href="https://arxiv.org/abs/2605.03713v2">SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison</a> 论文中也有提及：<code>For example, gcc-15 reduces the instruction count of 706.stockfish_r by up to 3x</code>，不过这个数字是相比 GCC 13 的；相比 GCC 14 也有减少，不过没有那么明显，详情见论文中的 Figure 10 和 Figure 16，这里实测下来是从 GCC 14 的 1342B 条指令降低到 GCC 15 的 1015B。相比之下，LLVM 22 生成的 SSE（<code>-O3</code>，<a href="https://godbolt.org/z/Tsd1YhrWe">Godbolt</a>）或 AVX（<code>-O3 -march=alderlake</code>，<a href="https://godbolt.org/z/WM1xWjqc3">Godbolt</a>）指令都没有 GCC 15 高效。</p>
-<p><code>-O3</code> 编译选项下，1to6_nnue 执行的指令数为 1342B，其中分支指令有 77.6B 次，其中有 1.6B 次错误预测。它的 MPKI 只有 <code>1.6B/1342B*1000=1.19</code>，主要瓶颈还是在上述的神经网络推理当中。</p>
+<p><code>-O3</code> 编译选项下，1to6_nnue 执行的指令数为 1342.1B，其中 Load 指令有 182.2B 条，Store 指令有 61.8B 条，128 位整数向量指令（如 SSE）有 229.1B 条（<code>int_vec_retired.128bit</code> 性能计数器），分支指令有 77.6B 条，其中有 1.6B 次错误预测。它的 MPKI 只有 <code>1.6B/1342B*1000=1.19</code>，主要瓶颈还是在上述的神经网络推理当中。</p>
+<p>GCC 15 用 <code>-O3</code> 编译选项下，1to6_nnue 执行的指令数减少到 1015.3B，其中 Load 指令有 175.0B 条，Store 指令有 57.8B 条，128 位整数向量指令只有 97.0B 条，分支指令有 77.4B 条，优化效果明显。</p>
+<p>GCC 14 用 <code>-march=native</code> 编译选项下，1to6_nnue 执行的指令数锐减到 446.8B，只剩下三分之一的指令数了，其中 Load 指令有 119.6B 条，Store 指令有 44.4B 条，分支指令有 48.7B 条，256 位的 AVX VNNI 指令有 13.2B 条（<code>int_vec_retired.vnni_256</code> 性能计数器），优化效果明显。</p>
 <h4 id="7to11_nnue">7to11_nnue<a class="headerlink" href="#7to11_nnue" title="Permanent link">&para;</a></h4>
-<p>7to11_nnue 的行为与 1to6_nnue 类似，瓶颈也是在 <code>Stockfish::Eval::NNUE:evaluate</code> 函数上。开启 <code>-march=native</code> 后，时间从 72s 降到了 31s。GCC 15 的性能提升也和 1to6_nnue 类似。<code>-O3</code> 编译选项下，7to11_nnue 执行的指令数为 1253B，其中分支指令有 75.5B 次，其中有 1.5B 次错误预测。它的 MPKI 只有 <code>1.5B/1253B*1000=1.20</code>，主要瓶颈还是在神经网络推理当中。</p>
+<p>7to11_nnue 的行为与 1to6_nnue 类似，瓶颈也是在 <code>Stockfish::Eval::NNUE:evaluate</code> 函数上。开启 <code>-march=native</code> 后，时间从 72s 降到了 31s。GCC 15 的性能提升也和 1to6_nnue 类似，从 72s 降低到 46s。</p>
+<p><code>-O3</code> 编译选项下，7to11_nnue 执行的指令数为 1253.2B，其中 Load 指令有 176.1B 条，Store 指令有 61.6B 条，128 位整数向量指令有 212.5B 条，分支指令有 75.4B 条，其中有 1.5B 次错误预测。它的 MPKI 只有 <code>1.5B/1253B*1000=1.20</code>，主要瓶颈还是在神经网络推理当中。</p>
+<p>GCC 15 用 <code>-O3</code> 编译选项下，7to11_nnue 执行的指令数减少到 955.3B，其中 Load 指令有 169.4B 条，Store 指令有 57.8B 条，128 位整数向量指令只有 92.3B 条，分支指令有 75.2B 条，优化效果明显。</p>
+<p>GCC 14 用 <code>-march=native</code> 编译选项下，7to11_nnue 执行的指令数锐减到 425.9B，只剩下三分之一的指令数了，其中 Load 指令有 115.1B 条，Store 指令有 43.7B 条，分支指令有 47.1B 条，256 位的 AVX VNNI 指令有 12.0B 条，优化效果明显。</p>
 <h4 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h4>
-<p>1to6_classical 比较像传统的各种棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.88 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。</p>
+<p>1to6_classical 比较像传统的各种棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.88 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。</p>
 <h3 id="707ntest_r">707.ntest_r<a class="headerlink" href="#707ntest_r" title="Permanent link">&para;</a></h3>
 <p>ntest 是黑白棋的引擎，测试会用如下参数运行：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ntest_r<span class="w"> </span>Othello.154.ggf<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">16</span>
@@ -2790,13 +2796,14 @@
 <li><code>solveNFlipParity</code>：8.95%，与 solveNParity 配合完成 minimax 算法</li>
 <li><code>solve2</code>：5.38%，minimax 算法的一部分，处理棋盘只有两个空位的最终局面</li>
 </ul>
-<p>这也是个比较典型的棋类引擎的模式了，整个 minimax 算法占了 70%+ 的时间，为了搜索局面，有大量的位运算和访存，还有根据访存结果决定方向的分支。果不其然，执行 2688B 条指令，其中有 228B 条是分支指令，有 6.1B 次错误预测，MPKI 达到了 <code>6.1B/2688B*1000=2.27</code>。和 706.stockfish_r 类似，它也有不少的 popcnt 调用，那么打开 <code>-mpopcnt</code> 就会得到不错的性能提升：时间从 140s 降低到 126s，减少 11% 时间。而即使开 <code>-march=native</code>，性能也只是进一步降到 122s，只有少量的地方用到了 AVX2。</p>
-<p>另一方面，LLVM 22 的性能在 707.ntest_r 上比 GCC 14 要快：同样是 <code>-O3</code> 的编译选项，运行时间从 GCC 14 的 140s 降低到 126s。深入研究汇编发现，LLVM 22 在没有开 <code>-mpopcnt</code> 的时候，它的行为是，直接把类似 libgcc 的 <code>__popcountdi2</code> 的代码内联到了程序当中，省去了 call libgcc 的开销，不过代价就是代码体积会增加。类似地，706.stockfish_r 的 1to6_classical 也是 LLVM 22 比 GCC 14 快，从 47s 降低到 44s。</p>
+<p>这也是个比较典型的棋类引擎的模式了，整个 minimax 算法占了 70%+ 的时间，为了搜索局面，有大量的位运算和访存，还有根据访存结果决定方向的分支。果不其然，执行 2688.3B 条指令，其中有 647.8B 条 Load 指令，255.2B 条 Store 指令，228.2B 条是分支指令，有 6.1B 次错误预测，MPKI 达到了 <code>6.1B/2688B*1000=2.27</code>。和 706.stockfish_r 类似，它也有不少的 popcnt 调用，那么打开 <code>-mpopcnt</code> 就会得到不错的性能提升：时间从 140s 降低到 126s，减少 11% 时间，指令数减少到 2286.9B，其中有 586.9B 条 Load 指令，206.7B 条 Store 指令，187.6B 条分支指令。而即使开 <code>-march=native</code>，性能也只是进一步降到 122s，只有少量的地方用到了 AVX2。</p>
+<p>另一方面，LLVM 22 的性能在 707.ntest_r 上比 GCC 14 要快：同样是 <code>-O3</code> 的编译选项，运行时间从 GCC 14 的 140s 降低到 126s。深入研究汇编发现，LLVM 22 在没有开 <code>-mpopcnt</code> 的时候，它的行为是，直接把类似 libgcc 的 <code>__popcountdi2</code> 的代码内联到了程序当中，省去了 call libgcc 的开销，不过代价就是代码体积会增加，实际执行了 2416.9B 条指令，其中有 542.7B 条 Load 指令，202.9B 条 Store 指令，168.2B 条分支指令。类似地，706.stockfish_r 的 1to6_classical 也是 LLVM 22 比 GCC 14 快，从 47s 降低到 44s。</p>
 <p>同时，GCC 15 相比 GCC 14 也有性能提升，运行时间从 140s 降低到了 130s。分析汇编，发现主要优化点在 <code>flips(int sq, u64 mover, u64 enemy)</code> 函数当中。性能区别有两点：</p>
 <ol>
 <li>首先是对 callee-saved 寄存器的使用，GCC 14 会在 epilogue/prologue 直接进行一系列的 push/pop，而 GCC 15 更加聪明，仅在 <code>if (neighbors[sq]&amp;enemy)</code> 条件成立的情况下，需要执行复杂函数体，需要 callee-saved 寄存器时才会进行 push/pop，否则就直接 ret，因为检查条件的时候并没有用到 callee-saved 寄存器，避免了保存和恢复。</li>
 <li>自己编译的 GCC 15 默认是 -no-pie 模式，而发行版的 GCC 14 默认是 -pie，而 -no-pie 模式因为采用绝对地址，可以在 imul 等指令的操作数直接访问内存，节省寄存器，于是 callee-saved register 就都可以不用了，开启 -static 也能带来类似的效果。上面的第一条分析是手动给 GCC 15 开 -pie 后观察到的。不过主要的性能提升还是来自于减少 push/pop 的执行次数。</li>
 </ol>
+<p>GCC 15 编译的 707.ntest_r，实际执行 2429.3B 条指令，其中有 610.9B 的 Load 指令，206.2B 的 Store 指令，224.7B 的分支指令。</p>
 <p>结合 706.stockfish_r 和 707.ntest_r，可以看到，popcnt 还是比较常用的，但可惜 AMD64 的基线并不提供这条指令，因此如果开了 x86-64-v2 或以上的编译优化选项，这类应用就可以获得性能提升，免去了 libgcc 的 __popcountdi2 开销，本来一条指令就能完成的事情，因为额外的 call 以及 PLT 开销，带来了可观的性能开销。期待一个优雅的解决方法。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。</p>
 <h3 id="708sqlite_r">708.sqlite_r<a class="headerlink" href="#708sqlite_r" title="Permanent link">&para;</a></h3>
 <p>sqlite 就是大名鼎鼎的数据库了，不必多介绍。测试中，又是包括三条命令：</p>
@@ -2816,7 +2823,7 @@
 <li><code>pcache1Fetch(sqlite3_pcache *p, unsigned int iKey, int createFlag)</code> 来自 <code>src/sqlite3.c</code>：8.26%，对应一个用哈希表维护的 Page Cache，用于在内存里缓存硬盘上的数据</li>
 <li><code>sqlite3GetVarint(const unsigned char *p, u64 *v)</code> 来自 <code>src/sqlite3.c</code>：3.70%，恢复内存中可变长度的整数</li>
 </ul>
-<p>都是一些比较经典的数据结构和算法的应用，Btree，Loop+Switch 的解释执行，加哈希表查询。主要瓶颈在内存上。执行了 897.6B 条指令，其中 178.2B 是分支指令，错误预测了 1.5B 次，MPKI 是 <code>1.5B/897.6B*1000=1.67</code>。</p>
+<p>都是一些比较经典的数据结构和算法的应用，Btree，Loop+Switch 的解释执行，加哈希表查询。主要瓶颈在内存上。执行了 896.3B 条指令，其中 252.4B 是 Load 指令，105.1B 是 Store 指令，178.0B 是分支指令，错误预测了 1.5B 次，MPKI 是 <code>1.5B/897.6B*1000=1.67</code>。</p>
 <h4 id="cte">cte<a class="headerlink" href="#cte" title="Permanent link">&para;</a></h4>
 <p>通过 <code>perf</code> 观察性能瓶颈，这几个函数耗费的时间占比较多：</p>
 <ul>
@@ -2825,7 +2832,7 @@
 <li><code>sqlite3VdbeSerialGet(const unsigned char *buf, u32 serial_type, Mem *pMem)</code> 来自 <code>src/sqlite3.c</code>：5.95%，反序列化，根据内存中保存的数据类型，解析对应的数据</li>
 <li><code>vdbeSorterSort(SortSubtask *pTask, SorterList *pList)</code> 来自 <code>src/sqlite3.c</code>：5.95%，实现排序</li>
 </ul>
-<p>瓶颈主要在解释器上，和 CPython 这类解释型语言的解释器的行为模式类似。执行了 307.2B 条指令，其中 62.8B 是分支指令，错误预测了 41M 次，MPKI 是 <code>41M/307.2B*1000=0.13</code>。</p>
+<p>瓶颈主要在解释器上，和 CPython 这类解释型语言的解释器的行为模式类似。执行了 306.0B 条指令，其中 82.8B 是 Load 指令，39.6B 是 Store 指令，62.6B 是分支指令，错误预测了 40.9M 次，MPKI 是 <code>40.9M/30602B*1000=0.13</code>，处于很低的水平。</p>
 <h4 id="fp">fp<a class="headerlink" href="#fp" title="Permanent link">&para;</a></h4>
 <p>通过 <code>perf</code> 观察性能瓶颈，这几个函数耗费的时间占比较多：</p>
 <ul>
@@ -2834,9 +2841,9 @@
 <li><code>vdbeSorterSort(SortSubtask *pTask, SorterList *pList)</code> 来自 <code>src/sqlite3.c</code>：10.44%，描述见上</li>
 <li><code>sqlite3VdbeRecordCompareWithSkip(int nKey1, const void *pKey1, UnpackedRecord *pPKey2, int bSkip)</code> 来自 <code>src/sqlite3.c</code>：6.76%，描述见上</li>
 </ul>
-<p>瓶颈主要在解释器上，不过因为 SQL 语句的设计，有很多时间花在字符串转浮点数上。执行了 555.5B 条指令，其中 111.7B 是分支指令，错误预测了 395M 次，MPKI 是 <code>395M/555.5B*1000=0.71</code>。</p>
+<p>瓶颈主要在解释器上，不过因为 SQL 语句的设计，有很多时间花在字符串转浮点数上。执行了 554.7B 条指令，其中 132.3B 是 Load 指令，61.3B 是 Store 指令，111.5B 是分支指令，错误预测了 392.6M 次，MPKI 是 <code>392.6M/554.7B*1000=0.71</code>。</p>
 <h4 id="小结_1">小结<a class="headerlink" href="#小结_1" title="Permanent link">&para;</a></h4>
-<p>通过上面的分析，可见 sqlite_r 确实是比较难优化的那一类，大量访存、计算和分支混合在一起，对内存子系统的负担比较重，难以向量化，开 <code>-march=native</code> 后运行时间从 106s 增加到 112s。整体来看，执行了 1760B 条指令，其中有 353B 条是分支指令，MPKI 仅有 1.08，主要由 main 贡献。</p>
+<p>通过上面的分析，可见 sqlite_r 确实是比较难优化的那一类，大量访存、计算和分支混合在一起，对内存子系统的负担比较重，难以向量化，开 <code>-march=native</code> 后运行时间从 106s 增加到 112s，产生了负优化。整体来看，执行了 1760B 条指令，其中有 353B 条是分支指令，MPKI 仅有 1.08，主要由 main 贡献。</p>
 <h3 id="710omnetpp_r">710.omnetpp_r<a class="headerlink" href="#710omnetpp_r" title="Permanent link">&para;</a></h3>
 <p>SPEC INT 2017 就有的老面孔 520.omnetpp_r，不过跑的内容还是不太一样。520.omnetpp_r 做的是 10 Gbps 网络的模拟，而 710.omnetpp_r 有足足十项测试，负载的多样性有了明显的增强。十项测试的命令行参数如下：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>omnetpp_r<span class="w"> </span>-f<span class="w"> </span>randomMesh.ini<span class="w"> </span>-c<span class="w"> </span>General
@@ -2859,7 +2866,7 @@
 <li><code>Routing::handleMessage(cMessage *msg)</code> 来自 <code>src/model/Routing.cc</code>：7.10%，模拟路由表的功能，主要逻辑是内联了一个 <code>std::map&lt;int, int&gt;</code> 的 <code>find</code> 操作（<a href="https://godbolt.org/z/ne6oEb9Md">Godbolt</a>），在一个红黑树上进行查询</li>
 <li><code>cEvent::shouldPrecede(const cEvent *other)</code> 来自 <code>src/simulator/sim/cevent.cc</code>：4.64%，一个 cEvent 结构体的比较函数</li>
 </ul>
-<p>整体来看，它的瓶颈分散在比较多的地方。执行了 306B 条指令，其中有 62B 条是分支指令，错误预测 659M 次，MPKI 为 <code>659M/306B*1000=2.15</code>。</p>
+<p>整体来看，它的瓶颈分散在比较多的地方。执行了 306.4B 条指令，其中有 98.7B 条 Load 指令，50.2B 条 Store 指令，62.1B 条分支指令，错误预测 661.2M 次，MPKI 为 <code>661.2M/306.4B*1000=2.16</code>。开 <code>-O3 -flto</code> 后，指令数减少到 284.6B，其中有 91.3B 条 Load 指令，45.4B 条 Store 指令，55.7B 条分支指令。进一步开 <code>-O3 -flto -ljemalloc</code>，指令数进一步减少到 279.8B，其中有 90.3B 条 Load 指令，44.4B 条 Store 指令，54.3B 条分支指令。</p>
 <h4 id="其余的-9-条-queuenet-命令">其余的 9 条 queuenet 命令<a class="headerlink" href="#其余的-9-条-queuenet-命令" title="Permanent link">&para;</a></h4>
 <p>用 <code>perf</code> 观察，其余 9 条 queuenet 命令的瓶颈主要集中在这些函数：</p>
 <ul>
@@ -2896,9 +2903,9 @@
 <li><code>_PyObject_Free(void *ctx, void *p)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：3.48%，释放 PyObject</li>
 <li><code>_PyObject_Malloc(void *ctx, size_t nbytes)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：3.15%，分配 PyObject</li>
 </ul>
-<p>剩下就比较零散了，主要还是围绕着解释器的循环。执行了 653B 条指令，其中有 137B 是分支指令，错误预测 7.8M 次，MPKI 等于 <code>7.8M/653B*1000=0.01</code> 可以忽略不计。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 618B，其中分支有 128B，错误预测 46M 次。</p>
+<p>剩下就比较零散了，主要还是围绕着解释器的循环。执行了 651.6B 条指令，其中有 180.4B 是 Load 指令，104.1B 是 Store 指令，136.6B 是分支指令，错误预测仅 7.9M 次，MPKI 等于 <code>7.9M/651.6B*1000=0.01</code> 可以忽略不计。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 618.0B，其中 Load 有 176.6B，Store 有 93.9B，分支有 128.6B，错误预测 48.6M 次。</p>
 <h4 id="mobilenet">mobilenet<a class="headerlink" href="#mobilenet" title="Permanent link">&para;</a></h4>
-<p>统计出热点函数，发现前四依然是上面四个，且时间占比差不多。可能是因为，resnet 和 mobilenet 测例用的是同一个 .py 源码，只是用的模型不同。执行了 439B 条指令，其中有 92B 是分支指令，错误预测 9.3M 次，MPKI 等于 <code>9.3M/439B*1000=0.02</code> 可以忽略不计。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 417B，其中分支有 86B，错误预测 35M 次。</p>
+<p>统计出热点函数，发现前四依然是上面四个，且时间占比差不多。可能是因为，resnet 和 mobilenet 测例用的是同一个 .py 源码，只是用的模型不同。执行了 438.9B 条指令，其中有 121.4B 是 Load 指令，70.5B 是 Store 指令，91.6B 是分支指令，错误预测 9.1M 次，MPKI 等于 <code>9.1M/438.9B*1000=0.02</code> 可以忽略不计。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 416.4B，其中 Load 指令有 119.0B，Store 指令有 63.8B，分支有 86.2B，错误预测 35.0M 次。</p>
 <h4 id="dna">dna<a class="headerlink" href="#dna" title="Permanent link">&para;</a></h4>
 <p>统计热点函数：</p>
 <ul>
@@ -2907,7 +2914,7 @@
 <li><code>PyUnicode_Contains(PyObject *str, PyObject *substr)</code> 来自 <code>src/cpython/Objects/unicodeobject.c</code>，4.59%，Python 字符串的 contains 操作，对应 <code>data/all/input/knucleotide.py</code> 代码中的 <code>chat in "GATC"</code> 判断</li>
 <li><code>_PyObject_Malloc(void *ctx, size_t nbytes)</code> 来自 <code>src/cpython/Objects/obmalloc.c</code>：3.52%，描述见上</li>
 </ul>
-<p>主要热点还是解释执行，不过因为字符串的 contains 调用次数较多，所以 <code>PyUnicode_Contains</code> 时间占比有所上升。执行了 394B 条指令，其中有 77B 是分支指令，错误预测 228M 次，MPKI 等于 <code>228M/394B*1000=0.58</code> 也还是很低。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 380B，其中分支有 72B，错误预测 228M 次。</p>
+<p>主要热点还是解释执行，不过因为字符串的 contains 调用次数较多，所以 <code>PyUnicode_Contains</code> 时间占比有所上升。执行了 394.9B 条指令，其中有 113.3B 是 Load 指令，62.1B 是 Store 指令，77.1B 是分支指令，错误预测 228.1M 次，MPKI 等于 <code>228M/394B*1000=0.58</code> 也还是很低。开启 <code>-O3 -flto</code> 后，热点函数不变，指令数降低为 379.3B，其中 Load 有 113.4B，Store 有 58.5B，分支有 71.6B，错误预测 223.8M 次。</p>
 <h4 id="小结_3">小结<a class="headerlink" href="#小结_3" title="Permanent link">&para;</a></h4>
 <p>714.cpython_r 就是一个典型的字节码解释器，在一个 Loop + Switch 结构当中完成解释执行。整体 MPKI 很低，只有 0.17，即使开了 <code>-O3 -flto</code>，虽然预测错误多了，总指令数少了，MPKI 会变大，但绝对数字也还是很小，只有 0.23。</p>
 <h3 id="721gcc_r">721.gcc_r<a class="headerlink" href="#721gcc_r" title="Permanent link">&para;</a></h3>
@@ -3195,7 +3202,7 @@
 <li><code>seal::util::BaseConverter::fast_convert_array(ConstRNSIter in, RNSIter out, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.88%，这里的 RNS 应该是 Residue Number System 的缩写，指令上还是大量的 imul/add 等运算</li>
 <li><code>seal::util::RNSTool::sm_mrq(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.40%，不确定在做什么，也是大量的运算</li>
 </ul>
-<p>总而言之，既然是密码学，就会有大量的整数运算，其中有不少的乘法，在素数域下做各种操作。执行指令数足足有 3113.8B，但分支只有 78.6B，MPKI 只有 0.14，全场最低，甚至低于 714.cpython_r，同时 IPC 全场最高，达到了 5.09。</p>
+<p>总而言之，既然是密码学，就会有大量的整数运算，其中有不少的乘法和位运算，在素数域下做各种操作。执行指令数足足有 3113.4B，其中有 79B 条分支指令，386B 条 Load，161B 条 Store，错误预测 449M 次，MPKI 只有 0.14，全场最低，甚至低于 714.cpython_r，同时 IPC 全场最高，达到了 5.09。从 Top down 分析来看，80.7% 属于 Retiring，13.5% 属于 Backend Bound，说明处理器基本在全速跑指令。</p>
 <p>开了 <code>-O3 -march=native</code> 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行的计算，而是在不断地倒腾向量寄存器里数据的位置。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 <code>-O3</code> 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。</p>
 <p>那么，LLVM 22 做了什么优化呢？执行的指令数直接降低到 1214B，分支只有 57.2B。以 <code>seal::util::DWTHandler::transform_to_rev</code> 为例，可以看到：seal 为了实现 64 位乘 64 位到 128 位的乘法，它自己实现了这个过程，不仅在 <code>seal::util::multiply_uint64_generic</code> 中有实现，实际上也内联到了 <code>seal::util::DWTHandler::transform_to_rev</code> 当中；GCC 14 忠实地实现了这个算法，因此指令数很多（见 <a href="https://godbolt.org/z/KKTa1aMP8">Godbolt</a>）；但其实，AMD64 的 mul 指令本来就是一个 64 位乘 64 位得到 128 位的乘法，所以 LLVM 22 直接识别出这段代码做的事情，然后编译成了 mul 指令（见 <a href="https://godbolt.org/z/bc6xPjEMc">Godbolt</a>，甚至如果开了 BMI2 扩展，还有 <a href="https://www.felixcloutier.com/x86/mulx">mulx</a> 指令可以用），而且这种 64 位乘法保留高位的指令在各种 ISA 都挺常见的，比如 ARM64 的 umulh，RISC-V 的 mulhu，LoongArch 的 mulh.du。当然，seal 的源码其实已经考虑了这个问题，在编译器支持的情况下，直接用 __int128 来完成<a href="https://github.com/microsoft/SEAL/blob/e3476fad1d5bb5e5222c51a551b5a4d7e2cb4f91/native/src/seal/util/gcc.h#L44">这件事情</a>。然而，这类依赖编译器行为或具体指令集扩展的代码，由于 SPEC CPU 2026 的编译器中立性，都被去掉了，都会回落到最通用的写法上。此时，就只能依赖编译器去自己识别和优化了。</p>
 <p>但是，这样某种意义上也无法反映真实场景中的应用优化情况了，因为很多应用已经实际上和处理器的指令集扩展/编译器扩展共进化，实现的时候，脑子里是默认有这些东西，再去做的调优，甚至会写一些指令集相关的优化，用一些 intrinsics，比如原版 stockfish 就有针对 AVX512/AVX2/SSSE3/NEON_DOTPROD/LASX/LSX 的<a href="https://github.com/official-stockfish/Stockfish/blob/77a8f6ccf31846d63452f79e143fbc6dc62ae3a8/src/nnue/layers/affine_transform.h#L201">优化</a>。到最后，就是编译器又实现各种 pass，识别程序里的 fallback generic 代码，再映射回高效的实现。其实类似的事情之前就出现过，网上用来证明编译器很聪明的一个例子，就是说识别 popcount 的循环，直接翻译成 popcnt 指令，然而很多程序直接用 <code>__builtin_popcount</code> 而不会真的去手写，这次只不过是换了个 pattern 罢了。当然，好消息是，C++20 引入了 std::popcount，可以一定程度避免类似的情况发生，只是来得太晚了。</p>
@@ -3373,7 +3380,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月25日 18:22:31 UTC">2026年5月25日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月26日 02:40:41 UTC">2026年5月26日</span>
   </span>
 
     
