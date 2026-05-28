@@ -8,6 +8,20 @@
 
 ### 原始数据
 
+#### Debian Forky
+
+服务器平台（LTO + Jemalloc）：
+
+- Loongson 3C6000 @ 2.2 GHz LA664（`-O3 -flto -ljemalloc`）: [1.74](https://jia.je/benchmark/data-forky/int2026_rate1/Loongson_3C6000_O3-flto-ljemalloc_001.txt)
+
+服务器平台（LTO）：
+
+- Loongson 3C6000 @ 2.2 GHz LA664（`-O3 -flto`）: [1.66](https://jia.je/benchmark/data-forky/int2026_rate1/Loongson_3C6000_O3-flto_001.txt)
+
+服务器平台：
+
+- Loongson 3C6000 @ 2.2 GHz LA664（`-O3`）: [1.61](https://jia.je/benchmark/data-forky/int2026_rate1/Loongson_3C6000_O3_001.txt)
+
 #### Debian Trixie
 
 桌面平台（`-march=native` + LTO + Jemalloc）：
@@ -69,21 +83,18 @@
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto -ljemalloc`）: [1.50](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto-ljemalloc_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto -ljemalloc`）: [2.14](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto-ljemalloc_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto -ljemalloc`）: [1.59](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3-flto-ljemalloc_001.txt)
-- Loongson 3C6000 @ 2.2 GHz LA664（`-O3 -flto -ljemalloc`）: [1.74](https://jia.je/benchmark/data-trixie/int2026_rate1/Loongson_3C6000_O3-flto-ljemalloc_001.txt)
 
 服务器平台（LTO）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto`）: [1.42](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto`）: [2.06](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto`）: [1.51](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3-flto_001.txt)
-- Loongson 3C6000 @ 2.2 GHz LA664（`-O3 -flto`）: [1.66](https://jia.je/benchmark/data-trixie/int2026_rate1/Loongson_3C6000_O3-flto_001.txt)
 
 服务器平台：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3`）: [1.37](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.01](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.46](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3_001.txt)
-- Loongson 3C6000 @ 2.2 GHz LA664（`-O3`）: [1.61](https://jia.je/benchmark/data-trixie/int2026_rate1/Loongson_3C6000_O3_001.txt)
 
 #### 备注
 
