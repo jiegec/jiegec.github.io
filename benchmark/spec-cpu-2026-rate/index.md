@@ -14,6 +14,7 @@
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native -flto -ljemalloc`）: [4.31](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M1_P-Core_O3-march%3Dnative-flto-ljemalloc_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3 -march=native -flto -ljemalloc`）: [5.20](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M2_P-Core_O3-march%3Dnative-flto-ljemalloc_001.txt)
+- Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -march=native -flto -ljemalloc`）: [5.56](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i7-13700K_P-Core_O3-march%3Dnative-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -march=native -flto -ljemalloc`）: [5.55](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-march%3Dnative-flto-ljemalloc_001.txt)
 - Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3 -march=native -flto -ljemalloc`）: [6.26](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-14900K_P-Core_O3-march%3Dnative-flto-ljemalloc_001.txt)
 
@@ -21,6 +22,7 @@
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto -ljemalloc`）: [4.31](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M1_P-Core_O3-flto-ljemalloc_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3 -flto -ljemalloc`）: [5.10](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M2_P-Core_O3-flto-ljemalloc_001.txt)
+- Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto -ljemalloc`）: [5.36](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i7-13700K_P-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto -ljemalloc`）: [3.17](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto -ljemalloc`）: [2.96](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto-ljemalloc_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto -ljemalloc`）: [5.37](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto-ljemalloc_001.txt)
@@ -32,6 +34,7 @@
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -flto`）: [4.10](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M1_P-Core_O3-flto_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3 -flto`）: [4.91](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M2_P-Core_O3-flto_001.txt)
+- Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -flto`）: [5.07](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i7-13700K_P-Core_O3-flto_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3 -flto`）: [2.97](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3-flto_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -flto`）: [2.78](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-flto_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -flto`）: [5.05](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-flto_001.txt)
@@ -43,6 +46,7 @@
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [4.02](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M1_P-Core_O3_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3`）: [4.76](https://jia.je/benchmark/data-trixie/int2026_rate1/Apple_M2_P-Core_O3_001.txt)
+- Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [4.96](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [2.90](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-10980XE_O3_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [2.73](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [4.94](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
@@ -61,18 +65,21 @@
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto -ljemalloc`）: [1.50](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto-ljemalloc_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto -ljemalloc`）: [2.14](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto-ljemalloc_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto -ljemalloc`）: [1.59](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3-flto-ljemalloc_001.txt)
+- Loongson 3C6000 @ 2.2 GHz LA664（`-O3 -flto -ljemalloc`）: [1.74](https://jia.je/benchmark/data-trixie/int2026_rate1/Loongson_3C6000_O3-flto-ljemalloc_001.txt)
 
 服务器平台（LTO）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto`）: [1.42](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto`）: [2.06](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto`）: [1.51](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3-flto_001.txt)
+- Loongson 3C6000 @ 2.2 GHz LA664（`-O3 -flto`）: [1.66](https://jia.je/benchmark/data-trixie/int2026_rate1/Loongson_3C6000_O3-flto_001.txt)
 
 服务器平台：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3`）: [1.37](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.01](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.46](https://jia.je/benchmark/data-trixie/int2026_rate1/Kunpeng_920_O3_001.txt)
+- Loongson 3C6000 @ 2.2 GHz LA664（`-O3`）: [1.61](https://jia.je/benchmark/data-trixie/int2026_rate1/Loongson_3C6000_O3_001.txt)
 
 #### 备注
 
@@ -135,6 +142,7 @@
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native`）: [5.97](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M1_P-Core_O3-march%3Dnative_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3 -march=native`）: [6.73](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M2_P-Core_O3-march%3Dnative_001.txt)
+- Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3 -march=native`）: [7.96](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i7-13700K_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz (AVX-512 @ 4.0 GHz) Cascade Lake（`-O3 -march=native`）: [4.22](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-10980XE_O3-march%3Dnative_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -march=native`）: [3.97](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3 -march=native`）: [8.09](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_P-Core_O3-march%3Dnative_001.txt)
@@ -146,6 +154,7 @@
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [5.80](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M1_P-Core_O3_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3`）: [6.38](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M2_P-Core_O3_001.txt)
+- Intel Core i7-13700K P-Core @ 5.2 GHz Raptor Cove（`-O3`）: [6.32](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [3.55](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-10980XE_O3_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [3.46](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
 - Intel Core i9-12900KS P-Core @ 5.5 GHz Golden Cove（`-O3`）: [6.56](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_P-Core_O3_001.txt)
