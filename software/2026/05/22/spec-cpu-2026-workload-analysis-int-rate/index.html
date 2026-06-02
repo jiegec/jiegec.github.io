@@ -1796,7 +1796,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 46 分钟阅读时间
+                              需要 47 分钟阅读时间
                             
                           </span>
                         </div>
@@ -3886,7 +3886,7 @@
 <li><code>seal::util::RNSTool::sm_mrq(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool)</code> 来自 <code>src/seal/util/rns.cpp</code>：5.40%，不确定在做什么，也是大量的运算。</li>
 </ul>
 <p>总而言之，既然是密码学，就会有大量的整数运算，其中有不少的乘法和位运算，在素数域下做各种操作。执行指令数足足有 3113.4B，其中有 385.7B 条 Load 指令，161.3B 条 Store 指令，78.5B 条分支指令，错误预测 450.0M 次，MPKI 只有 <code>450.0M/3113.4B*1000=0.14</code>，全场最低，甚至低于 714.cpython_r，同时 IPC 全场最高，达到了 5.09。从 Top down 分析来看，80.7% 属于 Retiring，13.5% 属于 Backend Bound，说明处理器基本在全速跑指令。</p>
-<p>开了 <code>-O3 -march=native</code> 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行计算，而是在不断地倒腾向量寄存器里数据的位置。此时指令数降低到 2757.7B，其中有 370.0B 条 Load 指令，126.7B 条 Store 指令，268.6B 条 256 位整数向量指令（<code>int_vec_retired.256bit</code> 性能计数器），76.1B 条分支指令，错误预测 431.0M 次，MPKI 等于 <code>431.0M/2757.7B*1000=0.16</code>。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 <code>-O3</code> 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。</p>
+<p>开了 <code>-O3 -march=native</code> 后，确实生成了不少 AVX2 指令，但看下来，生成的指令序列还是挺复杂的，有大量的 vpunpcklqdq/vpunpckhqdq/vpermq/vpblendvb/vperm2i128 等指令，并没有在进行计算，而是在不断地倒腾向量寄存器里数据的位置，见 <a href="https://godbolt.org/z/z3oEs4hnd">Godbolt</a>。此时指令数降低到 2757.7B，其中有 370.0B 条 Load 指令，126.7B 条 Store 指令，268.6B 条 256 位整数向量指令（<code>int_vec_retired.256bit</code> 性能计数器），76.1B 条分支指令，错误预测 431.0M 次，MPKI 等于 <code>431.0M/2757.7B*1000=0.16</code>。虽然指令数减少了，但 IPC 降低更多，最后性能反而倒退，实际从 108s 增加到 116s。原来的 <code>-O3</code> 版本虽然每次只处理一个元素，但指令的并行度更高，IPC 弥补了指令数多的劣势。GCC 16 的 <code>-march=native</code> 性能有明显的提升，生成的指令少了很多上述数据重排的指令，基本是以计算指令 vpaddq/vpsubq/vpmuludq/vpsllq/vpsrlq 为主，生成了非常干净的向量指令，可能是向量化的方法不同，见 <a href="https://godbolt.org/z/Pqrhj9ebE">Godbolt</a>。</p>
 <p>那么，LLVM 22 做了什么优化呢？执行的指令数直接降低到 1213.6B，其中 Load 指令有 302.8B，Store 指令有 109.2B，分支只有 57.2B，错误预测 1093.9M，MPKI 等于 <code>1093.9M/1213.6B*1000=0.90</code>。以 <code>seal::util::DWTHandler::transform_to_rev</code> 为例，可以看到：seal 为了实现 64 位乘 64 位到 128 位的乘法，它自己实现了这个过程，不仅在 <code>seal::util::multiply_uint64_generic</code> 中有实现，实际上也内联到了 <code>seal::util::DWTHandler::transform_to_rev</code> 当中；GCC 14 忠实地实现了这个算法，因此指令数很多（见 <a href="https://godbolt.org/z/KKTa1aMP8">Godbolt</a>）；但其实，AMD64 的 mul 指令本来就是一个 64 位乘 64 位得到 128 位的乘法，所以 LLVM 22 直接识别出这段代码做的事情，然后编译成了 mul 指令（见 <a href="https://godbolt.org/z/bc6xPjEMc">Godbolt</a>，甚至如果开了 BMI2 扩展，还有 <a href="https://www.felixcloutier.com/x86/mulx">mulx</a> 指令可以用），而且这种 64 位乘法保留高位的指令在各种 ISA 都挺常见的，比如 ARM64 的 umulh，RISC-V 的 mulhu，LoongArch 的 mulh.du。当然，seal 的源码其实已经考虑了这个问题，在编译器支持的情况下，直接用 __int128 来完成<a href="https://github.com/microsoft/SEAL/blob/e3476fad1d5bb5e5222c51a551b5a4d7e2cb4f91/native/src/seal/util/gcc.h#L44">这件事情</a>。类似的事情在 706.stockfish_r 的 1to6_classical 中也出现了。然而，这类依赖编译器行为或具体指令集扩展的代码，由于 SPEC CPU 2026 的编译器中立性，都被去掉了，都会回落到最通用的写法上。此时，就只能依赖编译器去自己识别和优化了。</p>
 <p>但这样某种意义上也无法反映真实场景中应用的优化情况，因为很多应用已经实际上和处理器的指令集扩展/编译器扩展共进化，实现的时候，脑子里是默认有这些东西，再去做的调优，甚至会写一些指令集相关的优化，用一些 intrinsics，比如原版 stockfish 就有针对 AVX512/AVX2/SSSE3/NEON_DOTPROD/LASX/LSX 的<a href="https://github.com/official-stockfish/Stockfish/blob/77a8f6ccf31846d63452f79e143fbc6dc62ae3a8/src/nnue/layers/affine_transform.h#L201">优化</a>。到最后，就是编译器又实现各种 pass，识别程序里的 fallback generic 代码，再映射回高效的实现。其实类似的事情之前就出现过，网上用来证明编译器很聪明的一个例子，就是说识别 popcount 的循环，直接翻译成 popcnt 指令，然而很多程序直接用 <code>__builtin_popcount</code> 而不会真的去手写，这次只不过是换了个 pattern 罢了。当然，好消息是，C++20 引入了 std::popcount，可以一定程度避免类似的情况发生，只是来得太晚了。</p>
 <p>相比之下，Geekbench 对这类指令集扩展的优化就比较持开放态度，愿意针对指令集扩展进行针对性的优化，比如经典引入 AMX/SME 对分数的巨大影响，当然这也让它被人骂 AppleBench，只能说见仁见智了。</p>
@@ -3925,11 +3925,11 @@
 </span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="nf">cmovae</span><span class="w"> </span><span class="nv">%rcx</span><span class="p">,</span><span class="nv">%rax</span>
 </span></code></pre></div>
 <p>GCC 14 通过 cmov 指令避免了大量的错误预测，就是这点差别，造成了 LLVM 22 相比 GCC 14 巨大的 MPKI 差距。如果 LLVM 22 在这里选择用 cmov，那性能还能继续往上提一提。事实上，LLVM 22 确实也能在很多地方用 cmov 代替分支，但为什么在这个具体场景下，最后放弃了这个优化，还需要进一步的研究。</p>
+<p>LLVM 22 开 <code>-O3 -march=native</code> 后，相比 <code>-O3</code>，分支预测的问题有所改善，错误预测次数从 1093.9M 降低到了 612.7M 次，MPKI 等于 0.54，不过主要改进的地方，并不是上面提到的 <code>seal::util::RNSTool::sm_mrq</code> 函数（依然把 ternary operator 编译成分支，而不是 GCC 14 那种 cmov），而是 <code>seal::util::DWTHandler::transform_from_rev</code> 和 <code>seal::util::RNSTool::fastbconv_sk</code>。这两个函数和 <code>seal::util::RNSTool::sm_mrq</code> 类似，也有 <code>SEAL_COND_SELECT</code> 宏，但这次因为开了 <code>-O3 -march=native</code>，成功向量化，因此这个 ternary operator 被编译成向量指令 <code>vpcmpgtq</code> 和 <code>vblendvpd</code>，其实就是把 cmov 进行了向量化。标量的时候，LLVM 22 不愿意用 cmov 实现，结果为了向量化，又把 cmov 用向量指令实现了出来。</p>
 <p>750.sealcrypto_r 在不同编译器和编译选项下的情况如下：</p>
 <table>
 <thead>
 <tr>
-<th>负载</th>
 <th>编译器 + 选项</th>
 <th>时间 (s)</th>
 <th>指令 (B)</th>
@@ -3942,7 +3942,6 @@
 </thead>
 <tbody>
 <tr>
-<td>sealcrypto</td>
 <td>GCC 14 <code>-O3</code></td>
 <td>108</td>
 <td>3113.4</td>
@@ -3953,7 +3952,6 @@
 <td>0.14</td>
 </tr>
 <tr>
-<td>sealcrypto</td>
 <td>GCC 14 <code>-O3 -march=native</code></td>
 <td>116</td>
 <td>2757.7</td>
@@ -3964,7 +3962,46 @@
 <td>0.16</td>
 </tr>
 <tr>
-<td>sealcrypto</td>
+<td>GCC 15 <code>-O3</code></td>
+<td>106.4</td>
+<td>3071.3</td>
+<td>379.1</td>
+<td>161.4</td>
+<td>80.0</td>
+<td>416.1</td>
+<td>0.14</td>
+</tr>
+<tr>
+<td>GCC 15 <code>-O3 -march=native</code></td>
+<td>117.7</td>
+<td>2701.9</td>
+<td>379.4</td>
+<td>130.6</td>
+<td>77.6</td>
+<td>406.9</td>
+<td>0.15</td>
+</tr>
+<tr>
+<td>GCC 16 <code>-O3</code></td>
+<td>105.9</td>
+<td>3020.1</td>
+<td>381.1</td>
+<td>158.5</td>
+<td>80.7</td>
+<td>430.3</td>
+<td>0.14</td>
+</tr>
+<tr>
+<td>GCC 16 <code>-O3 -march=native</code></td>
+<td>99.3</td>
+<td>2492.3</td>
+<td>328.0</td>
+<td>123.2</td>
+<td>81.8</td>
+<td>433.3</td>
+<td>0.17</td>
+</tr>
+<tr>
 <td>LLVM 22 <code>-O3</code></td>
 <td>50.5</td>
 <td>1213.6</td>
@@ -3973,6 +4010,16 @@
 <td>57.2</td>
 <td>1093.9</td>
 <td>0.90</td>
+</tr>
+<tr>
+<td>LLVM 22 <code>-O3 -march=native</code></td>
+<td>48.2</td>
+<td>1126.0</td>
+<td>299.2</td>
+<td>108.7</td>
+<td>53.4</td>
+<td>612.7</td>
+<td>0.54</td>
 </tr>
 </tbody>
 </table>
@@ -4426,7 +4473,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年6月2日 04:28:49 UTC">2026年6月2日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年6月2日 09:07:38 UTC">2026年6月2日</span>
   </span>
 
     
