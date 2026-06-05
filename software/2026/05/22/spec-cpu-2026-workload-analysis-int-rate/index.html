@@ -2693,7 +2693,7 @@
 <li><code>__popcountdi2</code> 来自 libgcc: 7.52%，被 <code>Stockfish::Eval::evaluate(const Position&amp; pos)</code> 调用，用来判断局面上满足某种条件，内部实现就是位运算，有兴趣的读者可以阅读 Hacker's Delight 这本书。</li>
 </ul>
 <p>开了 <code>-march=native</code> 后，能观察到 <code>__popcountdi2</code> 被内联为 <code>popcnt</code> 指令。经过测试，开 <code>-mpopcnt</code> 后时间即从 47s 降低到 44s，接近 <code>-march=native</code> 的性能。可见仅开启 popcnt 指令集并消除 <code>__popcountdi2</code> 的函数调用开销，就能带来明显的性能提升。</p>
-<p><code>-O3</code> 编译选项下，1to6_classical 执行的指令数为 531.8B（<code>instructions</code> 性能计数器），其中 Load 指令有 135.7B 条（<code>mem_inst_retired.all_loads</code> 性能计数器），Store 有 59.7B 条（<code>mem_inst_retired.all_stores</code> 性能计数器），分支指令有 56.0B 条（<code>branch-instructions</code> 性能计数器），其中有 2.6B 次错误预测（<code>branch-misses</code> 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：<code>2.6B/531.8B*1000=4.89</code>。即使是在 SPEC INT 2017 当中，这一数值也高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。</p>
+<p><code>-O3</code> 编译选项下，1to6_classical 执行的指令数为 531.8B（<code>instructions</code> 性能计数器），其中 Load 指令有 135.7B 条（<code>mem_inst_retired.all_loads</code> 性能计数器），Store 有 59.7B 条（<code>mem_inst_retired.all_stores</code> 性能计数器），分支指令有 56.0B 条（<code>branch-instructions</code> 性能计数器），其中有 2622.8M 次错误预测（<code>branch-misses</code> 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：<code>2622.8M/531.8B*1000=4.93</code>。即使是在 SPEC INT 2017 当中，这一数值也高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。</p>
 <p>使用 <code>perf record -e branch-misses:pp</code>，观察到主要的分支错误预测来自于 <code>Stockfish::MovePicker::next_move()</code> 函数，贡献了 27.48% 的错误预测，主要是插入排序的部分，一是循环找到插入的位置，二是循环搬运数组内原有元素。其次是 <code>Stockfish::Eval::evaluate()</code> 函数，贡献了 17.42% 的错误预测。再其次是 <code>Stockfish::search()</code> 函数，贡献了 13.06% 的错误预测。</p>
 <p>开 <code>-O3 -mpopcnt</code> 后，指令数减少到 453.9B，其中 Load 有 124.2B 条，Store 有 53.1B 条，分支指令有 46.1B 条，错误预测还是 2.6B 次，光是内联 <code>__popcountdi2</code> 的调用，便可减少 77.9B 条指令，约占原来的 15%。<code>__popcountdi2</code> 本身的实现包括 21 条指令，此外还有 <code>__popcountdi2@plt</code> 里的一次 jmp，和 <code>call __popcountdi2@plt</code> 本身和前后保存和恢复寄存器的开销。</p>
 <h4 id="2-1to6_nnue">2. 1to6_nnue<a class="headerlink" href="#2-1to6_nnue" title="Permanent link">&para;</a></h4>
@@ -2784,12 +2784,12 @@
 </span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="nf">jne</span><span class="w"> </span><span class="mi">1</span><span class="no">b</span>
 </span></code></pre></div>
 <p>可见，即使没有专用的 vpdpbusd 指令，仅用 SSE 也仍有优化空间。GCC 15 通过 SSE 高效实现了有符号和无符号数的符号扩展，获得了介于 GCC 14 次优指令序列与专用 vpdpbusd 指令之间的性能。这在 <a href="https://arxiv.org/abs/2605.03713v2">SPEC CPU2026: Characterization, Representativeness, and Cross-Suite Comparison</a> 论文中也有提及：<code>For example, gcc-15 reduces the instruction count of 706.stockfish_r by up to 3x</code>，不过这个数字是相比 GCC 13 的；相比 GCC 14 也有减少，不过没有那么明显，详情见论文中的 Figure 10 和 Figure 16，这里实测下来是从 GCC 14 的 1342B 条指令降低到 GCC 15 的 1015B。相比之下，LLVM 22 生成的 SSE（<code>-O3</code>，<a href="https://godbolt.org/z/Tsd1YhrWe">Godbolt</a>）或 AVX（<code>-O3 -march=alderlake</code>，<a href="https://godbolt.org/z/WM1xWjqc3">Godbolt</a>）指令都没有 GCC 15 高效。</p>
-<p><code>-O3</code> 编译选项下，1to6_nnue 执行的指令数为 1342.1B，其中 Load 指令有 182.2B 条，Store 指令有 61.8B 条，128 位整数向量指令（如 SSE）有 229.1B 条（<code>int_vec_retired.128bit</code> 性能计数器），分支指令有 77.6B 条，其中有 1.6B 次错误预测。它的 MPKI 只有 <code>1.6B/1342B*1000=1.19</code>，主要瓶颈还是在上述的神经网络推理当中。</p>
+<p><code>-O3</code> 编译选项下，1to6_nnue 执行的指令数为 1342.1B，其中 Load 指令有 182.2B 条，Store 指令有 61.8B 条，128 位整数向量指令（如 SSE）有 229.1B 条（<code>int_vec_retired.128bit</code> 性能计数器），分支指令有 77.6B 条，其中有 1612.9M 次错误预测。它的 MPKI 只有 <code>1612.9M/1342.1B*1000=1.20</code>，主要瓶颈还是在上述的神经网络推理当中。</p>
 <p>GCC 15 用 <code>-O3</code> 编译选项下，1to6_nnue 执行的指令数减少到 1015.3B，其中 Load 指令有 175.0B 条，Store 指令有 57.8B 条，128 位整数向量指令只有 97.0B 条，分支指令有 77.4B 条，优化效果明显。</p>
 <p>GCC 14 用 <code>-march=native</code> 编译选项下，1to6_nnue 执行的指令数锐减到 446.8B，只剩下三分之一的指令数了，其中 Load 指令有 119.6B 条，Store 指令有 44.4B 条，分支指令有 48.7B 条，256 位的 AVX VNNI 指令有 13.2B 条（<code>int_vec_retired.vnni_256</code> 性能计数器），优化效果明显。</p>
 <h4 id="3-7to11_nnue">3. 7to11_nnue<a class="headerlink" href="#3-7to11_nnue" title="Permanent link">&para;</a></h4>
 <p>7to11_nnue 的行为与 1to6_nnue 类似，瓶颈也是在 <code>Stockfish::Eval::NNUE:evaluate</code> 函数上。开启 <code>-march=native</code> 后，时间从 72s 降到了 31s。GCC 15 的性能提升也和 1to6_nnue 类似，从 72s 降低到 46s。</p>
-<p><code>-O3</code> 编译选项下，7to11_nnue 执行的指令数为 1253.2B，其中 Load 指令有 176.1B 条，Store 指令有 61.6B 条，128 位整数向量指令有 212.5B 条，分支指令有 75.4B 条，其中有 1.5B 次错误预测。它的 MPKI 只有 <code>1.5B/1253B*1000=1.20</code>，主要瓶颈还是在神经网络推理当中。</p>
+<p><code>-O3</code> 编译选项下，7to11_nnue 执行的指令数为 1253.2B，其中 Load 指令有 176.1B 条，Store 指令有 61.6B 条，128 位整数向量指令有 212.5B 条，分支指令有 75.4B 条，其中有 1547.5M 次错误预测。它的 MPKI 只有 <code>1547.5M/1253.2B*1000=1.23</code>，主要瓶颈还是在神经网络推理当中。</p>
 <p>GCC 15 用 <code>-O3</code> 编译选项下，7to11_nnue 执行的指令数减少到 955.3B，其中 Load 指令有 169.4B 条，Store 指令有 57.8B 条，128 位整数向量指令只有 92.3B 条，分支指令有 75.2B 条，优化效果明显。</p>
 <p>GCC 14 用 <code>-march=native</code> 编译选项下，7to11_nnue 执行的指令数锐减到 425.9B，只剩下三分之一的指令数了，其中 Load 指令有 115.1B 条，Store 指令有 43.7B 条，分支指令有 47.1B 条，256 位的 AVX VNNI 指令有 12.0B 条，优化效果明显。</p>
 <h4 id="小结">小结<a class="headerlink" href="#小结" title="Permanent link">&para;</a></h4>
@@ -2804,84 +2804,120 @@
 <th>Load (B)</th>
 <th>Store (B)</th>
 <th>分支 (B)</th>
+<th>错误预测次数 (M)</th>
+<th>MPKI</th>
+<th>128 位整数向量 (B)</th>
+<th>256 位 整数向量 (B)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1to6_classical</td>
+<td>1. 1to6_classical</td>
 <td>GCC 14 <code>-O3</code></td>
 <td>47</td>
 <td>531.8</td>
 <td>135.7</td>
 <td>59.7</td>
 <td>56.0</td>
+<td>2622.8</td>
+<td>4.93</td>
+<td>0.13</td>
+<td>0.00</td>
 </tr>
 <tr>
-<td>1to6_classical</td>
+<td>1. 1to6_classical</td>
 <td>GCC 14 <code>-O3 -mpopcnt</code></td>
 <td>44</td>
 <td>453.9</td>
 <td>124.2</td>
 <td>53.1</td>
 <td>46.1</td>
+<td>2639.3</td>
+<td>5.81</td>
+<td>0.13</td>
+<td>0.00</td>
 </tr>
 <tr>
-<td>1to6_nnue</td>
+<td>2. 1to6_nnue</td>
 <td>GCC 14 <code>-O3</code></td>
 <td>77</td>
 <td>1342.1</td>
 <td>182.2</td>
 <td>61.8</td>
 <td>77.6</td>
+<td>1612.9</td>
+<td>1.20</td>
+<td>229.1</td>
+<td>0.00</td>
 </tr>
 <tr>
-<td>1to6_nnue</td>
+<td>2. 1to6_nnue</td>
 <td>GCC 15 <code>-O3</code></td>
 <td>49</td>
 <td>1015.3</td>
 <td>175.0</td>
 <td>57.8</td>
 <td>77.4</td>
+<td>1258.2</td>
+<td>1.24</td>
+<td>97.0</td>
+<td>0.00</td>
 </tr>
 <tr>
-<td>1to6_nnue</td>
+<td>2. 1to6_nnue</td>
 <td>GCC 14 <code>-march=native</code></td>
 <td>32</td>
 <td>446.8</td>
 <td>119.6</td>
 <td>44.4</td>
 <td>48.7</td>
+<td>953.8</td>
+<td>2.13</td>
+<td>5.1</td>
+<td>36.3</td>
 </tr>
 <tr>
-<td>7to11_nnue</td>
+<td>3. 7to11_nnue</td>
 <td>GCC 14 <code>-O3</code></td>
 <td>72</td>
 <td>1253.2</td>
 <td>176.1</td>
 <td>61.6</td>
 <td>75.4</td>
+<td>1547.5</td>
+<td>1.23</td>
+<td>212.5</td>
+<td>0.00</td>
 </tr>
 <tr>
-<td>7to11_nnue</td>
+<td>3. 7to11_nnue</td>
 <td>GCC 15 <code>-O3</code></td>
 <td>46</td>
 <td>955.3</td>
 <td>169.4</td>
 <td>57.8</td>
 <td>75.2</td>
+<td>1224.7</td>
+<td>1.28</td>
+<td>92.3</td>
+<td>0.00</td>
 </tr>
 <tr>
-<td>7to11_nnue</td>
+<td>3. 7to11_nnue</td>
 <td>GCC 14 <code>-march=native</code></td>
 <td>31</td>
 <td>425.9</td>
 <td>115.1</td>
 <td>43.7</td>
 <td>47.1</td>
+<td>922.9</td>
+<td>2.17</td>
+<td>4.6</td>
+<td>35.0</td>
 </tr>
 </tbody>
 </table>
-<p>1to6_classical 类似传统的棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.89 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。</p>
+<p>1to6_classical 类似传统的棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.93 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。</p>
 <h3 id="707ntest_r">707.ntest_r<a class="headerlink" href="#707ntest_r" title="Permanent link">&para;</a></h3>
 <p>ntest 是黑白棋的引擎，该基准测试包括如下负载：</p>
 <div class="language-shell highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ntest_r<span class="w"> </span>Othello.154.ggf<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">16</span>
@@ -4473,7 +4509,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年6月3日 03:05:49 UTC">2026年6月3日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年6月5日 12:28:14 UTC">2026年6月5日</span>
   </span>
 
     
