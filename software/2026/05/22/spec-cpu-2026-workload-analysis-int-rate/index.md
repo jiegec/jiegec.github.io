@@ -35,7 +35,7 @@ stockfish bench 1600 1 26 spec_ref_pos_7to11.fen depth nnue
 - `Stockfish::search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode)` 来自 `src/search.cpp`: 9.49%，搜索逻辑主要在这里实现；
 - `__popcountdi2` 来自 libgcc: 7.52%，被 `Stockfish::Eval::evaluate(const Position& pos)` 调用，用来判断局面上满足某种条件，内部实现就是位运算，有兴趣的读者可以阅读 Hacker's Delight 这本书。
 
-开了 `-march=native` 后，能观察到 `__popcountdi2` 被内联为 `popcnt` 指令。经过测试，开 `-mpopcnt` 后时间即从 47s 降低到 44s，接近 `-march=native` 的性能。可见仅开启 popcnt 指令集并消除 `__popcountdi2` 的函数调用开销，就能带来明显的性能提升。
+开了 `-march=native` 后，能观察到 [`__popcountdi2`](https://github.com/gcc-mirror/gcc/blob/32bbd8849a550ad6f936636476c3ab9be8a58807/libgcc/libgcc2.c#L846) 被内联为 `popcnt` 指令。经过测试，开 `-mpopcnt` 后时间即从 47s 降低到 44s，接近 `-march=native` 的性能。可见仅开启 popcnt 指令集并消除 `__popcountdi2` 的函数调用开销，就能带来明显的性能提升。
 
 `-O3` 编译选项下，1to6_classical 执行的指令数为 531.8B（`instructions` 性能计数器），其中 Load 指令有 135.7B 条（`mem_inst_retired.all_loads` 性能计数器），Store 有 59.7B 条（`mem_inst_retired.all_stores` 性能计数器），分支指令有 56.0B 条（`branch-instructions` 性能计数器），其中有 2622.8M 次错误预测（`branch-misses` 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：`2622.8M/531.8B*1000=4.93`。即使是在 SPEC INT 2017 当中，这一数值也高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。
 
@@ -93,7 +93,7 @@ cmp $0x400,%rcx
 jne 1b
 ```
 
-对于这种适合 SIMD 的代码，开启 `-march=native` 后通常会有明显的性能提升，实际测试也证明了这一点，开了 `-march=native` 后，时间从 77s 降低到 32s，`Stockfish::Eval::NNUE::evaluate` 时间占比降到 54.20%，此时主要的计算指令变为 [vpdpbusd (Multiply and Add Unsigned and Signed Bytes)](https://www.felixcloutier.com/x86/vpdpbusd)，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（[Godbolt](https://godbolt.org/z/zoeqc4zch)）：
+对于这种适合 SIMD 的代码，开启 `-march=native` 后通常会有明显的性能提升，实际测试也证明了这一点，开了 `-march=native` 后，时间从 77s 降低到 32s，`Stockfish::Eval::NNUE::evaluate` 时间占比降到 54.20%，此时主要的计算指令变为 AVX-VNNI 扩展的 [vpdpbusd (Multiply and Add Unsigned and Signed Bytes)](https://www.felixcloutier.com/x86/vpdpbusd) 指令，即针对字节（weights 数组元素是 int8_t 类型，input 数组元素是 uint8_t 类型）元素的整数乘加融合指令，和的类型是 int32_t。核心循环如下（[Godbolt](https://godbolt.org/z/zoeqc4zch)）：
 
 ```asm
 1:
@@ -106,7 +106,7 @@ cmp $0x400,%rcx
 jne 1b
 ```
 
-需要注意的是，单纯开 `-mavx2` 仅能把时间从 77s 减少到 50s，距离 `-march=native` 的 32s 还有明显的差距，即使开启了 AVX（[Godbolt](https://godbolt.org/z/e9dPsqddh)），由于没有开 AVX-VNNI，不能用 vpdpbusd，还是需要先格式转换到 16 位，再用 32 位累加器的 16 位整数乘加指令。Stockfish 的 NNUE 这样的计算方式，就是奔着 vpdpbusd 这条指令去的。因此缺乏这类指令的 CPU，或者虽有指令但编译器未加利用，性能就会明显落后。
+如果 CPU 支持 AVX512-VNNI，还能进一步扩展到 512 的位宽：`vpdpbusd (%rdx,%rax), %zmm1, %zmm0`。需要注意的是，单纯开 `-mavx2` 仅能把时间从 77s 减少到 50s，距离 `-march=native` 的 32s 还有明显的差距：即使开启了 AVX（[Godbolt](https://godbolt.org/z/e9dPsqddh)），由于没有开 AVX-VNNI，不能用 vpdpbusd 指令，还是需要先格式转换到 16 位，再用 32 位累加器的 16 位整数乘加指令。Stockfish 的 NNUE 这样的计算方式，就是奔着 vpdpbusd 这条指令去的。因此缺乏这类指令的 CPU，或者虽有指令但编译器未加利用，性能就会明显落后。
 
 例如在 ARM64 下，对应的 [USDOT (Dot product with unsigned and signed integers (vector))](https://developer.arm.com/documentation/ddi0487/maa/-Part-C-The-AArch64-Instruction-Set/-Chapter-C7-A64-Advanced-SIMD-and-Floating-point-Instruction-Descriptions/-C7-2-Alphabetical-list-of-A64-Advanced-SIMD-and-floating-point-instructions/-C7-2-448-USDOT--vector-) 指令被包括在 i8mm 扩展当中，有这个扩展的话，`-march=native` 性能提升显著（[Godbolt](https://godbolt.org/z/MxY3YYTYo)），例如 Apple M2；而如果没有这个扩展，开不开 `-march=native` 就没什么区别，例如 Apple M1，此时就要回退到类似 AMD64 那样，先扩展到 16 位，再求和（[Godbolt](https://godbolt.org/z/TfdvW4f75)）。RISC-V Vector 指令集扩展则有 vwmulsu.vv 指令可以使用，得到 16 位乘法结果之后，再用 vwadd.wv 指令累加到 32 位（[Godbolt](https://godbolt.org/z/ha5oEb4hE)）。LoongArch 也有对应的 xvmulwev.h.b/xvmulwod.h.b 指令，得到 16 位乘法结果之后，用 xvhaddw.w.h 指令累加到 32 位（[Godbolt](https://godbolt.org/z/xxr5rovxW)），还可以进一步优化为[用 xvmulwev.h.bu.b 指令](https://github.com/loongson-community/discussions/issues/119)，优化后的 transform 函数性能相比 GCC 16 快 37%。
 
@@ -187,11 +187,11 @@ ntest_r Othello.154.ggf 20 16
 
 实测数据显示，运行这个负载耗费的时间是 140s。reftime 是 592s，对应 4.2 分。开启各项优化编译选项，`-O3 -flto` 相比 `-O3` 能带来 4% 的性能提升，进一步 `-O3 -flto -march=native` 相比 `-O3 -flto` 还能带来 10% 的性能提升。下面分析它的具体负载特性。通过 `perf` 观察性能瓶颈，这几个函数耗费的时间占比较多：
 
-- `flips(int sq, u64 mover, u64 enemy)` 来自 `src/flips.cpp`：34.80%，最主要的开销，根据棋盘状态，经过一系列的访存和位运算，判断下子以后是否出现翻转（黑白棋的规则是，只有翻转了对方的棋子才能下子，不然就要轮空），主要是一些数据依赖的访存，混合了一堆位运算；
-- `solveNParity(int alpha, int beta, u64 mover, u64 enemy, u64 parity, EndgameSearch* search, bool hasPassed)` 来自 `src/solve.cpp`：14.21%，进行 alpha-beta 减枝的 minimax 算法，遍历棋盘上的空位置，首先找到那些满足 good parity 的位置（用 `bitSet()` 函数，汇编上是用 AMD64 的 `bt` 指令判断），调用上述 `flips()` 看看是否会出现翻转，如果会出现翻转就尝试下子并进行递归，之后再遍历一次，这次遍历 bad parity 的位置，流程相同，主要的瓶颈在访存以及依赖访存结果的分支；
+- `flips(int sq, u64 mover, u64 enemy)` 来自 `src/flips.cpp`：34.80%，最主要的开销，根据棋盘状态，经过一系列的访存和位运算，判断下子以后是否出现翻转（黑白棋的规则是，只有翻转了对方的棋子才能下子，不然就要轮空），以及下子后会把哪些子翻转过来，主要是一些数据依赖的访存，混合了一堆位运算；
+- `solveNParity(int alpha, int beta, u64 mover, u64 enemy, u64 parity, EndgameSearch* search, bool hasPassed)` 来自 `src/solve.cpp`：14.21%，进行 alpha-beta 减枝的 minimax 算法（negamax 变种），遍历棋盘上的空位置，首先找到那些满足 good parity 的位置（用 `bitSet()` 函数，汇编上是用 AMD64 的 `bt` 指令判断，因为黑白棋里，双方轮流下子，走最后一步的玩家获得一定的优势，所以先找那些能让自己走最后一步的位置），调用上述 `flips()` 看看是否会出现翻转，如果会出现翻转就尝试下子并进行递归，之后再遍历一次，这次遍历 bad parity 的位置，流程相同，主要的瓶颈在访存以及依赖访存结果的分支；
 - `__popcountdi2`：9.65%，因为没开 `-mpopcnt/-march=native`，故需要它来代替 popcnt 指令，用来计算场面上各颜色棋子的数量等等；
 - `solveNFlipParity`：8.95%，与 solveNParity 配合完成 minimax 算法；
-- `solve2`：5.38%，minimax 算法的一部分，处理棋盘只有两个空位的最终局面，此时判断最终胜败是比较容易的。
+- `solve2`：5.38%，minimax 算法的一部分，处理棋盘只有两个空位的最终局面，此时判断最终胜败是比较容易的，不需要再递归。
 
 这也是典型的棋类引擎模式，整个 minimax 算法占了 70%+ 的时间，为了搜索局面，有大量的位运算和访存，还有根据访存结果决定方向的分支。果不其然，执行 2688.3B 条指令，其中有 647.8B 条 Load 指令，255.2B 条 Store 指令，228.2B 条是分支指令，有 6.1B 次错误预测，MPKI 达到了 `6.1B/2688B*1000=2.27`。通过 `perf record -e branch-misses:pp`，看到 `solveNParity` 和 `solveNFlipParity` 一起贡献了 60.37% 的错误预测，主要就是上面说的，循环内对 good 还是 bad parity 的判断，以及链表插入时是否为 NULL 的判断，都是方向依赖数据的分支。
 
@@ -206,14 +206,16 @@ ntest_r Othello.154.ggf 20 16
 
 GCC 15 编译的 707.ntest_r，实际执行 2429.3B 条指令，其中有 610.9B 的 Load 指令，206.2B 的 Store 指令，224.7B 的分支指令。各负载在不同编译器和编译选项下的情况如下：
 
-| 负载  | 编译器 + 选项         | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) |
-| ----- | --------------------- | -------- | -------- | -------- | --------- | -------- |
-| ntest | GCC 14 `-O3`          | 140      | 2688.3   | 647.8    | 255.2     | 228.2    |
-| ntest | GCC 14 `-O3 -mpopcnt` | 126      | 2286.9   | 586.9    | 206.7     | 187.6    |
-| ntest | LLVM 22 `-O3`         | 126      | 2416.9   | 542.7    | 202.9     | 168.2    |
-| ntest | GCC 15 `-O3`          | 130      | 2429.3   | 610.9    | 206.2     | 224.7    |
+| 负载  | 编译器 + 选项              | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) |
+| ----- | -------------------------- | -------- | -------- | -------- | --------- | -------- |
+| ntest | GCC 14 `-O3`               | 140      | 2688.3   | 647.8    | 255.2     | 228.2    |
+| ntest | GCC 14 `-O3 -flto`         | 134      | 2656.3   | 623.4    | 251.3     | 200.9    |
+| ntest | GCC 14 `-O3 -mpopcnt`      | 126      | 2286.9   | 586.9    | 206.7     | 187.6    |
+| ntest | GCC 14 `-O3 -march=native` | 122      | 2230.0   | 588.2    | 206.4     | 185.2    |
+| ntest | LLVM 22 `-O3`              | 126      | 2416.9   | 542.7    | 202.9     | 168.2    |
+| ntest | GCC 15 `-O3`               | 130      | 2429.3   | 610.9    | 206.2     | 224.7    |
 
-结合 706.stockfish_r 和 707.ntest_r 可以看到，popcnt 还是比较常用的。但可惜 AMD64 的基线并不提供这条指令，因此开了 x86-64-v2 或以上的编译优化选项后，这类应用便可以通过一条 popcnt 指令免去 libgcc 的 \_\_popcountdi2 调用开销，节省因额外 call 及 PLT 带来的性能损失。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。
+结合 706.stockfish_r 和 707.ntest_r 可以看到，popcnt 还是比较常用的。但可惜 AMD64 的基线并不提供这条指令，因此开了 x86-64-v2 或以上的编译优化选项后，这类应用便可以通过一条 popcnt 指令免去 libgcc 的 `__popcountdi2` 调用开销，节省因额外 call 及 PLT 带来的性能损失。相比 AVX-VNNI，popcnt 的普及程度就要大得多了。
 
 ### 708.sqlite_r
 
@@ -291,13 +293,16 @@ addr  opcode         p1    p2    p3    p4             p5  comment
 
 各负载在不同编译选项下的情况如下：
 
-| 负载 | 编译器 + 选项 | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) | MPKI |
-| ---- | ------------- | -------- | -------- | -------- | --------- | -------- | ---- |
-| main | GCC 14 `-O3`  | 69       | 896.3    | 252.4    | 105.1     | 178.0    | 1.67 |
-| cte  | GCC 14 `-O3`  | 12       | 306.0    | 82.8     | 39.6      | 62.6     | 0.13 |
-| fp   | GCC 14 `-O3`  | 25       | 554.7    | 132.3    | 61.3      | 111.5    | 0.71 |
+| 负载 | 编译器 + 选项              | 时间 (s) | 指令 (B) | Load (B) | Store (B) | 分支 (B) | MPKI |
+| ---- | -------------------------- | -------- | -------- | -------- | --------- | -------- | ---- |
+| main | GCC 14 `-O3`               | 69       | 896.3    | 252.4    | 105.1     | 178.0    | 1.67 |
+| main | GCC 14 `-O3 -march=native` | 73       | 905.3    | 273.7    | 109.9     | 177.2    | 1.62 |
+| cte  | GCC 14 `-O3`               | 12       | 306.0    | 82.8     | 39.6      | 62.6     | 0.13 |
+| cte  | GCC 14 `-O3 -march=native` | 13       | 303.6    | 88.9     | 40.0      | 62.6     | 0.13 |
+| fp   | GCC 14 `-O3`               | 25       | 554.7    | 132.3    | 61.3      | 111.5    | 0.71 |
+| fp   | GCC 14 `-O3 -march=native` | 27       | 555.8    | 142.7    | 62.6      | 111.6    | 0.69 |
 
-通过上面的分析，可见 sqlite_r 确实是比较难优化的那一类，大量访存、计算和分支混合在一起，对内存子系统的负担比较重，难以向量化，开 `-O3 -march=native` 后运行时间从 106s 增加到 112s，产生了负优化。整体来看，执行了 1760B 条指令，其中有 353B 条是分支指令，MPKI 仅有 1.08，主要由 main 贡献。
+通过上面的分析，可见 sqlite_r 确实是比较难优化的那一类，大量访存、计算和分支混合在一起，对内存子系统的负担比较重，难以向量化，开 `-O3 -march=native` 后运行时间从 106s 增加到 113s，产生了负优化。整体来看，执行了 1760B 条指令，其中有 353B 条是分支指令，MPKI 仅有 1.08，主要由 main 贡献。
 
 ### 710.omnetpp_r
 
