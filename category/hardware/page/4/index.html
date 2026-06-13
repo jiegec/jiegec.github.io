@@ -1530,6 +1530,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#教学dram-结构和特性" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        「教学」DRAM 结构和特性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#教学risc-v-debug-协议" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1787,17 +1798,6 @@
     <span class="md-ellipsis">
       
         在 FPGA 上实现路由器
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#向咸鱼派写入-archlinuxarm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        向咸鱼派写入 ArchlinuxARM
       
     </span>
   </a>
@@ -2074,6 +2074,167 @@
       <header class="md-typeset">
         <h1 id="hardware">hardware<a class="headerlink" href="#hardware" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2021-12-12 00:00:00+00:00">2021年12月12日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../" class="md-meta__link">hardware</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 5 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="教学dram-结构和特性"><a class="toclink" href="../../../../hardware/2021/12/12/dram/">「教学」DRAM 结构和特性</a></h2>
+<p>本文的内容已经整合到<a href="/kb/hardware/sdram.html">知识库</a>中。</p>
+<h3 id="dram-是如何组织的"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#dram-是如何组织的">DRAM 是如何组织的</a></h3>
+<p>DRAM 分成很多层次：Bank Group，Bank，Row，Column，从大到小，容量也是各级别的乘积。</p>
+<p>举例子：</p>
+<ul>
+<li>4 Bank Group</li>
+<li>4 Bank per Bank Group</li>
+<li>32,768 Row per Bank</li>
+<li>1024 Column per Row</li>
+<li>4 Bits per Column</li>
+</ul>
+<p>那么总大小就是 <code>4*4*32768*1024*4=2 Gb</code>。</p>
+<h3 id="访问模式"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#访问模式">访问模式</a></h3>
+<p>DRAM 的访问模式决定了访问内存的实际带宽。对于每次访问，需要这样的操作：</p>
+<ol>
+<li>用 ACT(Bank Activate) 命令打开某个 Bank Group 下面的某个 Bank 的某个 Row，此时整个 Row 的数据都会复制到 Sense Amplifier 中。这一步叫做 RAS（Row Address Strobe）</li>
+<li>用 RD(Read)/WR(Write) 命令按照 Column 访问数据。这一步叫做 CAS（Column Address Strobe）。</li>
+<li>在访问其他 Row 之前，需要用 PRE(Single Bank Precharge) 命令将 Sense Amplifier 中整个 Row 的数据写回 Row 中。</li>
+</ol>
+<p>可以看到，如果访问连续的地址，就可以省下 ACT 命令的时间，可以连续的进行 RD/WR 命令操作。</p>
+<p>除了显式 PRE 以外，还可以在某次读写之后自动进行 PRE：WRA(Write with Auto-Precharge) 和 RDA(Read with Auto-Precharge)。</p>
+<p>总结一下上面提到的六种命令：</p>
+<ol>
+<li>ACT: Bank Activate，激活一个 Row，用于接下来的访问</li>
+<li>PRE: Single Bank Precharge，与 ACT 是逆操作，解除 Row 的激活状态</li>
+<li>RD: Read，读取当前 Row 的某个 Column 数据</li>
+<li>RDA: Read with Auto-Precharge，读取后执行 Precharge</li>
+<li>WR: Write，写入当前 Row 的某个 Column 数据</li>
+<li>WRA: Write with Auto-Precharge，写入后执行 Precharge</li>
+</ol>
+<p>除此之外，还有一些常用命令：</p>
+<ol>
+<li>REF: Refresh，需要定期执行，保证 DRAM 数据不会丢失。</li>
+</ol>
+<h3 id="参数"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#参数">参数</a></h3>
+<p>DRAM 有很多参数，以服务器上的内存 <a href="https://in.micron.com/products/dram-modules/rdimm/part-catalog/mta36asf2g72pz-2g3">MTA36ASF2G72PZ-2G3A3</a> 为例子：</p>
+<ul>
+<li>16GB 容量，DDR4 SDRAM RDIMM</li>
+<li>PC4-2400</li>
+<li>Row address: 64K A[15:0]</li>
+<li>Column address: 1K A[9:0]</li>
+<li>Device bank group address: 4 BG[1:0]</li>
+<li>Device bank address per group: 4 BA[1:0]</li>
+<li>Device configuration: 4Gb (1Gig x 4), 16 banks</li>
+<li>Module rank address: 2 CS_n[1:0]</li>
+<li>Configuration: 2Gig x 72</li>
+<li>Module Bandwidth: 19.2 GB/s=2400 MT/s * 8B/T</li>
+<li>Memory Clock: 0.83ns(1200 MHz)</li>
+<li>Data Rate: 2400 MT/s</li>
+<li>Clock Cycles: CL-nRCD-nRP = 17-17-17</li>
+</ul>
+<p>容量：每个 DRAM 颗粒 <code>64K*1K*4*4*4=4Gb</code>，不考虑 ECC，一共有 <code>16*2=32</code> 个这样的颗粒，实际容量是 16 GB。32 个颗粒分为两组，每组 16 个颗粒，两组之间通过 CS_n 片选信号区分。每组 16 个颗粒，每个颗粒 4 位 DQ 数据信号，合并起来就是 64 位，如果考虑 ECC 就是 72 位。</p>
+<p>再举一个 FPGA 开发板上内存的例子：<a href="https://www.micron.com/products/dram/ddr4-sdram/part-catalog/mt40a512m16ly-075">MT40A512M16LY-075E</a>，参数如下：</p>
+<ol>
+<li>Data Rate: 2666 MT/s, Clock Frequency: 1333 MHz, tCK=0.750ns=750ps</li>
+<li>Target CL-nRCD-nRP: 18-18-18</li>
+<li>tAA(Internal READ command to first data)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRCD(ACTIVATE to internal READ or WRITE delay time)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRP(PRECHARGE command period)=<code>13.50ns(=18*0.750)</code></li>
+<li>tRAS(ACTIVATE-to-PRECHARGE command period)=32ns</li>
+<li>512 Meg x 16</li>
+<li>Number of bank groups: 2</li>
+<li>Bank count per group: 4</li>
+<li>Row addressing: 64K</li>
+<li>Column addressing: 1K</li>
+<li>Page size: 2KB=2K*16b</li>
+</ol>
+<p>总大小：<code>2*4*64K*1K*16=1GB</code>。这个开发板用了 5 个 DRAM 芯片，只采用了其中的 4.5 个芯片：最后一个芯片只用了 8 位数据，这样就是 <code>4.5*16=72</code> 位的数据线，对应 64 位+ECC。</p>
+<h3 id="时序"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#时序">时序</a></h3>
+<p>可以看到，上面的 DRAM Datasheet 里提到了三个时序参数：</p>
+<ol>
+<li>CL=17: CAS Latency，从发送读请求到第一个数据的延迟周期数</li>
+<li>RCD=17: ACT to internal read or write delay time，表示从 ACT 到读/写需要的延迟周期数</li>
+<li>RP=17: Row Precharge Time，表示 Precharge 后需要延迟周期数</li>
+</ol>
+<p>如果第一次访问一个 Row 中的数据，并且之前没有已经打开的 Row，那么要执行 ACT 和 RD 命令，需要的周期数是 RCD+CL；如果之前已经有打开了的 Row，那么要执行 PRE，ACT 和 RD 命令，需要的周期数是 RP+RCD+CL。但如果是连续访问，虽然还需要 CL 的延迟，但是可以流水线起来，充分利用 DDR 的带宽。</p>
+<p>如果把这个换算到 CPU 角度的内存访问延迟的话，如果每次访问都是最坏情况，那么需要 17+17+17=51 个 DRAM 时钟周期，考虑 DRAM 时钟是 1200MHz，那就是 42.5ns，这个相当于是 DRAM 内部的延迟，实际上测得的是 100ns 左右。</p>
+<p>更严格来说，读延迟 READ Latency = AL + CL + PL，其中 AL 和 PL 是可以配置的，CL 是固有的，所以简单可以认为 READ Latency = CL。同理 WRITE Latency = AL + CWL + PL，可以简单认为 WRITE Latency = CWL。CWL 也是可以配置的，不同的 DDR 速率对应不同的 CWL，范围从 1600 MT/s 的 CWL=9 到 3200 MT/s 的 CWL=20，具体见 JESD79-4B 标准的 Table 7 CWL (CAS Write Latency)。</p>
+<h3 id="波形"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#波形">波形</a></h3>
+<p>用 Micron 提供的 <a href="https://media-www.micron.com/-/media/client/global/documents/products/sim-model/dram/ddr4/ddr4_verilog_models.zip?rev=caf27a5eaf6b4a9f81eb894a874a4492">Verilog Model</a> 进行仿真，可以看到如下的波形图：</p>
+<p><img alt="" src="../../../../hardware/ddr4-waveform.png" /></p>
+<p>首先看第一个命令，ACT_n=0, ADDR=0x009C, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=0, WE_n_A14=1，查阅标准可知这是 ACT(Bank Activate) 命令。接着第二个命令，ACT_n=1, ADDR=0x0400, CAS_n_A15=0, CKE=1-&gt;1, CS_n=0, RAS_n_A16=1, WE_n_A14=1, A10=1, 这是 RDA(Read with Auto Precharge) 命令。若干个周期后，读取的数据从 DQ 上输出，一共 8 个字节的数据。</p>
+<h3 id="刷新"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#刷新">刷新</a></h3>
+<p>DRAM 的一个特点是需要定期刷新。有一个参数 tREFI，表示刷新的时间周期，这个值通常是 7.8us，在温度大于 85 摄氏度时是 3.9 us（见 JESD79-4B Table 131）。在刷新之前，所有的 bank 都需要 Precharge 完成并等待 RP 的时间，这时候所有的 Bank 都是空闲的，再执行 REF(Refresh) 命令。等待 tRFC(Refresh Cycle) 时间后，可以继续正常使用。</p>
+<p>为了更好的性能，DDR4 标准允许推迟一定次数的刷新，但是要在之后补充，保证平均下来依然满足每过 tREFI 时间至少一次刷新。</p>
+<h3 id="地址映射"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#地址映射">地址映射</a></h3>
+<p>如果研究 DRAM 内存控制器，比如 <a href="https://www.xilinx.com/support/documentation/ip_documentation/ultrascale_memory_ip/v1_4/pg150-ultrascale-memory-ip.pdf">FPGA 上的 MIG</a>，可以发现它可以配置不同的地址映射方式，例如：</p>
+<ul>
+<li>ROW_COLUMN_BANK</li>
+<li>ROW_BANK_COLUMN</li>
+<li>BANK_ROW_COLUMN</li>
+<li>ROW_COLUMN_LRANK_BANK</li>
+<li>ROW_LRANK_COLUMN_BANK</li>
+<li>ROW_COLUMN_BANK_INTLV</li>
+</ul>
+<p>就是将地址的不同部分映射到 DRAM 的几个地址：Row，Column，Bank。可以想象，不同的地址映射方式针对不同的访存模式会有不同的性能。对于连续的内存访问，ROW_COLUMN_BANK 方式是比较适合的，因为连续的访问会分布到不同的 Bank 上，这样性能就会更好。</p>
+<p>此外，如果访问会连续命中同一个 Page，那么直接读写即可；反之如果每次读写几乎都不会命中同一个 Page，那么可以设置 Auto Precharge，即读写以后自动 Precharge，减少了下一次访问前因为 Row 不同导致的 PRE 命令。一个思路是在对每个 Page 的最后一次访问采用 Auto Precharge。</p>
+<h3 id="传输速率"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#传输速率">传输速率</a></h3>
+<p>DDR SDRAM 的传输速率计算方式如下：</p>
+<div class="language-text highlight"><pre><span></span><code>Memory Speed (MT/s) * 64 (bits/transfer)
+</code></pre></div>
+<p>例如一个 DDR4-3200 的内存，带宽就是 <code>3200 * 64 = 204.8 Gb/s = 25.6 GB/s</code>。但前面已经看到，除了传输数据，还需要进行很多命令，实际上很难达到 100% 的带宽。然后 CPU 可以连接多个 channel 的 DRAM，再考虑多个 CPU Socket，系统的总带宽就是</p>
+<div class="language-text highlight"><pre><span></span><code>Memory Speed (MT/s) * 64 (bits/transfer) * Channels * Sockets
+</code></pre></div>
+<p>使用 MLC 等工具进行测试，计算实际与理论的比值，我测试得到的大概在 70%-90% 之间。</p>
+<h3 id="hbm"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#hbm">HBM</a></h3>
+<p>HBM 相比前面的 DDR SDRAM，它堆叠了多个 DRAM，提供多个 channel 并且提高了位宽。例如 <a href="https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/dram/hbm2e/8gb_and_16gb_hbm2e_dram.pdf">Micron HBM with ECC</a>，堆叠了 4/8 层 DRAM，提供 8 个 channel，每个 channel 的数据宽度是 128 位，以 3200 MT/s 计算，一个 HBM 芯片的传输速率最大是：</p>
+<div class="language-text highlight"><pre><span></span><code>3200 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 3276.8 Gb/s = 409.6 GB/s
+</code></pre></div>
+<p>所以一片 HBM 的传输速率就相当于 16 个传统的 DDR SDRAM：8 个 Channel 加双倍的位宽。128 位实际上就是把两片 64-bit DDR SDRAM 并起来了，可以当成一个 128 位的用，也可以在 Pseudo Channel 模式下，当成共享地址和命令信号的两个 DDR SDRAM 用。</p>
+<p>Xilinx 的 Virtex Ultrascale Plus HBM FPGA 提供了 <code>1800 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 230.4 GB/s</code> 的带宽，如果用了两片 HBM 就是 460.8 GB/s。暴露给 FPGA 逻辑的是 16 个 256 位的 AXI3 端口，AXI 频率 450 MHz，内存频率 900 MHz。可以看到，每个 AXI3 就对应了一个 HBM 的 pseudo channel。每个 pseudo channel 是 64 位，但是 AXI 端口是 256 位：在速率不变的情况下，从 450MHz 到 900MHz，再加上 DDR，相当于频率翻了四倍，所以位宽要从 64 位翻四倍到 256 位。</p>
+<p>当然了，HBM 的高带宽的代价就是引脚数量很多。根据 <a href="https://www.jedec.org/system/files/docs/JESD238A.pdf">HBM3 JESD238A</a>，每个 Channel 要 120 个 pin，一共 16 个 channel（HBM2 是 8 channel，每个 channel 128 位；HBM3 是 16 channel，每个 channel 64 位），然后还有其他的 52 个 pin，这些加起来就 1972 个 pin 了。所以一般在 Silicon Interposer 上连接，而不是传统的在 PCB 上走线（图源 <a href="https://picture.iczhiku.com/resource/ieee/WYifSuFTZuHLFcMV.pdf">A 1.2V 20nm 307GB/s HBM DRAM with At-Speed Wafer-Level I/O Test Scheme and Adaptive Refresh Considering Temperature Distribution</a>）：</p>
+<p><img alt="" src="../../../../hardware/dram-hbm-stack.png" /></p>
+<p>所以在 HBM3 标准里，用 Microbump 来描述 HBM 的 pin。</p>
+<p>可以理解为把原来插在主板上的内存条，通过堆叠，变成一个 HBM Die，然后紧密地连接到 CPU 中。但是另一方面，密度上去了，价格也更贵了。</p>
+<p>A100 显卡 40GB PCIe 版本提供了 1555 GB/s 的内存带宽。根据倍数关系，可以猜测是 5 个 8GB 的 HBM，每个提供 <code>1555 / 5 = 311 GB/s</code> 的带宽，那么时钟频率就是 <code>311 (GB/s) * 8 (bits/byte) / 128 (bits/transfer) / 8 (channels) / 2 (DDR) = 1215 MHz</code>，这与 <code>nvidia-smi -q</code> 看到的结果是一致的。</p>
+<p>进一步，A100 80GB PCIe 版本提供了 1935 GB/s 的带宽，按照同样的方法计算，可得时钟频率是 <code>1935 (GB/s) / 5 * 8 (bits/byte) / 128 (bits/transfer) / 8 (channels) / 2(DDR) = 1512 MHz</code>，与 <a href="https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/PB-10577-001_v02.pdf">Product Brief</a> 一致。频率的提高是因为从 HBM2 升级到了 HBM2e。</p>
+<p>A100 文档中的 Memory bus width 5120 的计算方式也就清楚了：<code>128 (bits/transfer) * 8 (channels) * 5 (stacks) = 5120 (bits)</code>。</p>
+<p>H100 SXM5 升级到了 HBM3，内存容量依然是 80GB，但是时钟频率提高，内存带宽是 <code>2619 (MHz) * 2 (DDR) * 128 (bits/transfer) * 8 (channels) * 5 (stacks) / 8 (bits/byte) = 3352 GB/s</code>。</p>
+<h3 id="参考文档"><a class="toclink" href="../../../../hardware/2021/12/12/dram/#参考文档">参考文档</a></h3>
+<ul>
+<li>Memory systems: Cache, DRAM &amp; Disk</li>
+<li><a href="https://zhuanlan.zhihu.com/p/262052220">译文：DDR4 SDRAM - Understanding the Basics（上）</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/263080272">译文：DDR4 SDRAM - Understanding the Basics（下）</a></li>
+<li><a href="https://github.com/RAMGuide/TheRamGuide-WIP-/raw/main/DDR5%20Spec%20JESD79-5.pdf">JEDEC STANDARD DDR5 SDRAM JESD79-5</a></li>
+<li><a href="http://www.softnology.biz/pdf/JESD79-4B.pdf">JEDEC STANDARD DDR4 SDRAM JESD79-4B</a></li>
+<li><a href="https://documents.pub/document/jesd79-3e-ddr3-sdram-specification.html">JEDEC STANDARD DDR3 SDRAM JESD79-3E</a></li>
+</ul>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -5027,58 +5188,6 @@ in 1.4.
 <p>第三步，也是正在做的一步，就是真正实现 IP 包的转发，这需要三个步骤：解析目的地址，查询路由表，查询 ARP 表。于是需要照着 ARP 表的方案同样做了路由表的仲裁，目前为了简单也还是把路由表设置为静态的。这里就需要做一些特殊的考虑，例如上面三步是串行的，但是我需要同时把 IP 包存一份，最后转发的时候修改一点就发出去了，所以需要等两步都做完，才能继续下一个包的处理。目前做到了第二小步，正在向最后一步查询 ARP 表进发。</p>
 <p>UPDATE：现在最后一步也做好了，但是遇到了小问题，还是不能偷懒，需要写一个 XPM_MEMORY_SPRAM，直接写一个大的数组太浪费 LUT 了。</p>
 <p>UPDATE-2019-04-27：It WORKS now. 不过也发现了之前写的 ARP 表有点问题。</p>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2018-11-06 00:00:00+00:00">2018年11月6日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../" class="md-meta__link">hardware</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="向咸鱼派写入-archlinuxarm"><a class="toclink" href="../../../../hardware/2018/11/06/archlinuxarm-on-sfpi/">向咸鱼派写入 ArchlinuxARM</a></h2>
-<p>之前由于我的 macOS 上不知道为啥不能把我的 TF 卡设备放到我的虚拟机里，所以之前就没能刷 ArchLinuxARM 上去。今天我想到了一个方法，完成了这件时期：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$ wget https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/os/ArchLinuxARM-armv7-latest.tar.gz
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>$ dd if=/dev/zero of=archlinuxarm.img bs=1M count=1024
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>$ mkfs.ext4 archlinuxarm.img
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>$ sudo mkdir -p /mnt/archlinuxarm
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>$ sudo mount -o loop archlinuxarm.img /mnt/archlinuxarm
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>$ sudo bsdtar -xpf ArchLinuxARM-armv7-latest.tar.gz -C /mnt/archlinuxarm
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>$ sudo umount /mnt/archlinuxarm
-</span></code></pre></div>
-<p>这样就获得了一个 ext4 的 ArchlinuxARM 镜像。刚好解压出来不到 1G，所以开了 1G 的镜像刚好放得下。然后把 archlinuxarm.img 拷回 macOS，然后用 dd 写进去：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$ sudo dd if=archlinuxarm.img of=/dev/rdisk4s2 bs=1048576
-</span></code></pre></div>
-<p>这时候可以确认，我们确实是得到了一个正确的 ext4fs：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ sudo /usr/local/opt/e2fsprogs/sbin/tune2fs -l /dev/disk4s2
-</span></code></pre></div>
-<p>不过，我们实际的分区大小可能不止 1G，所以可以修改一下大小：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$ sudo /usr/local/opt/e2fsprogs/sbin/resize2fs -p /dev/disk4s2
-</span></code></pre></div>
-<p>这样就成功地把 ArchlinuxARM 写进去了。默认的用户名和密码都是 root，可以成功通过串口登录。</p>
     
     
   </div>
