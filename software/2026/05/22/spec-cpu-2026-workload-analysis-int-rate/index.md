@@ -1,5 +1,7 @@
 # SPEC CPU 2026 负载特性分析（INT Rate 篇）
 
+本文同步发布到本人的[知乎](https://zhuanlan.zhihu.com/p/2049066876190331449)。
+
 [English version](https://jia.je/software/2026/05/22/spec-cpu-2026-workload-analysis-int-rate-en/index.md)
 
 ## 背景
