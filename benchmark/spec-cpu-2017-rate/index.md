@@ -311,6 +311,7 @@ x86 平台的分支预测准确率（Average）由高到低（`-O3`）：
 
 ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 
+1. Neoverse V3(AWS Graviton 5): MPKI=4.33
 1. Neoverse V2(Google Axion C4A): MPKI=4.59
 1. Avalanche(Apple M2 P-Core): MPKI=4.62
 1. Firestorm(Apple M1 P-Core): MPKI=4.89
