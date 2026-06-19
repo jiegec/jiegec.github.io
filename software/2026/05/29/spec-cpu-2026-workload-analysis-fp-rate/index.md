@@ -1,5 +1,7 @@
 # SPEC CPU 2026 负载特性分析（FP Rate 篇）
 
+本文同步发布到本人的[知乎](https://zhuanlan.zhihu.com/p/2051441539671404912)。
+
 [English version](https://jia.je/software/2026/05/29/spec-cpu-2026-workload-analysis-fp-rate-en/index.md)
 
 ## 背景
