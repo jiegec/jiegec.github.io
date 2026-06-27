@@ -188,6 +188,7 @@ ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3 -march=native`）: [5.97](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M1_P-Core_O3-march%3Dnative_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3 -march=native`）: [6.73](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M2_P-Core_O3-march%3Dnative_001.txt)
+- Huawei Kirin X90 VM P-Core @ 2.3 GHz（`-O3 -march=native`）: [3.95](https://jia.je/benchmark/data-trixie/fp2026_rate1/Huawei_Kirin_X90_VM_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i7-13700K P-Core @ 5.4 GHz Raptor Cove（`-O3 -march=native`）: [7.96](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i7-13700K_P-Core_O3-march%3Dnative_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz (AVX-512 @ 4.0 GHz) Cascade Lake（`-O3 -march=native`）: [4.22](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-10980XE_O3-march%3Dnative_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3 -march=native`）: [3.97](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3-march%3Dnative_001.txt)
@@ -200,6 +201,7 @@ ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [5.80](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M1_P-Core_O3_001.txt)
 - Apple M2 P-Core @ 3.5 GHz Avalanche（`-O3`）: [6.38](https://jia.je/benchmark/data-trixie/fp2026_rate1/Apple_M2_P-Core_O3_001.txt)
+- Huawei Kirin X90 VM P-Core @ 2.3 GHz（`-O3`）: [3.76](https://jia.je/benchmark/data-trixie/fp2026_rate1/Huawei_Kirin_X90_VM_P-Core_O3_001.txt)
 - Intel Core i7-13700K P-Core @ 5.4 GHz Raptor Cove（`-O3`）: [6.32](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i7-13700K_P-Core_O3_001.txt)
 - Intel Core i9-10980XE @ 4.7 GHz Cascade Lake（`-O3`）: [3.55](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-10980XE_O3_001.txt)
 - Intel Core i9-12900KS E-Core @ 4.1 GHz Gracemont（`-O3`）: [3.46](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Core_i9-12900KS_E-Core_O3_001.txt)
@@ -214,6 +216,7 @@ ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3 -march=native`）: [6.10](https://jia.je/benchmark/data-trixie/fp2026_rate1/AWS_Graviton_5_O3-march%3Dnative_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -march=native`）: [2.74](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3-march%3Dnative_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -march=native`）: [1.62](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3-march%3Dnative_001.txt)
+- Kunpeng 920 HuaweiCloud kc2 @ 2.9 GHz（`-O3 -march=native`）: [3.69](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_HuaweiCloud_kc2_O3-march%3Dnative_001.txt)
 
 服务器平台：
 
@@ -221,6 +224,7 @@ ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3`）: [5.67](https://jia.je/benchmark/data-trixie/fp2026_rate1/AWS_Graviton_5_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.43](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [1.54](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_O3_001.txt)
+- Kunpeng 920 HuaweiCloud kc2 @ 2.9 GHz（`-O3`）: [3.78](https://jia.je/benchmark/data-trixie/fp2026_rate1/Kunpeng_920_HuaweiCloud_kc2_O3_001.txt)
 
 #### 备注
 
