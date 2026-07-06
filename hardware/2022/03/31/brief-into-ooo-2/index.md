@@ -204,15 +204,19 @@ Load 的起始地址等于 Store 的起始地址或者正好在中间。
 
 下面是在几款处理器上实测 Store to Load Forwarding 在各种访存模式下能否转发以及转发的条件：
 
-| uArch                                                                              | 1 ld + 1 st | 1 ld + 2 st | 1 ld + 4 st | 1 ld + 8 st |
-| ---------------------------------------------------------------------------------- | ----------- | ----------- | ----------- | ----------- |
-| [AMD Zen5](https://jia.je/hardware/2024/11/11/amd-zen5/index.md)                   | Yes [1]     | No          | No          | No          |
-| [ARM Neoverse V2](https://jia.je/hardware/2024/11/07/arm-neoverse-v2/index.md)     | Yes [2]     | Yes [3]     | No          | No          |
-| [Qualcomm Oryon](https://jia.je/hardware/2024/09/01/qualcomm-oryon/index.md)       | Yes [4]     | Yes [5]     | No          | No          |
-| [Apple Firestorm](https://jia.je/hardware/2024/12/26/apple-m1/index.md)            | Yes         | Yes [6]     | Yes [6]     | Yes [6]     |
-| [Apple M4 P-Core](https://jia.je/hardware/2025/05/21/apple-m4/index.md)            | Yes         | Yes         | Yes         | Yes         |
-| [Intel Golden Cove](https://jia.je/hardware/2025/01/10/intel-golden-cove/index.md) | Yes [7]     | No          | No          | No          |
-| [Intel Gracemont](https://jia.je/hardware/2025/01/12/intel-gracemont/index.md)     | Yes [8]     | No          | No          | No          |
+| uArch                                                                                | 1 ld + 1 st | 1 ld + 2 st | 1 ld + 4 st | 1 ld + 8 st |
+| ------------------------------------------------------------------------------------ | ----------- | ----------- | ----------- | ----------- |
+| [AMD Zen5](https://jia.je/hardware/2024/11/11/amd-zen5/index.md)                     | Yes [1]     | No          | No          | No          |
+| [Ampere Skylark](https://jia.je/hardware/2026/07/07/ampere-skylark/index.md)         | Yes [1]     | No          | No          | No          |
+| [ARM Neoverse V2](https://jia.je/hardware/2024/11/07/arm-neoverse-v2/index.md)       | Yes [2]     | Yes [3]     | No          | No          |
+| [ARM Neoverse V3](https://jia.je/hardware/2026/06/13/arm-neoverse-v3/index.md)       | Yes [2]     | Yes [3]     | No          | No          |
+| [Qualcomm Oryon](https://jia.je/hardware/2024/09/01/qualcomm-oryon/index.md)         | Yes [4]     | Yes [5]     | No          | No          |
+| [Apple M1 Firestorm](https://jia.je/hardware/2024/12/26/apple-m1/index.md)           | Yes         | Yes [6]     | Yes [6]     | Yes [6]     |
+| [Apple M2 Avalanche](https://jia.je/hardware/2026/07/06/apple-m2/index.md)           | Yes         | Yes [6]     | Yes [6]     | Yes [6]     |
+| [Apple M4 P-Core](https://jia.je/hardware/2025/05/21/apple-m4/index.md)              | Yes         | Yes         | Yes         | Yes         |
+| [Intel Golden Cove](https://jia.je/hardware/2025/01/10/intel-golden-cove/index.md)   | Yes [7]     | No          | No          | No          |
+| [Intel Redwood Cove](https://jia.je/hardware/2025/04/23/intel-redwood-cove/index.md) | Yes [7]     | No          | No          | No          |
+| [Intel Gracemont](https://jia.je/hardware/2025/01/12/intel-gracemont/index.md)       | Yes [8]     | No          | No          | No          |
 
 - \[1\]: 要求 st 完全包含 ld
 - \[2\]: 要求 ld 和 st 地址相同或差半个 st 宽度

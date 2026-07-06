@@ -23,6 +23,7 @@
 - [Qualcomm’s Oryon LLVM Patches](https://chipsandcheese.com/2024/05/15/qualcomms-oryon-llvm-patches/)
 - [高通自研 PC 芯片 X Elite 实测：真能干翻苹果英特尔？](https://www.bilibili.com/video/BV1Ue41197Qb/)
 - [太贵了，它没你想的那么美好！高通骁龙 X Elite 78-100 笔记本详细评测](https://www.bilibili.com/video/BV1z1421r7dZ/)
+- [高通 X Elite 深度分析：年度最自信 CPU](https://www.bilibili.com/video/BV1jJSzYTEbr/)
 - [Snapdragon X Elite](https://www.qualcomm.com/products/mobile/snapdragon/laptops-and-tablets/snapdragon-x-elite)
 - [Qualcomm Oryon CPU](https://www.qualcomm.com/products/technology/processors/oryon)
 
@@ -432,3 +433,7 @@ Memory Device
         Maximum Voltage: 0.856 V
         Configured Voltage: 0.8 V
 ```
+
+## 总结
+
+Oryon 由前 Apple 团队设计，微架构上继承了 Firestorm 的很多设计思路，并在此基础上做了改进。在 SPEC CPU 2017 Rate-1 上，相比 Firestorm 整数性能提升 5.9%，浮点性能提升 24.1%。希望高通未来可以持续迭代，像苹果那样每代都在微架构上做增量优化。
