@@ -2676,7 +2676,7 @@
 </ul>
 <p>下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。</p>
 <h2 id="benchmark">Benchmark<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
-<p>Apple Firestorm/Icestorm 的性能测试结果见 <a href="../../../../../benchmark/">SPEC</a>。</p>
+<p>Apple M1 Firestorm/Icestorm 的性能测试结果见 <a href="../../../../../benchmark/">SPEC</a>。</p>
 <h2 id="环境准备">环境准备<a class="headerlink" href="#环境准备" title="Permanent link">&para;</a></h2>
 <p>Apple M1 预装的是 macOS，macOS 的绑核只能绑到 P 或者 E，不能具体到某一个核上；在 macOS 上可以读取 PMU，需要使用 kpep 的私有框架，代码可以在<a href="https://github.com/jiegec/cpu-micro-benchmarks">这里</a>找到。</p>
 <p>如果想更方便地进行测试，建议安装 Asahi Linux 的各种发行版，此时可以在 Linux 下自由地绑核，也可以用标准的方式使用 PMU。</p>
@@ -2699,7 +2699,7 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>hw.perflevel0.l1icachesize: 196608
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>hw.perflevel1.l1icachesize: 131072
 </span></code></pre></div>
-<p>根据 Apple Silicon CPU Optimization Guide，从 M1 Family 到 M4 Family，A14 Bionic 到 A18 Family，P-Core 的 L1 ICache 的配置都是 192KiB, 6-way, 64B lines；对应处理器的 E-Core 的 L1 ICache 都是 192KiB, 64B lines，其中 M1 Family 和 A14 Bionic 是 8-way，其余处理器（M2 Family 和 A15 Bionic 开始）是 4-way。</p>
+<p>根据 Apple Silicon CPU Optimization Guide，从 M1 Family 到 M4 Family，A14 Bionic 到 A18 Family，P-Core 的 L1 ICache 的配置都是 <strong>192KiB</strong>, 6-way, 64B lines；对应处理器的 E-Core 的 L1 ICache 都是 <strong>128KiB</strong>, 64B lines，其中 M1 Family 和 A14 Bionic 是 8-way，其余处理器（M2 Family 和 A15 Bionic 开始）是 4-way。</p>
 <h4 id="firestorm_1">Firestorm<a class="headerlink" href="#firestorm_1" title="Permanent link">&para;</a></h4>
 <p>为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下 Firestorm 的 IPC：</p>
 <p><img alt="" src="../../../../apple-m1-firestorm-fetch-bandwidth.png" /></p>
@@ -2715,7 +2715,7 @@
 <p>可见在 1024 个分支之内可以达到 1 的 CPI，超过 1024 个分支，出现了 3 CPI 的平台，一直延续到 49152 个分支。超出 BTB 容量以后，分支预测时，无法从 BTB 中得到哪些指令是分支指令的信息，只能等到取指甚至译码后才能后知后觉地发现这是一条分支指令，这样就出现了性能损失，出现了 3 CPI 的情况。第二个拐点 49152，对应的是指令 footprint 超出 L1 ICache 的情况：L1 ICache 是 192KB，按照每 4 字节一个 B 指令计算，最多可以存放 49152 条 B 指令。</p>
 <p>降低分支指令的密度，在 B 指令之间插入 NOP 指令，使得每 8 个字节有一条 B 指令，得到如下结果：</p>
 <p><img alt="" src="../../../../apple-m1-firestorm-btb-8b.png" /></p>
-<p>可以看到 CPI=1 的拐点前移到 1024 个分支，同时 CPI=3 的平台的拐点也前移到了 24576。拐点的前移，意味着 BTB 采用了组相连的结构，当 B 指令的 PC 的部分低位总是为 0 时，组相连的 Index 可能无法取到所有的 Set，导致表现出来的 BTB 容量只有部分 Set，例如此处容量减半，说明只有一半的 Set 被用到了。</p>
+<p>可以看到 CPI=1 的拐点前移到 512 个分支，同时 CPI=3 的平台的拐点也前移到了 24576。拐点的前移，意味着 BTB 采用了组相连的结构，当 B 指令的 PC 的部分低位总是为 0 时，组相连的 Index 可能无法取到所有的 Set，导致表现出来的 BTB 容量只有部分 Set，例如此处容量减半，说明只有一半的 Set 被用到了。</p>
 <p>如果进一步降低 B 指令的密度，使得它的低若干位都等于 0，最终 CPI=1 的拐点定格在 2 条分支，此时分支的间距大于或等于 2048B；CPI=3 的拐点定格在 6 条分支，此时分支的间距大于或等于 32KB。根据这个信息，可以认为 Firestorm 的 BTB 是 512 Set 2 Way 的结构，Index 是 PC[10:2]；同时也侧面佐证了 192KB L1 ICache 是 512 Set 6 Way，Index 是 PC[14:6]。</p>
 <h4 id="icestorm_2">Icestorm<a class="headerlink" href="#icestorm_2" title="Permanent link">&para;</a></h4>
 <p>用相同的方式测试 Icestorm，首先用 4B 的间距：</p>
@@ -2743,7 +2743,7 @@
 <li>指令预取器在工作，当 footprint 大于 128KB L1 ICache 时，能提前把指令取进来</li>
 </ol>
 <h3 id="l1-itlb">L1 ITLB<a class="headerlink" href="#l1-itlb" title="Permanent link">&para;</a></h3>
-<p>官方信息：根据 Apple Silicon CPU Optimization Guide，从 M1 Family 到 M4 Family，A14 Bionic 到 A18 Family，其 P-Core 的 L1 ITLB 配置都是一样的：192 entries，考虑到每个页是 16 KiB，对应 3 MiB 的内存；E-Core 的话，M1 Family 和 A14 Bionic 的 L1 ITLB 是 128 entries，之后的处理器（M2 Family 和 A15 Bionic 开始）则 E-Core 也是 192 entries。</p>
+<p>官方信息：根据 Apple Silicon CPU Optimization Guide，从 M1 Family 到 M4 Family，A14 Bionic 到 A18 Family，其 P-Core 的 L1 ITLB 配置都是一样的：<strong>192 entries</strong>，考虑到每个页是 16 KiB，对应 3 MiB 的内存；E-Core 的话，M1 Family 和 A14 Bionic 的 L1 ITLB 是 <strong>128 entries</strong>，之后的处理器（M2 Family 和 A15 Bionic 开始）则 E-Core 也是 192 entries。</p>
 <p>因此，M1 的 P-Core L1 ITLB 是 192 entries，E-Core L1 ITLB 是 128 entries。</p>
 <h4 id="firestorm_3">Firestorm<a class="headerlink" href="#firestorm_3" title="Permanent link">&para;</a></h4>
 <p>构造一系列的 B 指令，使得 B 指令分布在不同的 page 上，使得 ITLB 成为瓶颈，在 Firestorm 上进行测试：</p>
@@ -2791,9 +2791,9 @@
 <p>Icestorm 测试结果如下：</p>
 <p><img alt="" src="../../../../apple-m1-icestorm-prf.png" /></p>
 <ul>
-<li>32b/64b int：测试 speculative 32/64 位整数寄存器的数量，拐点在 78</li>
-<li>32b fp：测试 speculative 32 位浮点寄存器的数量，拐点在 382</li>
-<li>flags：测试 speculative NZCV 寄存器的数量，拐点在 75</li>
+<li>32b/64b int：测试 speculative 32/64 位整数寄存器的数量，拐点在 77</li>
+<li>32b fp：测试 speculative 32 位浮点寄存器的数量，拐点在 74</li>
+<li>flags：测试 speculative NZCV 寄存器的数量，拐点在 38</li>
 </ul>
 <p>注意这里测试的都是能够用于预测执行的寄存器数量，实际的物理寄存器堆还需要保存架构寄存器。但具体保存多少个架构寄存器不确定，但至少 32 个整数通用寄存器和浮点寄存器是一定有的，但可能还有一些额外的需要重命名的状态也要算进来。</p>
 <h3 id="load-store-unit--l1-dcache">Load Store Unit + L1 DCache<a class="headerlink" href="#load-store-unit--l1-dcache" title="Permanent link">&para;</a></h3>
@@ -2812,7 +2812,7 @@
 <p><img alt="" src="../../../../apple-m1-icestorm-l1dc.png" /></p>
 <p>可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量，和官方信息一致。L1 DCache 范围内延迟是 3 cycle，之后提升到 14 cycle。</p>
 <h4 id="l1-dtlb-容量">L1 DTLB 容量<a class="headerlink" href="#l1-dtlb-容量" title="Permanent link">&para;</a></h4>
-<p>官方信息：根据 Apple Silicon CPU Optimization Guide，对于 P-Core 来说，除了 M2 Family、A14 Bionic 和 A15 Bionic 的 L1 DTLB 是 256 entries 以外，其余的 M1 Family、M3 Family 到 M4 Family，A16 Bionic 到 A18 Family 的 L1 DTLB 都是 160 entries。对于 E-Core 来说，除了 M1 Family 和 A14 Bionic 是 129 entries，其余的从 M2 Family 到 M4 Family，A15 Bionic 到 A18 Family 都是 192 entries。</p>
+<p>官方信息：根据 Apple Silicon CPU Optimization Guide，对于 P-Core 来说，除了 M2 Family、A14 Bionic 和 A15 Bionic 的 L1 DTLB 是 256 entries 以外，其余的 M1 Family、M3 Family 到 M4 Family，A16 Bionic 到 A18 Family 的 L1 DTLB 都是 <strong>160 entries</strong>。对于 E-Core 来说，除了 M1 Family 和 A14 Bionic 是 <strong>128 entries</strong>，其余的从 M2 Family 到 M4 Family，A15 Bionic 到 A18 Family 都是 192 entries。</p>
 <p>因此，M1 的 P-Core L1 DTLB 容量是 160，E-Core L1 DTLB 容量是 128。</p>
 <h5 id="firestorm_7">Firestorm<a class="headerlink" href="#firestorm_7" title="Permanent link">&para;</a></h5>
 <p>用类似的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈，在 Firestorm 上：</p>
@@ -2956,7 +2956,7 @@
 </ul>
 <p>一共有 8 bit，由 VA[47:14] 折叠而来。</p>
 <h3 id="执行单元">执行单元<a class="headerlink" href="#执行单元" title="Permanent link">&para;</a></h3>
-<p>想要测试有多少个执行单元，每个执行单元可以运行哪些指令，首先要测试各类指令在无依赖情况下的的 IPC，通过 IPC 来推断有多少个能够执行这类指令的执行单元；但由于一个执行单元可能可以执行多类指令，于是进一步需要观察在混合不同类的指令时的 IPC，从而推断出完整的结果。</p>
+<p>想要测试有多少个执行单元，每个执行单元可以运行哪些指令，首先要测试各类指令在无依赖情况下的 IPC，通过 IPC 来推断有多少个能够执行这类指令的执行单元；但由于一个执行单元可能可以执行多类指令，于是进一步需要观察在混合不同类的指令时的 IPC，从而推断出完整的结果。</p>
 <p>官方信息：根据 Apple Silicon CPU Optimization Guide，M1 Family 的 P-Core 包括如下计算单元：</p>
 <ol>
 <li>ALU/f, BRc/i</li>
@@ -4116,7 +4116,7 @@
 <li>M1 Ultra/M2 Ultra/M3 Ultra: 96MiB, 12-way, 128B lines</li>
 </ul>
 <h3 id="l2-tlb">L2 TLB<a class="headerlink" href="#l2-tlb" title="Permanent link">&para;</a></h3>
-<p>官方信息：根据 Apple Silicon CPU Optimization Guide，P-Core 的 L2 TLB 容量，从 M1 Family 到 M4 Family，从 A14 Bionic 到 A18 Family，都是 3072 entries；E-Core 的 L2 TLB 容量，M1 Family 和 A14 Bionic 是 1024 entries，M2 Family 到 M4 Family 和 A15 Bionic 到 A18 Family 都是 2048 entries。</p>
+<p>官方信息：根据 Apple Silicon CPU Optimization Guide，P-Core 的 L2 TLB 容量，从 M1 Family 到 M4 Family，从 A14 Bionic 到 A18 Family，都是 <strong>3072 entries</strong>；E-Core 的 L2 TLB 容量，M1 Family 和 A14 Bionic 是 <strong>1024 entries</strong>，M2 Family 到 M4 Family 和 A15 Bionic 到 A18 Family 都是 2048 entries。</p>
 <h4 id="firestorm_14">Firestorm<a class="headerlink" href="#firestorm_14" title="Permanent link">&para;</a></h4>
 <p>从苹果提供的性能计数器来看，L1 TLB 分为指令和数据，而 L2 TLB 是 Unified，不区分指令和数据。沿用之前测试 L1 DTLB 的方法，把规模扩大到 L2 Unified TLB 的范围，就可以测出来 L2 Unified TLB 的容量，下面是 Firestorm 上的测试结果：</p>
 <p><img alt="" src="../../../../apple-m1-firestorm-l2tlb.png" /></p>
@@ -4166,7 +4166,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2025年10月28日 03:08:32 UTC">2025年10月28日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年7月6日 04:04:56 UTC">2026年7月6日</span>
   </span>
 
     
