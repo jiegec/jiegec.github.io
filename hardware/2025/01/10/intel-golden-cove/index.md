@@ -256,6 +256,42 @@ Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD�
 - 1 ld + 1 st: 要求 st 包含 ld，特别地，地址相同时，性能最好
 - 1 ld + 2+ st: 不支持
 
+### Memory Dependency Predictor
+
+为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks](https://www.usenix.org/conference/usenixsecurity21/presentation/ragab) 和 [Memory Disambiguation on Skylake](https://github.com/travisdowns/uarch-bench/wiki/Memory-Disambiguation-on-Skylake) 的方法，构造一对 Store-Load，通过延迟 Store 地址的计算，区分出硬件是否进行了预测，以及预测正确与否：
+
+```asm
+; Listing 4 of Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks
+st_ld: ;rdi: store addr, rsi: load addr
+%rep 10 ;Trick to delay the store address
+imul rdi, 1
+%endrep
+mov DWORD [rdi], 0x42 ;Store
+mov eax, DWORD [rsi] ;Load
+%rep 10 ;Pronounce load timing
+imul eax, 1
+%endrep
+ret
+```
+
+测试时，让这对 Store-Load 采用相同/不同的地址进行访存，具体地，首先是 100 次相同地址（有依赖），然后 20 次不同地址（无依赖），最后 10 次相同地址（有依赖），每次执行的周期数如下：
+
+可见当预测器被训练为 Store-Load 有依赖之后，经过 15 次 Store-Load 无依赖（横坐标 100 到 114）的训练以后，从第 16 次（横坐标 115）开始成功预测了无依赖的情况，使得 Load 可以提前执行，表现出来周期数的明显减少。而当 Store-Load 再次出现依赖（横坐标 120）时，因为错误预测，出现了周期数的明显增加，并且马上下一次执行 Store-Load（横坐标 121）就能正确预测出有依赖。这与论文中的逆向结果一致：从初始状态（通过大量的有依赖来重置状态）开始，连续无依赖 15 次以后，才会被预测为无依赖，且只要有一次有依赖，就会被预测为有依赖。对应的内部实现是，硬件对这个 Load 维护一个 4-bit 的饱和计数器，有依赖时清零，无依赖时加一，当累加到最大值 15 时，预测为无依赖，否则就是有依赖。
+
+上面的测试只证明了有 4-bit 的计数器，且无依赖时加一，累加到 15 时才预测为无依赖，但并没有证明它在有依赖时清零，也可能是减一或其他不减到零的情况。下面修改一下访存模式来证明，即累加到 15 后，先来一次有依赖，再来多次无依赖，就可以观察到下面的结果：
+
+可见，一次有依赖过后，又需要 15 次无依赖，才能预测为无依赖。这证明了前面的表述，即 4-bit 饱和计数器，无依赖时加一，有依赖时置零，当计数器等于 15 时，预测为无依赖。
+
+接下来，尝试逆向硬件维护了多少个这样的 4-bit 饱和计数器，以及 Load 是如何被映射的。方法是，设置两个 Store-Load 对，其中第一对总是有依赖，第二对总是没有依赖，调整两个 Load 指令的地址，看看什么时候会出现性能下降，就意味着这两个 Load 指令被映射到了同一个 4-bit 饱和计数器上，那么根据上面的规律，它们总是会被预测为有依赖。测试结果如下：
+
+可见地址每增加 512 就出现一次冲突，意味着有 512 个这样的计数器，通过 Load 地址的低 9 位来选择。经过测试，在 Intel(R) Xeon(R) CPU E5-2680 v4 CPU Broadwell 架构和 Intel(R) Core(TM) i9-10980XE CPU Cascade Lake 架构以及 Intel(R) Xeon(R) Platinum 8358P CPU Ice Lake 架构下，有 256 个这样的计数器。直到 Golden Cove 才扩充到了 512。
+
+根据论文，Intel 除了上述用 4-bit 饱和计数器实现的 Load 指令局部的预测器，还额外实现了一个全局预测器（论文里称之为 Watchdog），当局部预测器的错误率较高时，会覆盖局部预测器，强制预测所有 Load 指令为有依赖关系。
+
+接下来，参考论文中的方法，生成几次错误预测，看看多少次由错误预测导致的回滚（即预测为无依赖，但实际上有依赖，导致了回滚；另一方面，如果预测为有依赖，实际上没有，并不会导致回滚）后，全局预测器会介入，强制预测所有 Load 和先前的 Store 有依赖关系。用 10 个 Store-Load 对，先通过大量的无依赖训练，让这些 Load 都被局部预测为无依赖，再连续 10 次有依赖地按顺序执行这 10 个 Load，这样这些 Load 都会被局部预测为无依赖，但实际上有依赖，就会频繁触发回滚，结果如下：
+
+可见当全局预测器观察到 5 次回滚后，就会覆盖局部预测器，强制预测为有依赖。在 Cascade Lake 和 Broadwell 微架构中，是 4 次回滚后覆盖。这意味着，随着局部预测器容量在 Golden Cove 中翻倍，全局预测器的阈值也做了相应的修改。
+
 ### L1 DCache
 
 官方信息：
