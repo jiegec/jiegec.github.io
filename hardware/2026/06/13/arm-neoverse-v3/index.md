@@ -223,7 +223,7 @@ Load 没有跨越缓存行时，load to use 延迟 4 cycle；跨过 64B 缓存�
 
 初始化时 `x1` 和 `x2` 指向同一个地址，重复上述模式，观察性能下降时 `ldr` 指令的数量：
 
-地址依赖的阈值是 56，数据依赖没有阈值。相比 Neoverse V2 有所增加。
+地址依赖的阈值是 56，数据依赖没有阈值。相比 Neoverse V2 的 40 和 Neoverse N2 的 32 有所增加。
 
 ### Reorder Buffer
 
