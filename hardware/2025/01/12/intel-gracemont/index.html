@@ -2396,13 +2396,14 @@ cases where the store's address is known, and the store data is available.</li>
 <p><img alt="" src="../../../../intel-gracemont-mdp-3.png" /></p>
 <p>可见当两个 Load 地址在低 16 位相同时，会被映射到同一个计数器上。不过这并不代表它就有 65536 个计数器，下面来测试一下实际有多少。思路是，构造多对 Store-Load，让它们的 Load 地址的低 16 位不同，然后都让它们有依赖，观察到多少对 Store-Load 时出现性能下降。通过 <a href="https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/">Store-to-Load Forwarding and Memory Disambiguation in x86 Processors</a> 的 Fast Data 测试方法，可得它的容量是 26：</p>
 <p><img alt="" src="../../../../intel-gracemont-mdp-4.png" /></p>
-<p>猜测它是一个 26 路全相联的设计，每个表项有 16-bit 的 tag（取自 Load PC 低 16 位）和 2-bit 饱和计数器。未命中时预测无依赖，如果实际有依赖则插入表项，计数器置零。命中时根据计数器值预测：无依赖加一，有依赖置零，到 3 时预测无依赖。另一种可能是计数器到 3 时表项被删除，效果相同。究竟是哪种还有待后续研究，不过从利用率的角度来说，删除的可能性更大。这种设计和 ARM Neoverse N2 比较类似，对比如下：</p>
+<p>猜测它是一个 26 路全相联的设计，每个表项有 16-bit 的 tag（取自 Load PC 低 16 位）和 2-bit 饱和计数器。未命中时预测无依赖，如果实际有依赖则插入表项，计数器置零。命中时根据计数器值预测：无依赖加一，有依赖置零，到 3 时预测无依赖。另一种可能是计数器到 3 时表项被删除，效果相同。究竟是哪种还有待后续研究，不过从利用率的角度来说，删除的可能性更大。这种设计和 ARM Neoverse N2 比较类似，和 <a href="../../10/intel-golden-cove/">Golden Cove</a> 又不太一样，三者对比如下：</p>
 <table>
 <thead>
 <tr>
 <th></th>
 <th>Gracemont</th>
 <th>Neoverse N2</th>
+<th>Golden Cove</th>
 </tr>
 </thead>
 <tbody>
@@ -2410,39 +2411,47 @@ cases where the store's address is known, and the store data is available.</li>
 <td>容量</td>
 <td>26</td>
 <td>32</td>
+<td>512</td>
 </tr>
 <tr>
 <td>tag 位数</td>
 <td>16</td>
 <td>15</td>
+<td>N/A，用 PC[8:0] 直接映射</td>
 </tr>
 <tr>
 <td>ctr 位数</td>
 <td>2</td>
+<td>4</td>
 <td>4</td>
 </tr>
 <tr>
 <td>新表项 ctr 取值</td>
 <td>0</td>
 <td>1</td>
+<td>N/A，表项总是存在</td>
 </tr>
 <tr>
 <td>不命中时预测为</td>
 <td>无依赖</td>
 <td>无依赖</td>
+<td>N/A，总是命中</td>
 </tr>
 <tr>
 <td>命中时预测为</td>
 <td>有依赖</td>
 <td>有依赖</td>
+<td>ctr==15 时预测无依赖，否则有依赖</td>
 </tr>
 <tr>
 <td>命中时有依赖</td>
 <td>ctr=0</td>
 <td>ctr-=1</td>
+<td>ctr=0</td>
 </tr>
 <tr>
 <td>命中时无依赖</td>
+<td>ctr+=1</td>
 <td>ctr+=1</td>
 <td>ctr+=1</td>
 </tr>
@@ -2450,6 +2459,13 @@ cases where the store's address is known, and the store data is available.</li>
 <td>ctr 等于多少时 evict</td>
 <td>3</td>
 <td>15</td>
+<td>N/A，不会 evict</td>
+</tr>
+<tr>
+<td>是否有全局预测器</td>
+<td>无</td>
+<td>无</td>
+<td>有，可以覆盖局部预测器的结果，强制预测为有依赖</td>
 </tr>
 </tbody>
 </table>
@@ -2515,7 +2531,7 @@ cases where the store's address is known, and the store data is available.</li>
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年7月29日 17:30:57 UTC">2026年7月29日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年7月30日 02:12:26 UTC">2026年7月30日</span>
   </span>
 
     
