@@ -65,7 +65,7 @@
 - Intel Core i9-14900K E-Core @ 4.4 GHz Gracemont（`-O3`）: [7.18](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-14900K_E-Core_O3_001.txt)
 - Intel Core i9-14900K P-Core @ 6.0 GHz Raptor Cove（`-O3`）: [11.6](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Core_i9-14900K_P-Core_O3_001.txt)
 - Intel Xeon w9-3595X @ 4.5 GHz Golden Cove（`-O3`）: [8.29](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_w9-3595X_O3_001.txt)
-- Loongson 3A6000 @ 2.5 GHz LA664（`-O3`）: [4.35](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3A6000_O3_001.txt) [4.39](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3A6000_O3_002.txt)
+- Loongson 3A6000 @ 2.5 GHz LA664（`-O3`）: [4.39](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3A6000_O3_001.txt)
 
 服务器平台（LTO + Jemalloc）：
 
@@ -105,7 +105,7 @@
 - Intel Xeon Platinum 8358P @ 3.4 GHz Sunny Cove（`-O3 -flto`）: [5.91](https://jia.je/benchmark/data-trixie/int2017_rate1/Intel_Xeon_Platinum_8358P_O3-flto_001.txt)
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3 -flto`）: [3.32](https://jia.je/benchmark/data-trixie/int2017_rate1/Kunpeng_920_O3-flto_001.txt)
 - Kunpeng 920 HuaweiCloud kc2 @ 2.9 GHz（`-O3 -flto`）: [5.65](https://jia.je/benchmark/data-trixie/int2017_rate1/Kunpeng_920_HuaweiCloud_kc2_O3-flto_001.txt)
-- Loongson 3C6000S @ 2.2 GHz LA664（`-O3 -flto`）: [4.39](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C6000S_O3-flto_001.txt) [4.37](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C6000S_O3-flto_002.txt)
+- Loongson 3C6000S @ 2.2 GHz LA664（`-O3 -flto`）: [4.39](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C6000S_O3-flto_001.txt)
 
 服务器平台：
 
@@ -126,7 +126,7 @@
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [3.17](https://jia.je/benchmark/data-trixie/int2017_rate1/Kunpeng_920_O3_001.txt)
 - Kunpeng 920 HuaweiCloud kc2 @ 2.9 GHz（`-O3`）: [5.43](https://jia.je/benchmark/data-trixie/int2017_rate1/Kunpeng_920_HuaweiCloud_kc2_O3_001.txt)
 - Loongson 3C5000 @ 2.2 GHz LA464（`-O3`）: [2.63](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C5000_O3_001.txt)
-- Loongson 3C6000S @ 2.2 GHz LA664（`-O3`）: [4.19](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C6000S_O3_001.txt) [4.14](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C6000S_O3_002.txt)
+- Loongson 3C6000S @ 2.2 GHz LA664（`-O3`）: [4.19](https://jia.je/benchmark/data-trixie/int2017_rate1/Loongson_3C6000S_O3_001.txt)
 
 #### Debian Bookworm
 
@@ -605,7 +605,7 @@ LLVM 20 的 548.exchange2_r 性能下降可以通过添加 `-fwrapv` 选项来�
 - Kunpeng 920 @ 2.6 GHz TaiShan V110（`-O3`）: [3.17](https://jia.je/benchmark/data-trixie/fp2017_rate1/Kunpeng_920_O3_001.txt)
 - Kunpeng 920 HuaweiCloud kc2 @ 2.9 GHz（`-O3`）: [8.24](https://jia.je/benchmark/data-trixie/fp2017_rate1/Kunpeng_920_HuaweiCloud_kc2_O3_001.txt)
 - Loongson 3C5000 @ 2.2 GHz LA464（`-O3`）: [3.00](https://jia.je/benchmark/data-trixie/fp2017_rate1/Loongson_3C5000_O3_001.txt)
-- Loongson 3C6000S @ 2.2 GHz LA664（`-O3`）: [4.75](https://jia.je/benchmark/data-trixie/fp2017_rate1/Loongson_3C6000S_O3_001.txt) [4.77](https://jia.je/benchmark/data-trixie/fp2017_rate1/Loongson_3C6000S_O3_002.txt) [4.75](https://jia.je/benchmark/data-trixie/fp2017_rate1/Loongson_3C6000S_O3_003.txt)
+- Loongson 3C6000S @ 2.2 GHz LA664（`-O3`）: [4.77](https://jia.je/benchmark/data-trixie/fp2017_rate1/Loongson_3C6000S_O3_001.txt)
 
 #### Debian Bookworm
 
