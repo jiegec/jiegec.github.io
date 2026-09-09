@@ -64,8 +64,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - C1-Pro: 48 条
 - L1 dTLB:
   - A78/A710: 32 条
-  - A715/A720: 48 条
-  - C1-Pro: 48 条
+  - A715/A720/C1-Pro: 48 条
 - L2 TLB:
   - A78/A710: 1024 条（4-way）
   - A715/A720/C1-Pro: Small 6-way 1536 + Medium 4-way 256
@@ -260,6 +259,13 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 - **对应 Cortex：** Arm Cortex-X4
 - [Arm® Neoverse™ V3 Core Technical Reference Manual](https://documentation-service.arm.com/static/65d62242c8cb3a42117cb7ba)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, RRIP replacement policy
+  - L2 cache, 2MB or 3MB, 8-way/12-way set associative with 4 banks, PIPT, Dynamic biased cache replacement policy, CHI Issue E with DSU-120 (256-bit read and write DAT channel widths)
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 96 entries
+  - L2 TLB, Shared by instructions and data, 8-way set associative, 2048 entries
 - [Arm AGI Hot Chips 2026 Neoverse IP Blocks](https://www.servethehome.com/arms-agi-data-center-cpu-at-hot-chips-2026/arm-agi-hot-chips-2026-neoverse-ip-blocks/)
   - 64KB ICache
   - 10-wide front end
@@ -321,6 +327,14 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - Lower latency for L2 cache hits, 9-cycle latency to access L2, vs 10 (Cortex-A715)
   - Up to 2x memset(0) bandwidth in L2
   - New L2 spatial-prefetch engine
+- [Arm® Cortex-A720 Core Technical Reference Manual](https://developer.arm.com/documentation/102530/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L1 instruction cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 32KB or 64KB, 4-way set associative, 16 banks, 64-byte cache lines, VIPT behaving as PIPT, LRU cache replacement policy
+  - L2 cache, 128KB-512KB, 8-way set associative, 2 banks, PIPT, Dynamic biased cache replacement policy, CHI Issue E with DSU-120 (256-bit)
+  - L1 instruction TLB, Fully associative, 32 entries
+  - L1 data TLB, Fully associative, 48 entries
+  - L2 TLB, Made of two translation caches: a Small page TLB (6-way, 1536 entries) and a Medium page TLB (4-way, 256 entries)
 - [Arm® Cortex-A720 Core Software Optimization Guide](https://developer.arm.com/documentation/109720/latest/)
   - Executes SVE2/SVE with a 128-bit vector length
   - 13 issue pipelines: 2x Branch, 2x Integer Single-Cycle, 2x Integer Single/Multi-Cycle, 2x FP/ASIMD/Vector Store data, 2x Load/Store, 1x Load, 2x Integer Store data
@@ -422,12 +436,35 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - The dispatch stage can process up to 8 MOPs per cycle and dispatch up to 16 µOPs per cycle
   - Up to 4 µOPs by the S or B pipelines, 4 by M, 2 by M0, 2 by V0, 2 by V1, 6 by L
 
+### Cortex A715
+
+- [Arm® Cortex-A715 Core Technical Reference Manual](https://developer.arm.com/documentation/101590/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L1 instruction cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, PIPT, PLRU cache replacement policy
+  - L1 data cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, LRU cache replacement policy
+  - L2 cache, 128KB-512KB, 8-way set associative, 2 banks, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 32 entries
+  - L1 data TLB, Fully associative, 48 entries
+  - L2 TLB, Made of two translation caches: a Small page TLB (6-way, 1536 entries) and a Medium page TLB (4-way, 256 entries)
+- [Arm® Cortex-A715 Core Software Optimization Guide](https://documentation-service.arm.com/static/62bc010a31ea212bb66256b4)
+  - **13 issue pipelines**: 2x Branch, 2x Integer Single-Cycle, 2x Integer Single/Multi-Cycle, 2x FP/ASIMD, 2x Load/Store, 1x Load, 2x Store data
+  - The dispatch stage can process up to 5 MOPs per cycle and dispatch up to 10 µOPs per cycle
+  - Up to 4 µOPs by the S or B pipelines, 4 by M, 2 by M0, 2 by V0, 2 by V1, 6 by L
+
 ## 2021 年
 
 ### Cortex X2
 
 - [Cortex X2: Arm Aims High](https://chipsandcheese.com/2023/10/27/cortex-x2-arm-aims-high/)
 - [Arm® Cortex®‑X2 Core Technical Reference Manual](https://developer.arm.com/documentation/101803/0200)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L0 MOP cache, 3072 macro-operations, 4-way skewed associative, VIVT behaving as PIPT
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 512KB or 1MB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 48 entries
+  - L2 TLB, Shared by instructions and data, 8-way set associative, 2048 entries
 - [Arm Announces Mobile Armv9 CPU Microarchitectures: Cortex-X2, Cortex-A710 & Cortex-A510](https://www.anandtech.com/show/16693/arm-announces-mobile-armv9-cpu-microarchitectures-cortexx2-cortexa710-cortexa510/2)
 
 ### Neoverse N2
@@ -465,8 +502,32 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - L2 transactions: 64, 1.3x improvement
   - Data Prefetch Engines: Stride, spatial/region, stream, temporal
   - Correlated Miss Caching (CMC) prefetching
+- [Arm® Neoverse™ N2 Core Technical Reference Manual](https://developer.arm.com/documentation/102099/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L0 MOP cache, 1536 macro-operations, 4-way skewed associative, VIVT behaving as PIPT
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 512KB or 1MB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 44 entries
+  - L2 TLB, Shared by instructions and data, 5-way set associative, 1280 entries
 - **Category A errata：**
   - 2001293：LDP 64-bit 变体出错时，写入 FAR/ESR 的 fault 信息可能错误。（r0p1 修复）
+
+### Cortex A710
+
+- [Arm® Cortex-A710 Core Technical Reference Manual](https://developer.arm.com/documentation/101800/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L1 instruction cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 256KB or 512KB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 32 entries
+  - L2 TLB, 4-way set associative, 1024 entries
+- [Arm® Cortex-A710 Core Software Optimization Guide](https://documentation-service.arm.com/static/61ba21e676bb7f0e683c2d42)
+  - **13 issue pipelines**: 2x Branch, 2x Integer Single-Cycle, 2x Integer Single/Multi-Cycle, 2x FP/ASIMD, 2x Load/Store, 1x Load, 2x Store data
+  - The dispatch stage can process up to 5 MOPs per cycle and dispatch up to 10 µOPs per cycle
+  - Up to 4 µOPs by the S or B pipelines, 4 by M, 2 by M0, 2 by V0, 2 by V1, 6 by L
 
 ## 2020 年
 
@@ -499,6 +560,15 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - 8-wide Instruction fetch
   - 5-8 wide decode / rename
   - pipeline: P1 P2 F1 F2 DE1 RR RD I0 I1 I2 ...
+- [Arm® Neoverse™ V1 Core Technical Reference Manual](https://developer.arm.com/documentation/101427/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 256-bit vector length
+  - L0 MOP cache, 3072 macro-operations
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 512KB or 1MB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 40 entries
+  - L2 TLB, Shared by instructions and data, 8-way set associative, 2048 entries
 
 ### Cortex X1
 
@@ -515,6 +585,13 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - 66% larger L2-TLB capacity, 2K entries
 - [Arm Cortex-X1: The First From The Cortex-X Custom Program](https://fuse.wikichip.org/news/3543/arm-cortex-x1-the-first-from-the-cortex-x-custom-program/)
 - [Arm® Cortex®‑X1 Core Technical Reference Manual](https://developer.arm.com/documentation/101433/0102)
+  - L0 MOP cache, 3072 macro-operations, 4-way skewed associative
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 512KB or 1MB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 40 entries
+  - L2 TLB, Shared by instructions and data, 8-way set associative, 2048 entries
 - **Category A errata：**
   - 1468769：Vector 指令在特定微架构条件下可能死锁。（r1p0 修复）
   - 1609991：指令取指命中 L0 MOP cache、miss L1 I-TLB 并触发 tablewalk 时，PC/ELR 内容可能被破坏。（r1p0 修复）
@@ -527,6 +604,15 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - 50% increase in load bandwidth over Cortex-A77, additional load AGU / result
   - Double store-data bandwidth, 32B per cycle
   - Double L2 interface bandwidth
+- [Arm® Cortex-A78 Core Technical Reference Manual](https://developer.arm.com/documentation/101430/latest/)
+  - L1 instruction cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 256KB or 512KB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 32 entries
+  - L1 data TLB, Fully associative, 32 entries
+  - L2 TLB, 4-way set associative, 1024 entries
+- [Arm® Cortex-A78 Core Software Optimization Guide](https://developer.arm.com/documentation/109842/latest/)
+  - 13 issue pipelines: 2x Branch, 2x Integer Single-Cycle, 2x Integer Single/Multi-Cycle, 2x FP/ASIMD, 2x Load/Store, 1x Load, 2x Store data
 
 ## 2019 年
 
@@ -534,6 +620,13 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 - **对应 Cortex：** Arm Cortex-A76
 - [The Arm Neoverse N1 Platform: Building Blocks for the Next-Gen Cloud-to-Edge Infrastructure SoC](https://www.arm.com/-/media/global/solutions/infrastructure/arm-neoverse-n1-platform.pdf)
+- [Arm® Neoverse™ N1 Core Technical Reference Manual](https://developer.arm.com/documentation/100616/latest/)
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L2 cache, 256KB or 512KB or 1MB, 8-way set associative, PIPT, Dynamic biased cache replacement policy
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 48 entries
+  - L2 TLB, Shared by instructions and data, 5-way set associative, 1280 entries
   - 4-wide front-end
   - dispatching/committing up to 8 instructions per cycle
   - three ALUs, a branch execution unit, two Advanced SIMD units, and two load/store execution units
