@@ -4,6 +4,100 @@
 
 ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落在各种地方，为了方便查阅，在这里做一个收集。
 
+## 微架构演进分析
+
+### L1 指令缓存（ICache）
+
+大核：
+
+- X1/X2/X3/X4/X925/C1-Ultra/C2-Ultra/C1-Premium: 64KB
+
+中核：
+
+- A78/A710/A715/A720/C1-Pro: 32KB/64KB
+
+### L1 数据缓存（DCache）
+
+大核：
+
+- X1/X2/X3/X4/X925/C1-Premium: 64KB
+- C1-Ultra/C2-Ultra: 128KB
+
+中核：
+
+- A78/A710/A715/A720/C1-Pro: 32KB/64KB
+
+### L2 缓存
+
+大核：
+
+- X1/X2/X3: 512KB-1MB
+- X4: 512KB-2MB
+- X925/C1-Ultra/C2-Ultra: 2MB-3MB
+- C1-Premium: 1MB-2MB
+
+中核：
+
+- A78/A710: 256KB-512KB
+- A715/A720: 128KB-512KB
+- C1-Pro: 128KB-1MB
+
+### TLB
+
+大核：
+
+- L1 iTLB:
+  - X1/X2/X3/X4: 48 条
+  - X925/C1-Ultra/C2-Ultra/C1-Premium: 128 条
+- L1 dTLB:
+  - X1: 40 条
+  - X2/X3: 48 条
+  - X4/X925/C1-Ultra/C2-Ultra/C1-Premium: 96 条
+- L2 TLB: 统一 2048 条（8-way）
+
+中核：
+
+- L1 iTLB:
+  - A78: 32 条
+  - A710: 48 条
+  - A715/A720: 32 条
+  - C1-Pro: 48 条
+- L1 dTLB:
+  - A78/A710: 32 条
+  - A715/A720: 48 条
+  - C1-Pro: 48 条
+- L2 TLB:
+  - A78/A710: 1024 条（4-way）
+  - A715/A720/C1-Pro: Small 6-way 1536 + Medium 4-way 256
+
+### 执行单元（ALU / 分支 / 向量）
+
+大核：
+
+- X1/X2: 4 ALU + 2 branch + 4 FP/SIMD
+- X3: 6 ALU + 2 branch + 4 FP/SIMD
+- X4: 8 ALU + 3 branch + 4 FP/SIMD
+- X925/C1-Ultra/C2-Ultra: 8 ALU + 3 branch + 6 FP/SIMD
+- C1-Premium: 8 ALU + 3 branch + 2 FP/SIMD
+
+中核：
+
+- A78/A710/A715/A720/C1-Pro: 4 ALU + 2 branch + 2 FP/ASIMD
+
+### Load/Store 单元（LSU）
+
+约定：LS 代表 Load/Store，LD 代表 Load，ST 代表 Store，SD 代表 Store Data
+
+大核：
+
+- X1/X2/X3: 2 LS + 1 LD + 2 SD
+- X4: 1 LS + 2 LD + 1 ST + 2 SD
+- X925/C1-Ultra/C1-Premium/C2-Ultra: 2 LS + 2 LD + 2 SD
+
+中核：
+
+- A78/A710/A715/A720/C1-Pro: 2 LS + 1 LD + 2 SD
+
 ## 2026 年
 
 ### C2-Ultra
@@ -164,6 +258,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 ### Neoverse V3
 
+- **对应 Cortex：** Arm Cortex-X4
 - [Arm® Neoverse™ V3 Core Technical Reference Manual](https://documentation-service.arm.com/static/65d62242c8cb3a42117cb7ba)
 - [Arm AGI Hot Chips 2026 Neoverse IP Blocks](https://www.servethehome.com/arms-agi-data-center-cpu-at-hot-chips-2026/arm-agi-hot-chips-2026-neoverse-ip-blocks/)
   - 64KB ICache
@@ -181,6 +276,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 ### Neoverse N3
 
+- **对应 Cortex：** Arm Cortex-A720
 - [Arm® Neoverse™ N3 Core Technical Reference Manual](https://documentation-service.arm.com/static/65d62242c8cb3a42117cb7ba)
   - L1 instruction cache, 32KB or 64KB, 4-way set associative, 64-byte cache lines, PIPT, PLRU cache replacement policy, 32 bytes per cycle interface with L2
   - L1 data cache, 32KB or 64KB, 4-way set associative, 16 banks, 64-byte cache lines, VIPT behaving as PIPT, LRU cache replacement policy, 3×64-bit read paths and 4×64-bit write paths for the integer execute pipeline, 3×128-bit read paths and 2×128-bit write paths for the vector execute pipeline
