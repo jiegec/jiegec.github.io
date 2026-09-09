@@ -40,6 +40,8 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - Load start address should align with the start or middle address of the older store supported from a wider range of offsets. For 1B loads, forwarding is
   - Loads of size greater than 8 bytes can get the data forwarded from a maximum of 2 stores. If there are 2 stores, then each store should forward to either first or second half of the load
   - Loads of size less than or equal to 4 bytes can get their data forwarded from only 1 store
+- **Category A errata：**
+  - 4480893：PE 执行 load 指令可能死锁，r0p0/r0p1 均存在且尚未修复（Open），影响所有配置。
 
 ### C2-Pro
 
@@ -245,9 +247,18 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - Integer load bandwdith: 24B -> 32B
   - Additional data prefetch engines: Spatial, Pointer/Indirect
 - [Arm® Cortex‑X3 Core Technical Reference Manual](https://developer.arm.com/documentation/101593/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L0 MOP cache, 1536 macro-operations, 4-way skewed associative, VIVT behaving as PIPT
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, RRIP replacement policy, 4×64-bit read paths and 4×64-bit write paths for integer, 3×128-bit read paths and 2×128-bit write paths for vector
+  - L2 cache, 512KB or 1MB, 8-way set associative with 4 banks, PIPT, Dynamic biased cache replacement policy, CHI Issue E with DSU-110 (256-bit)
+  - L1 instruction TLB, 4KB/16KB/64KB/2MB granularity, Fully associative, 48 entries
+  - L1 data TLB, 4KB/16KB/64KB/2MB/512MB granularity, Fully associative, 48 entries
+  - L2 TLB, Shared by instructions and data, 8-way set associative, 2048 entries
 
 ### Neoverse V2
 
+- **对应 Cortex：** Arm Cortex-X3
 - [Arm Neoverse V2 platform: Leadership Performance and Power Efficiency for Next-Generation Cloud Computing, ML and HPC Workloads](https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf)
   - 6-wide/8-wide front-end
   - 64KB ICache
@@ -302,7 +313,18 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - Replacement policy 6-state RRIP (up from 4)
 - [Hot Chips 2023: Arm’s Neoverse V2](https://chipsandcheese.com/p/hot-chips-2023-arms-neoverse-v2)
 - [Arm® Neoverse™ V2 Core Technical Reference Manual](https://developer.arm.com/documentation/102375/latest/)
+  - Implementation of the Scalable Vector Extension (SVE) with a 128-bit vector length and Scalable Vector Extension 2 (SVE2)
+  - L0 MOP cache, 1536 macro-operations, 4-way skewed associative, VIVT behaving as PIPT
+  - L1 instruction cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, Pseudo-LRU cache replacement policy
+  - L1 data cache, 64KB, 4-way set associative, 64-byte cache lines, VIPT behaving as PIPT, RRIP replacement policy, 4×64-bit read paths and 4×64-bit write paths for integer, 3×128-bit read paths and 2×128-bit write paths for vector
+  - L2 cache, 1MB or 2MB, 8-way set associative with 4 banks, PIPT, Dynamic biased cache replacement policy, CHI Issue E with DSU-110 (256-bit)
+  - L1 instruction TLB, Fully associative, 48 entries
+  - L1 data TLB, Fully associative, 48 entries
+  - L2 TLB, Shared by instructions and data, 8-way set associative, 2048 entries
 - [Arm Neoverse V2 Software Optimization Guide](https://developer.arm.com/documentation/109898/latest/)
+  - 17 issue pipelines: 2x Branch, 4x Integer Single-Cycle, 2x Integer Single/Multi-Cycle, 4x FP/ASIMD, 2x Load/Store, 1x Load, 2x Store data
+  - The dispatch stage can process up to 8 MOPs per cycle and dispatch up to 16 µOPs per cycle
+  - Up to 4 µOPs by the S or B pipelines, 4 by M, 2 by M0, 2 by V0, 2 by V1, 6 by L
 
 ## 2021 年
 
@@ -314,6 +336,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 ### Neoverse N2
 
+- **对应 Cortex：** Arm Cortex-A710
 - [Arm Neoverse N2: Arm’s 2nd generation high performance infrastructure CPUs and system IPs](https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf)
   - Branch Prediction, 2x 8 instrs (up to 2 taken per cycle), 2x improvement
   - Nano BTB (0 cyc taken-branch bubble), 64 entry, 4x improvement
@@ -346,11 +369,14 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - L2 transactions: 64, 1.3x improvement
   - Data Prefetch Engines: Stride, spatial/region, stream, temporal
   - Correlated Miss Caching (CMC) prefetching
+- **Category A errata：**
+  - 2001293：LDP 64-bit 变体出错时，写入 FAR/ESR 的 fault 信息可能错误。（r0p1 修复）
 
 ## 2020 年
 
 ### Neoverse V1
 
+- **对应 Cortex：** Arm Cortex-X1（Cortex-X1 本身不支持 SVE；Neoverse V1 在其基础上加入 256-bit SVE）
 - [SW defined cars: HPC, from the cloud to the dashboard for an amazing driver experience](https://teratec.eu/library/pdf/forum/2021/A05-03.pdf)
   - Faster run-ahead for prefetching into the I$ (2x32B bandwidth)
   - 33% larger BTBs (8K entry)
@@ -393,6 +419,9 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - 66% larger L2-TLB capacity, 2K entries
 - [Arm Cortex-X1: The First From The Cortex-X Custom Program](https://fuse.wikichip.org/news/3543/arm-cortex-x1-the-first-from-the-cortex-x-custom-program/)
 - [Arm® Cortex®‑X1 Core Technical Reference Manual](https://developer.arm.com/documentation/101433/0102)
+- **Category A errata：**
+  - 1468769：Vector 指令在特定微架构条件下可能死锁。（r1p0 修复）
+  - 1609991：指令取指命中 L0 MOP cache、miss L1 I-TLB 并触发 tablewalk 时，PC/ELR 内容可能被破坏。（r1p0 修复）
 
 ### Cortex A78
 
@@ -407,6 +436,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 ### Neoverse N1
 
+- **对应 Cortex：** Arm Cortex-A76
 - [The Arm Neoverse N1 Platform: Building Blocks for the Next-Gen Cloud-to-Edge Infrastructure SoC](https://www.arm.com/-/media/global/solutions/infrastructure/arm-neoverse-n1-platform.pdf)
   - 4-wide front-end
   - dispatching/committing up to 8 instructions per cycle
