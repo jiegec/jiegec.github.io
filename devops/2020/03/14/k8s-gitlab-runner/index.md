@@ -4,7 +4,7 @@
 
 编辑 `values.yaml`
 
-```text
+```yml
 gitlabUrl: GITLAB_URL
 runnerRegistrationToken: "REDACTED"
 rbac:

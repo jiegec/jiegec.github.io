@@ -71,7 +71,7 @@ $ kubectl create secret generic regcred --from-file=.dockerconfigjson=/path/to/c
 
 然后，在 Pod/Deployment 里面设定镜像：
 
-```text
+```yml
 containers:
   - name: name
     image: IP:5000/image
@@ -85,7 +85,7 @@ imagePullSecrets:
 
 这一步配置的是自带的 HPA 功能，需要上述的 metrics-server 打开，并且在 Pod/Deployment 里面写明 resources.requests.cpu:
 
-```text
+```yml
 - name: name
   resources:
     requests:

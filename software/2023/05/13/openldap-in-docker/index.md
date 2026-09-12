@@ -6,7 +6,7 @@ OpenLDAP 是一个开源的用户系统实现，主要支持 LDAP 协议，可�
 
 OpenLDAP 可以用现成的 Docker 镜像：[bitnami/openldap](https://hub.docker.com/r/bitnami/openldap/)，配合 Docker-Compose 进行部署：
 
-```text
+```yml
 version: '2'
 
 services:
@@ -100,7 +100,7 @@ chown -R 1001:root certs
 
 然后修改 docker-compose.yml：
 
-```text
+```yml
 version: '2'
 
 services:

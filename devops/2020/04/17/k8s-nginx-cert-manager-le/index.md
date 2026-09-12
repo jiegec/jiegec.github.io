@@ -15,7 +15,7 @@ $ helm install \
 
 然后，配置 Cluster Issuer，应用以下的 yaml：
 
-```text
+```yml
 apiVersion: cert-manager.io/v1alpha2
 kind: ClusterIssuer
 metadata:
@@ -35,7 +35,7 @@ spec:
 
 然后在 ingress 里面进行配置：
 
-```text
+```yml
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:

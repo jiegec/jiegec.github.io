@@ -18,7 +18,7 @@ $ helm install ingress-controller nginx-stable/nginx-ingress --set controller.se
 
 然后配一个 ingress：
 
-```text
+```yml
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:

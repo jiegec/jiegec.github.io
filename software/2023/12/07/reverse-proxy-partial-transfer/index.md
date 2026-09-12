@@ -114,7 +114,7 @@ Failed requests:        9999
 tc qdisc add dev [bridge_name] root netem delay 100ms
 ```
 
-\`bridge_name\`\` 是以 br- 开头的 bridge 网络接口名。此时用 ping 测量，从 proxy 容器访问 host 要 100 ms，proxy 容器访问 backend 容器要 0.02 ms。这就达成了不对称的目的。添加了延迟后，发现 curl 下载的文件大小稳定在 109312 字节附近，也就是 109 KB。虽然和前面的 130 KB 不相等，但是也足以证明了是类似的情况。这个大小，应该和 nginx 在内存中给每个链接维护的 buffer 大小有关，也和网络上传输的过程有关。
+`ridge_name` 是以 br- 开头的 bridge 网络接口名。此时用 ping 测量，从 proxy 容器访问 host 要 100 ms，proxy 容器访问 backend 容器要 0.02 ms。这就达成了不对称的目的。添加了延迟后，发现 curl 下载的文件大小稳定在 109312 字节附近，也就是 109 KB。虽然和前面的 130 KB 不相等，但是也足以证明了是类似的情况。这个大小，应该和 nginx 在内存中给每个链接维护的 buffer 大小有关，也和网络上传输的过程有关。
 
 小结：
 

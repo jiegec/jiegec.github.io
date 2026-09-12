@@ -32,7 +32,7 @@ runners:
 
 用 helm 部署 gitlab runner 之后，按照下面的方式配置 gitlab-ci：
 
-```text
+```yml
 image: docker:19.03.12
 
 variables:
@@ -86,7 +86,7 @@ kubectl -n NAMESPACE rollout restart deployment/NAME
 
 我们希望 gitlab ci 在 build 之后，去执行这一个命令，但又不希望提供太多的权限给 gitlab。所以，我们创建 Service Account 并设置最小权限：
 
-```text
+```yml
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -131,7 +131,7 @@ roleRef:
 
 接着，到 GitLab 的 Operations->Kubernetes 创建 cluster，把 service account 的 token 和 ca.crt 从 secret 里找到并贴到网页上。GitLab 会按照 Environment scope 匹配到 environment，如果某个 stage 的 environment 匹配上了，就会把 kube credentials 配置好。修改 gitlab-ci.yml：
 
-```text
+```yml
 deploy:
   stage: deploy
   image: bitnami/kubectl:1.20

@@ -47,7 +47,7 @@ helm upgrade --namespace drone drone drone/drone --values drone-values.yml
 
 接着配 drone 的 k8s runnner，也是参考 drone 的文档，编写 drone-runner-kube-values.yml：
 
-```text
+```yml
 rbac:
   buildNamespaces:
     - drone
@@ -68,7 +68,7 @@ helm install --namespace drone drone-runner-kube drone/drone-runner-kube -f dron
 
 接着尝试了一下在 drone 里面构建 docker 镜像并且 push 到 registry 上。以腾讯云为例：
 
-```text
+```yml
 kind: pipeline
 type: kubernetes
 name: default
