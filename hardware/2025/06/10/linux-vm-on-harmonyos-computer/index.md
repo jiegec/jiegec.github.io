@@ -65,4 +65,27 @@ blacklist vmwgfx 后用的是 efifb：
 
 2026/04/01 更新：《融合开发引擎》App 在应用市场的应用尝鲜上架，可以获得一个 Linux 环境，Linux 6.6.0 内核的 openeuler。使用可见网络上的视频 [鸿蒙电脑官方欧拉虚拟机上线](https://www.bilibili.com/video/BV13z95BhEox/)。想用 Debian 的话，也可以按照 [HarmonyOS 6 Linux 容器替换成 debian trixie](https://www.bilibili.com/opus/1186292133496094724) 换成 Debian。
 
-2026/09/18 更新：《融合开发引擎》7.0.0.6 版本修改了启动流程，会导致用之前的方法把 openeuler 替换为 debian trixie 后的 Linux 环境无法启动。需要重置系统后，用 root 权限重新跑一次 [更新后的脚本](https://jia.je/software/linux-vm-on-harmonyos-computer-debian.sh)。跑完以后，记得修改 user 和 root 用户的密码。
+2026/09/18 更新：《融合开发引擎》7.0.0.6 版本修改了启动流程，会导致用之前的方法把 openeuler 替换为 debian trixie 后的 Linux 环境无法启动，说找不到 wheel 组，是在 `/etc/hsl/oobe` 脚本里给用户设置 group 时报错。需要重置系统后，用 root 权限重新跑一次 [更新后的脚本](https://jia.je/software/linux-vm-on-harmonyos-computer-debian.sh)。跑完以后，记得修改 user 和 root 用户的密码。
+
+挂载容器外面的 rootfs：
+
+```shell
+umount /dev/vda
+mount -o ro /dev/vda /mnt
+```
+
+外面 rootfs 里的一些有意思的文件：
+
+- /etc/ozonec.json：能看到容器的配置，挂载了哪些路径，给了哪些 cap
+- /usr/sbin/HSLd：init 程序
+
+除了 vda，还可以挂载 vdb：
+
+```shell
+umount /dev/vdb
+mount -o rw /dev/vdb /mnt
+```
+
+容器的 rootfs 是一个 overlayfs，lower 是 /var/lib/OzoneC/overlay2/rgm_openEuler/lower，它在这个 vdb 下面，虽然是空目录，但应该是把 /var/lib/OzoneC/image/openEuler.img 通过 loop device 挂载上去，也就是说 lower 就是 openeuler，upper 是容器的 rootfs，重置系统，只需要把 work 清空。这里面 /var/log 下还能看到 HSLd 以及 ozonec 的一些日志，overlay 的相关配置等等。
+
+7.0.0.6 版本也加了一个 loh 命令，大概就是 Linux on HarmonyOS 的意思，与 WSL 命令对标。这个可用性已经很不错了，期待未来 WSLg 类似功能的实现。
