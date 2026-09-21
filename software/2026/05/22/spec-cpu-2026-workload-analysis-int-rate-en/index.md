@@ -39,7 +39,7 @@ Using `perf` to observe performance bottlenecks, the major hotspot functions for
 
 With `-march=native` enabled, [`__popcountdi2`](https://github.com/gcc-mirror/gcc/blob/32bbd8849a550ad6f936636476c3ab9be8a58807/libgcc/libgcc2.c#L846) is inlined as a `popcnt` instruction. Testing shows that enabling `-mpopcnt` alone reduces time from 47s to 44s, close to `-march=native` performance. Simply enabling the popcnt ISA extension and eliminating the `__popcountdi2` function call overhead brings noticeable performance improvement.
 
-Under `-O3`, 1to6_classical executes 531.8B instructions (`instructions` perf counter), with 135.7B Load instructions (`mem_inst_retired.all_loads` counter), 59.7B Stores (`mem_inst_retired.all_stores` counter), 56.0B branch instructions (`branch-instructions` counter), of which 2622.8M are mispredicted (`branch-misses` counter). The MPKI is quite high: `2622.8M/531.8B*1000=4.93`. Even among SPEC INT 2017 benchmarks, this is higher than 531.deepsjeng_r's 3.16 and 557.xz_r's 3.49, but lower than 505.mcf_r's 6.24 and 541.leela_r's 7.71.
+Under `-O3`, 1to6_classical executes 531.8B instructions (`instructions` perf counter), with 135.7B Load instructions (`mem_inst_retired.all_loads` counter), 59.7B Stores (`mem_inst_retired.all_stores` counter), 56.0B branch instructions (`branch-instructions` counter), of which 2622.8M are mispredicted (`branch-misses` counter). The MPKI is quite high: `2622.8M/531.8B*1000=4.93`. Even among SPEC INT 2017 benchmarks, this is higher than 531.deepsjeng_r's 4.40, but lower than 557.xz_r's 5.29.
 
 Using `perf record -e branch-misses:pp`, the main branch mispredictions come from `Stockfish::MovePicker::next_move()` contributing 27.48%, mainly from the insertion sort, i.e., finding the insertion position and shifting existing elements. Next is `Stockfish::Eval::evaluate()` at 17.42%, then `Stockfish::search()` at 13.06%.
 
@@ -177,7 +177,7 @@ Performance under different compilation options:
 | 3. 7to11_nnue     | GCC 15 `-O3`           | 46       | 955.3     | 169.4    | 57.8      | 75.2       | 1224.7             | 1.28 | 92.3                | 0.00                |
 | 3. 7to11_nnue     | GCC 14 `-march=native` | 31       | 425.9     | 115.1    | 43.7      | 47.1       | 922.9              | 2.17 | 4.6                 | 35.0                |
 
-1to6_classical resembles a traditional chess engine with complex branching and memory access, so its MPKI=4.93 is similar to SPEC CPU 2017's 531.deepsjeng_r (MPKI=3.16), falling in the higher category. Meanwhile, 1to6_nnue and 7to11_nnue are mainly bottlenecked by i8 matrix operations; whether hardware acceleration instructions (here AVX-VNNI) are available has a major performance impact, with branch prediction becoming much less significant. The overall average MPKI is 1.85, not particularly high.
+1to6_classical resembles a traditional chess engine with complex branching and memory access, so its MPKI=4.93 is similar to SPEC CPU 2017's 531.deepsjeng_r (MPKI=4.40), falling in the higher category. Meanwhile, 1to6_nnue and 7to11_nnue are mainly bottlenecked by i8 matrix operations; whether hardware acceleration instructions (here AVX-VNNI) are available has a major performance impact, with branch prediction becoming much less significant. The overall average MPKI is 1.85, not particularly high.
 
 ### 707.ntest_r
 

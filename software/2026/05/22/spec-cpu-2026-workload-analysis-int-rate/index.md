@@ -41,7 +41,7 @@ stockfish bench 1600 1 26 spec_ref_pos_7to11.fen depth nnue
 
 开了 `-march=native` 后，能观察到 [`__popcountdi2`](https://github.com/gcc-mirror/gcc/blob/32bbd8849a550ad6f936636476c3ab9be8a58807/libgcc/libgcc2.c#L846) 被内联为 `popcnt` 指令。经过测试，开 `-mpopcnt` 后时间即从 47s 降低到 44s，接近 `-march=native` 的性能。可见仅开启 popcnt 指令集并消除 `__popcountdi2` 的函数调用开销，就能带来明显的性能提升。
 
-`-O3` 编译选项下，1to6_classical 执行的指令数为 531.8B（`instructions` 性能计数器），其中 Load 指令有 135.7B 条（`mem_inst_retired.all_loads` 性能计数器），Store 有 59.7B 条（`mem_inst_retired.all_stores` 性能计数器），分支指令有 56.0B 条（`branch-instructions` 性能计数器），其中有 2622.8M 次错误预测（`branch-misses` 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：`2622.8M/531.8B*1000=4.93`。即使是在 SPEC INT 2017 当中，这一数值也高于 531.deepsjeng_r 的 3.16 和 557.xz_r 的 3.49，低于 505.mcf_r 的 6.24 和 541.leela_r 的 7.71。
+`-O3` 编译选项下，1to6_classical 执行的指令数为 531.8B（`instructions` 性能计数器），其中 Load 指令有 135.7B 条（`mem_inst_retired.all_loads` 性能计数器），Store 有 59.7B 条（`mem_inst_retired.all_stores` 性能计数器），分支指令有 56.0B 条（`branch-instructions` 性能计数器），其中有 2622.8M 次错误预测（`branch-misses` 性能计数器）。可见，1to6_classical 的 MPKI 还是比较高的：`2622.8M/531.8B*1000=4.93`。即使是在 SPEC INT 2017 当中，这一数值也高于 531.deepsjeng_r 的 4.40，低于 557.xz_r 的 5.29。
 
 使用 `perf record -e branch-misses:pp`，观察到主要的分支错误预测来自于 `Stockfish::MovePicker::next_move()` 函数，贡献了 27.48% 的错误预测，主要是插入排序的部分，一是循环找到插入的位置，二是循环搬运数组内原有元素。其次是 `Stockfish::Eval::evaluate()` 函数，贡献了 17.42% 的错误预测。再其次是 `Stockfish::search()` 函数，贡献了 13.06% 的错误预测。
 
@@ -179,7 +179,7 @@ GCC 14 用 `-march=native` 编译选项下，7to11_nnue 执行的指令数锐减
 | 3. 7to11_nnue     | GCC 15 `-O3`           | 46       | 955.3    | 169.4    | 57.8      | 75.2     | 1224.7           | 1.28 | 92.3               | 0.00                |
 | 3. 7to11_nnue     | GCC 14 `-march=native` | 31       | 425.9    | 115.1    | 43.7      | 47.1     | 922.9            | 2.17 | 4.6                | 35.0                |
 
-1to6_classical 类似传统的棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.93 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=3.16），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。
+1to6_classical 类似传统的棋类引擎，有比较复杂的分支和访存，所以它的 MPKI=4.93 比较类似 SPEC CPU 2017 的 531.deepsjeng_r（MPKI=4.40），属于比较高的一类。而 1to6_nnue 和 7to11_nnue 的主要瓶颈在于 i8 的矩阵运算，能否用上硬件的加速指令（这里是 AVX-VNNI）对性能影响很大，分支预测瓶颈就明显小了。整体平均下来的 MPKI 是 1.85，并不算高。
 
 ### 707.ntest_r
 
