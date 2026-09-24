@@ -1,5 +1,7 @@
 # 一颗 CPU 的原子指令，一个打包死循环：LA664 丢失更新事件始末
 
+本文同步发布到本人的[知乎](https://zhuanlan.zhihu.com/p/2086506162388846262)。
+
 [English version](https://jia.je/hardware/2026/09/24/loongson-cpu-erratum-en/index.md)
 
 ## 太长不看版本
