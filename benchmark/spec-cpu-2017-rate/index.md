@@ -76,6 +76,7 @@
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3 -flto -ljemalloc`）: [9.89](https://jia.je/benchmark/data-trixie/int2017_rate1/AWS_Graviton_5_O3-flto-ljemalloc_001.txt)
 - Google Axion C4A @ 3.0 GHz Neoverse V2（`-O3 -flto -ljemalloc`）: [8.23](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_C4A_O3-flto-ljemalloc_001.txt)
 - Google Axion N4A @ Neoverse N3（`-O3 -flto -ljemalloc`）: [7.97](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_N4A_O3-flto-ljemalloc_001.txt)
+- Hygon C86 4G 7447V @ 3.0 GHz Hygon-4G（`-O3 -flto -ljemalloc`）: [4.47](https://jia.je/benchmark/data-trixie/int2017_rate1/Hygon_C86_4G_7447V_O3-flto-ljemalloc_001.txt)
 - IBM POWER8 @ 3.2 GHz POWER8（`-O3 -flto -ljemalloc`）: [3.63](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER8_O3-flto-ljemalloc_001.txt)
 - IBM POWER9 3.2 GHz @ 3.2 GHz POWER9（`-O3 -flto -ljemalloc`）: [3.53](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.2_GHz_O3-flto-ljemalloc_001.txt)
 - IBM POWER9 3.8 GHz @ 3.8 GHz POWER9（`-O3 -flto -ljemalloc`）: [4.81](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.8_GHz_O3-flto-ljemalloc_001.txt)
