@@ -110,6 +110,7 @@
 - Google Axion N4A(GCP n4a-standard-4, 4C 16G): Neoverse N3
 - Huawei Kirin 9010
 - Hygon C86 7390(Aliyun g7h.large, 2C 8G): w/o PMU
+- Hygon C86-4G(Aliyun g9h.xlarge, 4C 16G)
 - IBM POWER8NVL
 - IBM POWER8: SMT8
 - IBM POWER9 3.2 GHz: SMT4, 4C16T
@@ -145,6 +146,15 @@
 
 ## 更新历史
 
+- 2026.09.28:
+  - 测试 Intel Xeon Platinum 8358P 的性能
+  - 测试 Intel Xeon Gold 6430 的性能
+  - 测试 AMD EPYC 7742 的性能
+- 2026.06.30:
+  - 测试 Intel Core i5-1135G7 性能
+- 2025.06.27:
+  - 测试 Huawei Kirin X90 在虚拟机中的性能
+  - 在华为云 kc2.xlarge.4 实例上测试 HuaweiCloud Kunpeng 920 kc2 的性能
 - 2026.06.12:
   - 在 AWS m9g.xlarge 实例上测试 AWS Graviton 5 的性能
 - 2026.05.19:
