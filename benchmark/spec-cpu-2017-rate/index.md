@@ -96,6 +96,7 @@
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3 -flto`）: [9.38](https://jia.je/benchmark/data-trixie/int2017_rate1/AWS_Graviton_5_O3-flto_001.txt)
 - Google Axion C4A @ 3.0 GHz Neoverse V2（`-O3 -flto`）: [7.68](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_C4A_O3-flto_001.txt)
 - Google Axion N4A @ Neoverse N3（`-O3 -flto`）: [7.44](https://jia.je/benchmark/data-trixie/int2017_rate1/Google_Axion_N4A_O3-flto_001.txt)
+- Hygon C86 4G 7447V @ 3.0 GHz Hygon-4G（`-O3 -flto`）: [4.18](https://jia.je/benchmark/data-trixie/int2017_rate1/Hygon_C86_4G_7447V_O3-flto_001.txt)
 - IBM POWER8 @ 3.2 GHz POWER8（`-O3 -flto`）: [3.45](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER8_O3-flto_001.txt)
 - IBM POWER9 3.2 GHz @ 3.2 GHz POWER9（`-O3 -flto`）: [3.30](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.2_GHz_O3-flto_001.txt)
 - IBM POWER9 3.8 GHz @ 3.8 GHz POWER9（`-O3 -flto`）: [4.41](https://jia.je/benchmark/data-trixie/int2017_rate1/IBM_POWER9_3.8_GHz_O3-flto_001.txt)
@@ -159,7 +160,7 @@
 
 - AMD Ryzen 5 7500F @ 5.0 GHz Zen 4（`-O3`）: [9.51](https://jia.je/benchmark/data-bookworm/int2017_rate1/AMD_Ryzen_5_7500F_O3_001.txt)
 - AMD Ryzen 7 5700X @ 4.65 GHz Zen 3（`-O3`）: [7.87](https://jia.je/benchmark/data-bookworm/int2017_rate1/AMD_Ryzen_7_5700X_O3_001.txt)
-- AMD Ryzen 9 9950X @ 5.7 GHz Zen 5（`-O3`）: [11.2](https://jia.je/benchmark/data-bookworm/int2017_rate1/AMD_Ryzen_9_9950X_O3_001.txt) [11.3](https://jia.je/benchmark/data-bookworm/int2017_rate1/AMD_Ryzen_9_9950X_O3_002.txt)
+- AMD Ryzen 9 9950X @ 5.7 GHz Zen 5（`-O3`）: [11.3](https://jia.je/benchmark/data-bookworm/int2017_rate1/AMD_Ryzen_9_9950X_O3_001.txt)
 - Apple M1 E-Core @ 2.1 GHz Icestorm（`-O3`）: [3.15](https://jia.je/benchmark/data-bookworm/int2017_rate1/Apple_M1_E-Core_O3_001.txt)
 - Apple M1 P-Core @ 3.2 GHz Firestorm（`-O3`）: [7.85](https://jia.je/benchmark/data-bookworm/int2017_rate1/Apple_M1_P-Core_O3_001.txt)
 - Huawei Kirin X90 VM P-Core @ 2.3 GHz（`-O3`）: [4.07](https://jia.je/benchmark/data-bookworm/int2017_rate1/Huawei_Kirin_X90_VM_P-Core_O3_001.txt)
