@@ -14,7 +14,7 @@ reg load HKLM\COMPONENTS C:\Windows\System32\config\components
 
 ## 失败的尝试
 
-参考了网上的大量资料（[[1]](https://gist.github.com/74Thirsty/18e2b9152c0ca3a2f5d76dcd1b5d6ff4)、[[2]](https://www.reddit.com/r/WindowsHelp/comments/1k6aktc/error_0x800703f1_code_how_to_fix/)），各种方法都试了一遍，无一成功：
+参考了网上的大量资料（[\[1\]](<https://gist.github.com/74Thirsty/18e2b9152c0ca3a2f5d76dcd1b5d6ff4>)、[\[2\]](<https://www.reddit.com/r/WindowsHelp/comments/1k6aktc/error_0x800703f1_code_how_to_fix/>)），各种方法都试了一遍，无一成功：
 
 - `sfc /scannow` 和 `DISM /Online /Cleanup-Image /RestoreHealth` 都跑过，修复时仍报同样的 0x800703F1 错误。
 - `sysnative component scanner` 跑了一段输出后就卡住不动，不知道在干什么。
@@ -22,7 +22,7 @@ reg load HKLM\COMPONENTS C:\Windows\System32\config\components
 
 ## 成功的尝试
 
-最后抱着试试看的心态，采用了 [Reddit](https://www.reddit.com/r/WindowsHelp/comments/1k6aktc/error_0x800703f1_code_how_to_fix/) 上这个方案：
+最后抱着试试看的心态，采用了 [Reddit](<https://www.reddit.com/r/WindowsHelp/comments/1k6aktc/error_0x800703f1_code_how_to_fix/>) 上这个方案：
 
 ```text
 -TekkieBoy-

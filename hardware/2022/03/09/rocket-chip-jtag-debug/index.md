@@ -2,7 +2,7 @@
 
 ## 前言
 
-两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
+两年前，我尝试过用 BSCAN JTAG 来配置 Rocket Chip 的调试，但是这个方法不是很好用，具体来说，如果有独立的一组 JTAG 信号，配置起来会更方便，而且不用和 Vivado 去抢，OpenOCD 可以和 Vivado hw\_server 同时运行和工作。但是，苦于 VCU128 上没有 PMOD 接口，之前一直没考虑过在 VCU128 上配置独立的 JTAG。然后最近研究了一下，终于解决了这个问题。
 
 ## 寻找 JTAG 接口
 
@@ -22,25 +22,25 @@ UART connections through the single micro-AB USB connector J2.
 查询了一下 FT4232H 的文档，发现它的 Channel A 和 Channel B 是支持 MPSSE 模式的，在 MPSSE 模式下，可以当成 JTAG 使用：
 
 | Signal | Channel A | Channel B |
-| ------ | --------- | --------- |
-| TCK    | 12        | 22        |
-| TDI    | 13        | 23        |
-| TDO    | 14        | 24        |
-| TMS    | 15        | 25        |
+| --- | --- | --- |
+| TCK | 12 | 22 |
+| TDI | 13 | 23 |
+| TDO | 14 | 24 |
+| TMS | 15 | 25 |
 
 对照 VCU128 的 Schematic 看，虽然引脚的编号不大一样，可以发现，Channel A 和 B 分别对应了 ADBUS0-4 和 BDBUS 0-4，对应到 schematic 上的名字是：
 
-- ADBUS0 - FT4232_TCK
-- ADBUS1 - FT4232_TDI
-- ADBUS2 - FMCP_HSPC_TDO
-- ADBUS3 - FT4232_TMS
+- ADBUS0 - FT4232\_TCK
+- ADBUS1 - FT4232\_TDI
+- ADBUS2 - FMCP\_HSPC\_TDO
+- ADBUS3 - FT4232\_TMS
 
 这一组是直接连到 FPGA 上专用的 JTAG 引脚，其中 TDO 是连接了额外的逻辑，可以把 FMC 接口上的 JTAG 连接成 daisy chain。
 
-- ADBUS0 - FTDI_UART0_TXD_LS - UART0_RXD - BP26 -> TCK
-- ADBUS1 - FTDI_UART0_RXD_LS - UART0_TXD - BN26 -> TDI
-- ADBUS2 - FTDI_UART0_RTS_B_LS - UART0_RTS_B - BP22 -> TDO
-- ADBUS3 - FTDI_UART0_CTS_B_LS - UART0_CTS_B - BP23 -> TMS
+- ADBUS0 - FTDI\_UART0\_TXD\_LS - UART0\_RXD - BP26 -\> TCK
+- ADBUS1 - FTDI\_UART0\_RXD\_LS - UART0\_TXD - BN26 -\> TDI
+- ADBUS2 - FTDI\_UART0\_RTS\_B\_LS - UART0\_RTS\_B - BP22 -\> TDO
+- ADBUS3 - FTDI\_UART0\_CTS\_B\_LS - UART0\_CTS\_B - BP23 -\> TMS
 
 这里的 RXD/TXD 名字交换也是很容易看错，要小心，只要记住 FT4232H 要求的顺序一定是 TCK-TDI-TDO-TMS 即可。对应到 vivado 内的 xdc 就是这么写：
 
@@ -58,9 +58,9 @@ set_property -dict {PACKAGE_PIN BP23 IOSTANDARD LVCMOS18} [get_ports jtag_TMS]
 配置 Rocket Chip 的 JTAG，大概需要如下几步：
 
 1. 给 Config 加上 WithJtagDTM，以 JTAG 作为 DTM 模块
-1. 给 Subsystem 加上 HasPeripheryDebug
-1. 给 SubsystemModuleImp 加上 HasPeripheryDebugModuleImp
-1. 把 JTAG 信号连到自己的顶层模块上
+2. 给 Subsystem 加上 HasPeripheryDebug
+3. 给 SubsystemModuleImp 加上 HasPeripheryDebugModuleImp
+4. 把 JTAG 信号连到自己的顶层模块上
 
 最后一步的相关代码，首先，按照 spec 要求，把 DM 输出的 ndreset 信号连到整个 Rocket 的 reset 上：
 
@@ -119,7 +119,7 @@ set_clock_groups -asynchronous -group [get_clocks jtag_TCK] -group [get_clocks -
 set_property ASYNC_REG TRUE [get_cells -hier -regexp "system_i/rocketchip_wrapper_0/.*/cdc_reg_reg.*"]
 ```
 
-和原版本稍微改了一下，一个区别是 `set_clock_groups` 的时候，第二个时钟参数用的是 Clocking Wizard 的输出，同时也是 Rocket Chip 自己的时钟输入；另一个区别是用的 ASYNC_REG 查询语句不大一样。我没有具体分析过这些约束为什么这么写，不确定这些约束是否都合理，是否都是需要的，没有测试过不带这些约束会不会出问题。
+和原版本稍微改了一下，一个区别是 `set_clock_groups` 的时候，第二个时钟参数用的是 Clocking Wizard 的输出，同时也是 Rocket Chip 自己的时钟输入；另一个区别是用的 ASYNC\_REG 查询语句不大一样。我没有具体分析过这些约束为什么这么写，不确定这些约束是否都合理，是否都是需要的，没有测试过不带这些约束会不会出问题。
 
 ## 运行 OpenOCD 和 GDB
 
@@ -178,12 +178,12 @@ Remote debugging using localhost:3333
 调试这个功能大概花了一天的时间，主要遇到了下面这些问题：
 
 1. 调试模块的 reset 信号需要是异步的，这个是通过仿真（Remote Bitbang 连接 OpenOCD）调试出来的
-1. 看 schematic 的时候 rxd/txd 搞反了，后来仔细对比才找到了正确的对应关系
-1. OpenOCD 配置的 irlen 一开始写的不对，dmcontrol 读出来是 0，一直以为是有别的问题，结果改了 irlen 后立马就成功了，这个问题可以让 OpenOCD 自动推断 irlen 来发现
+2. 看 schematic 的时候 rxd/txd 搞反了，后来仔细对比才找到了正确的对应关系
+3. OpenOCD 配置的 irlen 一开始写的不对，dmcontrol 读出来是 0，一直以为是有别的问题，结果改了 irlen 后立马就成功了，这个问题可以让 OpenOCD 自动推断 irlen 来发现
 
 ## 参考
 
-- [VCU128 User Guide](https://www.xilinx.com/support/documentation/boards_and_kits/vcu128/ug1302-vcu128-eval-bd.pdf)
-- [FT4232H](https://ftdichip.com/wp-content/uploads/2020/08/DS_FT4232H.pdf)
-- [DesignKeyWrapper from 中国 Chisel 之父 @sequencer](https://github.com/sequencer/rocket-doc/blob/e55f7af549c5859b3c8f5a52c81c4c802153ed60/sanitytests/vcu118/src/DesignKeyWrapper.scala)
-- [pulp VCU118 constraints](https://github.com/pulp-platform/pulp/blob/770b4e1d69baf7daceaadcb301ba7212a4310577/fpga/pulp-vcu118/constraints/vcu118.xdc)
+- [VCU128 User Guide](<https://www.xilinx.com/support/documentation/boards_and_kits/vcu128/ug1302-vcu128-eval-bd.pdf>)
+- [FT4232H](<https://ftdichip.com/wp-content/uploads/2020/08/DS_FT4232H.pdf>)
+- [DesignKeyWrapper from 中国 Chisel 之父 @sequencer](<https://github.com/sequencer/rocket-doc/blob/e55f7af549c5859b3c8f5a52c81c4c802153ed60/sanitytests/vcu118/src/DesignKeyWrapper.scala>)
+- [pulp VCU118 constraints](<https://github.com/pulp-platform/pulp/blob/770b4e1d69baf7daceaadcb301ba7212a4310577/fpga/pulp-vcu118/constraints/vcu118.xdc>)

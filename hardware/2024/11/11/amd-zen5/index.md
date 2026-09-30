@@ -8,29 +8,29 @@ Zen 5 是 AMD 最新的一代微架构，在很多地方和之前不同，因此
 
 AMD 一向公开得比较大方，关于 Zen 5 的信息有：
 
-- [Software Optimization Guide for the AMD Zen5 Microarchitecture](https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/58455.zip)
-- [5TH GEN AMD EPYC™ PROCESSOR ARCHITECTURE](https://www.amd.com/content/dam/amd/en/documents/epyc-business-docs/white-papers/5th-gen-amd-epyc-processor-architecture-white-paper.pdf)
+- [Software Optimization Guide for the AMD Zen5 Microarchitecture](<https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/58455.zip>)
+- [5TH GEN AMD EPYC™ PROCESSOR ARCHITECTURE](<https://www.amd.com/content/dam/amd/en/documents/epyc-business-docs/white-papers/5th-gen-amd-epyc-processor-architecture-white-paper.pdf>)
 
 ## 现有评测
 
 网上已经有较多针对 Zen 5 微架构的评测和分析，建议阅读：
 
-- [AMD Reveals More Zen 5 CPU Core Details](https://www.phoronix.com/review/amd-zen-5-core)
-- [Zen 5’s 2-Ahead Branch Predictor Unit: How a 30 Year Old Idea Allows for New Tricks](https://chipsandcheese.com/2024/07/26/zen-5s-2-ahead-branch-predictor-unit-how-30-year-old-idea-allows-for-new-tricks/)
-- [Zen 5’s Leaked Slides](https://chipsandcheese.com/2023/10/08/zen-5s-leaked-slides/)
-- [AMD’s Strix Point: Zen 5 Hits Mobile](https://chipsandcheese.com/2024/08/10/amds-strix-point-zen-5-hits-mobile/)
-- [AMD’s Ryzen 9950X: Zen 5 on Desktop](https://chipsandcheese.com/2024/08/14/amds-ryzen-9950x-zen-5-on-desktop/)
-- [Discussing AMD’s Zen 5 at Hot Chips 2024](https://chipsandcheese.com/2024/09/15/discussing-amds-zen-5-at-hot-chips-2024/)
-- [Zen 5 补充测试 (1/2): 更多微架构细节](https://blog.hjc.im/zen-5-more-details-1.html)
-- [Zen5's AVX512 Teardown + More...](http://www.numberworld.org/blogs/2024_8_7_zen5_avx512_teardown/)
-- [Disabling Zen 5’s Op Cache and Exploring its Clustered Decoder](https://chipsandcheese.com/p/disabling-zen-5s-op-cache-and-exploring)
-- [Zen 5's AVX-512 Frequency Behavior](https://chipsandcheese.com/p/zen-5s-avx-512-frequency-behavior)
+- [AMD Reveals More Zen 5 CPU Core Details](<https://www.phoronix.com/review/amd-zen-5-core>)
+- [Zen 5’s 2-Ahead Branch Predictor Unit: How a 30 Year Old Idea Allows for New Tricks](<https://chipsandcheese.com/2024/07/26/zen-5s-2-ahead-branch-predictor-unit-how-30-year-old-idea-allows-for-new-tricks/>)
+- [Zen 5’s Leaked Slides](<https://chipsandcheese.com/2023/10/08/zen-5s-leaked-slides/>)
+- [AMD’s Strix Point: Zen 5 Hits Mobile](<https://chipsandcheese.com/2024/08/10/amds-strix-point-zen-5-hits-mobile/>)
+- [AMD’s Ryzen 9950X: Zen 5 on Desktop](<https://chipsandcheese.com/2024/08/14/amds-ryzen-9950x-zen-5-on-desktop/>)
+- [Discussing AMD’s Zen 5 at Hot Chips 2024](<https://chipsandcheese.com/2024/09/15/discussing-amds-zen-5-at-hot-chips-2024/>)
+- [Zen 5 补充测试 (1/2): 更多微架构细节](<https://blog.hjc.im/zen-5-more-details-1.html>)
+- [Zen5's AVX512 Teardown + More...](<http://www.numberworld.org/blogs/2024_8_7_zen5_avx512_teardown/>)
+- [Disabling Zen 5’s Op Cache and Exploring its Clustered Decoder](<https://chipsandcheese.com/p/disabling-zen-5s-op-cache-and-exploring>)
+- [Zen 5's AVX-512 Frequency Behavior](<https://chipsandcheese.com/p/zen-5s-avx-512-frequency-behavior>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-AMD Zen 5 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+AMD Zen 5 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## MOP vs uOP
 
@@ -54,7 +54,7 @@ MOP 到 uOP 的拆分需要等到 Scheduler 中才进行，Scheduler 输入 MOP�
 
 #### 开启/关闭
 
-AMD 在 UEFI 固件中提供了关闭 Op Cache 的设置，因此我们可以测试在 Op Cache 开启/关闭不同情况下的性能。通过进一步研究，发现固件的 Op Cache 关闭设置，实际上对应了 MSR[0xc0011021] 的 bit 5：初始情况下，MSR[0xc0011021] 的值为 0x20000000000040，如果进入固件关闭 Op Cache，可以观察到 MSR[0xc0011021] 变成了 0x20000000000060。实际上，Op Cache 可以在进入 Linux 后动态开启/关闭（感谢 David Huang 在博客中提供的信息）：
+AMD 在 UEFI 固件中提供了关闭 Op Cache 的设置，因此我们可以测试在 Op Cache 开启/关闭不同情况下的性能。通过进一步研究，发现固件的 Op Cache 关闭设置，实际上对应了 MSR\[0xc0011021\] 的 bit 5：初始情况下，MSR\[0xc0011021\] 的值为 0x20000000000040，如果进入固件关闭 Op Cache，可以观察到 MSR\[0xc0011021\] 变成了 0x20000000000060。实际上，Op Cache 可以在进入 Linux 后动态开启/关闭（感谢 David Huang 在博客中提供的信息）：
 
 ```shell
 sudo modprobe msr
@@ -233,11 +233,11 @@ AMD Zen 5 的 Decode 虽然有两个 Pipe，但是每个逻辑线程只能用一
 
 浮点方面，测得 430 个供预测执行的浮点寄存器，超过了官方宣传的 384 个 512 位浮点寄存器。考虑到 Zen5 引入了在 Rename 之前的 96-entry Non-Scheduling Queue(NSQ)，在 NSQ 中的指令还没有经过重命名，因此不消耗物理寄存器：`384+96=480`，再去掉至少 32 个架构寄存器 zmm0-zmm31，和观察到的 430 是比较接近的。
 
-针对浮点寄存器，Zen5 的不同平台的设计不完全一样，上面的测试是在 9950X 上进行的，其他平台的测试以及分析见 [Zen5's AVX512 Teardown + More...](http://www.numberworld.org/blogs/2024_8_7_zen5_avx512_teardown/#vector_register_file)。
+针对浮点寄存器，Zen5 的不同平台的设计不完全一样，上面的测试是在 9950X 上进行的，其他平台的测试以及分析见 [Zen5's AVX512 Teardown + More...](<http://www.numberworld.org/blogs/2024_8_7_zen5_avx512_teardown/#vector_register_file>)。
 
 ### L1 DCache
 
-官方信息：**48KB**, 12-way set associative, index 是 VA[11:6]
+官方信息：**48KB**, 12-way set associative, index 是 VA\[11:6\]
 
 使用不同 footprint 的随机的 pointer chasing load，测试性能，得到如下结果：
 
@@ -245,18 +245,18 @@ AMD Zen 5 的 Decode 虽然有两个 Pipe，但是每个逻辑线程只能用一
 
 #### Linear Address UTAG/Way-Predictor
 
-复现论文 [Take A Way: Exploring the Security Implications of AMD's Cache Way Predictors](https://dl.acm.org/doi/10.1145/3320269.3384746)，可以看到 Zen 5 的 UTAG 哈希函数和 Zen 2 一样也是如下 8 bit：
+复现论文 [Take A Way: Exploring the Security Implications of AMD's Cache Way Predictors](<https://dl.acm.org/doi/10.1145/3320269.3384746>)，可以看到 Zen 5 的 UTAG 哈希函数和 Zen 2 一样也是如下 8 bit：
 
-- VA[12] xor VA[27]
-- VA[13] xor VA[26]
-- VA[14] xor VA[25]
-- VA[15] xor VA[20]
-- VA[16] xor VA[21]
-- VA[17] xor VA[22]
-- VA[18] xor VA[23]
-- VA[19] xor VA[24]
+- VA\[12\] xor VA\[27\]
+- VA\[13\] xor VA\[26\]
+- VA\[14\] xor VA\[25\]
+- VA\[15\] xor VA\[20\]
+- VA\[16\] xor VA\[21\]
+- VA\[17\] xor VA\[22\]
+- VA\[18\] xor VA\[23\]
+- VA\[19\] xor VA\[24\]
 
-如果两个虚拟地址映射到同一个 DCache Set 上的不同 Way（Set 根据 VA[11:6] 唯一确定），并且它们的 uTag 出现冲突，那么访问一个虚拟地址会把另一个虚拟地址从 L1 DCache 中清掉。
+如果两个虚拟地址映射到同一个 DCache Set 上的不同 Way（Set 根据 VA\[11:6\] 唯一确定），并且它们的 uTag 出现冲突，那么访问一个虚拟地址会把另一个虚拟地址从 L1 DCache 中清掉。
 
 ### Load Store Unit
 
@@ -293,15 +293,15 @@ AMD Zen 5 的 Decode 虽然有两个 Pipe，但是每个逻辑线程只能用一
 对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | {}       | {}       | {}       |
-| 16b Store   | [0,1]   | {0}      | {}       | {}       |
-| 32b Store   | [0,3]   | [0,2]    | {0}      | {}       |
-| 64b Store   | [0,7]   | [0,6]    | [0,4]    | {0}      |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | {} | {} | {} |
+| 16b Store | \[0,1\] | {0} | {} | {} |
+| 32b Store | \[0,3\] | \[0,2\] | {0} | {} |
+| 64b Store | \[0,7\] | \[0,6\] | \[0,4\] | {0} |
 
 可以看到，Zen 5 在 Store 完全包含 Load 的情况下都可以转发，没有额外的对齐要求。但当 Load 和 Store 只有部分重合时，就无法转发。两个连续的 32 位的 Store 和一个 64 位的 Load 重合也不能转发。
 
-可见 Zen 5 的 Store to Load Forwarding 实现比较粗暴，只允许 Load 从单个完全包含 Load 的 Store 中转发数据。和 [Neoverse V2](https://jia.je/hardware/2024/11/07/arm-neoverse-v2/index.md) 相比，Zen 5 对 Load 在 Store 内的偏移没有要求，但也不允许 Load 和 Store 只有一部分覆盖，也不支持一个 Load 从两个或更多的 Store 中获取数据。
+可见 Zen 5 的 Store to Load Forwarding 实现比较粗暴，只允许 Load 从单个完全包含 Load 的 Store 中转发数据。和 [Neoverse V2](<https://jia.je/blog/posts/hardware/arm-neoverse-v2/index.md>) 相比，Zen 5 对 Load 在 Store 内的偏移没有要求，但也不允许 Load 和 Store 只有一部分覆盖，也不支持一个 Load 从两个或更多的 Store 中获取数据。
 
 成功转发时 8 cycle，有 Overlap 但转发失败时 14-15 cycle。
 
@@ -326,7 +326,7 @@ AMD Zen 5 的 Decode 虽然有两个 Pipe，但是每个逻辑线程只能用一
 
 ### L2 Cache
 
-官方信息：16-way set associative, inclusive, 1MB, **>= 14 cycle load to use latency**
+官方信息：16-way set associative, inclusive, 1MB, **\>= 14 cycle load to use latency**
 
 ### L3 Cache
 

@@ -6,7 +6,7 @@
 
 ## 解决方法
 
-解决方法在 sbt 文档中其实就有（[原文](https://www.scala-sbt.org/release/docs/Testing.html#Forking+testsl)）。简单来说就是：把每个 test 放到单独的 TestGroup 中，每个 TestGroup 分别用一个 forked JVM 去运行；然后让 sbt 的并行限制设高一些：
+解决方法在 sbt 文档中其实就有（[原文](<https://www.scala-sbt.org/release/docs/Testing.html#Forking+testsl>)）。简单来说就是：把每个 test 放到单独的 TestGroup 中，每个 TestGroup 分别用一个 forked JVM 去运行；然后让 sbt 的并行限制设高一些：
 
 ```scala
 // move each test into a group and fork them to avoid race condition

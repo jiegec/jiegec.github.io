@@ -18,7 +18,7 @@ export_simulation -simulator xsim -force
 cd export_sim/xsim && ./YOUR_SIM_TOP.sh
 ```
 
-默认情况下它会执行 export_sim/xsim/cmd.tcl 里面的命令。如果想要记录 vcd 文件，修改内容为：
+默认情况下它会执行 export\_sim/xsim/cmd.tcl 里面的命令。如果想要记录 vcd 文件，修改内容为：
 
 ```tcl
 open_vcd
@@ -35,8 +35,8 @@ quit
 如果没有创建 Vivado 项目，也可以单独进行仿真，具体分为三个步骤：
 
 1. 第一步，对每个源 Verilog 文件，运行 `xvlog module.v` 命令
-1. 第二步，生成 snapshot，运行 `xelab -debug all --snapshot snapshot_name top_module_name`
-1. 第三步，仿真，运行 `xsim snapshot_name`
+2. 第二步，生成 snapshot，运行 `xelab -debug all --snapshot snapshot_name top_module_name`
+3. 第三步，仿真，运行 `xsim snapshot_name`
 
 如果想要生成波形文件，编辑 `xsim.tcl` 为以下内容：
 

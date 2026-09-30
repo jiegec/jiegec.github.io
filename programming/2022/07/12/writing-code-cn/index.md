@@ -1,6 +1,6 @@
 # 编程作业中的学术诚信
 
-本文是我自己对 [Academic Integrity at MIT: Writing Code](https://integrity.mit.edu/handbook/writing-code) 的非官方中文翻译。本文已经得到了官方的邮件授权。
+本文是我自己对 [Academic Integrity at MIT: Writing Code](<https://integrity.mit.edu/handbook/writing-code>) 的非官方中文翻译。本文已经得到了官方的邮件授权。
 
 ## 编写代码 Writing Code
 
@@ -23,8 +23,7 @@ and debugging.
    When you copy code from an external source. Whether you are copying a
    snippet of code or an entire module, you should credit the source.
    ```
-
-1. 当你复制了代码并做了改动，你依然要引用来源。你并不是代码的原作者。
+2. 当你复制了代码并做了改动，你依然要引用来源。你并不是代码的原作者。
 
    ```text
    When you copy the code and adapt it, you should still credit the source.
@@ -40,15 +39,13 @@ and debugging.
    more details if it will help the reader get a clearer
    understanding of the source.
    ```
-
-1. 如果你修改了代码，你需要注明：“Adapted from:”（修改自）或者“Based on”（基于）。这样读者就知道你修改了代码。
+2. 如果你修改了代码，你需要注明：“Adapted from:”（修改自）或者“Based on”（基于）。这样读者就知道你修改了代码。
 
    ```text
    If you adapted the code, you should indicate “Adapted from:” or
    “Based on” so it is understood that you modified the code.
    ```
-
-1. 你的老师可能会对你如何引用代码有具体的要求。如果你不能确认什么是可行的，请询问你的老师。
+3. 你的老师可能会对你如何引用代码有具体的要求。如果你不能确认什么是可行的，请询问你的老师。
 
    ```text
    Your instructor may have specific instructions on how you should
@@ -72,23 +69,20 @@ that applies to the code you are using. Keep in mind:
    When you download the source, the license is typically part of the
    download.
    ```
-
-1. 同时，代码里也通常会包括它的版权和使用条款。
+2. 同时，代码里也通常会包括它的版权和使用条款。
 
    ```text
    Also, the source code itself will typically contain the
    copyright and terms of use.
    ```
-
-1. 当你引入了开源代码，并且它附带了开源软件许可证，你应该把它的版权声明复制到你的代码中，和/或把许可证复制到代码目录中的文件。
+3. 当你引入了开源代码，并且它附带了开源软件许可证，你应该把它的版权声明复制到你的代码中，和/或把许可证复制到代码目录中的文件。
 
    ```text
    When you incorporate open-source-licensed code into a program,
    it is good practice to duplicate the copyright in your code,
    and/or store the license in a file with the code.
    ```
-
-1. 如果在下载的文件里没有找到开源软件许可证，你可以在开源项目的网站上找到全文，如 [Apache HTTP Server 网站](https://httpd.apache.org/) 或者 [Open Source Initiative (OSI) 网站](https://opensource.org/)。
+4. 如果在下载的文件里没有找到开源软件许可证，你可以在开源项目的网站上找到全文，如 [Apache HTTP Server 网站](<https://httpd.apache.org/>) 或者 [Open Source Initiative (OSI) 网站](<https://opensource.org/>)。
 
    ```text
    If you don’t obtain the license with the download, you should be
@@ -190,7 +184,6 @@ however, as discussed later in this document.
   in the Java library, she mentions it to Ben. When Ben finds a
   StackOverflow answer that helps, he sends the URL to Alyssa. OK.
   ```
-
 - 在他们编写代码的时候，他们把代码大声念出来，好让双方都可以编写正确的代码。错误！
 
   ```text
@@ -198,7 +191,6 @@ however, as discussed later in this document.
   other person, to make sure both people have the right code.
   INAPPROPRIATE.
   ```
-
 - 在作业最困难的部分，A 和 B 互相看电脑屏幕，并对比代码，确认他们代码实现都是正确的。错误！
 
   ```text
@@ -216,7 +208,6 @@ however, as discussed later in this document.
   now struggling with a nasty bug. Jerry sits next to Ben, looks
   at his code, and helps him debug. OK.
   ```
-
 - J 打开了自己的笔记本，找到自己的答案，然后指着自己的代码给 B 纠正错误。错误！
 
   ```text
@@ -239,14 +230,12 @@ however, as discussed later in this document.
   on it. Ben already handed in his own solution, but he doesn’t
   open his own laptop to look at it while he’s helping Louis. OK.
   ```
-
 - B 打开了自己的笔记本电脑，并且在帮助 L 的时候阅读自己的代码。错误！
 
   ```text
   Ben opens his laptop and reads his own code while he’s helping
   Louis. INAPPROPRIATE.
   ```
-
 - B 花了几个小时帮助 L，但是 L 还是没有完成。但是 B 需要去做自己的事情了。在 L 承诺只有在必要的时候才会看 B 的代码之后，B 把自己的代码上传到 Dropbox 并且分享给了 L。错误！
 
   ```text
@@ -310,8 +299,8 @@ use any code provided by this semester’s 6.031 staff.
 你可以使用外部代码，只要：
 
 1. 所有同学都可以访问这个资料
-1. 进行了合理的引用
-1. 作业允许你这么做
+2. 进行了合理的引用
+3. 作业允许你这么做
 
 特别地，如果作业要求你“实现 X 功能”，你就必须自己实现 X 功能，不能复用他人的。
 
@@ -335,7 +324,6 @@ semesters.
   You should never copy code from other students. Your peers are
   not considered an authorized source.
   ```
-
 - 你不能简单地复用网上的代码。就像学术写作，你可以采用别人的思路，但是你也要把自己的理解加进去。
 
   ```text
@@ -386,10 +374,10 @@ Developer Network and includes a URL:
 
 ```cpp
 // Code adapted from MSDN example:
-// http://msdn.microsoft.com/en-us/library/ms680578(VS.85).aspx
+// http://msdn.microsoft.com/en-us/library/ms680578(VS.85).aspx 
 ```
 
-（来源：https://github.com/adobe/chromium/blob/master/base/debug/stack_trace_win.cc 于 2019 年 7 月获取）
+（来源：https://github.com/adobe/chromium/blob/master/base/debug/stack\_trace\_win.cc 于 2019 年 7 月获取）
 
 ```text
 (Source:

@@ -1,6 +1,6 @@
 # 开发一个链接器（1）
 
-本文同步发布到本人的[知乎](https://zhuanlan.zhihu.com/p/1932135570651476229)。
+本文同步发布到本人的[知乎](<https://zhuanlan.zhihu.com/p/1932135570651476229>)。
 
 ## 前言
 
@@ -49,31 +49,33 @@ _start:
     syscall
 ```
 
-这段汇编做了什么？
-
-这段汇编要实现的是向标准输出打印 `Hello world!\n`，但为了避免引入 C 标准库（libc），只能直接进行系统调用来完成打印。在 Linux 中，向标准输出打印，实际上就是向标准输出对应的 file handle（简称 fd，通常约定标准输入 stdin 是 0，标准输出 stdout 是 1，标准错误输出 stderr 是 2）写入要打印的内容。而这个需要通过调用 `write` syscall 来实现。
-
-知道这一点以后，就要去查找 Linux 的 [write syscall](https://man7.org/linux/man-pages/man2/write.2.html) 的文档。文档告诉你，第一个参数是 `fd`，第二个参数 `buf` 指向要写入的数据，第三个参数 `count` 是要写入的数据的长度。结合上面的内容，为了打印 `Hello world!\n`，实际上要完成的相当于是 C 代码中的 `write(1, hello, 13)`，其中 1 就是 stdout 的 fd，`hello` 指向保存 `Hello world!\n` 字符串的地址，13 是字符串的长度。那么接下来就要研究，如何用汇编调用 syscall。
-
-接下来，要知道在 amd64 Linux 下，如何用汇编调用 syscall。首先找到 [amd64 Linux syscall 调用约定](https://www.ucw.cz/~hubicka/papers/abi/node33.html#features)，它告诉我们：
-
-1. syscall 编号保存在 rax 寄存器中
-1. syscall 的参数按顺序，依次保存在 rdi, rsi, rdx, r10, r8, r9 寄存器中
-1. 用 syscall 指令调用 syscall
-1. syscall 的返回值也会保存在 rax 寄存器中
-
-既然要调用 `write(1, hello, 13)`，那就按照上面的要求，设置 `rdi=1`、`rsi=hello` 和 `rdx=13`，最后在 [amd64 Linux syscall table](https://filippo.io/linux-syscall-table/) 中找到 `write` syscall 的编号是 1，所以设置 `rax=1`。到这里，调用 `write` syscall 的所有准备任务都已经完成，调用 `syscall` 指令即可完成系统调用。这样就完成了一次 `Hello world!\n` 的打印：
-
-```asm
-# write(1, hello, 13)
-mov     $1, %rdi
-mov     $hello, %rsi
-mov     $13, %rdx
-mov     $1, %rax
-syscall
-```
-
-后面 `exit(0)` 的系统调用也是类似的，不再赘述。代码中写 `_exit(0)` 是为了和 C 标准库中的 `exit(0)` 做区分：前者直接退出程序（只会结束当前线程，但是由于当前进程只有一个线程，所以整个进程都结束了），而后者会做一些清理工作，见 [\_exit manpage](https://man7.org/linux/man-pages/man2/exit.2.html)。
+> [!NOTE]
+>
+> **这段汇编做了什么？**
+>
+> 这段汇编要实现的是向标准输出打印 `Hello world!\n`，但为了避免引入 C 标准库（libc），只能直接进行系统调用来完成打印。在 Linux 中，向标准输出打印，实际上就是向标准输出对应的 file handle（简称 fd，通常约定标准输入 stdin 是 0，标准输出 stdout 是 1，标准错误输出 stderr 是 2）写入要打印的内容。而这个需要通过调用 `write` syscall 来实现。
+>
+> 知道这一点以后，就要去查找 Linux 的 [write syscall](<https://man7.org/linux/man-pages/man2/write.2.html>) 的文档。文档告诉你，第一个参数是 `fd`，第二个参数 `buf` 指向要写入的数据，第三个参数 `count` 是要写入的数据的长度。结合上面的内容，为了打印 `Hello world!\n`，实际上要完成的相当于是 C 代码中的 `write(1, hello, 13)`，其中 1 就是 stdout 的 fd，`hello` 指向保存 `Hello world!\n` 字符串的地址，13 是字符串的长度。那么接下来就要研究，如何用汇编调用 syscall。
+>
+> 接下来，要知道在 amd64 Linux 下，如何用汇编调用 syscall。首先找到 [amd64 Linux syscall 调用约定](<https://www.ucw.cz/~hubicka/papers/abi/node33.html#features>)，它告诉我们：
+>
+> 1. syscall 编号保存在 rax 寄存器中
+> 2. syscall 的参数按顺序，依次保存在 rdi, rsi, rdx, r10, r8, r9 寄存器中
+> 3. 用 syscall 指令调用 syscall
+> 4. syscall 的返回值也会保存在 rax 寄存器中
+>
+> 既然要调用 `write(1, hello, 13)`，那就按照上面的要求，设置 `rdi=1`、`rsi=hello` 和 `rdx=13`，最后在 [amd64 Linux syscall table](<https://filippo.io/linux-syscall-table/>) 中找到 `write` syscall 的编号是 1，所以设置 `rax=1`。到这里，调用 `write` syscall 的所有准备任务都已经完成，调用 `syscall` 指令即可完成系统调用。这样就完成了一次 `Hello world!\n` 的打印：
+>
+> ```asm
+> # write(1, hello, 13)
+> mov     $1, %rdi
+> mov     $hello, %rsi
+> mov     $13, %rdx
+> mov     $1, %rax
+> syscall
+> ```
+>
+> 后面 `exit(0)` 的系统调用也是类似的，不再赘述。代码中写 `_exit(0)` 是为了和 C 标准库中的 `exit(0)` 做区分：前者直接退出程序（只会结束当前线程，但是由于当前进程只有一个线程，所以整个进程都结束了），而后者会做一些清理工作，见 [\_exit manpage](<https://man7.org/linux/man-pages/man2/exit.2.html>)。
 
 由于是汇编代码，所以直接调用汇编器生成 ELF .o 文件，然后观察它的内容：
 
@@ -246,7 +248,7 @@ Program Headers:
   Segment Sections...
    00     
    01     .text 
-   02     .rodata
+   02     .rodata 
 ```
 
 可以看到，它指示内核从文件的三个偏移处加载三个部分内容到内存里，分别是文件头、.text 段以及 .rodata 段。加载完以后，内核从头部里写的入口地址开始执行，就可以把程序跑起来。这时候再去看汇编，可以发现链接后的代码从 0x4001000 开始，并且直接把 .rodata 的地址写到了指令的立即数之中：
@@ -280,24 +282,25 @@ $ objdump -S helloworld_asm
 从这里可以归纳出，写一个最简单的链接器，把上述的 .o 链接成可执行文件，大致需要做哪些事情：
 
 1. 解析 ELF 文件，解析里面的内容
-1. 考虑将要输出的 ELF 文件的布局，计算出各个 section 需要保存的内容以及地址，需要考虑 segment 的布局以及对齐
-1. 根据地址，完成 relocation 所需要的计算并填入对应的位置
+2. 考虑将要输出的 ELF 文件的布局，计算出各个 section 需要保存的内容以及地址，需要考虑 segment 的布局以及对齐
+3. 根据地址，完成 relocation 所需要的计算并填入对应的位置
 
 ## 实现
 
 接下来描述一下实现的具体思路：
 
 1. 第一步就是解析输入的 ELF 文件，提取出中间的内容，包括有哪些 section，解析 relocation 的内容等等；这个可以用现成的库来辅助，也可以自己写。
-1. 把 section 的内容收集下来，例如 .text .rodata 等等，这些数据之后会写入到可执行 ELF 文件中。
-1. 收集完以后，就知道输出的 ELF 大概需要哪些内容了。在进行 relocation 之前，因为目前实现的是采用绝对地址的可执行文件，所以需要先确定好各个 section 和 symbol 的地址，从而实现 relocation 的计算。观察 ld.bfd 输出的文件，可以看到 ELF 文件包括如下几个部分：
+2. 把 section 的内容收集下来，例如 .text .rodata 等等，这些数据之后会写入到可执行 ELF 文件中。
+3. 收集完以后，就知道输出的 ELF 大概需要哪些内容了。在进行 relocation 之前，因为目前实现的是采用绝对地址的可执行文件，所以需要先确定好各个 section 和 symbol 的地址，从而实现 relocation 的计算。观察 ld.bfd 输出的文件，可以看到 ELF 文件包括如下几个部分：
+
    1. ELF file header：ELF 头部，填写各种信息，以及到后续各个 header 的地址偏移
-   1. ELF program header：让 ELF Loader 知道有哪些 Segment 要加载
-   1. section data：各个 section 的内容，由于 section 需要保证对齐，因此中间需要填一些额外的零字节
-   1. ELF section header：保存 section header，记录了 section 的信息
-1. 而加载到内存里的时候，就是直接大段地连续地加载到内存中，所以可以提前计算好各个部分的地址。例如要把 ELF 加载到 0x400000，那就把 file header 和 program header 放在开头，然后因为 segment 需要对齐到页的边界 [1](#fn:1) ，例如对齐到 0x1000（4 KB），那就把连续的相同访问权限的 section 放到一个 segment 内，然后第一个 segment 放到 0x401000，往后再对齐再放下一个 segment，依此类推，直到把所有 segment 都放下为止。
-1. 计算好各个部分的地址以后，就可以知道各个 section 和 symbol 在最终的内存里会处于什么地址了。此时就按照 relocation 的要求进行计算（例如前面出现过的 `R_X86_64_32S` 就是后写入 64 位的地址的低 32 位，并且检查它符号扩展后等于原来 64 位的地址，如果检查失败，就会得到大家熟悉的 `relocation truncated to fit` 错误），直接把计算结果填入到数据中。由于目前只考虑最简单的情况，不涉及到动态重定位，所以可执行文件里所有重定位都会被链接器完成。
-1. 针对可执行文件，还需要生成 segment 放到 program header 里。简单粗暴的办法，就是整个文件直接映射到内存的 0x400000，设置权限为 read + write + execute。更精细的做法，则是把不同类型的数据按照合适的权限映射，例如 .rodata 放到 read only 的 segment 里，.text 放到 read + execute 的 segment 里。
-1. 再按照前面所述的流程，按照预计好的布局，把 ELF 的内容写到文件里。
+   2. ELF program header：让 ELF Loader 知道有哪些 Segment 要加载
+   3. section data：各个 section 的内容，由于 section 需要保证对齐，因此中间需要填一些额外的零字节
+   4. ELF section header：保存 section header，记录了 section 的信息
+4. 而加载到内存里的时候，就是直接大段地连续地加载到内存中，所以可以提前计算好各个部分的地址。例如要把 ELF 加载到 0x400000，那就把 file header 和 program header 放在开头，然后因为 segment 需要对齐到页的边界 [^/software/2024/02/18/write-a-linker-1/#1] ，例如对齐到 0x1000（4 KB），那就把连续的相同访问权限的 section 放到一个 segment 内，然后第一个 segment 放到 0x401000，往后再对齐再放下一个 segment，依此类推，直到把所有 segment 都放下为止。
+5. 计算好各个部分的地址以后，就可以知道各个 section 和 symbol 在最终的内存里会处于什么地址了。此时就按照 relocation 的要求进行计算（例如前面出现过的 `R_X86_64_32S` 就是后写入 64 位的地址的低 32 位，并且检查它符号扩展后等于原来 64 位的地址，如果检查失败，就会得到大家熟悉的 `relocation truncated to fit` 错误），直接把计算结果填入到数据中。由于目前只考虑最简单的情况，不涉及到动态重定位，所以可执行文件里所有重定位都会被链接器完成。
+6. 针对可执行文件，还需要生成 segment 放到 program header 里。简单粗暴的办法，就是整个文件直接映射到内存的 0x400000，设置权限为 read + write + execute。更精细的做法，则是把不同类型的数据按照合适的权限映射，例如 .rodata 放到 read only 的 segment 里，.text 放到 read + execute 的 segment 里。
+7. 再按照前面所述的流程，按照预计好的布局，把 ELF 的内容写到文件里。
 
 这里还有一些细节没有交代，例如 section string table (.shstrtab) 的维护等等。如果只是为了跑起来，符号表都可以直接删掉不要。
 
@@ -309,9 +312,7 @@ $ objdump -S helloworld_asm
 
 最后给出一些文档，可供实现时参考：
 
-- [Tool Interface Standard (TIS) Executable and Linking Format (ELF) Specification](https://refspecs.linuxfoundation.org/elf/elf.pdf)
-- [System V Application Binary Interface AMD64 Architecture Processor Supplement Draft Version 0.99.6](https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf)
+- [Tool Interface Standard (TIS) Executable and Linking Format (ELF) Specification](<https://refspecs.linuxfoundation.org/elf/elf.pdf>)
+- [System V Application Binary Interface AMD64 Architecture Processor Supplement Draft Version 0.99.6](<https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf>)
 
-______________________________________________________________________
-
-1. 这是为了在加载 ELF 时可以直接 mmap，而不需要立即把文件内容读取到内存里；更进一步，mmap 是允许多个虚拟页映射到同一个物理页上的，所以允许一些出现一些“不对齐”的情况，得以节省因为对齐而浪费的空间。对于这个话题的进一步了解，建议阅读 [Exploring the section layout in linker output](https://maskray.me/blog/2023-12-17-exploring-the-section-layout-in-linker-output)。 [↩](#fnref:1 "Jump back to footnote 1 in the text")
+[^/software/2024/02/18/write-a-linker-1/#1]: 这是为了在加载 ELF 时可以直接 mmap，而不需要立即把文件内容读取到内存里；更进一步，mmap 是允许多个虚拟页映射到同一个物理页上的，所以允许一些出现一些“不对齐”的情况，得以节省因为对齐而浪费的空间。对于这个话题的进一步了解，建议阅读 [Exploring the section layout in linker output](<https://maskray.me/blog/2023-12-17-exploring-the-section-layout-in-linker-output>)。

@@ -4,7 +4,7 @@
 
 在 k8s 集群中部署了 gitlab-runner，并且希望在 gitlab ci 构建完成后，把新的 docker image push 到 private repo，然后更新应用。
 
-参考文档：[Gitlab CI 与 Kubernetes 的结合](https://www.qikqiak.com/post/gitlab-ci-k8s-cluster-feature/)，[Using Docker to build Docker images](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html)。
+参考文档：[Gitlab CI 与 Kubernetes 的结合](<https://www.qikqiak.com/post/gitlab-ci-k8s-cluster-feature/>)，[Using Docker to build Docker images](<https://docs.gitlab.com/ee/ci/docker/using_docker_build.html>)。
 
 ## 在 gitlab ci 中构建 docker 镜像
 
@@ -72,7 +72,7 @@ build:
   script: ./build.sh
 ```
 
-这里有很多细节，包括 DinD 的访问方式，等待 client cert，设置 docker 的 insecure registry 和 login 等等。经过 [@CircuitCoder](https://github.com/CircuitCoder) 的不断摸索，终于写出了可以用的配置。
+这里有很多细节，包括 DinD 的访问方式，等待 client cert，设置 docker 的 insecure registry 和 login 等等。经过 [@CircuitCoder](<https://github.com/CircuitCoder>) 的不断摸索，终于写出了可以用的配置。
 
 如此配置以后，就可以在 gitlab ci 的构建脚本里用 docker 来 build 并且 push 到自己的 registry 了。为了防止泄露密钥，建议把这些变量放到 gitlab ci 设置的 secrets 中。
 
@@ -129,7 +129,7 @@ roleRef:
 
 要特别注意这几个配置的 namespace 的对应关系：Role 和 RoleBinding 需要放在同一个 ns 下。
 
-接着，到 GitLab 的 Operations->Kubernetes 创建 cluster，把 service account 的 token 和 ca.crt 从 secret 里找到并贴到网页上。GitLab 会按照 Environment scope 匹配到 environment，如果某个 stage 的 environment 匹配上了，就会把 kube credentials 配置好。修改 gitlab-ci.yml：
+接着，到 GitLab 的 Operations-\>Kubernetes 创建 cluster，把 service account 的 token 和 ca.crt 从 secret 里找到并贴到网页上。GitLab 会按照 Environment scope 匹配到 environment，如果某个 stage 的 environment 匹配上了，就会把 kube credentials 配置好。修改 gitlab-ci.yml：
 
 ```yml
 deploy:

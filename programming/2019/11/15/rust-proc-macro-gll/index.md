@@ -2,11 +2,11 @@
 
 ## 背景
 
-在编译原理课上，PA 框架采用的是 [MashPlant/lalr1](https://github.com/MashPlant/lalr1) ，是一个比较好用的 Lexer + Parser 的工具，它的大概语法见 [一个完整的例子](https://mashplant.gitbook.io/decaf-doc/pa1a/lalr1-shi-yong-zhi-dao/yi-ge-wan-zheng-de-li-zi) 。然后之前看到了 GLL Parser，想着可不可以照着类似的语法也写一个 GLL 的 Parser Generator，也是用 Rust Procedure Macro 的方法，就开始了研究。
+在编译原理课上，PA 框架采用的是 [MashPlant/lalr1](<https://github.com/MashPlant/lalr1>) ，是一个比较好用的 Lexer + Parser 的工具，它的大概语法见 [一个完整的例子](<https://mashplant.gitbook.io/decaf-doc/pa1a/lalr1-shi-yong-zhi-dao/yi-ge-wan-zheng-de-li-zi>) 。然后之前看到了 GLL Parser，想着可不可以照着类似的语法也写一个 GLL 的 Parser Generator，也是用 Rust Procedure Macro 的方法，就开始了研究。
 
 ## 尝试
 
-首先是阅读 GLL 的论文，它并不长，大概的意思就是，LL(1) 文法需要考虑 PS 冲突的情况，而 GLL 的解决方法就是“都试一下”，然后为了效率，用了 GSS 表示解析过程和 SPPF 表示解析结果。然后就开始照着论文手写了不同版本的实现，见 [jiegec/gll-test](https://github.com/jiegec/gll-test) 。
+首先是阅读 GLL 的论文，它并不长，大概的意思就是，LL(1) 文法需要考虑 PS 冲突的情况，而 GLL 的解决方法就是“都试一下”，然后为了效率，用了 GSS 表示解析过程和 SPPF 表示解析结果。然后就开始照着论文手写了不同版本的实现，见 [jiegec/gll-test](<https://github.com/jiegec/gll-test>) 。
 
 第一种就是按照论文里第一段实现直接抄过来，每个可能性作为一个 Continuation 存下来，它有自己的栈和执行位置（Label）。这样 Work 以后呢，我又想到了 async/await，用类似的方法又写了一遍，相对要简洁一些，也是很平常的递归下降的写法，而不是 Loop + Label 的形式。但这些都不能做到合并栈的目的，所以遇到十分有歧义的文法的时候会很糟糕。
 
@@ -208,7 +208,7 @@ fn ambiguous() {
 
 在之前写编译原理 PA1 的时候，遇到的一个问题就是，如果自己的代码有错，因为宏展开以后丢失了位置信息，所以报错都会在错误的位置。一番查找以后，找到了解决方案：原样记录下原来的代码（syn::Block），然后通过 quote 宏直接拼接到最终的 TokenStream 中，这样在结果里，虽然代码还是那些代码，但部分的 Token 就有了正确的位置，这样就很方便用户代码的修改了。不过还是不方便找模板部分的代码错误，毕竟那部分确实在原来的代码中没有出现过。
 
-对于模板中的代码错误，我最终的解决方案是 `cargo-expand` ，把我的测试代码和展开后的代码拼接起来，然后在茫茫的无关报错下去找我的错误的地方。虽然不是很好用，但毕竟还是 work 的。另外，宏还需要对用户代码的一些类型进行检查，比如上面的 Expr 对应 i32，这个就需要在各处都保持一致，但这个就需要自己进行检查了。使用了一下 proc_macro_diagnostic 的 API，还不是很好用，等它 stable 吧。
+对于模板中的代码错误，我最终的解决方案是 `cargo-expand` ，把我的测试代码和展开后的代码拼接起来，然后在茫茫的无关报错下去找我的错误的地方。虽然不是很好用，但毕竟还是 work 的。另外，宏还需要对用户代码的一些类型进行检查，比如上面的 Expr 对应 i32，这个就需要在各处都保持一致，但这个就需要自己进行检查了。使用了一下 proc\_macro\_diagnostic 的 API，还不是很好用，等它 stable 吧。
 
 ## 总结
 

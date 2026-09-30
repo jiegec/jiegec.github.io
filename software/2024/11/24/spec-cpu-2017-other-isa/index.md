@@ -108,4 +108,4 @@ RUN cd /mnt && . ./shrc && packagetools linux-loong64
 RUN /mnt/install.sh -f
 ```
 
-参考官方文档：[Building the SPEC CPU®2017 Toolset](https://www.spec.org/cpu2017/Docs/tools-build.html)。
+参考官方文档：[Building the SPEC CPU®2017 Toolset](<https://www.spec.org/cpu2017/Docs/tools-build.html>)。

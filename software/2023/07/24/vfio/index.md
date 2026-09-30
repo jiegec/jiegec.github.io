@@ -6,21 +6,21 @@ VFIO 是 Linux 内核中的一个功能，目的是把 PCIe 设备暴露给用�
 
 本文探讨 VFIO 暴露的用户态 API 以及如何在用户态中使用 VFIO 直接控制 PCIe 设备。
 
-推荐阅读 [VFIO 官方文档](https://docs.kernel.org/driver-api/vfio.html)，下面的例子也参考了这个文档。
+推荐阅读 [VFIO 官方文档](<https://docs.kernel.org/driver-api/vfio.html>)，下面的例子也参考了这个文档。
 
 ## 需求
 
 在探讨 VFIO 提供哪些接口之前，首先要考虑到在用户态操作 PCIe 设备的需求：例如在用户态要操作一个网卡，那肯定需要相应的网卡驱动，那么网卡驱动需要做的事情有：
 
 1. 初始化硬件，为了读写寄存器，需要能够访问 PCIe 设备的 BAR 空间，BAR 空间的物理地址提前已经分配好了，在内核中直接把物理地址转换为内核态的虚拟地址就可以访问了；为了配置中断等 PCIe 的功能，需要能够访问 PCIe 设备的 Configuration 空间，在内核中按 PCIe ECAM 方法计算出物理地址，然后转换为虚拟地址也就可以访问了
-1. 发送数据，需要在内存里准备好数据，让网卡进行 DMA，意味着需要知道在内存中分配的数据的物理地址；同理，接收数据的时候，要在内存里分配好缓冲区，把物理地址交给网卡，让网卡 DMA
-1. 设置中断，例如配置 PCIe 的 MSI/MSI-X 功能，然后在内核的中断处理代码里注册相应的处理函数；当 PCIe 设备通过 MSI/MSI-X 发送中断给中断控制器的时候，内核最终要能把这个中断路由给网卡驱动
+2. 发送数据，需要在内存里准备好数据，让网卡进行 DMA，意味着需要知道在内存中分配的数据的物理地址；同理，接收数据的时候，要在内存里分配好缓冲区，把物理地址交给网卡，让网卡 DMA
+3. 设置中断，例如配置 PCIe 的 MSI/MSI-X 功能，然后在内核的中断处理代码里注册相应的处理函数；当 PCIe 设备通过 MSI/MSI-X 发送中断给中断控制器的时候，内核最终要能把这个中断路由给网卡驱动
 
 简单总结一下，包括如下的需求：
 
 1. 访问 Configuration 空间和 BAR 空间
-1. 对于需要 DMA 的内存区域，可以得到它的物理地址（有了 IOMMU 以后是设备虚拟地址 IOVA），让硬件去读写内存
-1. 可以注册中断，当设备发送中断的时候，驱动的中断处理函数会被调用
+2. 对于需要 DMA 的内存区域，可以得到它的物理地址（有了 IOMMU 以后是设备虚拟地址 IOVA），让硬件去读写内存
+3. 可以注册中断，当设备发送中断的时候，驱动的中断处理函数会被调用
 
 因此 VFIO 也应该提供以上的这些功能。额外地，为了保证安全性，在第二步的时候，需要和 IOMMU 打配合，保证 PCIe 设备只能看到用户程序向 VFIO 上注册的内存区域。
 
@@ -42,30 +42,30 @@ IOMMU Group 只是地址隔离的最小粒度。有些时候，程序希望同�
 
 ## 用户 API
 
-VFIO 的用户 API 在 [include/uapi/linux/vfio.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/vfio.h) 中定义，形式是若干个 ioctl 调用，大致的初始化流程如下：
+VFIO 的用户 API 在 [include/uapi/linux/vfio.h](<https://github.com/torvalds/linux/blob/master/include/uapi/linux/vfio.h>) 中定义，形式是若干个 ioctl 调用，大致的初始化流程如下：
 
 1. 把 vfio-pci 设备绑定在 PCIe 设备上
-1. 根据 PCIe 设备，找到它所属的 IOMMU Group ID，例如是 26
-1. 创建一个 Container：`container = open("/dev/vfio/vfio")`
-1. 打开 IOMMU Group：`group = open("/dev/vfio/2")`
-1. 把 Group 放到 Container 中：`ioctl(group, VFIO_GROUP_SET_CONTAINER, &container)`
-1. 打开 Group 中的 Device：`device = ioctl(group, VFIO_GROUP_GET_DEVICE_FD, "0000:06:0d.0")`
+2. 根据 PCIe 设备，找到它所属的 IOMMU Group ID，例如是 26
+3. 创建一个 Container：`container = open("/dev/vfio/vfio")`
+4. 打开 IOMMU Group：`group = open("/dev/vfio/2")`
+5. 把 Group 放到 Container 中：`ioctl(group, VFIO_GROUP_SET_CONTAINER, &container)`
+6. 打开 Group 中的 Device：`device = ioctl(group, VFIO_GROUP_GET_DEVICE_FD, "0000:06:0d.0")`
 
 上面的初始化过程忽略了一部分调用，详情请阅读 VFIO 文档。
 
 有了 Container，Group 和 Device 的 FD 以后，可以做以下的事情：
 
 1. 对 Container 设置 DMA 映射：`ioctl(container, VFIO_IOMMU_MAP_DMA, &dma_Map)`
-1. 把 Device 的 BAR 空间映射到用户态：`ioctl(device, VFIO_DEVICE_GET_REGION_INFO, &reg)` 之后 `mmap`
-1. 读写 Device 的 Configuration 空间：`ioctl(device, VFIO_DEVICE_GET_REGION_INFO, &reg)` 得到 Configuration 空间的偏移，把 Device FD 当成文件，用 `pread/pwrite` 在指定偏移上进行读写
-1. 设置中断：`ioctl(device, VFIO_DEVICE_SET_IRQS, irq_set)`，参数中包括了一个 eventfd，当内核收到来自设备的中断时，更新 eventfd，用户态可以通过 epoll 监测 eventfd 的更新
+2. 把 Device 的 BAR 空间映射到用户态：`ioctl(device, VFIO_DEVICE_GET_REGION_INFO, &reg)` 之后 `mmap`
+3. 读写 Device 的 Configuration 空间：`ioctl(device, VFIO_DEVICE_GET_REGION_INFO, &reg)` 得到 Configuration 空间的偏移，把 Device FD 当成文件，用 `pread/pwrite` 在指定偏移上进行读写
+4. 设置中断：`ioctl(device, VFIO_DEVICE_SET_IRQS, irq_set)`，参数中包括了一个 eventfd，当内核收到来自设备的中断时，更新 eventfd，用户态可以通过 epoll 监测 eventfd 的更新
 
 回顾一下文章开头讲到的驱动对 VFIO 的需求：
 
 1. 访问 Configuration 空间：通过 `pread/pwrite` 读写
-1. 访问 BAR 空间：`mmap` 到用户态的虚拟地址，然后直接 MMIO
-1. DMA：配置用户态虚拟地址和设备虚拟地址（IOVA）的映射，然后把 IOVA 传给设备，设备在 DMA 的时候，IOMMU 负责把 IOVA 转换为实际的物理地址
-1. 中断：配置 MSI/MSI-X，设备发送中断时，内核通过 eventfd 通知用户态程序
+2. 访问 BAR 空间：`mmap` 到用户态的虚拟地址，然后直接 MMIO
+3. DMA：配置用户态虚拟地址和设备虚拟地址（IOVA）的映射，然后把 IOVA 传给设备，设备在 DMA 的时候，IOMMU 负责把 IOVA 转换为实际的物理地址
+4. 中断：配置 MSI/MSI-X，设备发送中断时，内核通过 eventfd 通知用户态程序
 
 可见这些需求都已经满足，可以在用户态实现设备驱动。
 
@@ -260,7 +260,7 @@ const MemoryRegionOps vfio_region_ops = {
 };
 ```
 
-那么在虚拟机读写这段内存的时候，回调函数 vfio_region_read/vfio_region_write 会被调用，此时再去通过 Device FD 来访问实际的 BAR 空间：
+那么在虚拟机读写这段内存的时候，回调函数 vfio\_region\_read/vfio\_region\_write 会被调用，此时再去通过 Device FD 来访问实际的 BAR 空间：
 
 ```c
 // error handling code removed
@@ -364,7 +364,7 @@ uint32_t vfio_pci_read_config(PCIDevice *pdev, uint32_t addr, int len)
 }
 ```
 
-因此如果 QEMU 想在 PCIe passthrough 的时候，伪装一些 Configuration Space 的内容，就可以通过修改 emulated_config_bits 来实现。
+因此如果 QEMU 想在 PCIe passthrough 的时候，伪装一些 Configuration Space 的内容，就可以通过修改 emulated\_config\_bits 来实现。
 
 ### 中断
 
@@ -400,11 +400,11 @@ int vfio_set_irq_signaling(VFIODevice *vbasedev, int index, int subindex,
 
 DPDK 是一个在用户态进行网络处理的框架，它可以用 VFIO 来接管网卡，在用户态运行网卡驱动。它对 VFIO 的调用和 QEMU 类似，这里就不贴出代码了，直接给出链接：
 
-- 核心：<https://github.com/DPDK/dpdk/blob/main/lib/eal/linux/eal_vfio.c>
-- 中断：<https://github.com/DPDK/dpdk/blob/main/lib/eal/linux/eal_interrupts.c>
+- 核心：[https://github.com/DPDK/dpdk/blob/main/lib/eal/linux/eal\_vfio.c](<https://github.com/DPDK/dpdk/blob/main/lib/eal/linux/eal_vfio.c>)
+- 中断：[https://github.com/DPDK/dpdk/blob/main/lib/eal/linux/eal\_interrupts.c](<https://github.com/DPDK/dpdk/blob/main/lib/eal/linux/eal_interrupts.c>)
 
 ## UIO
 
-在 VFIO 之前，还可以用 UIO（User I/O）驱动来做类似的事情。简单来说，UIO 驱动会创建一个设备文件 `/dev/uioX`，读取文件等于等待中断，mmap 以后可以访问它的 BAR 空间（偏移从 sysfs 中读取），Configuration 空间通过 sysfs 来读写。用户程序的例子见 [Example code using uio_pci_generic](https://egeeks.github.io/kernal/uio-howto/uio_pci_generic_example.html) 和 [Linux Userspace Memory & I/O](https://tuxengineering.com/blog/2020/08/15/Linux-Userspace.html)。
+在 VFIO 之前，还可以用 UIO（User I/O）驱动来做类似的事情。简单来说，UIO 驱动会创建一个设备文件 `/dev/uioX`，读取文件等于等待中断，mmap 以后可以访问它的 BAR 空间（偏移从 sysfs 中读取），Configuration 空间通过 sysfs 来读写。用户程序的例子见 [Example code using uio\_pci\_generic](<https://egeeks.github.io/kernal/uio-howto/uio_pci_generic_example.html>) 和 [Linux Userspace Memory &amp; I/O](<https://tuxengineering.com/blog/2020/08/15/Linux-Userspace.html>)。
 
-但是 UIO 驱动不处理 IOMMU 映射，所以会有安全问题，使用 UIO 的时候也需要关掉 IOMMU。特别地，如果打开了 Secure Boot，将会无法使用 UIO。关于 UIO 的文档可以阅读 [The Userspace I/O HOWTO](https://www.kernel.org/doc/html/v4.13/driver-api/uio-howto.html)。
+但是 UIO 驱动不处理 IOMMU 映射，所以会有安全问题，使用 UIO 的时候也需要关掉 IOMMU。特别地，如果打开了 Secure Boot，将会无法使用 UIO。关于 UIO 的文档可以阅读 [The Userspace I/O HOWTO](<https://www.kernel.org/doc/html/v4.13/driver-api/uio-howto.html>)。

@@ -1,4 +1,4 @@
-# Apple M1 (Firestorm & Icestorm) 微架构评测
+# Apple M1 (Firestorm &amp; Icestorm) 微架构评测
 
 ## 背景
 
@@ -8,32 +8,32 @@
 
 Apple M1 的官方信息乏善可陈，关于微架构的信息几乎为零，但能从操作系统汇报的硬件信息中找到一些内容。
 
-UPDATE: 后来苹果发布了 [Apple Silicon CPU Optimization Guide](https://developer.apple.com/download/apple-silicon-cpu-optimization-guide/)，算是为数不多的官方信息了。
+UPDATE: 后来苹果发布了 [Apple Silicon CPU Optimization Guide](<https://developer.apple.com/download/apple-silicon-cpu-optimization-guide/>)，算是为数不多的官方信息了。
 
 ## 现有评测
 
 网上已经有较多针对 Apple M1 微架构的评测和分析，建议阅读：
 
-- [Apple Microarchitecture Research by Dougall Johnson](https://dougallj.github.io/applecpu/firestorm.html)
-- [Apple Announces The Apple Silicon M1: Ditching x86 - What to Expect, Based on A14 - Anandtech](https://www.anandtech.com/show/16226/apple-silicon-m1-a14-deep-dive)
-- [Exploration of Apple CPUs](https://github.com/name99-org/AArch64-Explore)
-- [Apple M1 Icestorm 微架构评测（上）:重铸小核荣光](https://zhuanlan.zhihu.com/p/611213899)
-- [Apple M1 Icestorm 微架构（下）:重铸小核荣光](https://zhuanlan.zhihu.com/p/613097964)
-- [苹果的黑魔法？Apple M1 的栈操作消除（上）](https://zhuanlan.zhihu.com/p/595582920)
-- [苹果的黑魔法？（下）Apple M1 的栈操作消除](https://zhuanlan.zhihu.com/p/600349467)
-- [Apple Firestorm/Icestorm CPU microarchitecture docs](https://github.com/dougallj/applecpu)
-- [The 2020 Mac Mini Unleashed: Putting Apple Silicon M1 To The Test](https://www.anandtech.com/show/16252/mac-mini-apple-m1-tested)
-- [Exploration of Apple CPUs](https://github.com/name99-org/AArch64-Explore)
+- [Apple Microarchitecture Research by Dougall Johnson](<https://dougallj.github.io/applecpu/firestorm.html>)
+- [Apple Announces The Apple Silicon M1: Ditching x86 - What to Expect, Based on A14 - Anandtech](<https://www.anandtech.com/show/16226/apple-silicon-m1-a14-deep-dive>)
+- [Exploration of Apple CPUs](<https://github.com/name99-org/AArch64-Explore>)
+- [Apple M1 Icestorm 微架构评测（上）:重铸小核荣光](<https://zhuanlan.zhihu.com/p/611213899>)
+- [Apple M1 Icestorm 微架构（下）:重铸小核荣光](<https://zhuanlan.zhihu.com/p/613097964>)
+- [苹果的黑魔法？Apple M1 的栈操作消除（上）](<https://zhuanlan.zhihu.com/p/595582920>)
+- [苹果的黑魔法？（下）Apple M1 的栈操作消除](<https://zhuanlan.zhihu.com/p/600349467>)
+- [Apple Firestorm/Icestorm CPU microarchitecture docs](<https://github.com/dougallj/applecpu>)
+- [The 2020 Mac Mini Unleashed: Putting Apple Silicon M1 To The Test](<https://www.anandtech.com/show/16252/mac-mini-apple-m1-tested>)
+- [Exploration of Apple CPUs](<https://github.com/name99-org/AArch64-Explore>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Apple M1 Firestorm/Icestorm 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Apple M1 Firestorm/Icestorm 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 环境准备
 
-Apple M1 预装的是 macOS，macOS 的绑核只能绑到 P 或者 E，不能具体到某一个核上；在 macOS 上可以读取 PMU，需要使用 kpep 的私有框架，代码可以在[这里](https://github.com/jiegec/cpu-micro-benchmarks)找到。
+Apple M1 预装的是 macOS，macOS 的绑核只能绑到 P 或者 E，不能具体到某一个核上；在 macOS 上可以读取 PMU，需要使用 kpep 的私有框架，代码可以在[这里](<https://github.com/jiegec/cpu-micro-benchmarks>)找到。
 
 如果想更方便地进行测试，建议安装 Asahi Linux 的各种发行版，此时可以在 Linux 下自由地绑核，也可以用标准的方式使用 PMU。
 
@@ -43,7 +43,7 @@ Apple M1 预装的是 macOS，macOS 的绑核只能绑到 P 或者 E，不能具
 
 #### Firestorm
 
-为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](https://zhuanlan.zhihu.com/p/720136752) 构造了测试。
+为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](<https://zhuanlan.zhihu.com/p/720136752>) 构造了测试。
 
 其原理是当 Fetch 要跨页的时候，由于两个相邻页可能映射到不同的物理地址，如果要支持单周期跨页取指，需要查询两次 ITLB，或者 ITLB 需要把相邻两个页的映射存在一起。这个场景一般比较少，处理器很少会针对这种特殊情况做优化，但也不是没有。经过测试，把循环放在两个页的边界上，发现 Firestorm 微架构遇到跨页的取指时确实会拆成两个周期来进行。
 
@@ -96,7 +96,7 @@ hw.perflevel1.l1icachesize: 131072
 
 可以看到 CPI=1 的拐点前移到 512 个分支，同时 CPI=3 的平台的拐点也前移到了 24576。拐点的前移，意味着 BTB 采用了组相连的结构，当 B 指令的 PC 的部分低位总是为 0 时，组相连的 Index 可能无法取到所有的 Set，导致表现出来的 BTB 容量只有部分 Set，例如此处容量减半，说明只有一半的 Set 被用到了。
 
-如果进一步降低 B 指令的密度，使得它的低若干位都等于 0，最终 CPI=1 的拐点定格在 2 条分支，此时分支的间距大于或等于 2048B；CPI=3 的拐点定格在 6 条分支，此时分支的间距大于或等于 32KB。根据这个信息，可以认为 Firestorm 的 BTB 是 512 Set 2 Way 的结构，Index 是 PC[10:2]；同时也侧面佐证了 192KB L1 ICache 是 512 Set 6 Way，Index 是 PC[14:6]。
+如果进一步降低 B 指令的密度，使得它的低若干位都等于 0，最终 CPI=1 的拐点定格在 2 条分支，此时分支的间距大于或等于 2048B；CPI=3 的拐点定格在 6 条分支，此时分支的间距大于或等于 32KB。根据这个信息，可以认为 Firestorm 的 BTB 是 512 Set 2 Way 的结构，Index 是 PC\[10:2\]；同时也侧面佐证了 192KB L1 ICache 是 512 Set 6 Way，Index 是 PC\[14:6\]。
 
 #### Icestorm
 
@@ -121,12 +121,12 @@ hw.perflevel1.l1icachesize: 131072
 Icestorm 的 BTB 测试结果并不像 Firestorm 那样有规律，根据这个现象，给出一些猜测：
 
 1. 可能只有一级 BTB，但它的 Index 函数进行了一些 Hash 而非直接取 PC 某几位，使得随着分支的间距增大，CPI=1 的拐点并非单调递减；但这无法解释为何 16B 间距时会出现 2 CPI 的平台
-1. 可能有两级 BTB，它们并非简单地级联，而是通过不同的组织方式，在不同的区间内发挥作用
+2. 可能有两级 BTB，它们并非简单地级联，而是通过不同的组织方式，在不同的区间内发挥作用
 
-针对 4B 间距没有出现 CPI>3 的情况，给出一些猜测：
+针对 4B 间距没有出现 CPI\>3 的情况，给出一些猜测：
 
-1. 测试规模不够大，把分支数量继续增大，才能出现 CPI>3 的情况
-1. 指令预取器在工作，当 footprint 大于 128KB L1 ICache 时，能提前把指令取进来
+1. 测试规模不够大，把分支数量继续增大，才能出现 CPI\>3 的情况
+2. 指令预取器在工作，当 footprint 大于 128KB L1 ICache 时，能提前把指令取进来
 
 ### L1 ITLB
 
@@ -168,17 +168,17 @@ Icestorm 的 BTB 测试结果并不像 Firestorm 那样有规律，根据这个�
 
 ### Conditional Branch Predictor
 
-参考 [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](https://arxiv.org/abs/2411.13900) 论文的方法，可以测出 Firestorm 的分支预测器采用的历史更新方式为：
+参考 [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](<https://arxiv.org/abs/2411.13900>) 论文的方法，可以测出 Firestorm 的分支预测器采用的历史更新方式为：
 
 1. 使用 100 位的 Path History Register for Target(PHRT) 以及 28 位的 Path History Register for Branch(PHRB)，每次执行 taken branch 时更新
-1. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[31:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
+2. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[31:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
 
 Icestorm 的分支预测器采用的历史更新方式为：
 
 1. 使用 60 位的 Path History Register for Target(PHRT) 以及 16 位的 Path History Register for Branch(PHRB)，每次执行 taken branch 时更新
-1. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[47:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
+2. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[47:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
 
-各厂商处理器的 PHR 更新规则见 [jiegec/cpu](https://jia.je/cpu/cbp.html)。
+各厂商处理器的 PHR 更新规则见 [jiegec/cpu](<https://jia.je/cpu/cbp.html>)。
 
 ## 后端
 
@@ -239,7 +239,7 @@ Icestorm 上的结果：
 
 从 160 个页开始性能下降，到 250 个页时性能稳定在 9 CPI，认为 Firestorm 的 L1 DTLB 有 160 项，和官方信息一致。9 CPI 包括了 L1 DTLB miss L2 TLB hit 带来的额外延迟。
 
-如果每两个页放一个指针，则拐点前移到 80；每四个页放一个指针，拐点变成 40；每八个页放一个指针，拐点变成 20；每 16 个页一个指针，拐点是 10；每 32 个页一个指针，拐点变成 5；每 64 个页一个指针，拐点依然是 5。说明 Firestorm 的 L1 DTLB 是 5 路组相连，32 个 Set，Index 是 VA[18:14]，注意页表大小是 16KB。
+如果每两个页放一个指针，则拐点前移到 80；每四个页放一个指针，拐点变成 40；每八个页放一个指针，拐点变成 20；每 16 个页一个指针，拐点是 10；每 32 个页一个指针，拐点变成 5；每 64 个页一个指针，拐点依然是 5。说明 Firestorm 的 L1 DTLB 是 5 路组相连，32 个 Set，Index 是 VA\[18:14\]，注意页表大小是 16KB。
 
 ##### Icestorm
 
@@ -247,7 +247,7 @@ Icestorm:
 
 从 128 个页开始性能下降，到 160 个页时性能稳定在 10 CPI，认为 Icestorm 的 L1 DTLB 有 128 项，和官方信息一致。10 CPI 包括了 L1 DTLB miss L2 TLB hit 带来的额外延迟。
 
-如果每两个页放一个指针，则拐点前移到 64；每四个页放一个指针，拐点变成 32；每八个页放一个指针，拐点变成 16；每 16 个页一个指针，拐点是 8；每 32 个页一个指针，拐点变成 4；每 64 个页一个指针，拐点依然是 4。说明 Icestorm 的 L1 DTLB 是 4 路组相连，32 个 Set，Index 是 VA[18:14]。
+如果每两个页放一个指针，则拐点前移到 64；每四个页放一个指针，拐点变成 32；每八个页放一个指针，拐点变成 16；每 16 个页一个指针，拐点是 8；每 32 个页一个指针，拐点变成 4；每 64 个页一个指针，拐点依然是 4。说明 Icestorm 的 L1 DTLB 是 4 路组相连，32 个 Set，Index 是 VA\[18:14\]。
 
 #### Load/Store 带宽
 
@@ -274,7 +274,7 @@ Icestorm:
 
 #### Memory Dependency Predictor
 
-为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
+为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
 
 - 数据依赖，地址无依赖：`str x3, [x1]` 和 `ldr x3, [x2]`
 - 地址依赖，数据无依赖：`str x2, [x1]` 和 `ldr x1, [x2]`
@@ -294,11 +294,11 @@ Icestorm:
 经过实际测试，Firestorm 上如下的情况可以成功转发，对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | [-1,0]   | [-3,0]   | [-7,0]   |
-| 16b Store   | [0,1]   | [-1,1]   | [-3,1]   | [-7,1]   |
-| 32b Store   | [0,3]   | [-1,3]   | [-3,3]   | [-7,3]   |
-| 64b Store   | [0,7]   | [-1,7]   | [-3,7]   | [-7,7]   |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | \[-1,0\] | \[-3,0\] | \[-7,0\] |
+| 16b Store | \[0,1\] | \[-1,1\] | \[-3,1\] | \[-7,1\] |
+| 32b Store | \[0,3\] | \[-1,3\] | \[-3,3\] | \[-7,3\] |
+| 64b Store | \[0,7\] | \[-1,7\] | \[-3,7\] | \[-7,7\] |
 
 从上表可以看到，所有 Store 和 Load Overlap 的情况，无论地址偏移，都能成功转发。甚至在 Load 或 Store 跨越 64B 缓存行边界时，也可以成功转发，代价是多一个周期。
 
@@ -359,16 +359,16 @@ Icestorm:
 
 Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试方法，也可以在 Apple M1 上观察到类似的现象，猜想它也用了类似的基于虚拟地址的 UTag/Way Predictor 方案，并测出来它的 UTag 也有 8 bit，Firestorm 和 Icestorm 都是相同的：
 
-- VA[14] xor VA[22] xor VA[30] xor VA[38] xor VA[46]
-- VA[15] xor VA[23] xor VA[31] xor VA[39] xor VA[47]
-- VA[16] xor VA[24] xor VA[32] xor VA[40]
-- VA[17] xor VA[25] xor VA[33] xor VA[41]
-- VA[18] xor VA[26] xor VA[34] xor VA[42]
-- VA[19] xor VA[27] xor VA[35] xor VA[43]
-- VA[20] xor VA[28] xor VA[36] xor VA[44]
-- VA[21] xor VA[29] xor VA[37] xor VA[45]
+- VA\[14\] xor VA\[22\] xor VA\[30\] xor VA\[38\] xor VA\[46\]
+- VA\[15\] xor VA\[23\] xor VA\[31\] xor VA\[39\] xor VA\[47\]
+- VA\[16\] xor VA\[24\] xor VA\[32\] xor VA\[40\]
+- VA\[17\] xor VA\[25\] xor VA\[33\] xor VA\[41\]
+- VA\[18\] xor VA\[26\] xor VA\[34\] xor VA\[42\]
+- VA\[19\] xor VA\[27\] xor VA\[35\] xor VA\[43\]
+- VA\[20\] xor VA\[28\] xor VA\[36\] xor VA\[44\]
+- VA\[21\] xor VA\[29\] xor VA\[37\] xor VA\[45\]
 
-一共有 8 bit，由 VA[47:14] 折叠而来。
+一共有 8 bit，由 VA\[47:14\] 折叠而来。
 
 ### 执行单元
 
@@ -377,33 +377,35 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 官方信息：根据 Apple Silicon CPU Optimization Guide，M1 Family 的 P-Core 包括如下计算单元：
 
 1. ALU/f, BRc/i
-1. ALU/f, BRc
-1. ALU/f
-1. ALU, MUL, MAC, MISC
-1. ALU, MUL, DIV
-1. ALU
-1. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
-1. GENERAL, MOVE2GPR, FCSELf, MUL
-1. GENERAL, MUL
-1. GENERAL, MUL
+2. ALU/f, BRc
+3. ALU/f
+4. ALU, MUL, MAC, MISC
+5. ALU, MUL, DIV
+6. ALU
+7. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
+8. GENERAL, MOVE2GPR, FCSELf, MUL
+9. GENERAL, MUL
+10. GENERAL, MUL
 
 P-Core 访存：
 
 - Burst: 3 load uops, 2 store uops (address part), and 2 store uops (data part)
+
   - 即 3 load, 2 sta, 2 std
 - Sustained: 4 uops, 2 write into the cache
 
 M1 Family 的 E-Core 包括如下计算单元：
 
 1. ALU/f, MUL, MAC, MISC
-1. ALU/f, BRi, DIV
-1. ALU/f, BRc
-1. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
-1. GENERAL, FCSELf, MUL
+2. ALU/f, BRi, DIV
+3. ALU/f, BRc
+4. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
+5. GENERAL, FCSELf, MUL
 
 E-Core 访存：
 
 - Burst: 2 load uops, or 2 store uops (address part), or 1 of each, along with 2 store uops (data part)
+
   - 即 2 load，或者 2 sta，或者 1 load + 1 std，或者 1 sta + 1 std
 - Sustained: 2 uops, 1 write into the cache
 
@@ -411,200 +413,206 @@ E-Core 访存：
 
 在 Firestorm 上测试如下各类指令的延迟和每周期吞吐：
 
-| 指令               | 延迟 | 吞吐 |
-| ------------------ | ---- | ---- |
-| asimd int add      | 2    | 4    |
-| asimd aesd/aese    | 3    | 4    |
-| asimd aesimc/aesmc | 2    | 4    |
-| asimd fabs         | 2    | 4    |
-| asimd fadd         | 3    | 4    |
-| asimd fdiv 64b     | 10   | 1    |
-| asimd fdiv 32b     | 8    | 1    |
-| asimd fmax         | 2    | 4    |
-| asimd fmin         | 2    | 4    |
-| asimd fmla         | 4    | 4    |
-| asimd fmul         | 4    | 4    |
-| asimd fneg         | 2    | 4    |
-| asimd frecpe       | 3    | 1    |
-| asimd frsqrte      | 3    | 1    |
-| asimd fsqrt 64b    | 13   | 0.5  |
-| asimd fsqrt 32b    | 10   | 0.5  |
-| fp cvtf2i (fcvtzs) | -    | 2    |
-| fp cvti2f (scvtf)  | -    | 3    |
-| fp fabs            | 2    | 4    |
-| fp fadd            | 3    | 4    |
-| fp fdiv 64b        | 10   | 1    |
-| fp fdiv 32b        | 8    | 1    |
-| fp fjcvtzs         | -    | 1    |
-| fp fmax            | 2    | 4    |
-| fp fmin            | 2    | 4    |
-| fp fmov f2i        | -    | 2    |
-| fp fmov i2f        | -    | 3    |
-| fp fmul            | 4    | 4    |
-| fp fneg            | 2    | 4    |
-| fp frecpe          | 3    | 1    |
-| fp frecpx          | 3    | 1    |
-| fp frsqrte         | 3    | 1    |
-| fp fsqrt 64b       | 13   | 0.5  |
-| fp fsqrt 32b       | 10   | 0.5  |
-| int add            | 1    | 4.6  |
-| int addi           | 1    | 6    |
-| int bfm            | 1    | 1    |
-| int crc            | 3    | 1    |
-| int csel           | 1    | 3    |
-| int madd (addend)  | 1    | 1    |
-| int madd (others)  | 3    | 1    |
-| int mrs nzcv       | -    | 2    |
-| int mul            | 3    | 2    |
-| int nop            | -    | 8    |
-| int sbfm           | 1    | 4.7  |
-| int sdiv           | 7    | 0.5  |
-| int smull          | 3    | 2    |
-| int ubfm           | 1    | 4.7  |
-| int udiv           | 7    | 0.5  |
-| not taken branch   | -    | 2    |
-| taken branch       | -    | 1    |
-| mem asimd load     | -    | 3    |
-| mem asimd store    | -    | 2    |
-| mem int load       | -    | 3    |
-| mem int store      | -    | 2    |
+| 指令 | 延迟 | 吞吐 |
+| --- | --- | --- |
+| asimd int add | 2 | 4 |
+| asimd aesd/aese | 3 | 4 |
+| asimd aesimc/aesmc | 2 | 4 |
+| asimd fabs | 2 | 4 |
+| asimd fadd | 3 | 4 |
+| asimd fdiv 64b | 10 | 1 |
+| asimd fdiv 32b | 8 | 1 |
+| asimd fmax | 2 | 4 |
+| asimd fmin | 2 | 4 |
+| asimd fmla | 4 | 4 |
+| asimd fmul | 4 | 4 |
+| asimd fneg | 2 | 4 |
+| asimd frecpe | 3 | 1 |
+| asimd frsqrte | 3 | 1 |
+| asimd fsqrt 64b | 13 | 0.5 |
+| asimd fsqrt 32b | 10 | 0.5 |
+| fp cvtf2i (fcvtzs) | \- | 2 |
+| fp cvti2f (scvtf) | \- | 3 |
+| fp fabs | 2 | 4 |
+| fp fadd | 3 | 4 |
+| fp fdiv 64b | 10 | 1 |
+| fp fdiv 32b | 8 | 1 |
+| fp fjcvtzs | \- | 1 |
+| fp fmax | 2 | 4 |
+| fp fmin | 2 | 4 |
+| fp fmov f2i | \- | 2 |
+| fp fmov i2f | \- | 3 |
+| fp fmul | 4 | 4 |
+| fp fneg | 2 | 4 |
+| fp frecpe | 3 | 1 |
+| fp frecpx | 3 | 1 |
+| fp frsqrte | 3 | 1 |
+| fp fsqrt 64b | 13 | 0.5 |
+| fp fsqrt 32b | 10 | 0.5 |
+| int add | 1 | 4.6 |
+| int addi | 1 | 6 |
+| int bfm | 1 | 1 |
+| int crc | 3 | 1 |
+| int csel | 1 | 3 |
+| int madd (addend) | 1 | 1 |
+| int madd (others) | 3 | 1 |
+| int mrs nzcv | \- | 2 |
+| int mul | 3 | 2 |
+| int nop | \- | 8 |
+| int sbfm | 1 | 4.7 |
+| int sdiv | 7 | 0.5 |
+| int smull | 3 | 2 |
+| int ubfm | 1 | 4.7 |
+| int udiv | 7 | 0.5 |
+| not taken branch | \- | 2 |
+| taken branch | \- | 1 |
+| mem asimd load | \- | 3 |
+| mem asimd store | \- | 2 |
+| mem int load | \- | 3 |
+| mem int store | \- | 2 |
 
 从上面的结果可以初步得到的信息：
 
 1. 标量浮点和 ASIMD 吞吐最大都是 4，意味着有 4 个浮点/ASIMD 执行单元，但并非完全对称，例如 fdiv/frecpe/frecpx/frsqrte/fsqrt/fjcvtzs 由于吞吐不超过 1，大概率只能在一个执行单元内执行。但这些指令是不是都只能在同一个执行单元内执行，还需要进一步的测试
-1. 浮点和整数之间的 move 或 convert 指令，fmov i2f/cvti2f 吞吐是 3，fmov f2i/cvtf2i 吞吐是 2，那么这些指令是在哪个执行单元里实现的，是否需要同时占用整数执行单元和浮点执行单元，需要进一步测试
-1. 整数方面，根据吞吐，推断出如下几类指令对应的执行单元数量：
+2. 浮点和整数之间的 move 或 convert 指令，fmov i2f/cvti2f 吞吐是 3，fmov f2i/cvtf2i 吞吐是 2，那么这些指令是在哪个执行单元里实现的，是否需要同时占用整数执行单元和浮点执行单元，需要进一步测试
+3. 整数方面，根据吞吐，推断出如下几类指令对应的执行单元数量：
+
    1. ALU: 6
-   1. CSEL: 3
-   1. Mul/Br/MRS NZCV: 2
-   1. CRC/BFM/MAdd/Div: 1
-1. 虽然 Br 的吞吐可以达到 2，但是每周期只能有一个 taken branch；目前一些架构可以做到每周期超过一个 taken branch，此时 Br 的吞吐一般会给到 3
-1. 访存方面，每周期最多 3 Load 或者 2 Store
+   2. CSEL: 3
+   3. Mul/Br/MRS NZCV: 2
+   4. CRC/BFM/MAdd/Div: 1
+4. 虽然 Br 的吞吐可以达到 2，但是每周期只能有一个 taken branch；目前一些架构可以做到每周期超过一个 taken branch，此时 Br 的吞吐一般会给到 3
+5. 访存方面，每周期最多 3 Load 或者 2 Store
 
 首先来看浮点和 ASIMD 单元，根据上面的信息，认为至少有 4 个执行单元，每个执行单元都可以做这些操作：asimd int add/aes/fabs/fadd/fmax/fmin/fmla/fmul/fneg，下面把这些指令称为 basic fp/asimd ops + aes。接下来要判断，fmov f2i/fmov i2f/fdiv/frecpe/frecpx/frsqrte/fsqrt 由哪些执行单元负责执行，方法是把这些指令混合起来测试吞吐（此处的吞吐不代表 CPI，而是每周能够执行多少次指令组合，例如用 2 条指令的组合测试，那么吞吐等于 CPI 除以 2）：
 
-| 指令                  | 吞吐        |
-| --------------------- | ----------- |
-| fp fdiv + fp frecpe   | 0.5         |
-| fp fdiv + fp frecpx   | 0.5         |
-| fp fdiv + fp frsqrte  | 0.5         |
-| fp fdiv + fp fsqrt    | 0.33=1/3    |
-| fp fdiv + fmov f2i    | 1           |
+| 指令 | 吞吐 |
+| --- | --- |
+| fp fdiv + fp frecpe | 0.5 |
+| fp fdiv + fp frecpx | 0.5 |
+| fp fdiv + fp frsqrte | 0.5 |
+| fp fdiv + fp fsqrt | 0.33=1/3 |
+| fp fdiv + fmov f2i | 1 |
 | fp fdiv + 2x fmov f2i | 0.67=1/1.50 |
-| fp fdiv + 3x fmov i2f | 1           |
+| fp fdiv + 3x fmov i2f | 1 |
 | fp fdiv + 4x fmov i2f | 0.75=1/1.33 |
-| fmov i2f + 4x fp fadd | 1           |
+| fmov i2f + 4x fp fadd | 1 |
 | fmov f2i + 4x fp fadd | 0.67=1/1.50 |
 
 根据以上测试结果，可以得到如下的推论：
 
 1. fp fdiv/frecpe/frecpx/frsqrte 混合的时候，吞吐只有一半，IPC 不变，说明这些指令在同一个执行单元中，混合并不能带来更高的 IPC
-1. fp fdiv 和 fp fsqrt 混合时，吞吐下降到 0.33 一个不太整的数字，猜测是因为它们属于同一个执行单元内的不同流水线，抢占寄存器堆写口
-1. fp fdiv + fmov f2i 的时候吞吐是 1，而 fdiv + 2x fmov f2i 时吞吐下降到 0.67，IPC 维持在 2，说明有两个执行单元，都可以执行 fmov f2i，但只有其中一个可以执行 fp fdiv，导致 fdiv + 2x fmov f2i 的时候会抢执行单元
-1. fp fdiv + 3x fmov i2f 的时候吞吐是 1，而 fdiv + 4x fmov i2f 时吞吐下降到 0.75，此时每周期还是执行 3 条 fmov i2f 指令，意味着 fdiv 没有抢占 fmov i2f 的执行单元，它们用的执行单元是独立的
-1. fmov i2f + 4x fp fadd 的时候吞吐是 1，说明 fmov i2f 没有抢占 fp fadd 的执行单元
+2. fp fdiv 和 fp fsqrt 混合时，吞吐下降到 0.33 一个不太整的数字，猜测是因为它们属于同一个执行单元内的不同流水线，抢占寄存器堆写口
+3. fp fdiv + fmov f2i 的时候吞吐是 1，而 fdiv + 2x fmov f2i 时吞吐下降到 0.67，IPC 维持在 2，说明有两个执行单元，都可以执行 fmov f2i，但只有其中一个可以执行 fp fdiv，导致 fdiv + 2x fmov f2i 的时候会抢执行单元
+4. fp fdiv + 3x fmov i2f 的时候吞吐是 1，而 fdiv + 4x fmov i2f 时吞吐下降到 0.75，此时每周期还是执行 3 条 fmov i2f 指令，意味着 fdiv 没有抢占 fmov i2f 的执行单元，它们用的执行单元是独立的
+5. fmov i2f + 4x fp fadd 的时候吞吐是 1，说明 fmov i2f 没有抢占 fp fadd 的执行单元
 
 推断这四个执行单元支持的操作：
 
 1. basic fp/asimd ops + aes + fdiv + frecpe + frecpx + frsqrte + fsqrt + fmov f2i + cvtf2i
-1. basic fp/asimd ops + aes + fmov f2i + cvtf2i
-1. basic fp/asimd ops + aes
-1. basic fp/asimd ops + aes
+2. basic fp/asimd ops + aes + fmov f2i + cvtf2i
+3. basic fp/asimd ops + aes
+4. basic fp/asimd ops + aes
 
 当然还有很多指令没有测，不过原理是一样的。
 
 访存部分，前面已经在测 LSU 的时候测过了，每周期 Load + Store 不超过 4 个，其中 Load 不超过 3 个，Store 不超过 2 个。虽然从 IPC 的角度来看 LSU 的 Load/Store Pipe 未必准确，比如可能它发射和提交的带宽是不同的，但先暂时简化为如下的执行单元：
 
 1. load + store
-1. load
-1. load
-1. store
+2. load
+3. load
+4. store
 
 最后是整数部分。从 addi 的指令来看，有 6 个 ALU，能够执行基本的整数指令（add/ubfm/sbfm 的吞吐有时候测出来 4.6-4.7，有时候测出来 6，怀疑是进入了什么低功耗模式）。但其他很多指令可能只有一部分执行单元可以执行：bfm/crc/csel/madd/mrs nzcv/mul/div/branch/fmov i2f。为了测试这些指令使用的执行单元是否重合，进行一系列的混合指令测试，吞吐的定义和上面相同：
 
-| 指令                              | 吞吐        |
-| --------------------------------- | ----------- |
-| 3x int csel + 3x fmov i2f         | 1           |
-| 3x int csel + 2x fmov f2i         | 0.75=1/1.33 |
-| 3x int csel + int bfm             | 1           |
-| 3x int csel + int crc             | 1           |
-| 3x int csel + int madd            | 1           |
-| 3x int csel + int mul             | 1           |
-| 3x int csel + int sdiv            | 0.5         |
-| 3x int csel + mrs nzcv            | 0.75=1/1.33 |
-| 3x int csel + not taken branch    | 0.75=1/1.33 |
-| mrs nzcv + not taken branch       | 1           |
-| mrs nzcv + 2x not taken branch    | 0.67=1/1.50 |
-| 2x fmov f2i + 2x not taken branch | 1           |
-| 2x fmov f2i + 2x int mul          | 1           |
-| int madd + 2x int mul             | 0.67=1/1.50 |
-| int madd + int sdiv               | 0.5         |
-| int madd + int crc                | 0.5         |
+| 指令 | 吞吐 |
+| --- | --- |
+| 3x int csel + 3x fmov i2f | 1 |
+| 3x int csel + 2x fmov f2i | 0.75=1/1.33 |
+| 3x int csel + int bfm | 1 |
+| 3x int csel + int crc | 1 |
+| 3x int csel + int madd | 1 |
+| 3x int csel + int mul | 1 |
+| 3x int csel + int sdiv | 0.5 |
+| 3x int csel + mrs nzcv | 0.75=1/1.33 |
+| 3x int csel + not taken branch | 0.75=1/1.33 |
+| mrs nzcv + not taken branch | 1 |
+| mrs nzcv + 2x not taken branch | 0.67=1/1.50 |
+| 2x fmov f2i + 2x not taken branch | 1 |
+| 2x fmov f2i + 2x int mul | 1 |
+| int madd + 2x int mul | 0.67=1/1.50 |
+| int madd + int sdiv | 0.5 |
+| int madd + int crc | 0.5 |
 
 根据上述结果分析：
 
 1. 吞吐与不混合时相同，代表混合的指令对应的执行单元不重合
-1. 3x int csel + 2x fmov f2i 的 IPC 等于 4，意味着有四个执行单元，其中有三个可以执行 int csel，两个可以执行 fmov f2i，也就意味着其中有一个执行单元可以执行 int csel 和 fmov f2i，即有这样的四个执行单元：
+2. 3x int csel + 2x fmov f2i 的 IPC 等于 4，意味着有四个执行单元，其中有三个可以执行 int csel，两个可以执行 fmov f2i，也就意味着其中有一个执行单元可以执行 int csel 和 fmov f2i，即有这样的四个执行单元：
+
    1. alu + csel
-   1. alu + csel
-   1. alu + csel + fmov f2i
-   1. alu + fmov f2i
-1. 3x int csel + mrs nzcv/not taken branch 的 IPC 等于 3，说明它们的执行单元是重合的；又因为 2x fmov f2i + 2x not taken branch 的吞吐是 1，说明它们的执行单元不重合，那么上述四个执行单元只能是：
+   2. alu + csel
+   3. alu + csel + fmov f2i
+   4. alu + fmov f2i
+3. 3x int csel + mrs nzcv/not taken branch 的 IPC 等于 3，说明它们的执行单元是重合的；又因为 2x fmov f2i + 2x not taken branch 的吞吐是 1，说明它们的执行单元不重合，那么上述四个执行单元只能是：
+
    1. alu + csel + branch
-   1. alu + csel + branch
-   1. alu + csel + fmov f2i
-   1. alu + fmov f2i
-1. mrs nzcv + 2x not taken branch 的 IPC 等于 2，说明它们的执行单元是重合的，那么上述四个执行单元是：
+   2. alu + csel + branch
+   3. alu + csel + fmov f2i
+   4. alu + fmov f2i
+4. mrs nzcv + 2x not taken branch 的 IPC 等于 2，说明它们的执行单元是重合的，那么上述四个执行单元是：
+
    1. alu + csel + branch + mrs nzcv
+   2. alu + csel + branch + mrs nzcv
+   3. alu + csel + fmov f2i
+   4. alu + fmov f2i
+5. csel 和 mul 不重合，f2i 和 mul 也不重合，说明 mul 在剩下的两个执行单元内：
+
    1. alu + csel + branch + mrs nzcv
-   1. alu + csel + fmov f2i
-   1. alu + fmov f2i
-1. csel 和 mul 不重合，f2i 和 mul 也不重合，说明 mul 在剩下的两个执行单元内：
+   2. alu + csel + branch + mrs nzcv
+   3. alu + csel + fmov f2i
+   4. alu + fmov f2i
+   5. alu + mul
+   6. alu + mul
+6. madd 和 mul 重合，madd 和 crc 重合，那么：
+
    1. alu + csel + branch + mrs nzcv
-   1. alu + csel + branch + mrs nzcv
-   1. alu + csel + fmov f2i
-   1. alu + fmov f2i
-   1. alu + mul
-   1. alu + mul
-1. madd 和 mul 重合，madd 和 crc 重合，那么：
-   1. alu + csel + branch + mrs nzcv
-   1. alu + csel + branch + mrs nzcv
-   1. alu + csel + fmov f2i
-   1. alu + fmov f2i
-   1. alu + mul + madd + crc
-   1. alu + mul
+   2. alu + csel + branch + mrs nzcv
+   3. alu + csel + fmov f2i
+   4. alu + fmov f2i
+   5. alu + mul + madd + crc
+   6. alu + mul
 
 得到初步的结果：
 
 1. alu + csel + branch + mrs nzcv
-1. alu + csel + branch + mrs nzcv
-1. alu + csel + fmov f2i
-1. alu + fmov f2i
-1. alu + mul + madd + crc
-1. alu + mul
+2. alu + csel + branch + mrs nzcv
+3. alu + csel + fmov f2i
+4. alu + fmov f2i
+5. alu + mul + madd + crc
+6. alu + mul
 
 还有很多其他的指令没有测试，不过方法是类似的。从上面的结果里，可以看到一些值得一提的点：
 
 1. fmov f2i 同时占用了浮点执行单元和整数执行单元，这主要是为了复用寄存器堆读写口：fmov f2i 需要读浮点寄存器堆，又需要写整数寄存器堆，那就在浮点侧读寄存器，在整数侧写寄存器。
-1. fmov i2f 既不在浮点，也不在整数，那只能在访存了：而正好访存执行单元需要读整数，写整数或浮点，那就可以复用它的寄存器堆写口来实现 fmov i2f 的功能。
-1. 可见整数/浮点/访存执行单元并不是完全隔离的，例如一些微架构，整数和浮点是直接放在一起的。
+2. fmov i2f 既不在浮点，也不在整数，那只能在访存了：而正好访存执行单元需要读整数，写整数或浮点，那就可以复用它的寄存器堆写口来实现 fmov i2f 的功能。
+3. 可见整数/浮点/访存执行单元并不是完全隔离的，例如一些微架构，整数和浮点是直接放在一起的。
 
 小结：Firestorm 的执行单元如下：
 
 1. alu + csel + branch + mrs nzcv
-1. alu + csel + branch + mrs nzcv
-1. alu + csel + fmov f2i
-1. alu + fmov f2i
-1. alu + mul + madd + crc
-1. alu + mul
-1. load + store
-1. load
-1. load
-1. store
-1. basic fp/asimd ops + aes + fdiv + frecpe + frecpx + frsqrte + fsqrt + fmov f2i + cvtf2i
-1. basic fp/asimd ops + aes + fmov f2i + cvtf2i
-1. basic fp/asimd ops + aes
-1. basic fp/asimd ops + aes
+2. alu + csel + branch + mrs nzcv
+3. alu + csel + fmov f2i
+4. alu + fmov f2i
+5. alu + mul + madd + crc
+6. alu + mul
+7. load + store
+8. load
+9. load
+10. store
+11. basic fp/asimd ops + aes + fdiv + frecpe + frecpx + frsqrte + fsqrt + fmov f2i + cvtf2i
+12. basic fp/asimd ops + aes + fmov f2i + cvtf2i
+13. basic fp/asimd ops + aes
+14. basic fp/asimd ops + aes
 
 和官方的信息，除了 store data/address 部分没有探测出来以外都一致。
 
@@ -612,124 +620,125 @@ E-Core 访存：
 
 接下来用类似的方法测试 Icestorm：
 
-| 指令               | 延迟 | 吞吐      |
-| ------------------ | ---- | --------- |
-| asimd int add      | 2    | 2         |
-| asimd aesd/aese    | 3    | 2         |
-| asimd aesimc/aesmc | 2    | 2         |
-| asimd fabs         | 2    | 2         |
-| asimd fadd         | 3    | 2         |
-| asimd fdiv 64b     | 11   | 0.5       |
-| asimd fdiv 32b     | 9    | 0.5       |
-| asimd fmax         | 2    | 2         |
-| asimd fmin         | 2    | 2         |
-| asimd fmla         | 4    | 2         |
-| asimd fmul         | 4    | 2         |
-| asimd fneg         | 2    | 2         |
-| asimd frecpe       | 4    | 0.5       |
-| asimd frsqrte      | 4    | 0.5       |
-| asimd fsqrt 64b    | 15   | 0.5       |
-| asimd fsqrt 32b    | 12   | 0.5       |
-| fp cvtf2i (fcvtzs) | -    | 1         |
-| fp cvti2f (scvtf)  | -    | 2         |
-| fp fabs            | 2    | 2         |
-| fp fadd            | 3    | 2         |
-| fp fdiv 64b        | 10   | 1         |
-| fp fdiv 32b        | 8    | 1         |
-| fp fjcvtzs         | -    | 0.5       |
-| fp fmax            | 2    | 2         |
-| fp fmin            | 2    | 2         |
-| fp fmov f2i        | -    | 1         |
-| fp fmov i2f        | -    | 2         |
-| fp fmul            | 4    | 2         |
-| fp fneg            | 2    | 2         |
-| fp frecpe          | 3    | 1         |
-| fp frecpx          | 3    | 1         |
-| fp frsqrte         | 3    | 1         |
-| fp fsqrt 64b       | 13   | 0.5       |
-| fp fsqrt 32b       | 10   | 0.5       |
-| int add            | 1    | 3         |
-| int addi           | 1    | 3         |
-| int bfm            | 1    | 1         |
-| int crc            | 3    | 1         |
-| int csel           | 1    | 3         |
-| int madd (addend)  | 1    | 1         |
-| int madd (others)  | 3    | 1         |
-| int mrs nzcv       | -    | 3         |
-| int mul            | 3    | 1         |
-| int nop            | -    | 4         |
-| int sbfm           | 1    | 3         |
-| int sdiv           | 7    | 0.125=1/8 |
-| int smull          | 3    | 1         |
-| int ubfm           | 1    | 3         |
-| int udiv           | 7    | 0.125=1/8 |
-| not taken branch   | -    | 2         |
-| taken branch       | -    | 1         |
-| mem asimd load     | -    | 2         |
-| mem asimd store    | -    | 1         |
-| mem int load       | -    | 2         |
-| mem int store      | -    | 1         |
+| 指令 | 延迟 | 吞吐 |
+| --- | --- | --- |
+| asimd int add | 2 | 2 |
+| asimd aesd/aese | 3 | 2 |
+| asimd aesimc/aesmc | 2 | 2 |
+| asimd fabs | 2 | 2 |
+| asimd fadd | 3 | 2 |
+| asimd fdiv 64b | 11 | 0.5 |
+| asimd fdiv 32b | 9 | 0.5 |
+| asimd fmax | 2 | 2 |
+| asimd fmin | 2 | 2 |
+| asimd fmla | 4 | 2 |
+| asimd fmul | 4 | 2 |
+| asimd fneg | 2 | 2 |
+| asimd frecpe | 4 | 0.5 |
+| asimd frsqrte | 4 | 0.5 |
+| asimd fsqrt 64b | 15 | 0.5 |
+| asimd fsqrt 32b | 12 | 0.5 |
+| fp cvtf2i (fcvtzs) | \- | 1 |
+| fp cvti2f (scvtf) | \- | 2 |
+| fp fabs | 2 | 2 |
+| fp fadd | 3 | 2 |
+| fp fdiv 64b | 10 | 1 |
+| fp fdiv 32b | 8 | 1 |
+| fp fjcvtzs | \- | 0.5 |
+| fp fmax | 2 | 2 |
+| fp fmin | 2 | 2 |
+| fp fmov f2i | \- | 1 |
+| fp fmov i2f | \- | 2 |
+| fp fmul | 4 | 2 |
+| fp fneg | 2 | 2 |
+| fp frecpe | 3 | 1 |
+| fp frecpx | 3 | 1 |
+| fp frsqrte | 3 | 1 |
+| fp fsqrt 64b | 13 | 0.5 |
+| fp fsqrt 32b | 10 | 0.5 |
+| int add | 1 | 3 |
+| int addi | 1 | 3 |
+| int bfm | 1 | 1 |
+| int crc | 3 | 1 |
+| int csel | 1 | 3 |
+| int madd (addend) | 1 | 1 |
+| int madd (others) | 3 | 1 |
+| int mrs nzcv | \- | 3 |
+| int mul | 3 | 1 |
+| int nop | \- | 4 |
+| int sbfm | 1 | 3 |
+| int sdiv | 7 | 0.125=1/8 |
+| int smull | 3 | 1 |
+| int ubfm | 1 | 3 |
+| int udiv | 7 | 0.125=1/8 |
+| not taken branch | \- | 2 |
+| taken branch | \- | 1 |
+| mem asimd load | \- | 2 |
+| mem asimd store | \- | 1 |
+| mem int load | \- | 2 |
+| mem int store | \- | 1 |
 
 从上面的结果可以初步得到的信息：
 
 1. 标量浮点和 ASIMD 吞吐最大都是 2，意味着有 2 个浮点/ASIMD 执行单元，但并非完全对称，例如 fdiv/frecpe/frecpx/frsqrte/fsqrt/fjcvtzs 由于吞吐不超过 1，大概率只能在一个执行单元内执行。但这些指令是不是都只能在同一个执行单元内执行，还需要进一步的测试
-1. 整数方面，根据吞吐，推断出如下几类指令对应的执行单元数量：
+2. 整数方面，根据吞吐，推断出如下几类指令对应的执行单元数量：
+
    1. ALU/CSEL/MRS NZCV/SBFM/UBFM: 3
-   1. Br: 2
-   1. Mul/CRC/BFM/MAdd/Div: 1
-1. 虽然 Br 的吞吐可以达到 2，但是每周期只能有一个 taken branch
-1. 访存方面，每周期最多 2 Load 或者 1 Store
+   2. Br: 2
+   3. Mul/CRC/BFM/MAdd/Div: 1
+3. 虽然 Br 的吞吐可以达到 2，但是每周期只能有一个 taken branch
+4. 访存方面，每周期最多 2 Load 或者 1 Store
 
 还是先看浮点，基本指令 add/aes/fabs/fadd/fmax/fmin/fmla/fmul/fneg 都能做到 2 的吞吐，也就是这两个执行单元都能执行这些基本指令。接下来测其余指令的混合吞吐（吞吐定义见上）：
 
-| 指令                  | 吞吐        |
-| --------------------- | ----------- |
-| fp fdiv + fp frecpe   | 0.5         |
-| fp fdiv + fp frecpx   | 0.5         |
-| fp fdiv + fp frsqrte  | 0.5         |
-| fp fdiv + fp fsqrt    | 0.31=1/3.25 |
-| fp fdiv + fmov f2i    | 0.5         |
-| fp fdiv + 2x fmov i2f | 1           |
+| 指令 | 吞吐 |
+| --- | --- |
+| fp fdiv + fp frecpe | 0.5 |
+| fp fdiv + fp frecpx | 0.5 |
+| fp fdiv + fp frsqrte | 0.5 |
+| fp fdiv + fp fsqrt | 0.31=1/3.25 |
+| fp fdiv + fmov f2i | 0.5 |
+| fp fdiv + 2x fmov i2f | 1 |
 | fp fdiv + 3x fmov i2f | 0.67=1/1.50 |
 
 可见 fdiv/frecpe/frecpx/frsqrte/fsqrt/fmov f2i 都在同一个执行单元内：
 
 1. basic fp/asimd ops + aes + fdiv + frecpe + frecpx + frsqrte + fsqrt + fmov f2i
-1. basic fp/asimd ops + aes
+2. basic fp/asimd ops + aes
 
 还有很多指令没有测，不过原理是一样的。访存在前面测 LSU 的时候已经测过了：
 
 1. load + store
-1. load
+2. load
 
 最后是整数部分。从 addi 的指令来看，有 3 个 ALU，能够执行基本的整数指令。但其他很多指令可能只有一部分执行单元可以执行：bfm/crc/csel/madd/mul/div/branch。为了测试这些指令使用的执行单元是否重合，进行一系列的混合指令测试，吞吐的定义和上面相同：
 
-| 指令                           | 吞吐 |
-| ------------------------------ | ---- |
-| int madd + int mul             | 0.5  |
-| int madd + int crc             | 0.5  |
-| int madd + 2x not taken branch | 1    |
+| 指令 | 吞吐 |
+| --- | --- |
+| int madd + int mul | 0.5 |
+| int madd + int crc | 0.5 |
+| int madd + 2x not taken branch | 1 |
 
 由此可见，madd/mul/crc 是一个执行单元，和 branch 的两个执行单元不重合，因此整数侧的执行单元有：
 
 1. alu + csel + mrs nzcv + branch
-1. alu + csel + mrs nzcv + branch
-1. alu + csel + mrs nzcv + madd + mul + crc
+2. alu + csel + mrs nzcv + branch
+3. alu + csel + mrs nzcv + madd + mul + crc
 
 小结：Icestorm 的执行单元如下：
 
 1. alu + csel + mrs nzcv + branch
-1. alu + csel + mrs nzcv + branch
-1. alu + csel + mrs nzcv + madd + mul + crc
-1. load + store
-1. load
-1. basic fp/asimd ops + aes + fdiv + frecpe + frecpx + frsqrte + fsqrt + fmov f2i
-1. basic fp/asimd ops + aes
+2. alu + csel + mrs nzcv + branch
+3. alu + csel + mrs nzcv + madd + mul + crc
+4. load + store
+5. load
+6. basic fp/asimd ops + aes + fdiv + frecpe + frecpx + frsqrte + fsqrt + fmov f2i
+7. basic fp/asimd ops + aes
 
 和官方的信息，除了 store data/address 部分没有探测出来以外都一致，更具体来说，应该更接近：
 
 1. load + sta
-1. load + sta + std
+2. load + sta + std
 
 ### Scheduler
 
@@ -739,65 +748,67 @@ E-Core 访存：
 
 在 Firestorm 上测试，结果如下：
 
-| 指令     | 可调度 + 不可调度 | 可调度 |
-| -------- | ----------------- | ------ |
-| ld       | 58                | 48     |
-| st       | 58                | 43     |
-| alu      | 158               | 134    |
-| fp       | 156               | 144    |
-| crc      | 40                | 28     |
-| idiv     | 40                | 28     |
-| bfm      | 40                | 28     |
-| fjcvtzs  | 42                | 36     |
-| fmov f2i | 84                | 72     |
-| csel     | 76                | 64     |
-| mrs nzcv | 62                | 50     |
+| 指令 | 可调度 + 不可调度 | 可调度 |
+| --- | --- | --- |
+| ld | 58 | 48 |
+| st | 58 | 43 |
+| alu | 158 | 134 |
+| fp | 156 | 144 |
+| crc | 40 | 28 |
+| idiv | 40 | 28 |
+| bfm | 40 | 28 |
+| fjcvtzs | 42 | 36 |
+| fmov f2i | 84 | 72 |
+| csel | 76 | 64 |
+| mrs nzcv | 62 | 50 |
 
 首先看浮点：
 
 1. 可调度部分 fp 是 144，fmov f2i 是 72，fjcvtzs 是 36，有明显的 4:2:1 的关系
-1. fp/fmov f2i/fjcvtzs 吞吐刚好也是 4:2:1 的关系
-1. 因此四个执行单元前面各有一个独立的 36 entry 的 Scheduler
-1. 不可调度部分，156-144=12，84-72=12，42-36=6，猜测有两个 Non Scheduling Queue，每个 Non Scheduling Queue 6 entry，分别对应两个 Scheduler
+2. fp/fmov f2i/fjcvtzs 吞吐刚好也是 4:2:1 的关系
+3. 因此四个执行单元前面各有一个独立的 36 entry 的 Scheduler
+4. 不可调度部分，156-144=12，84-72=12，42-36=6，猜测有两个 Non Scheduling Queue，每个 Non Scheduling Queue 6 entry，分别对应两个 Scheduler
 
 下面是访存部分，load 和 store 总数一样但 Scheduler 差了 5，不确定是测试误差还是什么问题，暂且考虑为一个统一的 Scheduler 和同一个 Non Scheduling Queue。
 
 最后是整数部分，由于有 6 个整数执行单元，情况会比较复杂：
 
 1. 可调度部分 alu 一共是 134，其中 csel 是 64，crc/idiv/bfm 都是 28，mrs nzcv 是 50，结合六个整数执行单元，可以得到这六个执行单元对应的 Scheduler 大小关系：
+
    1. alu + csel + branch + mrs nzcv: x entries
-   1. alu + csel + branch + mrs nzcv: 50-x entries
-   1. alu + csel + fmov f2i: 14 entries
-   1. alu + fmov f2i: y entries
-   1. alu + mul + madd + crc: 28 entries
-   1. alu + mul: 42-y entries
-1. alu 不可调度部分是 158-134=24，crc/idiv/bfm/csel/mrs nzcv 不可调度部分都是 12，考虑到 csel 对应前三个执行单元，并且和 mrs nzcv 一样多，说明前三个执行单元共享一个 12 entry 的 Non Scheduling Queue；剩下三个执行单元共享剩下的 12 entry 的 Non Scheduling Queue
-1. 最后只差 x 和 y 的取值没有求出来，可以通过进一步测试来更加精确地求出
+   2. alu + csel + branch + mrs nzcv: 50-x entries
+   3. alu + csel + fmov f2i: 14 entries
+   4. alu + fmov f2i: y entries
+   5. alu + mul + madd + crc: 28 entries
+   6. alu + mul: 42-y entries
+2. alu 不可调度部分是 158-134=24，crc/idiv/bfm/csel/mrs nzcv 不可调度部分都是 12，考虑到 csel 对应前三个执行单元，并且和 mrs nzcv 一样多，说明前三个执行单元共享一个 12 entry 的 Non Scheduling Queue；剩下三个执行单元共享剩下的 12 entry 的 Non Scheduling Queue
+3. 最后只差 x 和 y 的取值没有求出来，可以通过进一步测试来更加精确地求出
 
 #### Icestorm
 
 在 Icestorm 上测试，结果如下：
 
-| 指令     | 可调度 + 不可调度 | 可调度 |
-| -------- | ----------------- | ------ |
-| ld       | 24                | 10     |
-| st       | 24                | 4      |
-| alu      | 36                | 28     |
-| crc      | 16                | 8      |
-| idiv     | 16                | 8      |
-| bfm      | 16                | 8      |
-| csel     | 32                | 24     |
-| mrs nzcv | 32                | 24     |
+| 指令 | 可调度 + 不可调度 | 可调度 |
+| --- | --- | --- |
+| ld | 24 | 10 |
+| st | 24 | 4 |
+| alu | 36 | 28 |
+| crc | 16 | 8 |
+| idiv | 16 | 8 |
+| bfm | 16 | 8 |
+| csel | 32 | 24 |
+| mrs nzcv | 32 | 24 |
 
 访存部分，load 和 store 总数一样但 Scheduler 差了 6，不确定是测试误差还是什么问题，暂且考虑为一个统一的 Scheduler 和同一个 Non Scheduling Queue。
 
 整数部分，由于有 3 个整数执行单元，情况会比较复杂：
 
 1. 可调度部分 alu 一共是 28（多出来的 4 个不确定是什么原因），其中 csel/mrs nzcv 是 24，crc/idiv/bfm 都是 8，结合 3 个整数执行单元，可以得到这 3 个执行单元对应的 Scheduler 大小关系：
+
    1. alu + csel + mrs nzcv + branch: x entries
-   1. alu + csel + mrs nzcv + branch: 16-x entries
-   1. alu + csel + mrs nzcv + madd + mul + crc: 8 entries
-1. alu 不可调度部分是 36-28=8，crc/idiv/bfm/csel/mrs nzcv 不可调度部分都是 8，应该是 3 个整数执行单元共享一个 8 entry 的 Non Scheduling Queue
+   2. alu + csel + mrs nzcv + branch: 16-x entries
+   3. alu + csel + mrs nzcv + madd + mul + crc: 8 entries
+2. alu 不可调度部分是 36-28=8，crc/idiv/bfm/csel/mrs nzcv 不可调度部分都是 8，应该是 3 个整数执行单元共享一个 8 entry 的 Non Scheduling Queue
 
 ### Reorder Buffer
 
@@ -878,7 +889,7 @@ hw.perflevel1.cpusperl2: 4
 - 如果每 512 个页一个指针，L2 TLB 拐点依然在 12，L2 TLB 缺失时 CPI 为 35
 - 观察到命中 L1 DTLB 时 CPI 是 3，命中 L2 TLB 时 CPI 是 9，L2 TLB 缺失时 CPI 是 35-36.5，此时缓存缺失率为 0
 
-认为 Firestorm 的 L2 TLB 是 12 Way，256 Set，Index 位是 VA[21:14]。
+认为 Firestorm 的 L2 TLB 是 12 Way，256 Set，Index 位是 VA\[21:14\]。
 
 #### Icestorm
 
@@ -894,4 +905,4 @@ hw.perflevel1.cpusperl2: 4
 - 如果每 256 个页一个指针，L2 TLB 拐点前移到 4 和 L1 DTLB 拐点重合，一旦 L1 DTLB 缺失，L2 TLB 也缺失，L2 TLB 缺失时 CPI 为 32
 - 观察到命中 L1 DTLB 时 CPI 是 3，命中 L2 TLB 时 CPI 是 10，L2 TLB 缺失时 CPI 是 32-33，此时缓存缺失率为 0
 
-由于 Icestorm 的 L1 DTLB 就是 4 Way，不确定 Icestorm 的 L2 TLB 组相连是 1/2/4 Way 的哪一种，假如是 4 Way，那么 Icestorm 的 L2 TLB 是 4 Way，256 Set，Index 位是 VA[21:14]。
+由于 Icestorm 的 L1 DTLB 就是 4 Way，不确定 Icestorm 的 L2 TLB 组相连是 1/2/4 Way 的哪一种，假如是 4 Way，那么 Icestorm 的 L2 TLB 是 4 Way，256 Set，Index 位是 VA\[21:14\]。

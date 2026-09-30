@@ -69,7 +69,7 @@ RUN make install -k || true
 nix build ".#hydraJobs.binaryTarballCross.x86_64-linux.armv7l-linux"
 ```
 
-这样就可以在 x86_64-linux 的 host 上，交叉编译生成一个用于 armv7l-linux 的安装 tarball。类似地，可以修改 flake.nix 来加入其他架构，如：
+这样就可以在 x86\_64-linux 的 host 上，交叉编译生成一个用于 armv7l-linux 的安装 tarball。类似地，可以修改 flake.nix 来加入其他架构，如：
 
 ```diff
 diff --git a/flake.nix b/flake.nix
@@ -97,7 +97,7 @@ nix build ".#hydraJobs.binaryTarballCross.x86_64-linux.riscv64-linux"
 
 ### 手动替换法
 
-因此，我在网上进行搜索，发现 [Getting started with Nix on ppc64le](https://discourse.nixos.org/t/getting-started-with-nix-on-ppc64le/12712/8?u=jiegec) 中有人提到，可以先在 x86 的机器上交叉编译出 ppc64le 的 nix，然后把 nix tarball 中的 x86 nix 替换成 ppc64le 版本，再复制到 ppc64le 上安装，其余的步骤就一样了。
+因此，我在网上进行搜索，发现 [Getting started with Nix on ppc64le](<https://discourse.nixos.org/t/getting-started-with-nix-on-ppc64le/12712/8?u=jiegec>) 中有人提到，可以先在 x86 的机器上交叉编译出 ppc64le 的 nix，然后把 nix tarball 中的 x86 nix 替换成 ppc64le 版本，再复制到 ppc64le 上安装，其余的步骤就一样了。
 
 我把脚本更新了一下，适配了最新的 nix 版本，最后得到了如下的脚本：
 
@@ -137,7 +137,7 @@ echo "Done! Copy nix-ppc64le-linux to ppc64le machine and run ./install --daemon
 
 当然了，既然 ppc64le 的 Nixpkgs 没有什么人测试，所以肯定会遇到一些问题。下面是遇到的几个比较主要的问题，以及相应的解决方法：
 
-- boehm-gc checkPhase 会失败，见 [ivmai/bdwgc#376](https://github.com/ivmai/bdwgc/issues/376)，一直没有修复。解决办法是添加 overlay，让它不要跑测试：
+- boehm-gc checkPhase 会失败，见 [ivmai/bdwgc\#376](<https://github.com/ivmai/bdwgc/issues/376>)，一直没有修复。解决办法是添加 overlay，让它不要跑测试：
 
 ```text
 custom-overlay = final: prev: {
@@ -156,7 +156,7 @@ makeFlags = ["CFLAGS_EXTRA=\"-DNO_SOFT_VDB\""];
 
 但是 issue 也说，这个方法对于 Power9 不工作。
 
-- linux-headers 编译失败，报告 unknown type name \_\_vector128，见 [tools/bpf: Compilation issue on powerpc: unknown type name '\_\_vector128'](https://www.spinics.net/lists/netdev/msg694314.html) [bpftools: add enableDebugger, set to false on Power64 (WIP)](https://github.com/NixOS/nixpkgs/pull/192670)。目前的解决办法是让 procps/tmux 等包不要依赖 systemd，进而不会依赖 linux-headers：
+- linux-headers 编译失败，报告 unknown type name \_\_vector128，见 [tools/bpf: Compilation issue on powerpc: unknown type name '\_\_vector128'](<https://www.spinics.net/lists/netdev/msg694314.html>) [bpftools: add enableDebugger, set to false on Power64 (WIP)](<https://github.com/NixOS/nixpkgs/pull/192670>)。目前的解决办法是让 procps/tmux 等包不要依赖 systemd，进而不会依赖 linux-headers：
 
 ```text
 custom-overlay = final: prev: {

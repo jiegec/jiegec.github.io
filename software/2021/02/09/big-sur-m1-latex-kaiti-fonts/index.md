@@ -2,7 +2,7 @@
 
 ## 背景
 
-最近在尝试移植 [MiKTeX 到 Apple Silicon 上](https://github.com/MiKTeX/miktex/pull/710)，添加了一些 patch 以后就可以工作了，但遇到了新的问题，即找不到 KaiTi
+最近在尝试移植 [MiKTeX 到 Apple Silicon 上](<https://github.com/MiKTeX/miktex/pull/710>)，添加了一些 patch 以后就可以工作了，但遇到了新的问题，即找不到 KaiTi
 
 ```shell
 ~/Library/Application Support/MiKTeX/texmfs/install/tex/latex/ctex/fontset/ctex-fontset-macnew.def:99:
@@ -17,7 +17,7 @@ $ /Applications/MiKTeX\ Console.app/Contents/bin/miktex-fc-list | grep Kaiti
 # Nothing
 ```
 
-上网搜了一下，找到了一个[解决方案](https://www.jianshu.com/p/8f35c57901e3)：字体在目录 `/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/ATS.framework/Versions/A/Support/FontSubsets/Kaiti.ttc` 里，所以手动安装一下，就可以让 LaTeX 找到了。但我觉得，与其安装多一份在文件系统里，不如让 LaTeX 去找它。
+上网搜了一下，找到了一个[解决方案](<https://www.jianshu.com/p/8f35c57901e3>)：字体在目录 `/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/ATS.framework/Versions/A/Support/FontSubsets/Kaiti.ttc` 里，所以手动安装一下，就可以让 LaTeX 找到了。但我觉得，与其安装多一份在文件系统里，不如让 LaTeX 去找它。
 
 ## 解决方法
 

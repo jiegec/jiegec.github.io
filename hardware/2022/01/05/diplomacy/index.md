@@ -9,16 +9,16 @@
 Diplomacy 主要实现了两个功能：
 
 1. 把整个总线结构在代码中表现出来
-1. 自动配置总线中各个端口的参数
+2. 自动配置总线中各个端口的参数
 
 具体来说，第一点实现了类似 Vivado Board Design 中连线的功能，第二点则是保证总线两端的参数一致，可以连接起来。
 
 Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，Node 和 Node 之间连接形成一个图。Node 的类型主要有以下几个：
 
 1. Client（Source）：对应 AXI 里面的 Master，发起请求
-1. Manager（Sink）：对应 AXI 里面的 Slave，处理请求
-1. Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出，不改变数量
-1. Nexus：对应 AXI Crossbar，多个输入和多个输出，输入输出数量可能不同
+2. Manager（Sink）：对应 AXI 里面的 Slave，处理请求
+3. Adapter：对应 AXI Width Converter/Clock Converter/AXI4 to AXI3/AXI4 to AHB bridge 等，会修改 AXI 的参数，然后每个输入对应一个输出，不改变数量
+4. Nexus：对应 AXI Crossbar，多个输入和多个输出，输入输出数量可能不同
 
 每个 Node 可能作为 Manager 连接上游的 Client，这个叫做入边（Inward Edge）；同样地，也可以作为 Client 连接下游的 Manager，这个是出边（Outward Edge）。想象成一个 DAG，从若干个 Client 流向 Manager。
 
@@ -36,7 +36,7 @@ Diplomacy 为了表示总线的结构，每个模块可以对应一个 Node，No
 由于各模块的硬件描述，需要等到连接图建立完成后，才能生成，因此 Diplomacy 采用了两阶段：
 
 1. 第一个阶段发生在 LazyModule 中，通过 LazyModule 嵌套其他模块，并把 LazyModule 之间的 Node 连接起来，组成一个图，计算每一个 Connection 对应多少条边，协商每一条边对应的参数
-1. 第二个阶段发生在 LazyModuleImp 中，当访问 LazyModule 的 module 字段的时候，才会生成对应的硬件描述
+2. 第二个阶段发生在 LazyModuleImp 中，当访问 LazyModule 的 module 字段的时候，才会生成对应的硬件描述
 
 ### 引入 Diplomacy
 
@@ -413,8 +413,8 @@ endmodule
 接下来实现一个比较复杂的例子，提供三种模块，实现 UInt 的加法和拼接计算：
 
 1. Adder：计算入边上可变长度的 UInt 的和，输出到出边上；支持多条入边，只支持一条出边
-1. Concat：对入边上可变长度的 UInt 拼接，输出到出边上；支持多条入边，只支持一条出边
-1. Broadcast：把入边上可变长度的 UInt 输出到每一条出边上；只支持一条入边，支持多条出边
+2. Concat：对入边上可变长度的 UInt 拼接，输出到出边上；支持多条入边，只支持一条出边
+3. Broadcast：把入边上可变长度的 UInt 输出到每一条出边上；只支持一条入边，支持多条出边
 
 实现如下：
 
@@ -716,21 +716,21 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode {
      x.iPush(o, y, binding)
    }
    ```
-
-1. 得到整个图的所有 Connection 以后，计算每个 Node 的每个 Connection 具体有哪些边，流程如下（暂不考虑 Flex，只考虑 Star 和 Query）：
+2. 得到整个图的所有 Connection 以后，计算每个 Node 的每个 Connection 具体有哪些边，流程如下（暂不考虑 Flex，只考虑 Star 和 Query）：
 
    1. 统计 Inward 和 Outward 两个方向上有多少个 Star Connection，这些 Star Connection 对应的边的数量是未知的：比如统计 A 的 Outward 方向上有多少个 Star Connection，就是看有多少个 B 出现过 `A :=* B`
-   1. 统计 Inward 和 Outward 两个方向上有多少条已知的边：如果是 `A := B`，那就是一条边；如果是 `A :=* B`，边数未知，已知的边的数量记为 0；如果是 `A :*= B`，则需要递归到 B，看 B 的 Star Connection 对应多少条边，如果递归出现环，则报告失败
-   1. 根据当前的 Node 类型，决定 Star Connection 对应多少条边（`resolveStar` 函数）：
+   2. 统计 Inward 和 Outward 两个方向上有多少条已知的边：如果是 `A := B`，那就是一条边；如果是 `A :=* B`，边数未知，已知的边的数量记为 0；如果是 `A :*= B`，则需要递归到 B，看 B 的 Star Connection 对应多少条边，如果递归出现环，则报告失败
+   3. 根据当前的 Node 类型，决定 Star Connection 对应多少条边（`resolveStar` 函数）：
+
       1. 对于 Adapter Node（例如 Width Converter），它的输入和输出边数是相同的，要么两侧都没有 Star，要么只在一侧出现一个 Star：如果两侧都有 Star，或者一侧有多个 Star，就无法求得边的数量了；如果两侧都没有 Star，就要求两侧的边的数量相同；如果只有一侧有 Star 并且只有一个，那么那个 Star Connection，会把剩下的没连的边都连上，例如 Inward 有 4 条边，Outward 有 2 条已知边加一条 Star，那么前两条 Inward 和 Outward 会一对一连接，Star 会连接到剩下的 2 条 Inward 边上
-      1. 对于 Nexus Node（例如 Crossbar），它会把 Star 当成普通但是 weak 的连接：如果只有 Star，没有已知的边，它就相当于不连；如果有已知的边，它只会对应一条边
-      1. 对于 Sink/Source Node，它的行为和 Adapter Node 类似，只不过只有 Inward 或者 Outward 其中一侧，并且会根据自己的参数的数量来决定边的数量：例如一个模块有三个 AXI Master，导出了一条边加一个 Star 连接，那么 Star 连接会连接后两个 AXI Master
-   1. 计算每个 Connection 的边的数量
+      2. 对于 Nexus Node（例如 Crossbar），它会把 Star 当成普通但是 weak 的连接：如果只有 Star，没有已知的边，它就相当于不连；如果有已知的边，它只会对应一条边
+      3. 对于 Sink/Source Node，它的行为和 Adapter Node 类似，只不过只有 Inward 或者 Outward 其中一侧，并且会根据自己的参数的数量来决定边的数量：例如一个模块有三个 AXI Master，导出了一条边加一个 Star 连接，那么 Star 连接会连接后两个 AXI Master
+   4. 计算每个 Connection 的边的数量
 
 简单来说，Star Connection 的功能就是：
 
 1. 遇到 Adapter/Sink/Source Node，把剩下没连上的边都连上
-1. 遇到 Nexus Node，生成 0 或 1 条边：如果另一侧有边，就生成 1 条边，否则就是 0 条边
+2. 遇到 Nexus Node，生成 0 或 1 条边：如果另一侧有边，就生成 1 条边，否则就是 0 条边
 
 Query Connection 就是另一个方向上的 Star Connection。比较特别的是 Flex Connection，目前它的实现方式还没有深入的去研究。
 
@@ -781,18 +781,18 @@ def bundleI(ei: EI): BI
 Rocket Chip 中用 Diplomacy 实现 TileLink 总线的连接。涉及到的相关结构如下：
 
 1. TLBundle：代表 TileLink 总线的接口，根据 TLBundleParameters 例化
-1. TLMasterPortParameters：信息 TileLink Master 的信息，从 Upstream 向 Downstream 传递
-1. TLSlavePortParameters：信息 TileLink Slave 的信息，从 Downstream 向 Upstream 传递
-1. TLEdgeOut：记录 Outward 边，也就是 Master 侧的 TileLink 的信息
-1. TLEdgeIn：记录 Inward 边，也就是 Slave 侧的 TileLink 的信息
-1. TLImp: `extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLEdgeIn, TLBundle]`，基于这个类型来导出各种类型的 TileLink Node
-1. TLXBar：TileLink 的 Crossbar，生成一个继承 NexusNode 的 TLNexusNode，它的信息传递方式是，把下游的各个 Slave 信息拼起来传给上游，使得 Master 可以看到所有 Slave 的信息；把上游的各个 Master 信息拼起来传给下游，使得 Slave 可以看到所有 Master 的信息
-1. TLToAXI4：生成一个继承 AdapterNode 的 TLToAXI4Node，把 TileLink Master 转成 AXI4 Master，把上游的 TileLink Master 信息转换为 AXI Master 传递给下游，把下游的 AXI Slave 信息转换为 TileLink Slave 传递给上游
+2. TLMasterPortParameters：信息 TileLink Master 的信息，从 Upstream 向 Downstream 传递
+3. TLSlavePortParameters：信息 TileLink Slave 的信息，从 Downstream 向 Upstream 传递
+4. TLEdgeOut：记录 Outward 边，也就是 Master 侧的 TileLink 的信息
+5. TLEdgeIn：记录 Inward 边，也就是 Slave 侧的 TileLink 的信息
+6. TLImp: `extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLEdgeIn, TLBundle]`，基于这个类型来导出各种类型的 TileLink Node
+7. TLXBar：TileLink 的 Crossbar，生成一个继承 NexusNode 的 TLNexusNode，它的信息传递方式是，把下游的各个 Slave 信息拼起来传给上游，使得 Master 可以看到所有 Slave 的信息；把上游的各个 Master 信息拼起来传给下游，使得 Slave 可以看到所有 Master 的信息
+8. TLToAXI4：生成一个继承 AdapterNode 的 TLToAXI4Node，把 TileLink Master 转成 AXI4 Master，把上游的 TileLink Master 信息转换为 AXI Master 传递给下游，把下游的 AXI Slave 信息转换为 TileLink Slave 传递给上游
 
 如果想要用 Diplomacy 实现其他总线结构的连接，可以参考 Rocket Chip 中以上的设计。
 
 ## 参考文档
 
-- [TileLink and Diplomacy Reference](https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html)
-- [Rocket Chip - Memory System](https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system)
-- [chipsalliance/diplomacy](https://github.com/chipsalliance/diplomacy)
+- [TileLink and Diplomacy Reference](<https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html>)
+- [Rocket Chip - Memory System](<https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system>)
+- [chipsalliance/diplomacy](<https://github.com/chipsalliance/diplomacy>)

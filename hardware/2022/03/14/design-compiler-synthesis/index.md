@@ -8,7 +8,7 @@
 
 ### Liberty 格式
 
-网上可以找到一些 Liberty 格式的工艺库，比如 [Nangate45](https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD-flow-scripts/master/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib)，它的设定是 25 摄氏度，1.10 伏，属于 TT（Typical/Typical）的 Process Corner。
+网上可以找到一些 Liberty 格式的工艺库，比如 [Nangate45](<https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD-flow-scripts/master/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib>)，它的设定是 25 摄氏度，1.10 伏，属于 TT（Typical/Typical）的 Process Corner。
 
 在里面可以看到一些基本单元的定理，比如 `AND2_X1`，就是一个 drive strength 是 1 的二输入与门：
 
@@ -58,9 +58,9 @@ cell (AND2_X1) {
 }
 ```
 
-首先要看 cell_fall 后面的 template 是 Timing_7_7，可以看到 variable_1 和 variable_2 对应的是 input_net_transition 和 total_output_net_capacitance。这里 cell_fall 指的是输出 pin ZN 从 1 变成 0 的时候，这个变化从 A1 的变化传播到 ZN 的时间，这个时间和输入的 transition 时间（大概是从 0 到 1、从 1 到 0 的时间，具体从多少百分比到多少百分比见设置）和输出的 capacitance 有关，所以是一个查找表，查找的时候找最近的点进行插值。输出的 capacitance 取决于 wire load 和连接了这个输出的其他单元的输入。
+首先要看 cell\_fall 后面的 template 是 Timing\_7\_7，可以看到 variable\_1 和 variable\_2 对应的是 input\_net\_transition 和 total\_output\_net\_capacitance。这里 cell\_fall 指的是输出 pin ZN 从 1 变成 0 的时候，这个变化从 A1 的变化传播到 ZN 的时间，这个时间和输入的 transition 时间（大概是从 0 到 1、从 1 到 0 的时间，具体从多少百分比到多少百分比见设置）和输出的 capacitance 有关，所以是一个查找表，查找的时候找最近的点进行插值。输出的 capacitance 取决于 wire load 和连接了这个输出的其他单元的输入。
 
-除了 cell_fall/cell_rise 两种类型，还有 fall_transition 和 rise_transition，这就是输出引脚的变化时间，又作为后继单元的输入 transition 时间。
+除了 cell\_fall/cell\_rise 两种类型，还有 fall\_transition 和 rise\_transition，这就是输出引脚的变化时间，又作为后继单元的输入 transition 时间。
 
 接下来，还能看到功耗的数据：
 
@@ -98,7 +98,7 @@ internal_power () {
 }
 ```
 
-可以看到，这也是一个查找表，也是按照输出的 rise/fall 有不同的功耗。巧合的是，功耗的查找表的 index_1/index_2 和上面的时序查找表是一样的。除了 internal power，还有 leakage power，定义如下：
+可以看到，这也是一个查找表，也是按照输出的 rise/fall 有不同的功耗。巧合的是，功耗的查找表的 index\_1/index\_2 和上面的时序查找表是一样的。除了 internal power，还有 leakage power，定义如下：
 
 ```text
 leakage_power_unit : "1nW";
@@ -170,7 +170,7 @@ cell (DFFRS_X1) {
 
 可以看到，这里的属性变成了 setup/hold 时间。
 
-SRAM 也有类似的定义，通常是写在单独的 lib 文件中，根据 width 和 depth 生成，比如 [fakeram45_32x64.lib](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts/blob/master/flow/platforms/nangate45/lib/fakeram45_32x64.lib)：
+SRAM 也有类似的定义，通常是写在单独的 lib 文件中，根据 width 和 depth 生成，比如 [fakeram45\_32x64.lib](<https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts/blob/master/flow/platforms/nangate45/lib/fakeram45_32x64.lib>)：
 
 ```text
 cell(fakeram45_32x64) {
@@ -297,5 +297,5 @@ DFFPOSX1 clock_r_REG147_S1 ( .D(n7634), .CLK(clock), .Q(n7773) );
 
 ## 参考文档
 
-- [Liberty format: an introduction](https://vlsiuniverse.blogspot.com/2016/12/liberty-format-introduction.html)
-- [Digital VLSI Design Lecture 4: Standard Cell Libraries](https://www.eng.biu.ac.il/temanad/files/2017/02/Lecture-4-Standard-Cell-Libraries.pdf)
+- [Liberty format: an introduction](<https://vlsiuniverse.blogspot.com/2016/12/liberty-format-introduction.html>)
+- [Digital VLSI Design Lecture 4: Standard Cell Libraries](<https://www.eng.biu.ac.il/temanad/files/2017/02/Lecture-4-Standard-Cell-Libraries.pdf>)

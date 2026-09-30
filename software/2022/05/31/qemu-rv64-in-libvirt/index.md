@@ -2,11 +2,11 @@
 
 ## 背景
 
-我在 libvirt 中跑了几个 KVM 加速的虚拟机，然后突发奇想，既然 libvirt 背后是 qemu，然后 qemu 是支持跨指令集的，那是否可以让 libvirt 来运行 RISC-V 架构的虚拟机？经过一番搜索，发现可以跑 ARM：[How To: Running Fedora-ARM under QEMU](https://fedoraproject.org/wiki/Architectures/ARM/HowToQemu#Using_QEMU_with_libvirt)，既然如此，我们也可以试试用 libvirt 来运行 RV64 虚拟机。
+我在 libvirt 中跑了几个 KVM 加速的虚拟机，然后突发奇想，既然 libvirt 背后是 qemu，然后 qemu 是支持跨指令集的，那是否可以让 libvirt 来运行 RISC-V 架构的虚拟机？经过一番搜索，发现可以跑 ARM：[How To: Running Fedora-ARM under QEMU](<https://fedoraproject.org/wiki/Architectures/ARM/HowToQemu#Using_QEMU_with_libvirt>)，既然如此，我们也可以试试用 libvirt 来运行 RV64 虚拟机。
 
 ## 准备 rootfs
 
-第一步是根据 Debian 的文档 [Creating a riscv64 chroot](https://wiki.debian.org/RISC-V#Creating_a_riscv64_chroot) 来创建 rootfs，然后再用 virt-make-fs 来打包。
+第一步是根据 Debian 的文档 [Creating a riscv64 chroot](<https://wiki.debian.org/RISC-V#Creating_a_riscv64_chroot>) 来创建 rootfs，然后再用 virt-make-fs 来打包。
 
 首先是用 mmdebstrap 来生成一个 chroot：
 
@@ -41,7 +41,7 @@ U_BOOT_FDT_DIR="noexist"
 
 ## 尝试在 QEMU 中启动
 
-接下来，可以参考 [Setting up a riscv64 virtual machine](https://wiki.debian.org/RISC-V#Setting_up_a_riscv64_virtual_machine) 先启动一个 qemu 来测试一下是否可以正常工作：
+接下来，可以参考 [Setting up a riscv64 virtual machine](<https://wiki.debian.org/RISC-V#Setting_up_a_riscv64_virtual_machine>) 先启动一个 qemu 来测试一下是否可以正常工作：
 
 首先制作一个 qcow2 格式的镜像：
 
@@ -106,7 +106,7 @@ Welcome to Debian GNU/Linux bookworm/sid!
 
 首先，打开 virt-manager，在向导中，可以在下拉菜单选择自定义的架构，选择 riscv64 和 virt，然后选择 Import existing disk image，找到刚刚创建的 qcow2 文件。
 
-创建好以后，我们还不能直接启动，因为此时还没有配置 OpenSBI 和 U-Boot。由于 virt-aa-helper 会[检查 OpenSBI 和 U-Boot 的路径，要求它们不能在 /usr/lib 路径下](https://github.com/wiedi/libvirt/blob/435b4ad22bf812d97f30e4d6b71e6b3a967f4f75/src/security/virt-aa-helper.c#L529)：
+创建好以后，我们还不能直接启动，因为此时还没有配置 OpenSBI 和 U-Boot。由于 virt-aa-helper 会[检查 OpenSBI 和 U-Boot 的路径，要求它们不能在 /usr/lib 路径下](<https://github.com/wiedi/libvirt/blob/435b4ad22bf812d97f30e4d6b71e6b3a967f4f75/src/security/virt-aa-helper.c#L529>)：
 
 ```cpp
 /*

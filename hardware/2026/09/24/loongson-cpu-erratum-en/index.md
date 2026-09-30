@@ -1,10 +1,10 @@
 # One CPU Atomic Instruction, One Packaging Infinite Loop: The Story of the Lost Update on LA664
 
-[中文版本](https://jia.je/hardware/2026/09/24/loongson-cpu-erratum/index.md)
+[中文版本](<https://jia.je/blog/posts/hardware/loongson-cpu-erratum/index.md>)
 
 ## TL;DR
 
-In February 2026, [Wang Miao](https://github.com/shankerwangmiao) ran into something strange while packaging normaliz for Debian on a LoongArch server: the math software's built-in test kept timing out, stuck in an infinite loop that it could not escape. Following the code, the problem pointed to a very ordinary operation: OpenMP's `#pragma omp atomic` accumulating into a shared variable. The loop's exit condition required the accumulated value to equal a certain number, but the accumulated result was always less than that number, causing the infinite loop. Because the program was large and the code complex, we never managed to reduce it to a minimal example a human could understand, so the matter was shelved.
+In February 2026, [Wang Miao](<https://github.com/shankerwangmiao>) ran into something strange while packaging normaliz for Debian on a LoongArch server: the math software's built-in test kept timing out, stuck in an infinite loop that it could not escape. Following the code, the problem pointed to a very ordinary operation: OpenMP's `#pragma omp atomic` accumulating into a shared variable. The loop's exit condition required the accumulated value to equal a certain number, but the accumulated result was always less than that number, causing the infinite loop. Because the program was large and the code complex, we never managed to reduce it to a minimal example a human could understand, so the matter was shelved.
 
 Half a year later, in August, Wang Miao came to me again, wanting to pick it back up. This time we took a different approach: instead of having a human locate the problem, we let AI find a minimal reproduction, with the human directing the AI's investigation. About two days later, we had a stable reproducer, and only then discovered the root cause: the CPU's atomic add instruction occasionally fails to be atomic. This meant we had found a new CPU erratum, and after Loongson learned of it, only two weeks passed before they found a fix with almost no performance loss and provided us with test firmware. We confirmed that the test firmware resolves the issue, and Loongson told us the firmware is expected to be released before National Day (October 1), at which point readers will be able to upgrade their firmware to fix the problem.
 
@@ -12,7 +12,7 @@ Now let us tell the whole story from beginning to end.
 
 ## Origins
 
-[loong13](https://loong13.debian.net/) is a community-maintained port of Debian 13 stable to LoongArch, and Wang Miao is one of its maintainers. During the build and packaging process, normaliz's built-in test was found to get stuck in a loop that it could not exit, causing the packaging to time out. At the time we did not immediately find the root cause, so we had no choice but to skip this package. But since several other packages depend on normaliz, we could not keep skipping it forever, so in February we began to focus on investigating the problem. Previously, while building other packages, we had found hidden race conditions or memory-ordering issues in the code, and such problems are more likely to surface on LoongArch, which uses a weak memory model. So at first we guessed the cause might be a similar issue in this software. But once the investigation began, surprise, surprise, there was a surprise.
+[loong13](<https://loong13.debian.net/>) is a community-maintained port of Debian 13 stable to LoongArch, and Wang Miao is one of its maintainers. During the build and packaging process, normaliz's built-in test was found to get stuck in a loop that it could not exit, causing the packaging to time out. At the time we did not immediately find the root cause, so we had no choice but to skip this package. But since several other packages depend on normaliz, we could not keep skipping it forever, so in February we began to focus on investigating the problem. Previously, while building other packages, we had found hidden race conditions or memory-ordering issues in the code, and such problems are more likely to surface on LoongArch, which uses a weak memory model. So at first we guessed the cause might be a similar issue in this software. But once the investigation began, surprise, surprise, there was a surprise.
 
 ## The First Round of Investigation
 
@@ -71,7 +71,7 @@ However, testing the atomicity of the atomic add instruction with a simple atomi
 
 ## The Second Round of Investigation
 
-Six months later, the problem remained unsolved. With the disclosure of the [LoongLeak/LoongBleed vulnerabilities](https://jia.je/hardware/2026/08/18/loongleak-loongbleed/index.md), the lost atomic add in normaliz came back into our view. This time, we tried to use AI to assist the investigation. The method was: first point out to the AI that the above normaliz code has an infinite-loop problem, ask the AI to confirm and reproduce it, and then find the possible cause. In the first round of conversation, the AI noticed the problematic loop but did not conclude that the atomic add instruction was at fault. After that, we hinted to the AI that the problem exists only on LoongArch and not on other architectures, but the AI still could not give a definite conclusion. Finally, we directly told the AI the fact that we had already localized the problem to the atomic add, and asked it to reproduce it and provide a minimal reproducer. In that round of conversation, the AI eventually turned its attention to a `memcpy` call in the processing function, which was exactly the part overlooked in the first round: `memcpy`'s implementation lives in glibc, and glibc chooses the optimal implementation based on currently available hardware features; if the hardware supports a vector instruction set (LSX/LASX on LoongArch), glibc's `memcpy` will use the corresponding vector instructions to accelerate memory copying. And it was precisely these vectorized memory copies that triggered the lost atomic add on LoongArch64. Two days later, the AI produced a minimal program that reliably reproduces the problem.
+Six months later, the problem remained unsolved. With the disclosure of the [LoongLeak/LoongBleed vulnerabilities](<https://jia.je/blog/posts/hardware/loongleak-loongbleed/index.md>), the lost atomic add in normaliz came back into our view. This time, we tried to use AI to assist the investigation. The method was: first point out to the AI that the above normaliz code has an infinite-loop problem, ask the AI to confirm and reproduce it, and then find the possible cause. In the first round of conversation, the AI noticed the problematic loop but did not conclude that the atomic add instruction was at fault. After that, we hinted to the AI that the problem exists only on LoongArch and not on other architectures, but the AI still could not give a definite conclusion. Finally, we directly told the AI the fact that we had already localized the problem to the atomic add, and asked it to reproduce it and provide a minimal reproducer. In that round of conversation, the AI eventually turned its attention to a `memcpy` call in the processing function, which was exactly the part overlooked in the first round: `memcpy`'s implementation lives in glibc, and glibc chooses the optimal implementation based on currently available hardware features; if the hardware supports a vector instruction set (LSX/LASX on LoongArch), glibc's `memcpy` will use the corresponding vector instructions to accelerate memory copying. And it was precisely these vectorized memory copies that triggered the lost atomic add on LoongArch64. Two days later, the AI produced a minimal program that reliably reproduces the problem.
 
 ## Expanding the Scope
 
@@ -81,7 +81,7 @@ For the first question, we first investigated the CAS instruction, because it ca
 
 After much thought, we finally found a verification scheme: to check whether such instructions lose updates, we recorded the result of every operation and verified afterward. Take atomic max as an example: if you atomically take the max over the numbers 1 to n in parallel, the final result should be n. Each atomic max modifies the memory and also returns the old maximum. For an operation with input k, if the returned old value is less than k, then this operation updated the maximum. Atomicity guarantees that the return values of all operations that updated the maximum will not repeat. If a repeat occurs, then a lost update of the atomic instruction occurred. Verification showed that these atomic instructions all lose updates under the same conditions.
 
-For the second question, we found in testing that only LASX vectorized memory reads (`xvld`) trigger the lost atomic instruction; normal scalar reads and LSX vectorized memory reads (`vld`) do not trigger the problem. Later, [Rong "Mantle" Bao](https://github.com/CSharperMantle) independently discovered that when the memory address of the atomic variable and the read memory address have a particular positional relationship, normal scalar reads can also trigger the lost atomic instruction, meaning the problem can occur even without LASX, just with lower probability. These complex triggering conditions explain why this problem went undiscovered for so long.
+For the second question, we found in testing that only LASX vectorized memory reads (`xvld`) trigger the lost atomic instruction; normal scalar reads and LSX vectorized memory reads (`vld`) do not trigger the problem. Later, [Rong "Mantle" Bao](<https://github.com/CSharperMantle>) independently discovered that when the memory address of the atomic variable and the read memory address have a particular positional relationship, normal scalar reads can also trigger the lost atomic instruction, meaning the problem can occur even without LASX, just with lower probability. These complex triggering conditions explain why this problem went undiscovered for so long.
 
 ## Specific Conclusions
 
@@ -101,14 +101,14 @@ The minimal reproducer came from the AI's simplification of the normaliz code. E
 
 On a 3C6000/S, using two different physical cores (e.g. CPU0 and CPU2), 2208 bytes per point, 200 rounds per trial, and 30 trials in total, we obtained the following results:
 
-| Atomic Op    | Both do LASX copy | Both do LASX read | One side LASX copy |
-| ------------ | ----------------- | ----------------- | ------------------ |
-| `amadd.d`    | 67%               | 100%              | 53%                |
-| `amadd.w`    | 73%               | 100%              | 67%                |
-| `amcas.d`    | 77%               | 97%               | 17%                |
-| `amcas_db.d` | 0%                | 0%                | 0%                 |
-| `ammax.d`    | 43%               | 100%              | 50%                |
-| `amswap.d`   | 53%               | 100%              | 53%                |
+| Atomic Op | Both do LASX copy | Both do LASX read | One side LASX copy |
+| --- | ---: | ---: | ---: |
+| `amadd.d` | 67% | 100% | 53% |
+| `amadd.w` | 73% | 100% | 67% |
+| `amcas.d` | 77% | 97% | 17% |
+| `amcas_db.d` | 0% | 0% | 0% |
+| `ammax.d` | 43% | 100% | 50% |
+| `amswap.d` | 53% | 100% | 53% |
 
 The percentages in the table are "the proportion of trials that failed out of 30 trials". One can see that "both do LASX read" most easily triggers the problem, with a probability of almost 100%; `amcas_db.d` with db is always 0% under the same conditions.
 
@@ -146,4 +146,4 @@ In fact, similar errata are very common in CPUs from all vendors. Interested rea
 
 ## Acknowledgements
 
-This work was initiated and led by Wang Miao; I was responsible for reproduction and writing up the report. After we informed them that `amcas` also had the problem, [Rong "Mantle" Bao](https://github.com/CSharperMantle) discovered a similar CPU problem, which was fixed together. Thanks to Loongson's Chip R&D Department and Developer Community Operations Department, among others, for their efficient and professional work throughout the reporting and fixing process!
+This work was initiated and led by Wang Miao; I was responsible for reproduction and writing up the report. After we informed them that `amcas` also had the problem, [Rong "Mantle" Bao](<https://github.com/CSharperMantle>) discovered a similar CPU problem, which was fixed together. Thanks to Loongson's Chip R&amp;D Department and Developer Community Operations Department, among others, for their efficient and professional work throughout the reporting and fixing process!

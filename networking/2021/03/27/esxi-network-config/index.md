@@ -5,9 +5,9 @@
 可能会用到的一些命令：
 
 1. esxcfg-vmknic: 用来给 vmkernel 配置地址
-1. esxcfg-route: 设置系统路由表
-1. esxcli: 大杂烩，很多功能都在里面
-1. tcpdump-uw：魔改版 tcpdump
+2. esxcfg-route: 设置系统路由表
+3. esxcli: 大杂烩，很多功能都在里面
+4. tcpdump-uw：魔改版 tcpdump
 
 一些例子：
 

@@ -6,7 +6,7 @@
 
 ## Proxmox VE 安装
 
-按照官方的 [Install Proxmox VE on Debian 11 Bullseye](https://pve.proxmox.com/wiki/Install_Proxmox_VE_on_Debian_11_Bullseye) 去安装即可。我的环境是 Debian Bookworm，把路径改成 Bookworm 的 pvetest 即可。安装的时候可能会遇到一些小问题，例如用 ifupdown2 替换 ifupdown 的时候会检查 config 是否正确等等。安装完以后重启，就可以用 root 用户访问 Proxmox VE 了。
+按照官方的 [Install Proxmox VE on Debian 11 Bullseye](<https://pve.proxmox.com/wiki/Install_Proxmox_VE_on_Debian_11_Bullseye>) 去安装即可。我的环境是 Debian Bookworm，把路径改成 Bookworm 的 pvetest 即可。安装的时候可能会遇到一些小问题，例如用 ifupdown2 替换 ifupdown 的时候会检查 config 是否正确等等。安装完以后重启，就可以用 root 用户访问 Proxmox VE 了。
 
 ## 迁移 libvirtd 虚拟机
 
@@ -24,7 +24,7 @@
 
 ## Windows
 
-在创建虚拟机的时候，如果指定了 Windows 11，就会自动勾选上 TPM 相关的配置。但启动的时候，说 swtpm 报错无法启动，按照错误信息查询了一下，找到了 [Apparmor > swtpm: Could not open UnixIO socket: Permission denied](https://github.com/quickemu-project/quickemu/issues/487)：原因是 AppArmor 拦截了 swtpm 的操作，可以用命令来解除 AppArmor 的拦截：
+在创建虚拟机的时候，如果指定了 Windows 11，就会自动勾选上 TPM 相关的配置。但启动的时候，说 swtpm 报错无法启动，按照错误信息查询了一下，找到了 [Apparmor \> swtpm: Could not open UnixIO socket: Permission denied](<https://github.com/quickemu-project/quickemu/issues/487>)：原因是 AppArmor 拦截了 swtpm 的操作，可以用命令来解除 AppArmor 的拦截：
 
 ```shell
 sudo aa-complain /usr/bin/swtpm

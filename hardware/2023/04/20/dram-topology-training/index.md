@@ -1,6 +1,6 @@
 # DRAM 的拓扑和训练
 
-本文的内容已经整合到[知识库](/kb/hardware/sdram.html)中。
+本文的内容已经整合到[知识库](</kb/hardware/sdram.html>)中。
 
 ## DRAM Training
 
@@ -12,7 +12,7 @@ DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其�
 
 因此，实际上地址和控制信号是采用了串联的方式连接，也就是下图的右边的连接方式：
 
-图源 [Versal ACAP PCB Design User Guide (UG863)](https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces)。
+图源 [Versal ACAP PCB Design User Guide (UG863)](<https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces>)。
 
 但是数据信号（DQ 和 DQS）依然是并行点对点连接到 DRAM 上的（上图左侧）。这就出现了问题：不同的 DRAM 芯片，数据和时钟的偏差不同，数据可能差不多时间到，但是时钟的延迟越来越大：
 
@@ -27,7 +27,7 @@ DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其�
 所以 Write Leveling 的工作方式就是：
 
 1. 设置 DRAM 进入 Write Leveling 模式，此时 DRAM 会使用 DQS 信号来采样 CK 信号，把结果输出到 DQ 上
-1. DDR 控制器不断地修改 DQS 的输出延迟，然后统计 DQ 上的输出
+2. DDR 控制器不断地修改 DQS 的输出延迟，然后统计 DQ 上的输出
 
 示意图如下：
 
@@ -51,21 +51,21 @@ DRAM 一直有一个比较麻烦的初始化过程，就是 DRAM Training，其�
 
 再回到拓扑的问题上来，实际上除了 Fly by topology，还有一种拓扑是 Clam shell topology：把 DRAM 分布在 PCB 的上面和下面，这样可以节省 PCB 的面积，但是走线就会比较困难：
 
-图源 [Versal ACAP Programmable Network on Chip and Integrated Memory Controller LogiCORE IP Product Guide (PG313)](https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology) .
+图源 [Versal ACAP Programmable Network on Chip and Integrated Memory Controller LogiCORE IP Product Guide (PG313)](<https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology>) .
 
 直观地讲，两个芯片都放在 PCB 的正面，如果要连线的话，如果保证引脚顺序接近一致，就可以比较容易地连接，不会有很多交叉的地方。但如果一个在正面，另一个在背面，引脚的顺序就倒转过来了，连线的时候就比较困难。解决的办法是，修改引脚的顺序，把一些引脚的功能进行对调，使得走线更加简单：
 
-图源 [Versal ACAP PCB Design User Guide (UG863)](https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing)
+图源 [Versal ACAP PCB Design User Guide (UG863)](<https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing>)
 
 这里特意挑选了一些不影响特殊功能的引脚来交换，使得大部分功能，即使交换了引脚，也可以正常工作。但是，对于 Mode Register Set 操作，必须要内存控制器自己先内部交换位的顺序，才能保证在 DRAM 一侧得到正确的结果。
 
-此外，Clam Shell Topology 的正面和背面各有一个 cs_n 片选信号，但是这和 Dual Rank 不同：Dual Rank 是正面和背面都有同样数量的 DRAM 芯片，共享地址信号、数据信号和控制信号，总线上同一时间只有一侧的 DRAM 芯片在使用，好处是内存容量翻倍，并且两个 rank 可以互相掩盖延迟；而 Clam Shell Topology 的两个 cs_n 是为了给 Mode Register Set 操作指定正面或背面，而其余的大部分操作，可以正面和背面同时使用，因为它们的数据信号并没有共享。
+此外，Clam Shell Topology 的正面和背面各有一个 cs\_n 片选信号，但是这和 Dual Rank 不同：Dual Rank 是正面和背面都有同样数量的 DRAM 芯片，共享地址信号、数据信号和控制信号，总线上同一时间只有一侧的 DRAM 芯片在使用，好处是内存容量翻倍，并且两个 rank 可以互相掩盖延迟；而 Clam Shell Topology 的两个 cs\_n 是为了给 Mode Register Set 操作指定正面或背面，而其余的大部分操作，可以正面和背面同时使用，因为它们的数据信号并没有共享。
 
-图源 [DIFFERENCE BETWEEN DUAL RANK AND SINGLE RANK RAM](https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/)
+图源 [DIFFERENCE BETWEEN DUAL RANK AND SINGLE RANK RAM](<https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/>)
 
 ## 背景
 
-实际上，前面的整个研究过程，来自于我对 VCU128 LiteX 移植的观察：[VCU128 DDR4 memory calibration failure](https://github.com/litex-hub/litex-boards/issues/496)。我在配置 litedram 的时候，发现总是有一半的 DRAM 芯片无法使用，和 Datasheet 对照了以后，发现正好是 PCB 背面的那一半。接着，发现它是 Clam Shell Topology 方式来分布的，然后 Top 和 Bottom 各有一个 cs_n 信号，这一点在 UG1302 里是没有写的，在 xdc 里才可以找到：
+实际上，前面的整个研究过程，来自于我对 VCU128 LiteX 移植的观察：[VCU128 DDR4 memory calibration failure](<https://github.com/litex-hub/litex-boards/issues/496>)。我在配置 litedram 的时候，发现总是有一半的 DRAM 芯片无法使用，和 Datasheet 对照了以后，发现正好是 PCB 背面的那一半。接着，发现它是 Clam Shell Topology 方式来分布的，然后 Top 和 Bottom 各有一个 cs\_n 信号，这一点在 UG1302 里是没有写的，在 xdc 里才可以找到：
 
 ```tcl
 set_property PACKAGE_PIN BK48       [get_ports "PL_DDR4_BOT_CS_B"] ;# Bank  66 VCCO - DDR4_VDDQ_1V2 - IO_L7P_T1L_N0_QBC_AD13P_66
@@ -76,10 +76,10 @@ set_property IOSTANDARD  SSTL12   [get_ports "PL_DDR4_CS_B"] ;# Bank  66 VCCO - 
 
 所以 Xilinx 文档也是可能出错的，需要结合多个信息源来判断。这里有 xdc 和 schematic 可以参考，都可以发现这个结论。
 
-沿着这个思路，我给 litedram 添加了 clam shell topology 的支持：<https://github.com/enjoy-digital/litedram/pull/332> 和 <https://github.com/enjoy-digital/litex/pull/1673>，实现方法：
+沿着这个思路，我给 litedram 添加了 clam shell topology 的支持：[https://github.com/enjoy-digital/litedram/pull/332](<https://github.com/enjoy-digital/litedram/pull/332>) 和 [https://github.com/enjoy-digital/litex/pull/1673](<https://github.com/enjoy-digital/litex/pull/1673>)，实现方法：
 
-1. 在校准阶段，把 Top 和 Bottom 两个 cs_n 暴露给软件，软件在 MRS 的时候，分两次写入，第一次原样写到 Top，第二次交换地址顺序，再写入 Bottom。
-1. 正常工作阶段，把 Top 和 Bottom 的两个 cs_n 当成一个用，也就是当成 single rank dram。
+1. 在校准阶段，把 Top 和 Bottom 两个 cs\_n 暴露给软件，软件在 MRS 的时候，分两次写入，第一次原样写到 Top，第二次交换地址顺序，再写入 Bottom。
+2. 正常工作阶段，把 Top 和 Bottom 的两个 cs\_n 当成一个用，也就是当成 single rank dram。
 
 ## 训练代码
 
@@ -89,7 +89,7 @@ set_property IOSTANDARD  SSTL12   [get_ports "PL_DDR4_CS_B"] ;# Bank  66 VCCO - 
 
 Write Leveling 的核心函数是 `sdram_write_leveling_scan`，它的核心思路是：
 
-第一步调用 `sdram_write_leveling_on` 打开 DRAM 的 Write Leveling 模式：
+第一步调用 `sdram_write_leveling_on ` 打开 DRAM 的 Write Leveling 模式：
 
 ```c
   sdram_write_leveling_on();
@@ -167,17 +167,17 @@ sdram_write_leveling_off();
 这样就实现了 Write Leveling 的全流程：
 
 1. 设置 DRAM 进入 Write Leveling 模式，DRAM 用 DQS 对 CK 采样，结果输出到 DQ
-1. 在不同的 DQS 延迟下，发送同样的 00000001 DQS 模式，观察 DQ 上的数据
-1. 统计 DQ 上的 1 和 0 的个数，如果 1 更多，就认为当前 DQS 延迟下，DQS 采样到了 CK 的正半周期；反之如果 0 更多，就认为当前 DQS 延迟下，DQS 采样到了 CK 的负半周期
-1. 在第三步的结果中，找到最长的连续的 1 序列，那么这个序列的开始，就对应了采样值从 0 到 1 的变化，此时 DQS 与 CK 基本同步
-1. 最后设置 DRAM 退出 Write Leveling 模式
+2. 在不同的 DQS 延迟下，发送同样的 00000001 DQS 模式，观察 DQ 上的数据
+3. 统计 DQ 上的 1 和 0 的个数，如果 1 更多，就认为当前 DQS 延迟下，DQS 采样到了 CK 的正半周期；反之如果 0 更多，就认为当前 DQS 延迟下，DQS 采样到了 CK 的负半周期
+4. 在第三步的结果中，找到最长的连续的 1 序列，那么这个序列的开始，就对应了采样值从 0 到 1 的变化，此时 DQS 与 CK 基本同步
+5. 最后设置 DRAM 退出 Write Leveling 模式
 
 ## 参考文档
 
-- <https://www.systemverilog.io/design/ddr4-initialization-and-calibration/>
-- <https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces>
-- <https://docs.xilinx.com/r/en-US/pg353-versal-acap-soft-ddr4-mem-ip/Calibration-Overview>
-- <https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology>
-- <https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing>
-- <https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/>
-- <https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/>
+- [https://www.systemverilog.io/design/ddr4-initialization-and-calibration/](<https://www.systemverilog.io/design/ddr4-initialization-and-calibration/>)
+- [https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces](<https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Signals-and-Connections-for-DDR4-Interfaces>)
+- [https://docs.xilinx.com/r/en-US/pg353-versal-acap-soft-ddr4-mem-ip/Calibration-Overview](<https://docs.xilinx.com/r/en-US/pg353-versal-acap-soft-ddr4-mem-ip/Calibration-Overview>)
+- [https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology](<https://docs.xilinx.com/r/en-US/pg313-network-on-chip/Clamshell-Topology>)
+- [https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing](<https://docs.xilinx.com/r/en-US/ug863-versal-pcb-design/Utilizing-Address-Mirroring-to-Ease-Clamshell-Routing>)
+- [https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/](<https://blog.memory4less.com/2022/09/16/difference-between-dual-rank-and-single-rank-ram/>)
+- [https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/](<https://daffy1108.wordpress.com/2010/09/02/understanding-ddr3-write-leveling-and-read-leveling/>)

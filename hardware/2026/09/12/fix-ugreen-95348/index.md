@@ -2,7 +2,7 @@
 
 ## 背景
 
-[上文](https://jia.je/misc/2026/09/11/classroom-routing/index.md) 提到，我打算用采集卡来录制鸿蒙电脑的输出，作为 OBS 的输入来做软件导播，用的采集卡型号是[采用了 MS2130S 芯片的绿联 UG307-95348 采集卡](https://www.lulian.cn/product/1537.html)。在使用过程中，遇到了清晰度和颜色的问题，下面介绍我是怎么研究和解决的。
+[上文](<https://jia.je/blog/posts/misc/classroom-routing/index.md>) 提到，我打算用采集卡来录制鸿蒙电脑的输出，作为 OBS 的输入来做软件导播，用的采集卡型号是[采用了 MS2130S 芯片的绿联 UG307-95348 采集卡](<https://www.lulian.cn/product/1537.html>)。在使用过程中，遇到了清晰度和颜色的问题，下面介绍我是怎么研究和解决的。
 
 ## 清晰度问题
 
@@ -81,14 +81,14 @@ for d in session.devices {
 
 ## 颜色问题
 
-除了清晰度问题，采集卡采到的鸿蒙电脑画面颜色不对。在鸿蒙电脑上打开 [Lagom 白饱和测试图](http://www.lagom.nl/lcd-test/zhs_white.php)，采集到的 RGB 与预期对不上，大致关系如下：
+除了清晰度问题，采集卡采到的鸿蒙电脑画面颜色不对。在鸿蒙电脑上打开 [Lagom 白饱和测试图](<http://www.lagom.nl/lcd-test/zhs_white.php>)，采集到的 RGB 与预期对不上，大致关系如下：
 
-- 原来 200 -> 显示 219
-- 原来 244 -> 显示 255
+- 原来 200 -\> 显示 219
+- 原来 244 -\> 显示 255
 
 用 ffmpeg 观察后发现，采集卡实际给出的是 204；由于这是 limited range（16-235）下的 204，转换到 full range 后就是 `(204 - 16) / 219 * 255 = 219`。若把鸿蒙电脑直接接到显示器上，显示则正常。
 
-深入研究后，我找到了一些通过设置 MS2130S 寄存器来改变其行为的方法（参考 [steve-m/hsdaoh](https://github.com/steve-m/hsdaoh/blob/master/src/libhsdaoh.c)）。在 AI 的帮助下定位到了问题：只要关闭 MS2130S 自带的 luma processing（即把寄存器 0xfc8e 从原来的 0x00 改为 0x11），颜色就会恢复正常。下面这个小工具可以在 OBS 开始录制后运行，用来 toggle luma processing，从而实时看到颜色变化：
+深入研究后，我找到了一些通过设置 MS2130S 寄存器来改变其行为的方法（参考 [steve-m/hsdaoh](<https://github.com/steve-m/hsdaoh/blob/master/src/libhsdaoh.c>)）。在 AI 的帮助下定位到了问题：只要关闭 MS2130S 自带的 luma processing（即把寄存器 0xfc8e 从原来的 0x00 改为 0x11），颜色就会恢复正常。下面这个小工具可以在 OBS 开始录制后运行，用来 toggle luma processing，从而实时看到颜色变化：
 
 ```c++
 /*
@@ -209,9 +209,9 @@ fc8e: 0x11 -> 0x00
 
 修复后，200 变成 199，244 变成 243。虽然仍有很小的偏差，但可以认为问题已经解决。
 
-不过每次开始采集后都要重新跑一次这个工具，还是有点麻烦。一个一劳永逸的办法是参考 [steve-m/ms2130_patcher](https://github.com/steve-m/ms2130_patcher/blob/master/ms2130_patch.c)，给固件打补丁，让硬件往 0xfc8e 寄存器写入 0x11 而不是 0x00。
+不过每次开始采集后都要重新跑一次这个工具，还是有点麻烦。一个一劳永逸的办法是参考 [steve-m/ms2130\_patcher](<https://github.com/steve-m/ms2130_patcher/blob/master/ms2130_patch.c>)，给固件打补丁，让硬件往 0xfc8e 寄存器写入 0x11 而不是 0x00。
 
-首先用 [steve-m/ms213x_flash](https://github.com/steve-m/ms213x_flash) 导出绿联 95348 自带的固件，然后让 AI 进行逆向，这个固件就是一个 8051 代码，有很多成熟的工具。具体的补丁方法和上面类似，下面直接给出 AI 对固件代码以及如何修复的分析：
+首先用 [steve-m/ms213x\_flash](<https://github.com/steve-m/ms213x_flash>) 导出绿联 95348 自带的固件，然后让 AI 进行逆向，这个固件就是一个 8051 代码，有很多成熟的工具。具体的补丁方法和上面类似，下面直接给出 AI 对固件代码以及如何修复的分析：
 
 ### 补丁的原理
 
@@ -219,10 +219,10 @@ fc8e: 0x11 -> 0x00
 
 `0xfc8e` 有两个相关的位：bit 0（掩码 `0x01`）和 bit 4（掩码 `0x10`）。流重初始化流程 `FUN_CODE_c220()` 会通过位掩码辅助函数 `FUN_CODE_87c7(mask, addrH, addrL, value)` 把这两位都清零。要写入的值通过 `R3` 传入：非零表示置位被掩码选中的位，零表示清零。
 
-| CPU 地址（bank 1） | 代码                                                                                                | 作用                   |
-| ------------------ | --------------------------------------------------------------------------------------------------- | ---------------------- |
-| `c268`             | `MOV R3,#01h ; JNB bit05,c26f ; MOV R3,#00h` `MOV R5,#01h ; MOV R7,#8eh ; MOV R6,#fch ; LJMP 87c7h` | 清除 `0xfc8e` 的 bit 0 |
-| `c27e`             | `MOV R3,#01h ; JNB bit05,c285 ; MOV R3,#00h` `MOV R5,#10h ; MOV R7,#8eh ; MOV R6,#fch ; LJMP 87c7h` | 清除 `0xfc8e` 的 bit 4 |
+| CPU 地址（bank 1） | 代码 | 作用 |
+| --- | --- | --- |
+| `c268` | `MOV R3,#01h ; JNB bit05,c26f ; MOV R3,#00h`<br>`MOV R5,#01h ; MOV R7,#8eh ; MOV R6,#fch ; LJMP 87c7h` | 清除 `0xfc8e` 的 bit 0 |
+| `c27e` | `MOV R3,#01h ; JNB bit05,c285 ; MOV R3,#00h`<br>`MOV R5,#10h ; MOV R7,#8eh ; MOV R6,#fch ; LJMP 87c7h` | 清除 `0xfc8e` 的 bit 4 |
 
 两次调用之后 `0xfc8e = 0x00`。
 
@@ -230,11 +230,11 @@ fc8e: 0x11 -> 0x00
 
 把两处 `MOV R3,#00h`（`7b 00`）指令改成 `MOV R3,#01h`（`7b 01`），这样每次掩码更新都会走*置位*分支，寄存器最终变成 `0x11`。
 
-| 文件偏移                  | 原始值 | 补丁值 | 含义                           |
-| ------------------------- | ------ | ------ | ------------------------------ |
-| `0x1429e`（bank1 `c26e`） | `00`   | `01`   | `0xfc8e` bit 0 的取值操作数    |
-| `0x142b4`（bank1 `c284`） | `00`   | `01`   | `0xfc8e` bit 4 的取值操作数    |
-| `0x18033`                 | `7c`   | `7e`   | 代码校验和 `0x797c` → `0x797e` |
+| 文件偏移 | 原始值 | 补丁值 | 含义 |
+| ---: | ---: | ---: | --- |
+| `0x1429e`（bank1 `c26e`） | `00` | `01` | `0xfc8e` bit 0 的取值操作数 |
+| `0x142b4`（bank1 `c284`） | `00` | `01` | `0xfc8e` bit 4 的取值操作数 |
+| `0x18033` | `7c` | `7e` | 代码校验和 `0x797c` → `0x797e` |
 
 反汇编打过补丁的字节，可以看到两处立即数现在都加载 `0x01`：
 
@@ -252,7 +252,7 @@ c275: 0287c7 LJMP 87c7h
 
 核心就是把上面我通过 hidapi 从 host 端写入寄存器的操作，换成了直接在固件里写入：固件本来是 clear，改成了 set，这样就禁用了 luma processing，持久化了这个改动。
 
-这部分代码以及固件已经开源到 [jiegec/ugreen-95348-patcher](http://github.com/jiegec/ugreen-95348-patcher)，感兴趣的读者可以尝试一下，尝试之前记得备份固件，而且有变砖的风险。
+这部分代码以及固件已经开源到 [jiegec/ugreen-95348-patcher](<http://github.com/jiegec/ugreen-95348-patcher>)，感兴趣的读者可以尝试一下，尝试之前记得备份固件，而且有变砖的风险。
 
 P.S. 实测发现，把 `0xfc8e` 改为 `0x11` 只对 `3840x2160 (16:9) - 30, 60 FPS - CS 709 - NV12 (420v)` 模式生效；对 `3840x2160 (16:9) - 30 FPS - CS 709 - NV12 (420v)` 模式则无效：前者画面清晰、颜色正确，后者画面模糊、颜色也不对。具体原因尚未深入分析。
 
@@ -262,11 +262,11 @@ P.S. 实测发现，把 `0xfc8e` 改为 `0x11` 只对 `3840x2160 (16:9) - 30, 60
 
 相关项目链接整理如下：
 
-- [steve-m/hsdaoh](https://github.com/steve-m/hsdaoh)：通过 hidapi 访问 MS2130S 寄存器的库，本文从 host 端修改 `0xfc8e` 的思路就来自这里。
-- [steve-m/ms2130_patcher](https://github.com/steve-m/ms2130_patcher)：直接给固件打补丁、持久化寄存器配置的工具，是本文固件补丁的重要参考。
-- [steve-m/ms213x_flash](https://github.com/steve-m/ms213x_flash)：用来导出/烧写 MS213x 固件的工具，本文用它导出了绿联 95348 的原始固件。
+- [steve-m/hsdaoh](<https://github.com/steve-m/hsdaoh>)：通过 hidapi 访问 MS2130S 寄存器的库，本文从 host 端修改 `0xfc8e` 的思路就来自这里。
+- [steve-m/ms2130\_patcher](<https://github.com/steve-m/ms2130_patcher>)：直接给固件打补丁、持久化寄存器配置的工具，是本文固件补丁的重要参考。
+- [steve-m/ms213x\_flash](<https://github.com/steve-m/ms213x_flash>)：用来导出/烧写 MS213x 固件的工具，本文用它导出了绿联 95348 的原始固件。
 
-这些项目大多出自 [steve-m](https://github.com/steve-m) 之手，感谢他的开源工作。
+这些项目大多出自 [steve-m](<https://github.com/steve-m>) 之手，感谢他的开源工作。
 
 ## 附录
 
@@ -276,7 +276,7 @@ P.S. 实测发现，把 `0xfc8e` 改为 `0x11` 只对 `3840x2160 (16:9) - 30, 60
 00ffffffffffff0054f248538d0135012b230103803c2278022895a7554ea3260f5054010000d1c081c0010001000100010001000100023a801871382d40582c4500c48e2100001e9c45007251d01e206e28550055502100001e000000fd0018501e641e000a202020202020000000fc0055475245454e2d39353334380a01c002032d724c1f222120133e3d3c5f64676223090707830100006d030c001000003c200060010203e50e616066656a5e00a0a0a0295030202500b0133200000019640080a3a02b50b0103510b01332000000352f00a0a0a0295030202500b001320000000000000000000000000000000000000000000000000000000000000058
 ```
 
-用 [edid-decode](https://people.freedesktop.org/~imirkin/edid-decode/) 出来的结果：
+用 [edid-decode](<https://people.freedesktop.org/~imirkin/edid-decode/>) 出来的结果：
 
 ```text
 edid-decode (hex):
@@ -453,6 +453,6 @@ EDID:
 EDID conformity: FAIL
 ```
 
-也就是说，它的 4K 60Hz 从输入侧已经是 YCbCr 4:2:0 了，也就是每 2x2 的四个像素里，有四个 Y，一个 Cb 和一个 Cr。这样平均下来，8-bit 深度下每个像素的空间是 ((4\*8+8+8)/4 = 12) bit。如果是 4:2:2 的话，每 2x2 的四个像素里，有四个 Y，两个 Cb 和两个 Cr，平均下来，8-bit 深度下每个像素的空间是 ((4\*8+2\*8+2\*8)/4 = 16) bit。如果直接保存 RGB 4:4:4，8-bit 深度下就是 (3\*8=24) bit。
+也就是说，它的 4K 60Hz 从输入侧已经是 YCbCr 4:2:0 了，也就是每 2x2 的四个像素里，有四个 Y，一个 Cb 和一个 Cr。这样平均下来，8-bit 深度下每个像素的空间是 \\((4\*8+8+8)/4 = 12\\) bit。如果是 4:2:2 的话，每 2x2 的四个像素里，有四个 Y，两个 Cb 和两个 Cr，平均下来，8-bit 深度下每个像素的空间是 \\((4\*8+2\*8+2\*8)/4 = 16\\) bit。如果直接保存 RGB 4:4:4，8-bit 深度下就是 \\(3\*8=24\\) bit。
 
 ffprobe 输出的 yuv420p 对应 YCbCr 4:2:0，tv 代表 limited range（16-235），bt709 代表颜色空间。

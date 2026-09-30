@@ -32,7 +32,7 @@
 
 在论文 Multiple-Block Ahead Branch Predictors 中可以看到一种更通用做法，称为 2-ahead：已知 A 和 B，用 A 去预测 C，用 B 去预测 D。此时分支预测的就是间隔一次以后的目的地址，而不是直接的目的地址，这样的设计下，BTB 等结构需要变成双端口，这样才能同时预测两个分支：A 和 B。预测出 C 和 D 以后，再用同样的办法去预测 E 和 F，这样持续下去。当然论文设计的比这里讲的更复杂一点，具体细节见论文。
 
-我们不知道 ARM 具体如何实现的 2-taken，但是可以猜想它做了一些限制，例如虽然两个分支都是 taken，但是可能对偏移、地址有一些限制，例如要求在同一个 cacheline 内。Intel 的 Golden Cove 架构，AMD 的 Zen 4 架构也实现了 2-taken，都有或多或少类似的限制。[Chips and Cheese](https://chipsandcheese.com/2023/10/08/zen-5s-leaked-slides/) 是这么描述 Intel 和 ARM 的 2-taken 支持的：
+我们不知道 ARM 具体如何实现的 2-taken，但是可以猜想它做了一些限制，例如虽然两个分支都是 taken，但是可能对偏移、地址有一些限制，例如要求在同一个 cacheline 内。Intel 的 Golden Cove 架构，AMD 的 Zen 4 架构也实现了 2-taken，都有或多或少类似的限制。[Chips and Cheese](<https://chipsandcheese.com/2023/10/08/zen-5s-leaked-slides/>) 是这么描述 Intel 和 ARM 的 2-taken 支持的：
 
 > Rocket Lake could unroll small loops within its loop buffer, turning taken branches into not-taken ones from the fetch perspective. Arm’s Neoverse N2 and Cortex X2 can also sustain two taken branches per cycle by using a 64 entry nano-BTB.
 
@@ -40,7 +40,7 @@
 
 > Each BTB entry can hold up to two branches, and two pair cases are supported: • A conditional branch followed by another branch with both branches having their last byte in the same 64 byte aligned cacheline. • A direct branch (excluding CALLs) followed by a branch ending within the 64 byte aligned cacheline containing the target of the first branch. Predicting with BTB pairs allows two fetches to be predicted in one prediction cycle.
 
-因此，可以用 2-taken 表示限制比较多的每个周期可以预测 2 个 taken 的算法，而用 2-ahead 表示更加通用的预测 2 个 taken 的算法。即使做了 2-taken 的预测器支持，也未必可以每周期执行 2 个 taken 分支，例如 AMD 在论文 [AMD Next-Generation “Zen 4” Core and 4th Gen AMD EPYC Server CPUs](https://ieeexplore.ieee.org/document/10466769) 是这么表述 Zen 4 的 2-taken 实现的：
+因此，可以用 2-taken 表示限制比较多的每个周期可以预测 2 个 taken 的算法，而用 2-ahead 表示更加通用的预测 2 个 taken 的算法。即使做了 2-taken 的预测器支持，也未必可以每周期执行 2 个 taken 分支，例如 AMD 在论文 [AMD Next-Generation “Zen 4” Core and 4th Gen AMD EPYC Server CPUs](<https://ieeexplore.ieee.org/document/10466769>) 是这么表述 Zen 4 的 2-taken 实现的：
 
 > To better feed the wide execution engine, AMD has implemented several front-end bandwidth improvements on “Zen 4.” One is the ability to predict and dispatch up to two taken branches per cycle. While the Instruction Cache (I-Cache) or Operation Cache (Op Cache) fetch limits the sustained fetch bandwidth to one taken branch per cycle, predicting two taken branches per cycle allows the branch predictor to run ahead more often and compensate for existing branch prediction stall cycles. Dispatching up to two taken branches per cycle, and optimizations of the integer scheduler assignment allow “Zen 4” to fill the out-of-order part of the machine faster once a dispatch (allocation) stall has been resolved.
 
@@ -54,14 +54,14 @@ Zen 5 除了 2-taken 以外，还实现了 2-fetch，也就是每个周期可以
 
 ## 参考文献
 
-- [Zen 5’s 2-Ahead Branch Predictor Unit: How a 30 Year Old Idea Allows for New Tricks](https://chipsandcheese.com/2024/07/26/zen-5s-2-ahead-branch-predictor-unit-how-30-year-old-idea-allows-for-new-tricks/)
-- [Arm's New Cortex-A78 and Cortex-X1 Microarchitectures: An Efficiency and Performance Divergence - Anandtech](https://www.anandtech.com/show/15813/arm-cortex-a78-cortex-x1-cpu-ip-diverging/2)
-- [AMD Zen 5 Technical Deep Dive](https://www.techpowerup.com/review/amd-zen-5-technical-deep-dive/3.html)
-- [AMD Zen 5 Architecture Reveal: A Ryzen 9000 And Ryzen AI 300 Deep Dive](https://hothardware.com/reviews/amd-ryzen-ai-zen-5-architecture-overview)
-- [AMD deep-dives Zen 5 architecture — Ryzen 9000 and AI 300 benchmarks, RDNA 3.5 GPU, XDNA 2, and more](https://www.tomshardware.com/pc-components/cpus/amd-deep-dives-zen-5-ryzen-9000-and-strix-point-cpu-rdna-35-gpu-and-xdna-2-architectures/4)
-- [Optimizations Enabled by a Decoupled Front-End Architecture](https://cseweb.ucsd.edu/~calder/papers/UCSD-CS00-645.pdf)
-- [The Cortex-A77 µarch: Added ALUs & Better Load/Stores](https://www.anandtech.com/show/14384/arm-announces-cortexa77-cpu-ip/3)
-- [Multiple-Block Ahead Branch Predictors](https://dl.acm.org/doi/pdf/10.1145/237090.237169)
-- [Popping the Hood on Golden Cove](https://chipsandcheese.com/2021/12/02/popping-the-hood-on-golden-cove/)
-- [AMD Zen 4 Ryzen 9 7950X and Ryzen 5 7600X Review: Retaking The High-End](https://www.anandtech.com/show/17585/amd-zen-4-ryzen-9-7950x-and-ryzen-5-7600x-review-retaking-the-high-end/8)
-- [AMD Next-Generation “Zen 4” Core and 4th Gen AMD EPYC Server CPUs](https://ieeexplore.ieee.org/document/10466769)
+- [Zen 5’s 2-Ahead Branch Predictor Unit: How a 30 Year Old Idea Allows for New Tricks](<https://chipsandcheese.com/2024/07/26/zen-5s-2-ahead-branch-predictor-unit-how-30-year-old-idea-allows-for-new-tricks/>)
+- [Arm's New Cortex-A78 and Cortex-X1 Microarchitectures: An Efficiency and Performance Divergence - Anandtech](<https://www.anandtech.com/show/15813/arm-cortex-a78-cortex-x1-cpu-ip-diverging/2>)
+- [AMD Zen 5 Technical Deep Dive](<https://www.techpowerup.com/review/amd-zen-5-technical-deep-dive/3.html>)
+- [AMD Zen 5 Architecture Reveal: A Ryzen 9000 And Ryzen AI 300 Deep Dive](<https://hothardware.com/reviews/amd-ryzen-ai-zen-5-architecture-overview>)
+- [AMD deep-dives Zen 5 architecture — Ryzen 9000 and AI 300 benchmarks, RDNA 3.5 GPU, XDNA 2, and more](<https://www.tomshardware.com/pc-components/cpus/amd-deep-dives-zen-5-ryzen-9000-and-strix-point-cpu-rdna-35-gpu-and-xdna-2-architectures/4>)
+- [Optimizations Enabled by a Decoupled Front-End Architecture](<https://cseweb.ucsd.edu/~calder/papers/UCSD-CS00-645.pdf>)
+- [The Cortex-A77 µarch: Added ALUs &amp; Better Load/Stores](<https://www.anandtech.com/show/14384/arm-announces-cortexa77-cpu-ip/3>)
+- [Multiple-Block Ahead Branch Predictors](<https://dl.acm.org/doi/pdf/10.1145/237090.237169>)
+- [Popping the Hood on Golden Cove](<https://chipsandcheese.com/2021/12/02/popping-the-hood-on-golden-cove/>)
+- [AMD Zen 4 Ryzen 9 7950X and Ryzen 5 7600X Review: Retaking The High-End](<https://www.anandtech.com/show/17585/amd-zen-4-ryzen-9-7950x-and-ryzen-5-7600x-review-retaking-the-high-end/8>)
+- [AMD Next-Generation “Zen 4” Core and 4th Gen AMD EPYC Server CPUs](<https://ieeexplore.ieee.org/document/10466769>)

@@ -2,11 +2,11 @@
 
 ## 背景
 
-V8 是一个很常见的 JavaScript 引擎，运行在很多的设备上，因此想探究一下它内部的部分实现。本博客在 ARM64 Ubuntu 24.04 平台上针对 [V8 12.8.374.31](https://chromium.googlesource.com/v8/v8.git/+/6f774f929205be0a49cf861b8d73a92655e1dd36) 版本进行分析。本博客主要分析了 V8 的 Ignition 解释器的解释执行部分。
+V8 是一个很常见的 JavaScript 引擎，运行在很多的设备上，因此想探究一下它内部的部分实现。本博客在 ARM64 Ubuntu 24.04 平台上针对 [V8 12.8.374.31](<https://chromium.googlesource.com/v8/v8.git/+/6f774f929205be0a49cf861b8d73a92655e1dd36>) 版本进行分析。本博客主要分析了 V8 的 Ignition 解释器的解释执行部分。
 
 ## 编译 V8
 
-首先简单过一下 v8 的源码获取以及编译流程，主要参考了 [Checking out the V8 source code](https://v8.dev/docs/source-code) 和 [Compiling on Arm64 Linux](https://v8.dev/docs/compile-arm64):
+首先简单过一下 v8 的源码获取以及编译流程，主要参考了 [Checking out the V8 source code](<https://v8.dev/docs/source-code>) 和 [Compiling on Arm64 Linux](<https://v8.dev/docs/compile-arm64>):
 
 ```shell
 # setup depot_tools
@@ -53,10 +53,10 @@ tools/dev/gm.py arm64.optdebug --progress=verbose
 
 通过 V8 的文档可以看到，V8 一共有这些解释器或编译器，按照其优化等级从小到大的顺序：
 
-1. [Ignition](https://v8.dev/docs/ignition): 解释器
-1. [SparkPlug](https://v8.dev/blog/sparkplug): 不优化的快速编译器，追求快的编译速度
-1. [Maglev](https://v8.dev/blog/maglev)：做优化的编译器，寻求编译速度和编译质量的平衡
-1. [TurboFan](https://v8.dev/docs/turbofan)：做优化的编译器，寻求更好的编译质量
+1. [Ignition](<https://v8.dev/docs/ignition>): 解释器
+2. [SparkPlug](<https://v8.dev/blog/sparkplug>): 不优化的快速编译器，追求快的编译速度
+3. [Maglev](<https://v8.dev/blog/maglev>)：做优化的编译器，寻求编译速度和编译质量的平衡
+4. [TurboFan](<https://v8.dev/docs/turbofan>)：做优化的编译器，寻求更好的编译质量
 
 在 JS 的使用场景，不同代码被调用的次数以及对及时性的需求差别很大，为了适应不同的场景，V8 设计了这些解释器和编译器来提升整体的性能：执行次数少的代码，倾向于用更低优化等级的解释器或编译器，追求更低的优化开销；执行次数多的代码，当编译优化时间不再成为瓶颈，则倾向于用更高优化等级的编译器，追求更高的执行性能。
 
@@ -140,19 +140,19 @@ V8 的字节码采用的是基于寄存器的执行模型，而非其他很多�
 上述字节码分为两部分，第一部分是声明 `add` 函数：
 
 1. `LdaConstant [0]`: 把 Constant Pool 的第 0 项也就是 `FixedArray[2]` 写入 `accumulator` 寄存器当中
-1. `Star1`: 把 `accumulator` 寄存器的值拷贝到 `r1` 寄存器，结合上一条字节码，就是设置 `r1 = FixedArray[2]`
-1. `Mov <closure>, r2`: 把 `<closure>` 拷贝到 `r2` 寄存器，猜测这里的 `<closure>` 对应的是 `add` 函数
-1. `CallRuntime [DeclareGlobals], r1-r2`: 调用运行时的 `DeclareGlobals` 函数，并传递两个参数，分别是 `r1` 和 `r2`；有意思的是，`CallRuntime` 的参数必须保存在连续的寄存器当中，猜测是为了节省编码空间
+2. `Star1`: 把 `accumulator` 寄存器的值拷贝到 `r1` 寄存器，结合上一条字节码，就是设置 `r1 = FixedArray[2]`
+3. `Mov <closure>, r2`: 把 `<closure>` 拷贝到 `r2` 寄存器，猜测这里的 `<closure>` 对应的是 `add` 函数
+4. `CallRuntime [DeclareGlobals], r1-r2`: 调用运行时的 `DeclareGlobals` 函数，并传递两个参数，分别是 `r1` 和 `r2`；有意思的是，`CallRuntime` 的参数必须保存在连续的寄存器当中，猜测是为了节省编码空间
 
 至此，`add` 函数就声明完成了。接下来，就要实现 `add(1, 2)` 的调用：
 
 1. `LdaGlobal [1], [0]`: 把 Constant Pool 的第 1 项也就是 `"add"` 这个字符串写入 `accumulator`，最后的 `[0]` 和 FeedBackVector 有关，目前先忽略
-1. `Star1`: 把 `accumulator` 寄存器的值拷贝到 `r1` 寄存器，结合上一条字节码，就是设置 `r1 = "add"`
-1. `LdaSmi [1]`: 把小整数（Small integer, Smi）`1` 写入 `accumulator`
-1. `Star2`: 把 `accumulator` 寄存器的值拷贝到 `r2` 寄存器，结合上一条字节码，就是设置 `r2 = 1`
-1. `LdaSmi [2]`: 把小整数（Small integer, Smi）`2` 写入 `accumulator`
-1. `Star3`: 把 `accumulator` 寄存器的值拷贝到 `r3` 寄存器，结合上一条字节码，就是设置 `r3 = 2`
-1. `CallUndefinedReceiver2 r1, r2, r3, [2]`: 根据 `r1` 调用一个函数，并传递两个参数 `r2, r3`（函数名称最后的 `2` 表示有两个参数），最后的 `[2]` 也和 FeedBackVector 有关
+2. `Star1`: 把 `accumulator` 寄存器的值拷贝到 `r1` 寄存器，结合上一条字节码，就是设置 `r1 = "add"`
+3. `LdaSmi [1]`: 把小整数（Small integer, Smi）`1` 写入 `accumulator`
+4. `Star2`: 把 `accumulator` 寄存器的值拷贝到 `r2` 寄存器，结合上一条字节码，就是设置 `r2 = 1`
+5. `LdaSmi [2]`: 把小整数（Small integer, Smi）`2` 写入 `accumulator`
+6. `Star3`: 把 `accumulator` 寄存器的值拷贝到 `r3` 寄存器，结合上一条字节码，就是设置 `r3 = 2`
+7. `CallUndefinedReceiver2 r1, r2, r3, [2]`: 根据 `r1` 调用一个函数，并传递两个参数 `r2, r3`（函数名称最后的 `2` 表示有两个参数），最后的 `[2]` 也和 FeedBackVector 有关
 
 这样就完成了函数调用。
 
@@ -198,15 +198,15 @@ Source Position Table (size = 0)
 ```
 
 1. `Ldar a1`: 把第二个参数 `a1` 也就是 `b` 写入 `accumulator` 寄存器
-1. `Add a0, [0]`: 求第一个参数 `a0` 也就是 `a` 与 `accumulator` 寄存器的和，写入到 `accumulator` 寄存器当中，结合上一条 Bytecode，就是 `accumulator = a0 + a1`；`[0]` 和 FeedBackVector 有关
-1. `Return`: 把 `accumulator` 中的值作为返回值，结束函数调用
+2. `Add a0, [0]`: 求第一个参数 `a0` 也就是 `a` 与 `accumulator` 寄存器的和，写入到 `accumulator` 寄存器当中，结合上一条 Bytecode，就是 `accumulator = a0 + a1`；`[0]` 和 FeedBackVector 有关
+3. `Return`: 把 `accumulator` 中的值作为返回值，结束函数调用
 
 简单小结一下 V8 的字节码：
 
 1. 有若干个局部的寄存器，在操作数中以 `rn` 的形式出现，`n` 是寄存器编号
-1. 有 `accumulator` 局部寄存器，作为部分字节码的隐含输入或输出（`Add`）
-1. 有若干个参数，在操作数中以 `an` 的形式出现，`n` 是参数编号
-1. 操作数还可以出现立即数参数 `[imm]`，可能是整数字面量（`LdaSmi`），可能是下标（`LdaConstant`），也可能是 FeedBackVector 的 slot
+2. 有 `accumulator` 局部寄存器，作为部分字节码的隐含输入或输出（`Add`）
+3. 有若干个参数，在操作数中以 `an` 的形式出现，`n` 是参数编号
+4. 操作数还可以出现立即数参数 `[imm]`，可能是整数字面量（`LdaSmi`），可能是下标（`LdaConstant`），也可能是 FeedBackVector 的 slot
 
 有了字节码以后，接下来观察 Ignition 具体是怎么解释执行这些字节码的。
 
@@ -215,9 +215,9 @@ Source Position Table (size = 0)
 为了实际执行这些字节码，Ignition 的做法是：
 
 1. 给每种可能的 Opcode 生成一段二进制代码，这段代码会实现这个 Opcode 的功能
-1. 在运行时维护一个 dispatch table，维护了 Opcode 到二进制代码地址的映射关系
-1. 在每段代码的结尾，找到下一个 Opcode 对应的代码的地址，然后跳转过去
-1. 调用函数时，先做一系列的准备，找到函数第一个字节码的 Opcode 对应的代码的地址，跳转过去
+2. 在运行时维护一个 dispatch table，维护了 Opcode 到二进制代码地址的映射关系
+3. 在每段代码的结尾，找到下一个 Opcode 对应的代码的地址，然后跳转过去
+4. 调用函数时，先做一系列的准备，找到函数第一个字节码的 Opcode 对应的代码的地址，跳转过去
 
 由于 Opcode 的种类是固定的，所以实际运行 V8 的时候，这些代码已经编译好了，只需要在运行时初始化对应的数据结构即可。这个代码的生成和编译过程，也不是由 C++ 编译器做的，而是有一个 `mksnapshot` 命令来完成初始化，你可以认为它把这些 Opcode 对应的汇编指令都预先生成好，运行时直接加载即可。
 
@@ -620,25 +620,25 @@ Instructions (size = 44)
 小结一下：
 
 1. Ignition 给每种可能的 Opcode 类型生成一段代码
-1. 这段代码会进行一些检查（仅 Debug 模式下），然后在汇编里实现这个字节码的功能
-1. 执行完字节码后，进入 Dispatch 逻辑，寻找下一个字节码对应的代码的地址
-1. 特别地，如果下一个字节码是 Short Star (Star0-Star15)，因为它比较简单和常见，就直接执行它，执行完再重新寻找再下一个字节码对应的代码的地址
-1. 这些 Opcode 对应的代码会在 v8 编译过程中通过 `mksnapshot` 命令一次性生成好，运行时直接复用，不用重新生成
-1. V8 的值的最低位标识了它的类型：0 表示 Smi，1 表示指针，因此在存储 Smi 的时候，寄存器里保存的是实际值的两倍，这样最低位就是 0
+2. 这段代码会进行一些检查（仅 Debug 模式下），然后在汇编里实现这个字节码的功能
+3. 执行完字节码后，进入 Dispatch 逻辑，寻找下一个字节码对应的代码的地址
+4. 特别地，如果下一个字节码是 Short Star (Star0-Star15)，因为它比较简单和常见，就直接执行它，执行完再重新寻找再下一个字节码对应的代码的地址
+5. 这些 Opcode 对应的代码会在 v8 编译过程中通过 `mksnapshot` 命令一次性生成好，运行时直接复用，不用重新生成
+6. V8 的值的最低位标识了它的类型：0 表示 Smi，1 表示指针，因此在存储 Smi 的时候，寄存器里保存的是实际值的两倍，这样最低位就是 0
 
 ## 参考
 
-- [Firing up the Ignition interpreter](https://v8.dev/blog/ignition-interpreter)
-- [How to get Node.js to trace ignition within v8? with --trace-ignition](https://stackoverflow.com/questions/73337772/how-to-get-node-js-to-trace-ignition-within-v8-with-trace-ignition)
-- [Ignition: Jump-starting an Interpreter for V8](https://dynamic-languages-symposium.org/dls-16/program/media/McIlroy_2016_IgnitionJumpStartingAnInterpreterForV8_Dls.pdf)
-- [Ignition: V8 Interpreter](https://docs.google.com/document/d/11T2CRex9hXxoJwbYqVQ32yIPMh0uouUZLdyrtmMoL44)
-- [Introduction to TurboFan](https://doar-e.github.io/blog/2019/01/28/introduction-to-turbofan/)
-- [JavaScript Bytecode – v8 Ignition Instructions](https://www.alibabacloud.com/blog/javascript-bytecode-v8-ignition-instructions_599188)
-- [Understanding V8’s Bytecode](https://medium.com/dailyjs/understanding-v8s-bytecode-317d46c94775)
-- [V8 Documentation](https://v8.dev/docs)
-- [V8 Ignition](https://v8.dev/docs/ignition)
-- [V8 TurboFan](https://v8.dev/docs/turbofan)
-- [V8 Turbolizer v13.4](https://v8.github.io/tools/v13.4/turbolizer/index.html)
-- [V8: Behind the Scenes (February Edition feat. A tale of TurboFan)](https://benediktmeurer.de/2017/03/01/v8-behind-the-scenes-february-edition)
-- [danbev/learning-v8](https://github.com/danbev/learning-v8)
-- [V8 Internals: How Small is a “Small Integer?”](https://medium.com/fhinkel/v8-internals-how-small-is-a-small-integer-e0badc18b6da)
+- [Firing up the Ignition interpreter](<https://v8.dev/blog/ignition-interpreter>)
+- [How to get Node.js to trace ignition within v8? with --trace-ignition](<https://stackoverflow.com/questions/73337772/how-to-get-node-js-to-trace-ignition-within-v8-with-trace-ignition>)
+- [Ignition: Jump-starting an Interpreter for V8](<https://dynamic-languages-symposium.org/dls-16/program/media/McIlroy_2016_IgnitionJumpStartingAnInterpreterForV8_Dls.pdf>)
+- [Ignition: V8 Interpreter](<https://docs.google.com/document/d/11T2CRex9hXxoJwbYqVQ32yIPMh0uouUZLdyrtmMoL44>)
+- [Introduction to TurboFan](<https://doar-e.github.io/blog/2019/01/28/introduction-to-turbofan/>)
+- [JavaScript Bytecode – v8 Ignition Instructions](<https://www.alibabacloud.com/blog/javascript-bytecode-v8-ignition-instructions_599188>)
+- [Understanding V8’s Bytecode](<https://medium.com/dailyjs/understanding-v8s-bytecode-317d46c94775>)
+- [V8 Documentation](<https://v8.dev/docs>)
+- [V8 Ignition](<https://v8.dev/docs/ignition>)
+- [V8 TurboFan](<https://v8.dev/docs/turbofan>)
+- [V8 Turbolizer v13.4](<https://v8.github.io/tools/v13.4/turbolizer/index.html>)
+- [V8: Behind the Scenes (February Edition feat. A tale of TurboFan)](<https://benediktmeurer.de/2017/03/01/v8-behind-the-scenes-february-edition>)
+- [danbev/learning-v8](<https://github.com/danbev/learning-v8>)
+- [V8 Internals: How Small is a “Small Integer?”](<https://medium.com/fhinkel/v8-internals-how-small-is-a-small-integer-e0badc18b6da>)

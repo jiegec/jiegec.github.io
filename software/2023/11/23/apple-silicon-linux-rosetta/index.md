@@ -2,9 +2,9 @@
 
 ## 背景
 
-最近需要跑某个 x86 only 且需要 GUI 的程序，以往都是跑在远程 Linux/Windows 机器上再远程桌面去使用。最近看到了一些比较成熟的在 macOS 上跑 Linux 虚拟机 + Rosetta 的办法（[M1 Mac で Vivado が動いた！](https://qiita.com/jin0g/items/692fde40cd895b81f39e)），因此记录下来。
+最近需要跑某个 x86 only 且需要 GUI 的程序，以往都是跑在远程 Linux/Windows 机器上再远程桌面去使用。最近看到了一些比较成熟的在 macOS 上跑 Linux 虚拟机 + Rosetta 的办法（[M1 Mac で Vivado が動いた！](<https://qiita.com/jin0g/items/692fde40cd895b81f39e>)），因此记录下来。
 
-本文参考了很多 [M1 Mac で Vivado が動いた！](https://qiita.com/jin0g/items/692fde40cd895b81f39e) 的内容。
+本文参考了很多 [M1 Mac で Vivado が動いた！](<https://qiita.com/jin0g/items/692fde40cd895b81f39e>) 的内容。
 
 ## 安装 lima 和 xquartz
 
@@ -60,7 +60,7 @@ echo $DISPLAY
 xeyes
 ```
 
-就可以在 macOS 上看到 xeyes 的输出了，它实际上是运行在 Linux 虚拟机里面，通过 ssh 转发出来。如果没有安装 xauth，会出现 X11 转发失败（见 [X11 forwarding request failed on channel 0](https://stackoverflow.com/a/42735336/2148614)）。
+就可以在 macOS 上看到 xeyes 的输出了，它实际上是运行在 Linux 虚拟机里面，通过 ssh 转发出来。如果没有安装 xauth，会出现 X11 转发失败（见 [X11 forwarding request failed on channel 0](<https://stackoverflow.com/a/42735336/2148614>)）。
 
 Rosetta 也已经注册到 binfmt 中：
 
@@ -74,7 +74,7 @@ magic 7f454c4602010100000000000000000002003e00
 mask fffffffffffefe00fffffffffffffffffeffffff
 ```
 
-因此可以直接运行 x86_64 的程序。当然了，如果 x86 的程序需要动态库，还需要它的动态库依赖。比较简单的解决办法是用 docker/podman。lima 默认安装了 containerd，可以用 nerdctl 来运行容器：
+因此可以直接运行 x86\_64 的程序。当然了，如果 x86 的程序需要动态库，还需要它的动态库依赖。比较简单的解决办法是用 docker/podman。lima 默认安装了 containerd，可以用 nerdctl 来运行容器：
 
 ```shell
 # AMD64 container

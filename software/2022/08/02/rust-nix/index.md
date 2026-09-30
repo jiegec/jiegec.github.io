@@ -22,7 +22,7 @@ Rust 项目一般是用 Cargo 管理，但是它的缺点是每个项目都要�
 cargo2nix 的 README 提到了它的卖点：
 
 - Development Shell - knowing all the dependencies means easy creation of complete shells. Run nix develop or direnv allow in this repo and see!
-- Caching - CI & CD pipelines move faster when purity guarantees allow skipping more work!
+- Caching - CI &amp; CD pipelines move faster when purity guarantees allow skipping more work!
 - Reproducibility - Pure builds. Access to all of nixpkgs for repeatable environment setup across multiple distributions and platforms
 
 ### 安装
@@ -170,7 +170,7 @@ crane 会把所有的依赖下载起来用 cargo 进行一次构建，把生成�
 
 crate2nix 在 README 中写的卖点：
 
-- Same dependency tree as cargo: It uses cargo_metadata to obtain the dependency tree from cargo. Therefore, it will use the exact same library versions as cargo and respect any locked down version in Cargo.lock.
+- Same dependency tree as cargo: It uses cargo\_metadata to obtain the dependency tree from cargo. Therefore, it will use the exact same library versions as cargo and respect any locked down version in Cargo.lock.
 - Smart caching: It uses smart crate by crate caching so that nix rebuilds exactly the crates that need to be rebuilt. Compare that to docker layers...
 - Nix ecosystem goodness: You can use all things that make the nix/NixOS ecosystem great, e.g. distributed/remote builds, build minimal docker images, deploy your binary as a service to the cloud with NixOps, ...
 - Out of the box support for libraries with non-rust dependencies: It builds on top of the buildRustCrate function from NixOS so that native dependencies of many rust libraries are already correctly fetched when needed. If your library with native dependencies is not yet supported, you can customize defaultCrateOverrides / crateOverrides, see below.
@@ -187,7 +187,7 @@ nix-env -i -f https://github.com/kolloch/crate2nix/tarball/master
 但我是用 flakes + home-manager 管理的，所以我实际的配置方法是：
 
 1. 向 flake.nix 添加 crate2nix 到 inputs，并且设置 `crate2nix.flake = false`
-1. 把 crate2nix 从 inputs 传到实际的 home manager 配置，然后在 `home.packages` 里加入 `callPackage crate2nix {}`
+2. 把 crate2nix 从 inputs 传到实际的 home manager 配置，然后在 `home.packages` 里加入 `callPackage crate2nix {}`
 
 ### 使用
 
@@ -216,7 +216,7 @@ nix build -f Cargo.nix rootCrate.build
 > error: aborting due to previous error
 ```
 
-前面的 cargo2nix 没有出现这样的问题，应该是因为 cargo2nix 帮我们引入了 Security 的依赖，见 [overrides.nix](https://github.com/cargo2nix/cargo2nix/blob/9c3b846c727300f8146f20f01c5387b398d1e0e4/overlay/overrides.nix)。
+前面的 cargo2nix 没有出现这样的问题，应该是因为 cargo2nix 帮我们引入了 Security 的依赖，见 [overrides.nix](<https://github.com/cargo2nix/cargo2nix/blob/9c3b846c727300f8146f20f01c5387b398d1e0e4/overlay/overrides.nix>)。
 
 根据 crate2nix 的文档，需要添加额外的 native 依赖：
 
@@ -257,7 +257,7 @@ webhookd 0.2.1
 
 ### 安装
 
-需要安装 [niv](https://github.com/nmattia/niv):
+需要安装 [niv](<https://github.com/nmattia/niv>):
 
 ```shell
 nix-env -iA nixpkgs.niv
@@ -311,7 +311,7 @@ README 也提到了 nocargo, cargo2nix, naersk 和 buildRustPackage 的对比。
 
 ### 使用
 
-nocargo 目前[仅支持 x86_64-linux 平台](https://github.com/oxalica/nocargo/blob/90a6d0e8dcfc2205fa69423d42bff6fd1b997121/flake.nix#L13)。
+nocargo 目前[仅支持 x86\_64-linux 平台](<https://github.com/oxalica/nocargo/blob/90a6d0e8dcfc2205fa69423d42bff6fd1b997121/flake.nix#L13>)。
 
 在一个 Cargo 项目中，运行：
 

@@ -2,9 +2,9 @@
 
 ## 背景
 
-以前买过 RTL-SDR，用 Gqrx 做过收音机，当时还给 Homebrew 尝试提交过几个 sdr 相关的 [pr](https://github.com/Homebrew/legacy-homebrew/pulls?q=is%3Apr+author%3Ajiegec+)，但是限于知识的缺乏，后来就没有再继续尝试了。
+以前买过 RTL-SDR，用 Gqrx 做过收音机，当时还给 Homebrew 尝试提交过几个 sdr 相关的 [pr](<https://github.com/Homebrew/legacy-homebrew/pulls?q=is%3Apr+author%3Ajiegec+>)，但是限于知识的缺乏，后来就没有再继续尝试了。
 
-前两天，@OceanS2000 讲了一次 [Tunight: 高级收音机使用入门](https://tuna.moe/event/2022/hacking-radio/)，又勾起了我的兴趣，所以我来尝试一下在 GNURadio Companion 中收听 FM 广播电台。
+前两天，@OceanS2000 讲了一次 [Tunight: 高级收音机使用入门](<https://tuna.moe/event/2022/hacking-radio/>)，又勾起了我的兴趣，所以我来尝试一下在 GNURadio Companion 中收听 FM 广播电台。
 
 我没有上过无线电相关课程，所以下面有一些内容可能不正确或者不准确。
 
@@ -71,7 +71,7 @@ $ SoapySDRUtil --probe
 
 ## 寻找 FM 广播
 
-接着，就可以在 GRC(GNURadio Companion) 中从 RTL-SDR 读取数据了。首先，我按照 [Guided Tutorial Hardware Considerations](https://wiki.gnuradio.org/index.php/Guided_Tutorial_Hardware_Considerations) 的方法进行分析，可以看到哪些频率上有信号：
+接着，就可以在 GRC(GNURadio Companion) 中从 RTL-SDR 读取数据了。首先，我按照 [Guided Tutorial Hardware Considerations](<https://wiki.gnuradio.org/index.php/Guided_Tutorial_Hardware_Considerations>) 的方法进行分析，可以看到哪些频率上有信号：
 
 图中的参数：
 
@@ -81,7 +81,7 @@ $ SoapySDRUtil --probe
 
 ## 收听 FM 广播
 
-找到频率以后，就可以进行 FM 解调了。我继续按照 [FM Demod](https://wiki.gnuradio.org/index.php/FM_Demod) 的方法进行搭建，由于我用的是 RTL-SDR，考虑到它支持的采样率，我选取了 2.88MHz 采样率，经过一个 1/10 的 Rational Resampler 变成 288KHz 采样率，再进行 FM 解调，最后得到 `288KHz / 6 = 48KHz` 的音频，然后保存在 WAV 文件中：
+找到频率以后，就可以进行 FM 解调了。我继续按照 [FM Demod](<https://wiki.gnuradio.org/index.php/FM_Demod>) 的方法进行搭建，由于我用的是 RTL-SDR，考虑到它支持的采样率，我选取了 2.88MHz 采样率，经过一个 1/10 的 Rational Resampler 变成 288KHz 采样率，再进行 FM 解调，最后得到 `288KHz / 6 = 48KHz` 的音频，然后保存在 WAV 文件中：
 
 图中的参数：
 

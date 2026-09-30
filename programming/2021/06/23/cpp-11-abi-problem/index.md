@@ -12,7 +12,7 @@ void foobar(std::string s) {}
 
 ## 问题
 
-经过一番研究，发现 `Ss` 在 [Itanium ABI](https://itanium-cxx-abi.github.io/cxx-abi/abi.html) 中表示的是缩写：
+经过一番研究，发现 `Ss` 在 [Itanium ABI](<https://itanium-cxx-abi.github.io/cxx-abi/abi.html>) 中表示的是缩写：
 
 ```text
 In addition, the following catalog of abbreviations of the form "Sx" are used:
@@ -31,7 +31,7 @@ In addition, the following catalog of abbreviations of the form "Sx" are used:
 
 这看起来很正常，`_Z6foobarSs` 表示的是 `foobar(std::basic_string<char, std::char_traits<char>, std::allocator<char> >)`，但是 GCC 11.1.0 编译出来的上面的代码却没有用这个符号，而是 `foobar(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >)`。差别就在于 `__cxx11` 中。
 
-经过一番搜索，找到了 GCC [关于这个问题的文档](https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html)和[网上的文章](https://developers.redhat.com/blog/2015/02/05/gcc5-and-the-c11-abi)，找到了原因：从 GCC5 开始，为了兼容 C++11 标准的改变，做了这个变动。如果要恢复原来的行为，需要添加一个定义：
+经过一番搜索，找到了 GCC [关于这个问题的文档](<https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html>)和[网上的文章](<https://developers.redhat.com/blog/2015/02/05/gcc5-and-the-c11-abi>)，找到了原因：从 GCC5 开始，为了兼容 C++11 标准的改变，做了这个变动。如果要恢复原来的行为，需要添加一个定义：
 
 ```shell
 $ g++ -D_GLIBCXX_USE_CXX11_ABI=0 -c test.cpp -o test.o && nm test.o | grep foobar

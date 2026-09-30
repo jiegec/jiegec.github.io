@@ -40,7 +40,7 @@ env:
 ```shell
 helm install --namespace drone drone drone/drone -f drone-values.yml
 # or, to upgrade
-helm upgrade --namespace drone drone drone/drone --values drone-values.yml
+helm upgrade --namespace drone drone drone/drone --values drone-values.yml 
 ```
 
 然后就可以访问上面配好的域名了。遇到了 cert manager 最近的一个 bug，来回折腾几次就好了。
@@ -95,10 +95,10 @@ steps:
 
 参考文档：
 
-[Drone provider: GitHub](https://docs.drone.io/server/provider/github/)
+[Drone provider: GitHub](<https://docs.drone.io/server/provider/github/>)
 
-[Drone helm chart](https://github.com/drone/charts/blob/master/charts/drone/docs/install.md)
+[Drone helm chart](<https://github.com/drone/charts/blob/master/charts/drone/docs/install.md>)
 
-[Drone runner kube helm chat](https://github.com/drone/charts/blob/master/charts/drone-runner-kube/docs/install.md)
+[Drone runner kube helm chat](<https://github.com/drone/charts/blob/master/charts/drone-runner-kube/docs/install.md>)
 
-[Building a CD pipeline with drone CI and kubernetes](https://www.magalix.com/blog/building-a-cd-pipeline-with-drone-ci-and-kubernetes)
+[Building a CD pipeline with drone CI and kubernetes](<https://www.magalix.com/blog/building-a-cd-pipeline-with-drone-ci-and-kubernetes>)

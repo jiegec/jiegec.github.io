@@ -12,7 +12,7 @@
 
 进了系统才能看得出区别。预装的系统是 macOS Big Sur 11.0，之后手动更新到了目前最新的 11.0.1。
 
-顺带 [@FactorialN](https://github.com/FactorialN) 同学提醒我在这里提一句：包装里有电源适配器，不太环保。
+顺带 [@FactorialN](<https://github.com/FactorialN>) 同学提醒我在这里提一句：包装里有电源适配器，不太环保。
 
 ## 体验
 
@@ -56,7 +56,7 @@ $ arch -arch x86_64 uname -m
 x86_64
 ```
 
-这样就可以了。如果开了一个 x86_64 的 shell，在 shell 里面执行的命令就都是 x86_64 架构的了。
+这样就可以了。如果开了一个 x86\_64 的 shell，在 shell 里面执行的命令就都是 x86\_64 架构的了。
 
 ### Homebrew
 

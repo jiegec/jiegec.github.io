@@ -5,7 +5,7 @@
 在编译一个程序的时候，遇到了 undefined symbol 的问题。具体情况是这样的：
 
 1. 一开始的时候，直接把所有的源代码编译成 `.o`，再一次性链接，这样不会报错
-1. 后来，把一些代码编译成静态库，即把其中一部分源代码编译成 `.o` 后，用 `ar` 合并到一个 `.a` 中，再和其余的 `.o` 链接在一起，这时候就报错了：
+2. 后来，把一些代码编译成静态库，即把其中一部分源代码编译成 `.o` 后，用 `ar` 合并到一个 `.a` 中，再和其余的 `.o` 链接在一起，这时候就报错了：
 
 ```text
 Undefined symbols for architecture arm64:
@@ -34,7 +34,7 @@ $ objdump -t /path/to/libabc.a | grep abcd
 0000000000000000         *UND* _abcd
 ```
 
-于是觉得很奇怪，就上网搜了一下，找到了一篇 [StackOverflow](https://stackoverflow.com/questions/63665653/different-behavior-between-clang-and-gcc-10-when-linking-to-static-library-conta) 讲了这个问题。解决方案很简单，就是：
+于是觉得很奇怪，就上网搜了一下，找到了一篇 [StackOverflow](<https://stackoverflow.com/questions/63665653/different-behavior-between-clang-and-gcc-10-when-linking-to-static-library-conta>) 讲了这个问题。解决方案很简单，就是：
 
 **编译的时候打开 `-fno-common` 设置**
 
@@ -44,7 +44,7 @@ $ objdump -t /path/to/libabc.a | grep abcd
 
 这时候，肯定不满足于找到一个解决方案，肯定还是会去找背后的原理。
 
-首先，搜索了一下 COMMON 是什么，找到了 [Investigating linking with COMMON symbols in ELF](https://binarydodo.wordpress.com/2016/05/09/investigating-linking-with-common-symbols-in-elf/) 这篇文章。
+首先，搜索了一下 COMMON 是什么，找到了 [Investigating linking with COMMON symbols in ELF](<https://binarydodo.wordpress.com/2016/05/09/investigating-linking-with-common-symbols-in-elf/>) 这篇文章。
 
 文章里讲了 COMMON 是做什么的：
 
@@ -56,7 +56,7 @@ $ objdump -t /path/to/libabc.a | grep abcd
 
 ## FORTRAN 里面的 COMMON
 
-用关键词很容易可以搜索到讲 [COMMON BLOCK in FORTRAN 的文章](https://www.obliquity.com/computer/fortran/common.html)，FORTRAN 里面的 COMMON 是一种通过全局存储隐式传递参数的方法。拿文章里的例子：
+用关键词很容易可以搜索到讲 [COMMON BLOCK in FORTRAN 的文章](<https://www.obliquity.com/computer/fortran/common.html>)，FORTRAN 里面的 COMMON 是一种通过全局存储隐式传递参数的方法。拿文章里的例子：
 
 ```fortran
       PROGRAM MAIN

@@ -109,16 +109,16 @@ pop:
 可以看到，它保存了一些命令，就像是在移动光标，然后输出文字：
 
 1. 向下移动 643.20 pt
-1. 向上移动 633.20 pt
-1. 向右移动 20.00 pt
-1. 设置字体为 cmr10
-1. 输出 "Hello,"
-1. 向右移动 3.33 pt
-1. 输出 "w"
-1. 向左移动 0.28 pt
-1. 输出 "orld!"
+2. 向上移动 633.20 pt
+3. 向右移动 20.00 pt
+4. 设置字体为 cmr10
+5. 输出 "Hello,"
+6. 向右移动 3.33 pt
+7. 输出 "w"
+8. 向左移动 0.28 pt
+9. 输出 "orld!"
 
-实际上，它的编码也比较简单，就是一个字节的命令加上若干字节的参数。DVI 二进制格式详细的文档可见 <https://www.mn.uio.no/ifi/tjenester/it/hjelp/latex/dvi.pdf>。
+实际上，它的编码也比较简单，就是一个字节的命令加上若干字节的参数。DVI 二进制格式详细的文档可见 [https://www.mn.uio.no/ifi/tjenester/it/hjelp/latex/dvi.pdf](<https://www.mn.uio.no/ifi/tjenester/it/hjelp/latex/dvi.pdf>)。
 
 ## 从 DVI 到 PS
 
@@ -136,10 +136,10 @@ This is dvips(k) 2020.1 Copyright 2020 Radical Eye Software (www.radicaleye.com)
 DVI 是二进制格式，而 PS 是纯文本格式，我们可以用编辑器打开，看到里面大概有几部分内容：
 
 1. 开头的元数据
-1. tex.pro 文件的内容
-1. texps.pro 文件的内容
-1. 定义 CMR10 字体
-1. 描述文档内容
+2. tex.pro 文件的内容
+3. texps.pro 文件的内容
+4. 定义 CMR10 字体
+5. 描述文档内容
 
 让我们直接来看最后一部分：
 
@@ -252,27 +252,27 @@ TeXDict begin 1 0 bop 166 83 a Fa(Hello,)28 b(w)n(orld!)1929
 后面的也都是类似的操作，让我们简单来总结一下 `TeXDict begin 1 0 bop 166 83 a Fa(Hello,)28 b(w)n(orld!)1929 5539 y(1)p eop end` 都做了什么：
 
 1. `1 0 bop`: 创建了新页面
-1. `166 83 a`: 移动坐标到 `(166, 83)`
-1. `Fa`: 设置字体
-1. `(Hello,)`: 压栈 "Hello,"
-1. `28 b`: 输出栈顶，移动坐标，对应 `dviasm` 输出中的 `right: 3.333328pt`
-1. `(w)`: 压栈 "w"
-1. `n`: 输出栈顶，移动坐标，对应 `dviasm` 输出中的 `right: -0.277786pt`
-1. `(orld!)`: 压栈 "orld!"
-1. `1929 5539 y`: 输出栈顶，移动坐标到页码的位置，对应 `dviasm` 输出中的 `down: 24pt` 和 `right: 232.377487.pt`
-1. `(1)`: 压栈 "1"
-1. `p`: 输出栈顶
-1. `eop`: 结束页面
+2. `166 83 a`: 移动坐标到 `(166, 83)`
+3. `Fa`: 设置字体
+4. `(Hello,)`: 压栈 "Hello,"
+5. `28 b`: 输出栈顶，移动坐标，对应 `dviasm` 输出中的 `right: 3.333328pt`
+6. `(w)`: 压栈 "w"
+7. `n`: 输出栈顶，移动坐标，对应 `dviasm` 输出中的 `right: -0.277786pt`
+8. `(orld!)`: 压栈 "orld!"
+9. `1929 5539 y`: 输出栈顶，移动坐标到页码的位置，对应 `dviasm` 输出中的 `down: 24pt` 和 `right: 232.377487.pt`
+10. `(1)`: 压栈 "1"
+11. `p`: 输出栈顶
+12. `eop`: 结束页面
 
 由此我们基本明白了从 DVI 到 PS 是怎么一个流程：
 
 1. 首先在 `tex.pro` 中定义了一些函数，来实现 DVI 中的命令
-1. 把 DVI 中的命令翻译成 PS 代码
-1. 把 `tex.pro`、字体等还有翻译出来的 PS 拼接起来作为最终的输出
+2. 把 DVI 中的命令翻译成 PS 代码
+3. 把 `tex.pro`、字体等还有翻译出来的 PS 拼接起来作为最终的输出
 
 这算是一种元编程，在 PS 中定义了一个 DSL，可以很方便地执行 DVI 指令。
 
-在 [这里](https://github.com/MiKTeX/miktex/blob/ab8ebca7c70fe8c9a1392dfb2393a0a7683e14cc/Programs/DviWare/dvips/source/tex.lpro) 可以看到原始的带注释的 `tex.lpro` 实现，上面涉及 `tex.pro` 的代码内容也是从这里复制来的。
+在 [这里](<https://github.com/MiKTeX/miktex/blob/ab8ebca7c70fe8c9a1392dfb2393a0a7683e14cc/Programs/DviWare/dvips/source/tex.lpro>) 可以看到原始的带注释的 `tex.lpro` 实现，上面涉及 `tex.pro` 的代码内容也是从这里复制来的。
 
 ## 从 PS 到 PDF
 
@@ -309,7 +309,7 @@ endstream
 endobj
 ```
 
-阅读 [PDF 标准](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf)，可以发现它的输出文本部分是这样的：
+阅读 [PDF 标准](<https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf>)，可以发现它的输出文本部分是这样的：
 
 ```text
 BT
@@ -324,9 +324,9 @@ ET
 其中：
 
 1. `/R7 9.96264 Tf` 设置了字体 `/R7`，大小是 `9.96264`
-1. `1 0 0 1 91.9199 710.04 Tm` 设置 Text matrix
-1. `[(H)3.21024(e)-1.66516(llo)-5.88993(,)-337.276(w)23.3747(o)-5.88993(r)-6.48419(ld)0.929988(!)]TJ` 输出一系列的 `Hello, world!`，中间的数字表示的是文字之间移动的坐标
-1. `211.56 -654.72 Td` 移动坐标到页码的位置
-1. `[(1)-5.8887]TJ` 输出页码
+2. `1 0 0 1 91.9199 710.04 Tm` 设置 Text matrix
+3. `[(H)3.21024(e)-1.66516(llo)-5.88993(,)-337.276(w)23.3747(o)-5.88993(r)-6.48419(ld)0.929988(!)]TJ` 输出一系列的 `Hello, world!`，中间的数字表示的是文字之间移动的坐标
+4. `211.56 -654.72 Td` 移动坐标到页码的位置
+5. `[(1)-5.8887]TJ` 输出页码
 
 可以看到，从 PS 到 PDF 这一步就不是简单的映射了，例如在 DVI 和 PS 中都是 `Hello,` `w` `orld!` 这样断开，而在 PDF 里面则是 `H` `e` `llo` `,` `w` `o` `r` `ld` `!`。

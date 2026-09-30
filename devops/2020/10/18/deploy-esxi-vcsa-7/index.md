@@ -2,7 +2,7 @@
 
 之前在另一篇文章里提到过 vCSA 的安装，这次又在另一台机器上重新做了一遍，特此记录一下。
 
-首先在官网上下载 [ESXi+VCSA 7.0](https://my.vmware.com/group/vmware/evalcenter?p=vsphere-eval-7) ，应该得到两个文件：
+首先在官网上下载 [ESXi+VCSA 7.0](<https://my.vmware.com/group/vmware/evalcenter?p=vsphere-eval-7>) ，应该得到两个文件：
 
 ```text
 7.9G VMware-VCSA-all-7.0.1-16860138.iso
@@ -20,9 +20,9 @@ sudo mount /dev/sr0 /mnt
 接着，复制并修改 `/mnt/vcsa-cli-installer/templates/install/embedded_vCSA_on_ESXi.json`，按照代码注释进行修改。需要注意几点：
 
 1. 密码都可以设为空，然后运行 cli 的时候输入
-1. ESXi 的密码和 vCSA 的密码是不一样的
-1. 可以把 ceip 关掉，设置 ceip_enabled: false
-1. 配的域名可以解析到正确的 IP
+2. ESXi 的密码和 vCSA 的密码是不一样的
+3. 可以把 ceip 关掉，设置 ceip\_enabled: false
+4. 配的域名可以解析到正确的 IP
 
 接着，进行安装：
 

@@ -2,7 +2,7 @@
 
 ipmitool 自带了对 iDRAC 的支持，可以通过 `ipmitool delloem` 设置 iDRAC 的管理端口。但是对 iLO 的支持并没有实现。研究了一番，找到了通过 raw command 配置 iLO 4 管理端口的方法。
 
-[这篇文章](https://computercheese.blogspot.com/2013/05/ipmi-lan-commands.html) 讲述了 `ipmitool lan` 命令实际会发送的命令：
+[这篇文章](<https://computercheese.blogspot.com/2013/05/ipmi-lan-commands.html>) 讲述了 `ipmitool lan` 命令实际会发送的命令：
 
 读取配置：
 
@@ -26,7 +26,7 @@ $ ipmitool raw 0x0c 0x02 CHANNEL KEY SET BLOCK
 $ ipmitool raw 0x0c 0x01 CHANNEL KEY DATA...
 ```
 
-知道如何读取配置后，接下来就是找到 iLO 4 配置 NIC 的地方了。一番搜索，找到了 [HPE iLO IPMI User Guide](https://support.hpe.com/hpesc/public/docDisplay?docId=c04530505&docLocale=en_US)。在第 101 页，可以找到一个用于配置 iLO NIC 选择的设置：
+知道如何读取配置后，接下来就是找到 iLO 4 配置 NIC 的地方了。一番搜索，找到了 [HPE iLO IPMI User Guide](<https://support.hpe.com/hpesc/public/docDisplay?docId=c04530505&amp;docLocale=en_US>)。在第 101 页，可以找到一个用于配置 iLO NIC 选择的设置：
 
 ```text
 Index: 224
@@ -69,4 +69,4 @@ $ ipmitool raw 0x0c 0x02 0x01 197 0x00 0x00
 
 超微的机器也有类似的办法：https://www.supermicro.org.cn/support/faqs/faq.cfm?faq=15868，可以用 `ipmiutil smcoem lanport` 命令来读取/修改。
 
-Update：我给 IPMITOOL 提交了 [PR](https://github.com/ipmitool/ipmitool/pull/278)，来简化这个过程
+Update：我给 IPMITOOL 提交了 [PR](<https://github.com/ipmitool/ipmitool/pull/278>)，来简化这个过程

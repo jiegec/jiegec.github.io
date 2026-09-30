@@ -25,7 +25,7 @@ $ kubectl proxy &
 $ kubectl -n kubernetes-dashboard describe secret (kubectl -n kubernetes-dashboard get secret | grep admin-user | awk '{print \$1}') | tail -n1 | awk '{print \$2}' | pbcopy
 ```
 
-然后在浏览器里访问 http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default 然后把剪贴板里的 token 粘贴进去即可。
+然后在浏览器里访问 http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\#/overview?namespace=default 然后把剪贴板里的 token 粘贴进去即可。
 
 默认情况下 kubernetes-dashboard 的权限比较少，可以让它获得更多权限：
 

@@ -1,6 +1,6 @@
 # CXL 学习笔记
 
-本文的内容已经整合到[知识库](/kb/hardware/pcie.html)中。
+本文的内容已经整合到[知识库](</kb/hardware/pcie.html>)中。
 
 ## 背景
 
@@ -68,7 +68,7 @@ D2H Data 的字段：
 - ChunkValid: Only in 68B Flit
 - Bogus
 - Poison: data is corrupted
-- BEP: Only in 256B Flit & PBR Flit
+- BEP: Only in 256B Flit &amp; PBR Flit
 - DPID: Only in PBR Flit
 
 D2H Request 的字段：
@@ -86,7 +86,7 @@ H2D Response 的字段：
 - Valid
 - Opcode
 - RspData
-- RSP_PRE
+- RSP\_PRE
 - CQID: Command Queue ID
 - CacheID: Only in 256B Flit
 - DPID: Only in PBR Flit
@@ -118,46 +118,46 @@ Device 收到 SnpData 后，如果发现缓存行不在缓存中（状态是 I�
 再考虑 Device 会发送的请求。首先，请求可以分为四类：
 
 1. Read：发送 D2H Request，接收 H2D Response 和 H2D Data
-1. Read0：发送 D2H Request，接收 H2D Response
-1. Write：发送 D2H Request，接收 H2D Response，发送 D2H Data，可选接收 H2D Response
-1. Read0-Write：发送 D2H Request，接收 H2D Response，发送 D2H Data
-1. RdCurr(Read)，Device 读取 Host 的缓存行，不造成任何的缓存状态的修改。Device 缓存还是处于 Invalid 状态。
-1. RdOwn(Read)，Device 读取 Host 的缓存行，可以进入 E 态或者 M 态。Host 响应 GO-Err/GO-I/GO-E/GO-M。
-1. RdShared(Read)，Device 读取 Host 的缓存行，进入 S 态。Host 响应 GO-Err/GO-I/GO-S。
-1. RdAny(Read)，Device 读取 Host 的缓存行，进入 M 态，E 态或 S 态。Host 响应 GO-Err/GO-I/GO-S/GO-E/GO-M。
-1. RdOwnNoData(Read0)，Device 不读取现在缓存行的数据，进入 E 态。一般用于整个缓存行的数据都要更新的情况，所以不需要或许当前缓存行的数据。
-1. ItoMWr(Read0-Write)，Device 写入新的完整缓存行到 Host 中，并且进入 M 态。Host 响应 GO_WritePull/GO_ERR_WritePull。
-1. WrCur(Read0-Write)，和 ItoMWr 基本一样，区别在于，如果缓存行命中了，就写入到缓存中；如果缺失了，就写入到内存中。Host 响应 GO_WritePull/GO_ERR_WritePull。
-1. CLFlush(Read0)，要求 Host Invalidate 一个缓存行。Host 响应 GO-Err/GO-I。
-1. CleanEvict(Write)，Device 要 Evict 一个 Exclusive 的缓存行。Host 响应 GO_WritePull/GO_WritePull_Drop。
-1. DirtyEvict(Write)，Device 要 Evict 一个 Modified 的缓存行。Host 响应 GO_WritePull/GO_ERR_WritePull。
-1. CleanEvictNoData(Write)，Device 要 Evict 一个 Exclusive 的缓存行，但是不传输数据，只用于更新 Snoop Filter。Host 响应 GO-I。
-1. WrInv(Write)，Write Invalidate Line，向 Host 写入 0-64 字节的数据，并且 Invalidate 缓存。Host 响应 WritePull/GO-Err/GO-I。
-1. WOWrInv(Write)，Weakly Ordered 版本的 WrInV，写入 0-63 字节的数据。Host 响应 ExtCmp/FastGO_WritePull/GO_ERR_WritePull。
-1. WOWrInvF(Write)，Weakly Ordered 版本的 WrInv，写入 64 字节的数据。Host 响应 ExtCmp/FastGO_WritePull/GO_ERR_WritePull。
-1. CacheFlushed(Read0)，告诉 Host 自己的缓存都被清空了，所有缓存行都在 I 状态。Host 响应 GO-I。
+2. Read0：发送 D2H Request，接收 H2D Response
+3. Write：发送 D2H Request，接收 H2D Response，发送 D2H Data，可选接收 H2D Response
+4. Read0-Write：发送 D2H Request，接收 H2D Response，发送 D2H Data
+5. RdCurr(Read)，Device 读取 Host 的缓存行，不造成任何的缓存状态的修改。Device 缓存还是处于 Invalid 状态。
+6. RdOwn(Read)，Device 读取 Host 的缓存行，可以进入 E 态或者 M 态。Host 响应 GO-Err/GO-I/GO-E/GO-M。
+7. RdShared(Read)，Device 读取 Host 的缓存行，进入 S 态。Host 响应 GO-Err/GO-I/GO-S。
+8. RdAny(Read)，Device 读取 Host 的缓存行，进入 M 态，E 态或 S 态。Host 响应 GO-Err/GO-I/GO-S/GO-E/GO-M。
+9. RdOwnNoData(Read0)，Device 不读取现在缓存行的数据，进入 E 态。一般用于整个缓存行的数据都要更新的情况，所以不需要或许当前缓存行的数据。
+10. ItoMWr(Read0-Write)，Device 写入新的完整缓存行到 Host 中，并且进入 M 态。Host 响应 GO\_WritePull/GO\_ERR\_WritePull。
+11. WrCur(Read0-Write)，和 ItoMWr 基本一样，区别在于，如果缓存行命中了，就写入到缓存中；如果缺失了，就写入到内存中。Host 响应 GO\_WritePull/GO\_ERR\_WritePull。
+12. CLFlush(Read0)，要求 Host Invalidate 一个缓存行。Host 响应 GO-Err/GO-I。
+13. CleanEvict(Write)，Device 要 Evict 一个 Exclusive 的缓存行。Host 响应 GO\_WritePull/GO\_WritePull\_Drop。
+14. DirtyEvict(Write)，Device 要 Evict 一个 Modified 的缓存行。Host 响应 GO\_WritePull/GO\_ERR\_WritePull。
+15. CleanEvictNoData(Write)，Device 要 Evict 一个 Exclusive 的缓存行，但是不传输数据，只用于更新 Snoop Filter。Host 响应 GO-I。
+16. WrInv(Write)，Write Invalidate Line，向 Host 写入 0-64 字节的数据，并且 Invalidate 缓存。Host 响应 WritePull/GO-Err/GO-I。
+17. WOWrInv(Write)，Weakly Ordered 版本的 WrInV，写入 0-63 字节的数据。Host 响应 ExtCmp/FastGO\_WritePull/GO\_ERR\_WritePull。
+18. WOWrInvF(Write)，Weakly Ordered 版本的 WrInv，写入 64 字节的数据。Host 响应 ExtCmp/FastGO\_WritePull/GO\_ERR\_WritePull。
+19. CacheFlushed(Read0)，告诉 Host 自己的缓存都被清空了，所有缓存行都在 I 状态。Host 响应 GO-I。
 
 #### 和其他协议的对比
 
-之前在 [TileLink 总线协议分析](https://jia.je/hardware/2022/05/09/tilelink/index.md) 分析过 TileLink 的缓存一致性实现方法，如果某一个缓存（Master A）出现了缺失，需要经过如下的过程：
+之前在 [TileLink 总线协议分析](<https://jia.je/blog/posts/hardware/tilelink/index.md>) 分析过 TileLink 的缓存一致性实现方法，如果某一个缓存（Master A）出现了缺失，需要经过如下的过程：
 
-- Master A -> Slave: Acquire
-- Slave -> Master B: Probe
-- Master B -> Slave: ProbeAck
-- Slave -> Master A: Grant
-- Master A -> Slave: GrantAck
+- Master A -\> Slave: Acquire
+- Slave -\> Master B: Probe
+- Master B -\> Slave: ProbeAck
+- Slave -\> Master A: Grant
+- Master A -\> Slave: GrantAck
 
 在 TileLink Cached 里面，所有的 Master 都是平等的。而在 CXL 中，需要维护缓存一致性的，有 CPU 内部的各个缓存之间，还有 CPU 和设备之间。而 CXL.cache 主要负责的是与设备的缓存一致性部分，维护缓存一致性的核心是在 CPU 一侧，Host 相当于 TileLink 的 Slave，Device 相当于 TileLink 的 Master A。可以说 CXL.cache 是不对称的缓存一致性协议。
 
-另一个相关的协议是 [ACE 缓存一致性协议](https://jia.je/hardware/2022/05/16/ace/index.md)，和 TileLink 类似。
+另一个相关的协议是 [ACE 缓存一致性协议](<https://jia.je/blog/posts/hardware/ace/index.md>)，和 TileLink 类似。
 
 例如 CXL 中设备读取缓存的时候，出现了缺失，那么需要经过如下的过程：
 
-- Device -> Host: RdShared/RdOwn
-- Host -> CPU Caches: Custom Snoop Messages
-- Host -> Other CXL Device: SnpData
-- Other CXL Device -> Host: RspSHitSE/RspSFwdM
-- Host -> Device: GO-S
+- Device -\> Host: RdShared/RdOwn
+- Host -\> CPU Caches: Custom Snoop Messages
+- Host -\> Other CXL Device: SnpData
+- Other CXL Device -\> Host: RspSHitSE/RspSFwdM
+- Host -\> Device: GO-S
 
 可以看到，整体的流程也是差不多的。
 
@@ -166,22 +166,22 @@ Device 收到 SnpData 后，如果发现缓存行不在缓存中（状态是 I�
 CXL.mem 用于扩展内存，根据类型的不同，它可能单独使用，也可能和 CXL.cache 配合使用。具体来说，有三种一致性模型：
 
 1. HDM-H(Host-only Coherent)：仅 Type 3 设备，也就是无 CXL.cache
-1. HDM-D(Device Coherent)：仅 Legacy Type 2 设备，也就是有 CXL.cache
-1. HDM-DB(Device Coherent using Back-Invalidation)：Type 2 或 Type 3 设备
+2. HDM-D(Device Coherent)：仅 Legacy Type 2 设备，也就是有 CXL.cache
+3. HDM-DB(Device Coherent using Back-Invalidation)：Type 2 或 Type 3 设备
 
 在 CXL.cache 中，两端是 Host 和 Device；而 CXL.mem，两端是 Master 和 Subordinate。
 
 从 Master 到 Subordinate 的消息（M2S）有三类：
 
 1. Request(Req)
-1. Request with Data(RwD)
-1. Back-Invalidation Response(BIRsp)
+2. Request with Data(RwD)
+3. Back-Invalidation Response(BIRsp)
 
 从 Subordinate 到 Master 的消息（S2M）有三类：
 
 1. Response without data(NDR, No Data Response)
-1. Response with Data(DRS, Data Response)
-1. Back-Invalidation Snoop(BiSnp)
+2. Response with Data(DRS, Data Response)
+3. Back-Invalidation Snoop(BiSnp)
 
 其中比较特别的是 Back-Invalidation，这个的目的是让 Device 可以通过 Snoop 修改 Host 中缓存了 Device 内存中的数据的缓存行。
 

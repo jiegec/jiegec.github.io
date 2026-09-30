@@ -8,9 +8,9 @@
 
 高通关于 Oryon 微架构有两个 slides，内容可以在以下的链接中看到：
 
-- [The Qualcomm Snapdragon X Architecture Deep Dive: Getting To Know Oryon and Adreno X1 - Anandtech](https://www.anandtech.com/show/21445/qualcomm-snapdragon-x-architecture-deep-dive/2)
-- [Hot Chips 2024: Qualcomm’s Oryon Core](https://hc2024.hotchips.org/assets/program/conference/day1/25_HC2024.Qualcomm.GWilliams.pdf)
-- [Hot Chips 2024: Qualcomm’s Oryon Core - Chips and Cheese](https://chipsandcheese.com/2024/08/26/hot-chips-2024-qualcomms-oryon-core/)
+- [The Qualcomm Snapdragon X Architecture Deep Dive: Getting To Know Oryon and Adreno X1 - Anandtech](<https://www.anandtech.com/show/21445/qualcomm-snapdragon-x-architecture-deep-dive/2>)
+- [Hot Chips 2024: Qualcomm’s Oryon Core](<https://hc2024.hotchips.org/assets/program/conference/day1/25_HC2024.Qualcomm.GWilliams.pdf>)
+- [Hot Chips 2024: Qualcomm’s Oryon Core - Chips and Cheese](<https://chipsandcheese.com/2024/08/26/hot-chips-2024-qualcomms-oryon-core/>)
 
 两次内容大体一致，Hot Chips 2024 的内容更加详细，但也出现了一些前后矛盾的地方。
 
@@ -18,20 +18,20 @@
 
 网上已经有较多针对 Oryon 微架构的评测和分析，建议阅读：
 
-- [高通 X Elite Oryon 微架构评测：走走停停](https://zhuanlan.zhihu.com/p/704707254)
-- [Qualcomm’s Oryon Core: A Long Time in the Making](https://chipsandcheese.com/2024/07/09/qualcomms-oryon-core-a-long-time-in-the-making/)
-- [Qualcomm’s Oryon LLVM Patches](https://chipsandcheese.com/2024/05/15/qualcomms-oryon-llvm-patches/)
-- [高通自研 PC 芯片 X Elite 实测：真能干翻苹果英特尔？](https://www.bilibili.com/video/BV1Ue41197Qb/)
-- [太贵了，它没你想的那么美好！高通骁龙 X Elite 78-100 笔记本详细评测](https://www.bilibili.com/video/BV1z1421r7dZ/)
-- [高通 X Elite 深度分析：年度最自信 CPU](https://www.bilibili.com/video/BV1jJSzYTEbr/)
-- [Snapdragon X Elite](https://www.qualcomm.com/products/mobile/snapdragon/laptops-and-tablets/snapdragon-x-elite)
-- [Qualcomm Oryon CPU](https://www.qualcomm.com/products/technology/processors/oryon)
+- [高通 X Elite Oryon 微架构评测：走走停停](<https://zhuanlan.zhihu.com/p/704707254>)
+- [Qualcomm’s Oryon Core: A Long Time in the Making](<https://chipsandcheese.com/2024/07/09/qualcomms-oryon-core-a-long-time-in-the-making/>)
+- [Qualcomm’s Oryon LLVM Patches](<https://chipsandcheese.com/2024/05/15/qualcomms-oryon-llvm-patches/>)
+- [高通自研 PC 芯片 X Elite 实测：真能干翻苹果英特尔？](<https://www.bilibili.com/video/BV1Ue41197Qb/>)
+- [太贵了，它没你想的那么美好！高通骁龙 X Elite 78-100 笔记本详细评测](<https://www.bilibili.com/video/BV1z1421r7dZ/>)
+- [高通 X Elite 深度分析：年度最自信 CPU](<https://www.bilibili.com/video/BV1jJSzYTEbr/>)
+- [Snapdragon X Elite](<https://www.qualcomm.com/products/mobile/snapdragon/laptops-and-tablets/snapdragon-x-elite>)
+- [Qualcomm Oryon CPU](<https://www.qualcomm.com/products/technology/processors/oryon>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Qualcomm Oryon 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Qualcomm Oryon 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 环境准备
 
@@ -43,7 +43,7 @@ Surface Laptop 7 预装的是 Windows on ARM，并不适合进行测试。因此
 
 官方信息：取指可以达到每周期最多 **16** 指令
 
-为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](https://zhuanlan.zhihu.com/p/720136752) 构造了测试。
+为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](<https://zhuanlan.zhihu.com/p/720136752>) 构造了测试。
 
 其原理是当 Fetch 要跨页的时候，由于两个相邻页可能映射到不同的物理地址，如果要支持单周期跨页取指，需要查询两次 ITLB，或者 ITLB 需要把相邻两个页的映射存在一起。这个场景一般比较少，处理器很少会针对这种特殊情况做优化，但也不是没有。经过测试，把循环放在两个页的边界上，发现 Oryon 微架构遇到跨页的取指时确实会拆成两个周期来进行。在此基础上，构造一个循环，循环的第一条指令放在第一个页的最后四个字节，其余指令放第二个页上，那么每次循环的取指时间，就是一个周期（读取第一个页内的指令）加上第二个页内指令需要 Fetch 的周期数，多的这一个周期就足以把 Fetch 宽度从后端限制中区分开，实验结果如下：
 
@@ -67,7 +67,7 @@ Surface Laptop 7 预装的是 Windows on ARM，并不适合进行测试。因此
 
 可以看到 256 Page 出现了明显的拐点，对应的就是 256 的 L1 ITLB 容量。注意要避免 ICache 和 BTB 的容量成为瓶颈，把 B 指令分布在不同的 Cache Line 和 BTB entry 上。
 
-如果每两个 page 放一条 B 指令，容量减小到 128 Page；进一步把 B 指令放得更加稀疏，最终在每 32 个 page 放一条 B 指令时，容量减到 8 Page，之后不再减小。说明 L1 ITLB 是 32 Set 8 Way，Index 是 PC[16:12]。这是页表大小为 4KB 的情况，64KB 没有测试，预计是类似的。
+如果每两个 page 放一条 B 指令，容量减小到 128 Page；进一步把 B 指令放得更加稀疏，最终在每 32 个 page 放一条 B 指令时，容量减到 8 Page，之后不再减小。说明 L1 ITLB 是 32 Set 8 Way，Index 是 PC\[16:12\]。这是页表大小为 4KB 的情况，64KB 没有测试，预计是类似的。
 
 ### Decode
 
@@ -99,7 +99,7 @@ Surface Laptop 7 预装的是 Windows on ARM，并不适合进行测试。因此
 
 出现新的拐点，对应的是指令 footprint 超出 L1 ICache 的情况：L1 ICache 是 192KB，按照每 8 字节一个 B 指令计算，最多可以存放 24576 条 B 指令，这个值正好处在 16384 和 32768 之间，和拐点吻合。
 
-如果进一步降低 B 指令的密度，使得它的低若干位都等于 0，最终 CPI=1 的拐点定格在 2 条分支，CPI=3/3.5 的拐点定格在 6 条分支。根据这个信息，认为 BTB 是 1024 Set 2 Way 的结构，Index 是 PC[11:2]；同时也侧面佐证了 192KB L1 ICache 是 512 Set 6 Way，Index 是 PC[14:6]。不过考虑到 Oryon 支持跨 64B 边界访存，实际的 L1 ICache 大概率是分 bank 的，这样才能在保持单读口的情况下，一个周期从连续的两个 Cache Line 中取指令。
+如果进一步降低 B 指令的密度，使得它的低若干位都等于 0，最终 CPI=1 的拐点定格在 2 条分支，CPI=3/3.5 的拐点定格在 6 条分支。根据这个信息，认为 BTB 是 1024 Set 2 Way 的结构，Index 是 PC\[11:2\]；同时也侧面佐证了 192KB L1 ICache 是 512 Set 6 Way，Index 是 PC\[14:6\]。不过考虑到 Oryon 支持跨 64B 边界访存，实际的 L1 ICache 大概率是分 bank 的，这样才能在保持单读口的情况下，一个周期从连续的两个 Cache Line 中取指令。
 
 小结：BTB 容量为 2048 项，采用 2 路组相连方式，当所有分支命中 BTB 时，可以达到 1 CPI；如果超出了 BTB 容量，但没有超出 L1 ICache 容量，可以达到 3 CPI。
 
@@ -109,12 +109,12 @@ Surface Laptop 7 预装的是 Windows on ARM，并不适合进行测试。因此
 
 ### Conditional Branch Predictor
 
-参考 [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](https://arxiv.org/abs/2411.13900) 论文的方法，可以测出 Oryon 的分支预测器采用的历史更新方式为：
+参考 [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](<https://arxiv.org/abs/2411.13900>) 论文的方法，可以测出 Oryon 的分支预测器采用的历史更新方式为：
 
 1. 使用 100 位的 Path History Register for Target(PHRT) 以及 32 位的 Path History Register for Branch(PHRB)，每次执行 taken branch 时更新
-1. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[31:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
+2. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[31:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
 
-各厂商处理器的 PHR 更新规则见 [jiegec/cpu](https://jia.je/cpu/cbp.html)。
+各厂商处理器的 PHR 更新规则见 [jiegec/cpu](<https://jia.je/cpu/cbp.html>)。
 
 ## 后端
 
@@ -187,11 +187,11 @@ NZCV 重命名则比整数寄存器少得多，只有 120+，也是考虑到 ARM
 
 用类似的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈：
 
-可以看到 224 Page 出现了明显的拐点，对应的就是 224 的 L1 DTLB 容量。从每个 page 一个指针改成每 32 page 一个指针并注意对齐尽量保证 Index 为 0，此时 L1 DTLB 容量降为 7，说明 L1 DTLB 是 7 路组相连结构，32 个 Set，Index 位是 VA[16:12]，这些页被映射到了相同的 Set 当中：
+可以看到 224 Page 出现了明显的拐点，对应的就是 224 的 L1 DTLB 容量。从每个 page 一个指针改成每 32 page 一个指针并注意对齐尽量保证 Index 为 0，此时 L1 DTLB 容量降为 7，说明 L1 DTLB 是 7 路组相连结构，32 个 Set，Index 位是 VA\[16:12\]，这些页被映射到了相同的 Set 当中：
 
 横座标为 8，也就是有 8 个页时，此时这 8 个页都映射到同一个 set 当中，有四分之一的概率会出现 L1 DTLB miss，此时 load latency 是 11 cycle，剩下四分之三的概率 L1 DTLB hit，load latency 是 3 cycle，加权平均下来得到 `11*1/4+3*3/4=5`，符合预期。这个四分之一对应了某种替换策略。从横座标为 9 开始，则所有访问都出现 L1 DTLB miss，延迟降低到 11 cycle，这代表了 L1 DTLB miss，L2 Unified TLB hit 的延迟。
 
-命中 L1 DTLB 时每条 Load 指令是 3 cycle，意味着高通实现了 3 cycle 的 pointer chasing load to use latency，这个特性在苹果，Exynos M-series 和 Intel 的 E-core 中也可以看到，针对这个优化的讨论，详见 [浅谈乱序执行 CPU（二：访存）](https://jia.je/hardware/2022/03/31/brief-into-ooo-2/index.md) 的 Load Pipeline 小节。在其他场景下，依然是 4 cycle 的 load to use latency。
+命中 L1 DTLB 时每条 Load 指令是 3 cycle，意味着高通实现了 3 cycle 的 pointer chasing load to use latency，这个特性在苹果，Exynos M-series 和 Intel 的 E-core 中也可以看到，针对这个优化的讨论，详见 [浅谈乱序执行 CPU（二：访存）](<https://jia.je/blog/posts/hardware/brief-into-ooo-2/index.md>) 的 Load Pipeline 小节。在其他场景下，依然是 4 cycle 的 load to use latency。
 
 #### Load/Store 带宽
 
@@ -207,7 +207,7 @@ NZCV 重命名则比整数寄存器少得多，只有 120+，也是考虑到 ARM
 
 不太确定的是高通官方的表述里 `Up to 4 Load-Store operations per cycle` 对于 4 Store ops per cycle 以什么方式成立，因为从 IPC 来看，只能达到 2 Store Per Cycle。
 
-一种猜想是，它每周期可以给四条 Store 指令计算地址，但只能维持每周期执行两条 Store 指令的吞吐，这样的好处是可以更快地计算出 Store 的地址。这一点，在 [Intel 关于 Skymont 的采访](https://old.chipsandcheese.com/2025/10/09/interviewing-intels-chief-architect-of-x86-cores-at-intel-tech-tour-2025/) 中也有提到：
+一种猜想是，它每周期可以给四条 Store 指令计算地址，但只能维持每周期执行两条 Store 指令的吞吐，这样的好处是可以更快地计算出 Store 的地址。这一点，在 [Intel 关于 Skymont 的采访](<https://old.chipsandcheese.com/2025/10/09/interviewing-intels-chief-architect-of-x86-cores-at-intel-tech-tour-2025/>) 中也有提到：
 
 ```text
 George Cozma: So sort of an interesting quirk that I noticed about Skymont is
@@ -242,13 +242,13 @@ store addresses so that loads don’t end up blocking.
 
 当多个 Load 访问同一个 Cache Line 时，这些 Load 可以同时进行，极限情况下用 4 条 128b Load 可以做到一个周期把整个 64B Cache Line 都读出来；Stride=128B 时，IPC 砍半，说明只有一半的 Bank 得到了利用，进一步 Stride=256B 时，IPC=1，说明只有一个 Bank 被用上。
 
-那么 L1 DCache 的组织方式应该是 4 个 Bank，Bank Index 对应 PA[7:6]，也就是连续的四个 64B Cache Line 会被映射到四个 Bank 上。当多个 Load 被映射到同一个 Bank 且访问的不是同一个 Cache Line 时，会出现性能损失。
+那么 L1 DCache 的组织方式应该是 4 个 Bank，Bank Index 对应 PA\[7:6\]，也就是连续的四个 64B Cache Line 会被映射到四个 Bank 上。当多个 Load 被映射到同一个 Bank 且访问的不是同一个 Cache Line 时，会出现性能损失。
 
 这里讨论的是缓存行级别的 Bank，实际上通常缓存行内部也会进行 Bank 划分，但主要是为了功耗，比如从一个 64B 缓存行里读取 8B 数据，不需要把整个 64B 都读出来。
 
 #### VIPT
 
-在 4KB page 的情况下，96KB 6-way 的 L1 DCache 不满足 VIPT 的 Index 全在页内偏移的条件（详见 [VIPT 与缓存大小和页表大小的关系](https://jia.je/hardware/2023/12/08/vipt-l1-cache-page-size/index.md)），此时要么改用 PIPT，要么在 VIPT 的基础上处理 alias 的问题。为了测试这一点，参考 [浅谈现代处理器实现超大 L1 Cache 的方式](https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/) 的测试方法，用 shm 构造出两个 4KB 虚拟页映射到同一个物理页的情况，然后在两个虚拟页之间 copy，发现相比在同一个虚拟页内 copy 有显著的性能下降，并且产生了大量的 L1 DCache Refill：
+在 4KB page 的情况下，96KB 6-way 的 L1 DCache 不满足 VIPT 的 Index 全在页内偏移的条件（详见 [VIPT 与缓存大小和页表大小的关系](<https://jia.je/blog/posts/hardware/vipt-l1-cache-page-size/index.md>)），此时要么改用 PIPT，要么在 VIPT 的基础上处理 alias 的问题。为了测试这一点，参考 [浅谈现代处理器实现超大 L1 Cache 的方式](<https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/>) 的测试方法，用 shm 构造出两个 4KB 虚拟页映射到同一个物理页的情况，然后在两个虚拟页之间 copy，发现相比在同一个虚拟页内 copy 有显著的性能下降，并且产生了大量的 L1 DCache Refill：
 
 ```text
 copy from aliased page = 8407465601 cycles, 321782134 refills
@@ -260,7 +260,7 @@ slowdown = 6.79x
 
 #### Memory Dependency Predictor
 
-为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
+为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
 
 - 数据依赖，地址无依赖：`str x3, [x1]` 和 `ldr x3, [x2]`
 - 地址依赖，数据无依赖：`str x2, [x1]` 和 `ldr x1, [x2]`
@@ -276,19 +276,19 @@ slowdown = 6.79x
 对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | [-1,0]   | [-3,0]   | [-7,0]   |
-| 16b Store   | [0,1]   | [-1,1]   | [-3,1]   | [-7,1]   |
-| 32b Store   | [0,3]   | [-1,3]   | [-3,3]   | [-7,3]   |
-| 64b Store   | [0,7]   | [-1,7]   | [-3,7]   | [-7,7]   |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | \[-1,0\] | \[-3,0\] | \[-7,0\] |
+| 16b Store | \[0,1\] | \[-1,1\] | \[-3,1\] | \[-7,1\] |
+| 32b Store | \[0,3\] | \[-1,3\] | \[-3,3\] | \[-7,3\] |
+| 64b Store | \[0,7\] | \[-1,7\] | \[-3,7\] | \[-7,7\] |
 
-从上表可以看到，所有 Store 和 Load Overlap 的情况，无论地址偏移，都能成功转发，不过代价是如果 Load 或 Store 跨越 64B 缓存行的边界时就会转发失败，毕竟在只有部分覆盖的情况下，剩下的部分需要从缓存中读取。[Apple Firestorm](https://jia.je/hardware/2024/12/26/apple-m1/index.md) 和 Qualcomm Oryon 比较类似，所有 Overlap 情况下都可以成功转发，但即使是跨越 64B 缓存行也可以成功转发，只需要多花费一个周期。
+从上表可以看到，所有 Store 和 Load Overlap 的情况，无论地址偏移，都能成功转发，不过代价是如果 Load 或 Store 跨越 64B 缓存行的边界时就会转发失败，毕竟在只有部分覆盖的情况下，剩下的部分需要从缓存中读取。[Apple Firestorm](<https://jia.je/blog/posts/hardware/apple-m1/index.md>) 和 Qualcomm Oryon 比较类似，所有 Overlap 情况下都可以成功转发，但即使是跨越 64B 缓存行也可以成功转发，只需要多花费一个周期。
 
 一个 Load 需要转发两个 Store 的数据的情况比较奇怪：对地址 x 的 32b Store 和对地址 x+4 的 32b Store 转发到对地址 y 的 64b Load，要求 x%4==0，不跨越 64B 缓存行，对 y-x 除了 Overlap 以外没有额外的要求。Apple Firestorm 则没有 x%4==0 这个局限性，但在跨越 64B 缓存行时也不能转发。
 
 但 64b Load 就不支持从 4 个 16b Store 转发了，8 个 8b Store 也不支持。Apple Firestorm 则都支持，相比从单个 Store 转发多 1-4 个周期。
 
-由此看出 Oryon 和 [Zen 5](https://jia.je/hardware/2024/11/11/amd-zen5/index.md) 以及 [Neoverse V2](https://jia.je/hardware/2024/11/07/arm-neoverse-v2/index.md) 在设计思路上的不同：Oryon 追求 Load 和 Store 的自由组合，允许只有一部分覆盖，也无所谓地址偏移是多少，但也牺牲了跨 64B 缓存行时的性能。此外，Oryon 针对一个 Load 转发两个 Store 的情况的支持比较特别，要求 Store 地址对齐到 4B。
+由此看出 Oryon 和 [Zen 5](<https://jia.je/blog/posts/hardware/amd-zen5/index.md>) 以及 [Neoverse V2](<https://jia.je/blog/posts/hardware/arm-neoverse-v2/index.md>) 在设计思路上的不同：Oryon 追求 Load 和 Store 的自由组合，允许只有一部分覆盖，也无所谓地址偏移是多少，但也牺牲了跨 64B 缓存行时的性能。此外，Oryon 针对一个 Load 转发两个 Store 的情况的支持比较特别，要求 Store 地址对齐到 4B。
 
 成功转发时 9 cycle，有 Overlap 但转发失败时 17-23 cycle，跨缓存行时要 40+ cycle。
 
@@ -322,26 +322,26 @@ Oryon 的 Load to use latency 针对 pointer chasing 场景做了优化，在下
 
 Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试方法，也可以在 Qualcomm Oryon 上观察到类似的现象，猜想它也用了类似的基于虚拟地址的 UTag/Way Predictor 方案，并测出来它的 UTag 也有 8 bit：
 
-- VA[14] xor VA[22] xor VA[30] xor VA[38] xor VA[46]
-- VA[15] xor VA[23] xor VA[31] xor VA[39] xor VA[47]
-- VA[16] xor VA[24] xor VA[32] xor VA[40]
-- VA[17] xor VA[25] xor VA[33] xor VA[41]
-- VA[18] xor VA[26] xor VA[34] xor VA[42]
-- VA[19] xor VA[27] xor VA[35] xor VA[43]
-- VA[20] xor VA[28] xor VA[36] xor VA[44]
-- VA[21] xor VA[29] xor VA[37] xor VA[45]
+- VA\[14\] xor VA\[22\] xor VA\[30\] xor VA\[38\] xor VA\[46\]
+- VA\[15\] xor VA\[23\] xor VA\[31\] xor VA\[39\] xor VA\[47\]
+- VA\[16\] xor VA\[24\] xor VA\[32\] xor VA\[40\]
+- VA\[17\] xor VA\[25\] xor VA\[33\] xor VA\[41\]
+- VA\[18\] xor VA\[26\] xor VA\[34\] xor VA\[42\]
+- VA\[19\] xor VA\[27\] xor VA\[35\] xor VA\[43\]
+- VA\[20\] xor VA\[28\] xor VA\[36\] xor VA\[44\]
+- VA\[21\] xor VA\[29\] xor VA\[37\] xor VA\[45\]
 
-一共有 8 bit，由 VA[47:14] 折叠而来，和 Apple M1 一样。
+一共有 8 bit，由 VA\[47:14\] 折叠而来，和 Apple M1 一样。
 
-除了 UTag 可能冲突以外，如果 VA[13:12] 出现了 VIPT 导致的 alias，也会出现性能下降。
+除了 UTag 可能冲突以外，如果 VA\[13:12\] 出现了 VIPT 导致的 alias，也会出现性能下降。
 
 ### MMU
 
 官方信息：
 
 - 4KB and 64KB translation granules
-- 1 cycle access for L1 ITLB & L1 DTLB
-- Unified L2 TLB, **8-way** >8K entry
+- 1 cycle access for L1 ITLB &amp; L1 DTLB
+- Unified L2 TLB, **8-way** \>8K entry
 
 #### L2 TLB
 
@@ -349,7 +349,7 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 
 可以看到拐点是 32768 个 Page 附近，说明 Oryon 的 L2 TLB 容量是 32768 项。我们也可以把测试范围扩大，看到完整的图像：
 
-第一个拐点是 224 * 4 KB = 896 KB，对应 L1 DTLB，此时访存延迟是 3 cycle；第二个拐点是 32768 * 4 KB = 131072 KB，对应 L2 TLB，此时访存延迟是 29.5 cycle，这个时候对 Cache 的占用是 32768 * 64 = 2 MB，已经超过了 L1 DCache 容量，所以这个延迟包括了 L1 DCache miss 的延迟，如果去掉官方宣称的 17 cycle 的 L1 DCache miss 延迟，就得到 29.5 - 17 = 12.5 cycle。
+第一个拐点是 224 \* 4 KB = 896 KB，对应 L1 DTLB，此时访存延迟是 3 cycle；第二个拐点是 32768 \* 4 KB = 131072 KB，对应 L2 TLB，此时访存延迟是 29.5 cycle，这个时候对 Cache 的占用是 32768 \* 64 = 2 MB，已经超过了 L1 DCache 容量，所以这个延迟包括了 L1 DCache miss 的延迟，如果去掉官方宣称的 17 cycle 的 L1 DCache miss 延迟，就得到 29.5 - 17 = 12.5 cycle。
 
 由于 Oryon 的 L2 TLB 很大，很容易遇到数据缓存容量的瓶颈，因此把指针的跨度调大，使得等效 L2 TLB 容量变小，但数据缓存容量不变，可以测试去掉缓存缺失延迟后的性能：
 
@@ -360,7 +360,7 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 - 如果每 8192 个页一个指针，L2 TLB 拐点依然在 8，L2 TLB 缺失时 CPI 为 59-71
 - 观察到命中 L1 DTLB 时 CPI 是 3，命中 L2 TLB 时 CPI 是 11（每 1024 个页一个指针时例外，CPI 从 11 缓慢下降到 14.5），此时 L1 数据缓存缺失率为 0，延迟都来自于 L1 DTLB miss
 
-认为 Oryon 的 L2 TLB 是 8 Way，4096 Set，那就是 32768 个 entry，Index 是 VA[23:12]。但官方声称的是 `>8K`，这个表述比较耐人寻味，可能是 8K 个 entry，每个 entry 最多记录四个页的映射关系。
+认为 Oryon 的 L2 TLB 是 8 Way，4096 Set，那就是 32768 个 entry，Index 是 VA\[23:12\]。但官方声称的是 `>8K`，这个表述比较耐人寻味，可能是 8K 个 entry，每个 entry 最多记录四个页的映射关系。
 
 命中 L2 TLB 的时间有长有短，说明它的 entry 不是等同的，随着访问范围变大，即使都命中，延迟也会上升。
 
@@ -379,12 +379,12 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 延迟超过 6MB 以后延迟快速上升，对此有两种猜测：
 
 1. L2 Cache 并非所有容量都可以在差不多的时间内访问，离核心近的更快，离核心远的较慢
-1. 为了防止某个核心对 L2 Cache 的占用太大，导致同一个 Cluster 内其他核心分不到 L2 缓存，进行 QoS，限制每个核心能够占用的 L2 Cache 容量
+2. 为了防止某个核心对 L2 Cache 的占用太大，导致同一个 Cluster 内其他核心分不到 L2 缓存，进行 QoS，限制每个核心能够占用的 L2 Cache 容量
 
-为了进一步验证以上的猜测，除了周期数以外，也测试了不同 footprint 下 L2D_CACHE_REFILL 事件的次数，发现：
+为了进一步验证以上的猜测，除了周期数以外，也测试了不同 footprint 下 L2D\_CACHE\_REFILL 事件的次数，发现：
 
-1. footprint 在 8MB 范围内时，L2D_CACHE_REFILL 约等于 0，意味着此时数据都命中了 L2 Cache，但当 footprint 达到 8MB 时，访问延迟已经增加到 45 个周期，这符合第一点猜测，即使都命中 L2 Cache，也有快慢之分
-1. footprint 达到 12 MB 时，每次访存的平均 L2D_CACHE_REFILL 约等于 0.23，假如一个核心可以用满整个 L2 Cache，此时应当没有这么高的缺失率，这符合第二点猜测
+1. footprint 在 8MB 范围内时，L2D\_CACHE\_REFILL 约等于 0，意味着此时数据都命中了 L2 Cache，但当 footprint 达到 8MB 时，访问延迟已经增加到 45 个周期，这符合第一点猜测，即使都命中 L2 Cache，也有快慢之分
+2. footprint 达到 12 MB 时，每次访存的平均 L2D\_CACHE\_REFILL 约等于 0.23，假如一个核心可以用满整个 L2 Cache，此时应当没有这么高的缺失率，这符合第二点猜测
 
 因此可能上述两个猜测都是对的，当然了，也不排除还有别的解释。
 
@@ -392,7 +392,7 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 
 为了测试预取器的行为，可以构造不同的 footprint 和不同访存模式的 pointer chasing 链，观察它的性能以及预取器介入次数的性能计数器。涉及到的访存模式如下：
 
-- 64B stride：按照固定的 stride 访存，地址模式是 0B -> 64B -> 128B -> ...
+- 64B stride：按照固定的 stride 访存，地址模式是 0B -\> 64B -\> 128B -\> ...
 - random cache line：把 64B cache line 打乱顺序，每个 cache line 轮流读取一次
 - first cache line in random page：把 4K 大小的 page 打乱顺序，每个 page 轮流读取一次，读取的是各个页内的第一个 64B cache line；只读取每个页的第一个 64B cache line 是为了达到类似 L1 DCache 的容量用满的效果
 - one random cache line in random page：把 4K 大小的 page 打乱顺序，每个 page 轮流读取一次，读取的是各个页内的随机但固定位置的一个 64B cache line

@@ -2,23 +2,25 @@
 
 ## 常用链接
 
-- [检查 CPU microcode 版本](http://blog.erben.sk/2020/02/04/how-to-check-cpu-microcode-revision-in-esxi/)：
+- [检查 CPU microcode 版本](<http://blog.erben.sk/2020/02/04/how-to-check-cpu-microcode-revision-in-esxi/>)：
 
 ```shell
 vsish -e cat /hardware/cpu/cpuList/0 | grep -i -E 'family|model|stepping|microcode|revision'
 ```
 
-- [AMD 最新 microcode 版本](https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/tree/amd-ucode/README)
-- [ESXi 从 6.7 到 6.7U1 升级时出现版本问题](https://knowledge.broadcom.com/external/article?legacyId=56145)
-- [VMware 被收购后的下载地址](https://knowledge.broadcom.com/external/article/366685/instructions-to-find-product-downloads-o.html)
-  - [ESXi 8.0 下载](https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware%20vSphere%20-%20Standard&release=8.0&os=&servicePk=202631&language=EN&groupId=204419)
+- [AMD 最新 microcode 版本](<https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/tree/amd-ucode/README>)
+- [ESXi 从 6.7 到 6.7U1 升级时出现版本问题](<https://knowledge.broadcom.com/external/article?legacyId=56145>)
+- [VMware 被收购后的下载地址](<https://knowledge.broadcom.com/external/article/366685/instructions-to-find-product-downloads-o.html>)
+
+  - [ESXi 8.0 下载](<https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware vSphere - Standard&amp;release=8.0&amp;os=&amp;servicePk=202631&amp;language=EN&amp;groupId=204419>)
 - VMware 被收购前的下载地址：
-  - [ESXi 6.7 OEM 版本下载](https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/6_7#custom_iso)
-  - [ESXi 7.0 OEM 版本下载](https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/7_0#custom_iso)
-  - [ESXi 8.0 OEM 版本下载](https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/8_0#custom_iso)
-  - [ESXi 7.0 标准版下载](https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/7_0)
-  - [ESXi 8.0 标准版下载](https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/8_0)
-- [NUC 11 ESXi 7.0 网卡支持](https://flings.vmware.com/community-networking-driver-for-esxi/comments)：
+
+  - [ESXi 6.7 OEM 版本下载](<https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/6_7#custom_iso>)
+  - [ESXi 7.0 OEM 版本下载](<https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/7_0#custom_iso>)
+  - [ESXi 8.0 OEM 版本下载](<https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/8_0#custom_iso>)
+  - [ESXi 7.0 标准版下载](<https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/7_0>)
+  - [ESXi 8.0 标准版下载](<https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/8_0>)
+- [NUC 11 ESXi 7.0 网卡支持](<https://flings.vmware.com/community-networking-driver-for-esxi/comments>)：
 
 ```shell
 $ esxcli software vib install -d $PWD/Net-Community-Driver_1.2.0.0-1vmw.700.1.0.15843807_18028830.zip
@@ -27,14 +29,14 @@ $ esxcli software vib install -d $PWD/Net-Community-Driver_1.2.0.0-1vmw.700.1.0.
 ## 离线升级方法
 
 1. 下载 Offline Bundle 文件
-1. 上传到 ESXi datastore 中
-1. 在 `/vmfs/volumes/` 里找到更新文件
-1. 查询 profile 列表 `esxcli software sources profile list -d <zip>`
-1. 更新到 profile `esxcli software profile update -p <profile> -d <zip>`
+2. 上传到 ESXi datastore 中
+3. 在 `/vmfs/volumes/` 里找到更新文件
+4. 查询 profile 列表 `esxcli software sources profile list -d <zip>`
+5. 更新到 profile `esxcli software profile update -p <profile> -d <zip>`
 
-ref: [Upgrade or Update a Host with Image Profiles](https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.esxi.upgrade.doc/GUID-E51C5DB6-F28E-42E8-ACA4-0EBDD11DF55D.html)
+ref: [Upgrade or Update a Host with Image Profiles](<https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.esxi.upgrade.doc/GUID-E51C5DB6-F28E-42E8-ACA4-0EBDD11DF55D.html>)
 
-如果 CPU 比较旧，可能会有警告：[Updated Plan for CPU Support Discontinuation In Future Major vSphere Releases](https://kb.vmware.com/s/article/82794)，按照信息添加参数忽略即可，ESXi 7.0 系列都是支持的，如果之后出了新的版本可能不支持。
+如果 CPU 比较旧，可能会有警告：[Updated Plan for CPU Support Discontinuation In Future Major vSphere Releases](<https://kb.vmware.com/s/article/82794>)，按照信息添加参数忽略即可，ESXi 7.0 系列都是支持的，如果之后出了新的版本可能不支持。
 
 ## 在线升级方法
 
@@ -46,7 +48,7 @@ $ esxcli software sources profile list -d https://hostupdate.vmware.com/software
 $ esxcli software profile update -p ESXi-7.0U3-18644231-standard -d https://hostupdate.vmware.com/software/VUM/PRODUCTION/main/vmw-depot-index.xml
 ```
 
-ref: [Update Standalone ESXi Host](https://docs.macstadium.com/docs/update-standalone-esxi-host-via-online-bundle)
+ref: [Update Standalone ESXi Host](<https://docs.macstadium.com/docs/update-standalone-esxi-host-via-online-bundle>)
 
 目前 OEM 版本还没找到在线升级方法，需要下载 zip 然后按照离线升级方法安装。
 
@@ -73,13 +75,13 @@ $ esxcli network firewall ruleset set --enabled=false --ruleset-id=sshClient
 ## NUC11i5 ESXi 7.0 安装过程
 
 1. 下载 ESXi ISO 文件，用 UNetbootin 制作安装盘
-1. 插入 U 盘，在 NUC 上安装 ESXi，在 81% 的时候卡住了，不管直接重启
-1. 用 root 无密码登录进去，然后重置网络设置
-1. 配置 usb 网卡，然后通过网页访问 ESXi，打开 SSH
-1. 下载 Fling 上面的社区网卡支持，用 esxcli 安装
-1. 重启以后，就可以看到 vmnic0 网卡了
+2. 插入 U 盘，在 NUC 上安装 ESXi，在 81% 的时候卡住了，不管直接重启
+3. 用 root 无密码登录进去，然后重置网络设置
+4. 配置 usb 网卡，然后通过网页访问 ESXi，打开 SSH
+5. 下载 Fling 上面的社区网卡支持，用 esxcli 安装
+6. 重启以后，就可以看到 vmnic0 网卡了
 
-参考：[Solution: ESXi Installation with USB NIC only fails at 81%](https://www.virten.net/2020/07/solution-esxi-installation-with-usb-nic-only-fails-at-81/)
+参考：[Solution: ESXi Installation with USB NIC only fails at 81%](<https://www.virten.net/2020/07/solution-esxi-installation-with-usb-nic-only-fails-at-81/>)
 
 ## 推荐博客
 
@@ -130,21 +132,21 @@ vmkfstool -i "old.vmdk" -d thin "new.vmdk"
 有时候在 ESXi Web UI 上会发现创建 Datastore 的按钮是灰的（比如有虚拟机通过 Raw Disk Mapping 映射了这个盘），但是又想创建 datastore，可以通过 SSH 进去手动分区并创建 datastore：
 
 1. 重新创建 GPT 分区表：`partedUtil mklabel /dev/disks/<DISK> gpt`
-1. 创建 VMFS 分区表：`partedUtil add /dev/disks/<DISK> gpt "<PARTITION NUMBER> <START SECTOR> <END SECTOR> AA31E02A400F11DB9590000C2911D1B8 0"`
-1. 创建 datastore：`vmkfstools -C vmfs6 -S <NAME> /dev/disks/<DISK>:<PARTITION NUMBER>`
+2. 创建 VMFS 分区表：`partedUtil add /dev/disks/<DISK> gpt "<PARTITION NUMBER> <START SECTOR> <END SECTOR> AA31E02A400F11DB9590000C2911D1B8 0"`
+3. 创建 datastore：`vmkfstools -C vmfs6 -S <NAME> /dev/disks/<DISK>:<PARTITION NUMBER>`
 
 获取分区表：`partedUtil getptbl /dev/disks/<DISK>`
 
-参考：[Using partedUtil command line disk partitioning utility on ESXi](https://knowledge.broadcom.com/external/article/323144/using-partedutil-command-line-disk-parti.html) [New datastore Greyed out](https://community.broadcom.com/vmware-cloud-foundation/discussion/new-datastore-greyed-out)
+参考：[Using partedUtil command line disk partitioning utility on ESXi](<https://knowledge.broadcom.com/external/article/323144/using-partedutil-command-line-disk-parti.html>) [New datastore Greyed out](<https://community.broadcom.com/vmware-cloud-foundation/discussion/new-datastore-greyed-out>)
 
 ## vCSA 网络配置
 
 如果想要修改网络配置，但是又连不上 5480 管理网页，可以进 console 登录并拿到 shell 后直接进行管理：
 
 1. 运行 `/opt/vmware/share/vami/vami_config_net` 以修改网络配置
-1. 修改 `/etc/vmware/appliance/firewall.conf` 后运行 `/usr/lib/applmgmt/networking/bin/firewall-reload` 以修改防火墙配置
+2. 修改 `/etc/vmware/appliance/firewall.conf` 后运行 `/usr/lib/applmgmt/networking/bin/firewall-reload` 以修改防火墙配置
 
-参考：[How to change/update DNS Server IP address for vCenter Server](https://knowledge.broadcom.com/external/article/375247/how-to-changeupdate-dns-server-ip-addres.html) [Adding firewall rules to VCSA without web client? (self.vmware)](https://www.reddit.com/r/vmware/comments/9fjclx/adding_firewall_rules_to_vcsa_without_web_client/)
+参考：[How to change/update DNS Server IP address for vCenter Server](<https://knowledge.broadcom.com/external/article/375247/how-to-changeupdate-dns-server-ip-addres.html>) [Adding firewall rules to VCSA without web client? (self.vmware)](<https://www.reddit.com/r/vmware/comments/9fjclx/adding_firewall_rules_to_vcsa_without_web_client/>)
 
 ## 导出 ESXi 虚拟机到 OVF
 

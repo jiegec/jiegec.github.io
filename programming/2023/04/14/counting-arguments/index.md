@@ -7,18 +7,18 @@
 实现一个你自己的 `printf(int, ...)` 函数，该函数包含可变参数。为简便期间，假设所有参数均为 int 类型。
 
 1. 第一个参数是一个普通参数，不表示后续可变参数的数目
-1. 在 printf 中逐个输出所有传入的整数值（可使用系统自带的 kprintf 实现输出）
-1. 思考如何判定参数结束，是否有副作用
+2. 在 printf 中逐个输出所有传入的整数值（可使用系统自带的 kprintf 实现输出）
+3. 思考如何判定参数结束，是否有副作用
 
-## va_args
+## va\_args
 
-我们知道，传统的处理可变参数的方法是 va_args，但是它无法知道传入了多少参数，而要像 POSIX printf 那样，解析 format 参数，然后一个一个去取。
+我们知道，传统的处理可变参数的方法是 va\_args，但是它无法知道传入了多少参数，而要像 POSIX printf 那样，解析 format 参数，然后一个一个去取。
 
 所以问题的关键是，如何获取参数的个数？一个思路是宏，尝试用宏的魔法来计算出参数个数，这个方法可能是可以的，但是没有深究。另一个思路是利用 ABI 的特点，例如 i386 上参数是通过栈传递的，那或许可以在栈上找到所有的 int，但是问题是无法确认参数在哪里结束。
 
-## \_\_builtin_va_arg_pack_len
+## \_\_builtin\_va\_arg\_pack\_len
 
-今天，另一位群友发了一个链接：<https://gcc.gnu.org/onlinedocs/gcc/Constructing-Calls.html#Constructing-Calls>，讲述了 GCC 中一些特别的 builtin 函数，用于函数调用相关的魔法，其中一段描述吸引了我的眼球：
+今天，另一位群友发了一个链接：[https://gcc.gnu.org/onlinedocs/gcc/Constructing-Calls.html\#Constructing-Calls](<https://gcc.gnu.org/onlinedocs/gcc/Constructing-Calls.html#Constructing-Calls>)，讲述了 GCC 中一些特别的 builtin 函数，用于函数调用相关的魔法，其中一段描述吸引了我的眼球：
 
 ```text
 Built-in Function: int __builtin_va_arg_pack_len ()
@@ -98,9 +98,9 @@ main:
 
 可以看到，它 inline 了 `my_printf` 的实现，先调用了第一个 `printf`，然后把剩下的参数个数 `9` 赋值给了 `edi`，剩下就是正常的传参了。
 
-以上实验都在 Godbolt Compiler Explorer 中进行：<https://godbolt.org/z/KjYzETn5Y>。
+以上实验都在 Godbolt Compiler Explorer 中进行：[https://godbolt.org/z/KjYzETn5Y](<https://godbolt.org/z/KjYzETn5Y>)。
 
-继续挖掘，会发现在 libc 中出现了 \_\_builtin_va_arg_pack_len 的身影，在 fcntl2.h 中：
+继续挖掘，会发现在 libc 中出现了 \_\_builtin\_va\_arg\_pack\_len 的身影，在 fcntl2.h 中：
 
 ```c
 __errordecl (__open_too_many_args,
@@ -163,7 +163,7 @@ In function 'open',
 Execution build compiler returned: 1
 ```
 
-Compiler Explorer:<https://godbolt.org/z/hebshz3P5>.
+Compiler Explorer:[https://godbolt.org/z/hebshz3P5](<https://godbolt.org/z/hebshz3P5>).
 
 ## 使用 C 宏
 
@@ -212,8 +212,8 @@ int main() {
 }
 ```
 
-也是可以工作的。Compiler Explorer 链接：<https://godbolt.org/z/TxKb3YEcf>。
+也是可以工作的。Compiler Explorer 链接：[https://godbolt.org/z/TxKb3YEcf](<https://godbolt.org/z/TxKb3YEcf>)。
 
 ## ChatGPT
 
-尝试询问了一下 ChatGPT：<https://shareg.pt/IXUKjYK>，它可以写出额外传入 int 个数的版本，可以写出哨兵（传入 `-1` 表示结束）的版本，提示了 builtin 以后，再提示 inline 和 always_inline，最后让它拆分成两个函数，得到的代码距离正确结果已经比较接近，但还是有一些问题。
+尝试询问了一下 ChatGPT：[https://shareg.pt/IXUKjYK](<https://shareg.pt/IXUKjYK>)，它可以写出额外传入 int 个数的版本，可以写出哨兵（传入 `-1` 表示结束）的版本，提示了 builtin 以后，再提示 inline 和 always\_inline，最后让它拆分成两个函数，得到的代码距离正确结果已经比较接近，但还是有一些问题。

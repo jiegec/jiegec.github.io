@@ -10,7 +10,7 @@ int fd = t_open("/dev/udp", O_RDWR, NULL);
 
 比如 TCP 就是 `/dev/tcp`，UDP 就是 `/dev/udp`，同理还有 `/dev/icmp` 等等。这颇有 Unix 的哲学：everything is a file。而 BSD Sockets API 则是有对应的系统调用，libc 基本不需要做什么事情。
 
-沿着这个思路，既然 TLI 第一步是打开一个文件，难道后面的一系列的 bind、connect、send、recv 等操作也是对文件读写吗？是的！如果我们查看 illumos 的[源码](https://github.com/illumos/illumos-gate/blob/46f52c84cb830d1636c093bd5c2d83074aeaf21c/usr/src/lib/libnsl/nsl/_conn_util.c#L76-L82)，会发现 `t_connect` 函数的核心实现是：
+沿着这个思路，既然 TLI 第一步是打开一个文件，难道后面的一系列的 bind、connect、send、recv 等操作也是对文件读写吗？是的！如果我们查看 illumos 的[源码](<https://github.com/illumos/illumos-gate/blob/46f52c84cb830d1636c093bd5c2d83074aeaf21c/usr/src/lib/libnsl/nsl/_conn_util.c#L76-L82>)，会发现 `t_connect` 函数的核心实现是：
 
 ```c
     creq = (struct T_conn_req *)ctlbufp->buf;
@@ -37,14 +37,14 @@ TPI(Transport Provider Interface) 约定了内核和 libnsl 之间的接口。�
 
 ## 参考资料
 
-- [Networking Services (XNS)](https://pubs.opengroup.org/onlinepubs/9647699/toc.pdf)
-- [Transport Provider Interface](http://www.openss7.org/docs/tpi.pdf)
+- [Networking Services (XNS)](<https://pubs.opengroup.org/onlinepubs/9647699/toc.pdf>)
+- [Transport Provider Interface](<http://www.openss7.org/docs/tpi.pdf>)
 
 ## ChatGPT
 
 问：What is Transport Layer Interface?
 
-答：The Transport Layer Interface (TLI) is an application programming interface (API) that provides a standard interface for communication between an application program and the transport layer protocols of a network. It was originally developed by AT&T for the Unix operating system and is now used in many other operating systems.
+答：The Transport Layer Interface (TLI) is an application programming interface (API) that provides a standard interface for communication between an application program and the transport layer protocols of a network. It was originally developed by AT&amp;T for the Unix operating system and is now used in many other operating systems.
 
 The TLI provides a set of functions that allow applications to communicate with the transport layer protocols, such as TCP and UDP, in a network-independent manner. Applications can use TLI to establish connections, send and receive data, and manage network resources.
 
@@ -56,7 +56,7 @@ However, TLI is an older interface and has largely been replaced by newer interf
 
 答：The Transport Layer Interface (TLI) and Transport Provider Interface (TPI) are both application programming interfaces (APIs) that provide a standard way for applications to communicate with the transport layer protocols of a network. However, they are different interfaces that serve different purposes.
 
-TLI is an API that was developed by AT&T for the Unix operating system to provide a network-independent interface for applications to communicate with transport layer protocols such as TCP and UDP. It provides a set of functions that allow applications to establish connections, send and receive data, and manage network resources.
+TLI is an API that was developed by AT&amp;T for the Unix operating system to provide a network-independent interface for applications to communicate with transport layer protocols such as TCP and UDP. It provides a set of functions that allow applications to establish connections, send and receive data, and manage network resources.
 
 On the other hand, TPI is an API that was developed by the X/Open consortium to provide a standard interface for communication between the transport layer protocols and network drivers or hardware. It provides a set of functions that allow transport providers to interact with network drivers or hardware and handle network-specific issues such as congestion control, flow control, and error handling.
 

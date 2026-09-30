@@ -11,4 +11,4 @@ $ sudo ipconfig set [tap_if] dhcp
 
 UPDATE:
 
-可以把 TAP Interface 加到系统的设置中去。方法参考[Virtual network interface in Mac OS X](https://stackoverflow.com/a/6375307)。完成以后可以直接通过系统设置界面进行配置。
+可以把 TAP Interface 加到系统的设置中去。方法参考[Virtual network interface in Mac OS X](<https://stackoverflow.com/a/6375307>)。完成以后可以直接通过系统设置界面进行配置。

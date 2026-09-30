@@ -29,7 +29,7 @@ $ sed -i '/\$$fatal/d' merge.v
 $ yosys -p 'read_verilog -defer merge.v' -p 'hierarchy -p fpnew_top' -p 'proc' -p 'opt' -p 'write_verilog -noattr output.v'
 ```
 
-注意这里要用 `read_verilog -defer`，否则 yosys 会遇到 TAG_WIDTH=0 默认参数就直接例化，然后就出现 `[0:-1]` 这样的下标。`read_verilog` 的文档告诉了我们可以分两步做：
+注意这里要用 `read_verilog -defer`，否则 yosys 会遇到 TAG\_WIDTH=0 默认参数就直接例化，然后就出现 `[0:-1]` 这样的下标。`read_verilog` 的文档告诉了我们可以分两步做：
 
 ```text
 -defer

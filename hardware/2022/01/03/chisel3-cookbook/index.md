@@ -6,7 +6,7 @@
 
 ## 去掉输出 Verilog 文件中的寄存器随机初始化
 
-版本：FIRRTL >= 1.5.0-RC2
+版本：FIRRTL \>= 1.5.0-RC2
 
 代码：
 
@@ -159,7 +159,7 @@ MEM <> target.mem_axi4.head.viewAs[StandardAXI4BundleBundle]
 
 有些时候，我们希望给所有模块添加一个名称前缀，防止可能出现的冲突。
 
-在 Chisel 3 中，可以使用自定义 FIRRTL Transform 来实现这个功能。这一部分的实现参考了 [chisel issue #1059](https://github.com/chipsalliance/chisel3/issues/1059#issuecomment-814353578)：
+在 Chisel 3 中，可以使用自定义 FIRRTL Transform 来实现这个功能。这一部分的实现参考了 [chisel issue \#1059](<https://github.com/chipsalliance/chisel3/issues/1059#issuecomment-814353578>)：
 
 ```scala
 import firrtl._
@@ -229,7 +229,7 @@ new ChiselStage().execute(
   )
 ```
 
-如果使用新的 MLIR FIRRTL Compiler，则可以利用 `sifive.enterprise.firrtl.NestedPrefixModulesAnnotation` annotation，让 firtool 来进行 [prefix 操作](https://github.com/llvm/circt/blob/fc6b00fd20d8a50f17a908cc681c8cf3a4d1c000/lib/Dialect/FIRRTL/Transforms/PrefixModules.cpp)：
+如果使用新的 MLIR FIRRTL Compiler，则可以利用 `sifive.enterprise.firrtl.NestedPrefixModulesAnnotation` annotation，让 firtool 来进行 [prefix 操作](<https://github.com/llvm/circt/blob/fc6b00fd20d8a50f17a908cc681c8cf3a4d1c000/lib/Dialect/FIRRTL/Transforms/PrefixModules.cpp>)：
 
 ```scala
 package sifive {
@@ -262,11 +262,11 @@ object AddPrefix {
 
 这个方法的灵感来自 @sequencer。唯一的缺点就是比较 Hack，建议 SiFive 把相关的类也开源出来用。
 
-到了 Chisel 7.0，模块名称前缀的功能已经内置：[Module Prefixing](https://www.chisel-lang.org/docs/explanations/moduleprefix)。
+到了 Chisel 7.0，模块名称前缀的功能已经内置：[Module Prefixing](<https://www.chisel-lang.org/docs/explanations/moduleprefix>)。
 
 ## 关闭 RTL 级别的优化
 
 Chisel3 生成 Verilog/System Verilog 的时候会进行一些优化。如果想要关闭这些优化，可以使用：
 
-1. [dontTouch annotation](https://www.chisel-lang.org/docs/cookbooks/naming)
-1. 添加命令行参数：`--preserve-values=[none/named/all]`，见 [FIRRTL Dialect Rationale](https://circt.llvm.org/docs/Dialects/FIRRTL/RationaleFIRRTL/)
+1. [dontTouch annotation](<https://www.chisel-lang.org/docs/cookbooks/naming>)
+2. 添加命令行参数：`--preserve-values=[none/named/all]`，见 [FIRRTL Dialect Rationale](<https://circt.llvm.org/docs/Dialects/FIRRTL/RationaleFIRRTL/>)

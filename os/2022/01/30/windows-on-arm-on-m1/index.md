@@ -1,6 +1,6 @@
 # 在 M1 上运行 Windows ARM 虚拟机
 
-目前 Windows ARM 出了预览版，可以从 [Windows Insider Preview Downloads](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewARM64) 下载，得到一个 9.5GB 的 vhdx 文件。
+目前 Windows ARM 出了预览版，可以从 [Windows Insider Preview Downloads](<https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewARM64>) 下载，得到一个 9.5GB 的 vhdx 文件。
 
 接着，用 qemu-img 转换为 vmdk 格式：
 
@@ -18,7 +18,7 @@ https://www.gerjon.com/vmware/vmware-fusion-on-apple-silicion-m1/
 
 然后就可以正常工作了！
 
-在 [VMWare 论坛里](https://communities.vmware.com/t5/Fusion-for-Apple-Silicon-Tech/Vmware-Fusion-Apple-Silicon-Support-Windows/m-p/2868331)，还谈到了下面几个问题的解决方法：
+在 [VMWare 论坛里](<https://communities.vmware.com/t5/Fusion-for-Apple-Silicon-Tech/Vmware-Fusion-Apple-Silicon-Support-Windows/m-p/2868331>)，还谈到了下面几个问题的解决方法：
 
 为了让声音工作，可以修改 vmx 文件，设置 guestOS：
 
@@ -36,16 +36,16 @@ guestOS = "arm-windows11-64"
 wsreset.exe -i
 ```
 
-这个方法见 [Parallels Desktop KB128520](https://kb.parallels.com/128520)。
+这个方法见 [Parallels Desktop KB128520](<https://kb.parallels.com/128520>)。
 
 UPDATE:
 
-VMware Fusion 发布了新版本 [22H2](https://blogs.vmware.com/teamfusion/2022/07/just-released-vmware-fusion-22h2-tech-preview.html)，有官方的 Windows 11 on ARM 支持了：
+VMware Fusion 发布了新版本 [22H2](<https://blogs.vmware.com/teamfusion/2022/07/just-released-vmware-fusion-22h2-tech-preview.html>)，有官方的 Windows 11 on ARM 支持了：
 
 - Windows 11 on Intel and Apple Silicon with 2D GFX and Networking
 - VMtools installation for Windows 11 GOS on M1
 - Improved Linux support on M1
-- 3D Graphics HW Acceleration and OpenGL 4.3 in Linux VMs\* (Requires Linux 5.19+ & Mesa 22.1.3+)
+- 3D Graphics HW Acceleration and OpenGL 4.3 in Linux VMs\* (Requires Linux 5.19+ &amp; Mesa 22.1.3+)
 - Virtual TPM Device
 - Fast Encryption
 - Universal Binary
@@ -117,4 +117,4 @@ sudo vmware-toolbox-cmd disk shrink /
 
 ## UTM
 
-如果不想折腾，可以用 [UTM](https://docs.getutm.app/guides/windows/) 来安装 Windows 虚拟机。
+如果不想折腾，可以用 [UTM](<https://docs.getutm.app/guides/windows/>) 来安装 Windows 虚拟机。

@@ -14,7 +14,7 @@ $ # enable wpad on devices
 
 参考文档：
 
-1. [Web Proxy Auto-Discovery Protocol](https://en.wikipedia.org/wiki/Web_Proxy_Auto-Discovery_Protocol)
-1. [Automatic Proxy Configuration with WPAD](https://www.davidpashley.com/articles/automatic-proxy-configuration-with-wpad/)
-1. [Deployment Options](https://findproxyforurl.com/deployment-options/)
-1. [Example PAC File](http://findproxyforurl.com/example-pac-file/)
+1. [Web Proxy Auto-Discovery Protocol](<https://en.wikipedia.org/wiki/Web_Proxy_Auto-Discovery_Protocol>)
+2. [Automatic Proxy Configuration with WPAD](<https://www.davidpashley.com/articles/automatic-proxy-configuration-with-wpad/>)
+3. [Deployment Options](<https://findproxyforurl.com/deployment-options/>)
+4. [Example PAC File](<http://findproxyforurl.com/example-pac-file/>)

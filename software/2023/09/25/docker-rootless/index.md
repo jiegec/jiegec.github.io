@@ -4,10 +4,10 @@
 
 ## Docker Rootless
 
-首先是 Docker，官方已经支持 Rootless 部署，文档在 <https://docs.docker.com/engine/security/rootless/>，使用上分为两步：
+首先是 Docker，官方已经支持 Rootless 部署，文档在 [https://docs.docker.com/engine/security/rootless/](<https://docs.docker.com/engine/security/rootless/>)，使用上分为两步：
 
 1. 管理员用 root 权限配置好各项依赖
-1. 每个用户跑一次 setup 脚本，然后正常用 docker
+2. 每个用户跑一次 setup 脚本，然后正常用 docker
 
 第一步安装 docker 不必赘述，为了 docker rootless，还需要安装额外的包：
 
@@ -33,7 +33,7 @@ docker info | grep Context
 
 ### GPU
 
-如果想要在 Docker Rootless 中使用 NVIDIA GPU，默认情况下是会报错的，可以参考 [GPU with rootless Docker](https://stackoverflow.com/a/61489688/2148614) 文档解决。修改文件后，就会发现可以在容器里使用 `nvidia-smi` 了：
+如果想要在 Docker Rootless 中使用 NVIDIA GPU，默认情况下是会报错的，可以参考 [GPU with rootless Docker](<https://stackoverflow.com/a/61489688/2148614>) 文档解决。修改文件后，就会发现可以在容器里使用 `nvidia-smi` 了：
 
 ```shell
 docker run -it --rm --gpus all debian nvidia-smi
@@ -41,13 +41,13 @@ docker run -it --rm --gpus all debian nvidia-smi
 
 ## Podman Rootless
 
-Podman Rootless 的官方文档在 <https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md>，相比 Docker，Podman Rootless 配置更加简单，不需要用户运行 install 脚本，和前文一样配置好依赖以后，直接运行 podman 即可。
+Podman Rootless 的官方文档在 [https://github.com/containers/podman/blob/main/docs/tutorials/rootless\_tutorial.md](<https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md>)，相比 Docker，Podman Rootless 配置更加简单，不需要用户运行 install 脚本，和前文一样配置好依赖以后，直接运行 podman 即可。
 
-UPDATE: @Harry-Chen 建议：如果要解决 podman rootless 会保存很多份镜像在各个用户的 home 目录下的问题，可以设置全局的镜像路径，见 [Exploring additional image stores in Podman](https://www.redhat.com/sysadmin/image-stores-podman)，或者使用 FS（如 ZFS）的 Dedup 功能。
+UPDATE: @Harry-Chen 建议：如果要解决 podman rootless 会保存很多份镜像在各个用户的 home 目录下的问题，可以设置全局的镜像路径，见 [Exploring additional image stores in Podman](<https://www.redhat.com/sysadmin/image-stores-podman>)，或者使用 FS（如 ZFS）的 Dedup 功能。
 
 ### GPU
 
-要在 Podman Rootless 中使用 NVIDIA GPU，也需要像上面 Docker 那样，修改配置 `no-cgroups=true`，然后按照 [Support for Container Device Interface](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/cdi-support.html) 配置 [Container Device Interface](https://github.com/cncf-tags/container-device-interface)：
+要在 Podman Rootless 中使用 NVIDIA GPU，也需要像上面 Docker 那样，修改配置 `no-cgroups=true`，然后按照 [Support for Container Device Interface](<https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/cdi-support.html>) 配置 [Container Device Interface](<https://github.com/cncf-tags/container-device-interface>)：
 
 ```shell
 sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
@@ -60,7 +60,7 @@ nvidia-ctk cdi list
 podman run --device nvidia.com/gpu=all -it --rm debian nvidia-smi
 ```
 
-如果 Podman 版本不够新，可能会遇到 `nvidia-smi not found` 的问题。这是因为，虽然 Podman 从 [3.2.0](https://github.com/containers/podman/blob/main/RELEASE_NOTES.md#320) 版本开始支持 Container Device Interface。但是如果 nvidia container 版本比较新，生成了 0.5.0 版本的 CDI Spec，就需要比较新的 Podman 版本（大概 4.1.0 以后）。实际测试了一下，Ubuntu 22.04 打包的 Podman 3.4.4 版本不够新，可以按照 [Podman Installation Instrucions](https://podman.io/docs/installation#ubuntu) 文档安装最新的 Podman 4.6.2：
+如果 Podman 版本不够新，可能会遇到 `nvidia-smi not found` 的问题。这是因为，虽然 Podman 从 [3.2.0](<https://github.com/containers/podman/blob/main/RELEASE_NOTES.md#320>) 版本开始支持 Container Device Interface。但是如果 nvidia container 版本比较新，生成了 0.5.0 版本的 CDI Spec，就需要比较新的 Podman 版本（大概 4.1.0 以后）。实际测试了一下，Ubuntu 22.04 打包的 Podman 3.4.4 版本不够新，可以按照 [Podman Installation Instrucions](<https://podman.io/docs/installation#ubuntu>) 文档安装最新的 Podman 4.6.2：
 
 ```shell
 sudo mkdir -p /etc/apt/keyrings
@@ -89,7 +89,7 @@ podman run --device nvidia.com/gpu=all -it --rm debian nvidia-smi
 
 测试环境：
 
-- Ubuntu 22.04 + [Kubic repo](https://build.opensuse.org/package/show/devel:kubic:libcontainers:unstable/podman)
+- Ubuntu 22.04 + [Kubic repo](<https://build.opensuse.org/package/show/devel:kubic:libcontainers:unstable/podman>)
 - docker 23.0.4
 - containerd 1.6.16
 - runc 1.1.4

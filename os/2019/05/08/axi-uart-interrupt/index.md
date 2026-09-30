@@ -75,8 +75,8 @@ assert(dev != MAP_FAILED);
 首先谈谈 AXI 总线上地址是怎么计算的。AXI 总线是一个星形结构，一个 Master 多个 Slave，在这里出现的例子是：
 
 1. PS 是 Master，Rocket Chip 是 Slave — 刚才谈到过的那片 register space
-1. Rocket Chip 是 Master，PS 是 Slave — 让 Rocket Chip 访问 DDR 控制器
-1. Rocket Chip 是 Master，外设 是 Slave — 这就是现在要做的事情
+2. Rocket Chip 是 Master，PS 是 Slave — 让 Rocket Chip 访问 DDR 控制器
+3. Rocket Chip 是 Master，外设 是 Slave — 这就是现在要做的事情
 
 之前省略没说的是上面的第二点，就是让 Rocket Chip 也可以拿到内存用。那问题来了，怎么让 Rocket Chip 和 ARM 上的 Linux 不要打架？把地址空间分成两块就好了：
 
@@ -95,7 +95,7 @@ assign S_AXI_awaddr = {4'd1, mem_awaddr[27:0]};
 
 我在前面也提到，在 PS 上访问 0x43C00000 就是对应了 Zynq Adapter 的 0x0 地址。这里也是，在 Rocket Chip 上访问 0x0 的地址，我强行改成了 0x10000000，然后 Offset 是 0，所以最后到内存就是 0x10000000 的地址了。
 
-所以 AXI 总线上 Slave Register 的地址 = Master 地址 - 匹配到的 Slave 的 Offset 地址。但是，\*\*如果只有单个 Slave 的时候，AXI Interconnect 可能不检查地址范围，而是直接截断，但在有多个 Slave 的时候，会先检查地址范围，如果找不到就返回错误。\*\*这个问题让我困惑了许久，直到我挂上了 `System ILA` 看。。
+所以 AXI 总线上 Slave Register 的地址 = Master 地址 - 匹配到的 Slave 的 Offset 地址。但是，**如果只有单个 Slave 的时候，AXI Interconnect 可能不检查地址范围，而是直接截断，但在有多个 Slave 的时候，会先检查地址范围，如果找不到就返回错误。**这个问题让我困惑了许久，直到我挂上了 `System ILA` 看。。
 
 #### AXI Uartlite
 
@@ -144,11 +144,11 @@ Uartlite 是正边沿触发的中断，但是 Rocket Chip 期望的是高电平�
 
 ## 总结和致谢
 
-这么一番搞下来，对 Vivado 和 AXI 的相关知识都比较熟悉了吧，也踩了很多的坑。需要特别感谢 @cq_z4yx 提供的技术支持。
+这么一番搞下来，对 Vivado 和 AXI 的相关知识都比较熟悉了吧，也踩了很多的坑。需要特别感谢 @cq\_z4yx 提供的技术支持。
 
 相关文档和链接：
 
 1. PG099 AXI Interrupt Controller
-1. PG142 AXI Uartlite
-1. [OpenSBI 适配](https://github.com/rcore-os/opensbi/compare/c1d01b0c2efea86348235a1c7f83382e53f87e0e...7fe82c135e394bc6e6dca610f3771344449568ed)
-1. [rCore 适配](https://github.com/rcore-os/rCore/commit/2e599b0bab2ee522bd11d0c665207841939d2711)
+2. PG142 AXI Uartlite
+3. [OpenSBI 适配](<https://github.com/rcore-os/opensbi/compare/c1d01b0c2efea86348235a1c7f83382e53f87e0e...7fe82c135e394bc6e6dca610f3771344449568ed>)
+4. [rCore 适配](<https://github.com/rcore-os/rCore/commit/2e599b0bab2ee522bd11d0c665207841939d2711>)

@@ -195,10 +195,10 @@ module mem(
   assign mem_ext_W0_data = W0_data;
 endmodule
 $ cat Memory.conf
-name mem_ext depth 32 width 32 ports write,read
+name mem_ext depth 32 width 32 ports write,read  
 ```
 
-下游工具读取 Memory.conf 去生成对应的 mem_ext 模块。这里只考虑了 Read Latency 为 1 的情况，如果是 Mem，就不会生成 BlackBox，毕竟参数名字是 sequential memory。
+下游工具读取 Memory.conf 去生成对应的 mem\_ext 模块。这里只考虑了 Read Latency 为 1 的情况，如果是 Mem，就不会生成 BlackBox，毕竟参数名字是 sequential memory。
 
 CIRCT firtool 也有类似的表现，只不过默认情况下就会用一个单独的模块：
 
@@ -252,7 +252,7 @@ endmodule
 
 firtool 也支持 `-repl-seq-mem` 参数，用法和输出与 Scala FIRRTL Compiler 类似。
 
-我最近也写了一个小工具：[chisel-memory-lower](https://github.com/jiegec/chisel-memory-lower)来解析生成的 conf 文件，生成对应的 BlackBox。
+我最近也写了一个小工具：[chisel-memory-lower](<https://github.com/jiegec/chisel-memory-lower>)来解析生成的 conf 文件，生成对应的 BlackBox。
 
 ### 复杂组合逻辑
 
@@ -313,7 +313,7 @@ CIRCT firtool:
 在 rocket-chip-vcu128 项目中测试了一下，迁移到 CIRCT firtool 比较简单，只需要把 FirrtlMain 的调用改成直接运行 firtool。但是，在综合的时候，发现 Vivado 无法推断出一个 SyncReadMem，导致 LUT 和 Register 占用特别多。解决思路有两个：
 
 1. 利用上面所说的 `--repl-seq-mem` 生成 BlackBox，然后生成 XPM Macro 接起来
-1. 添加 `--lower-memories` 参数，简化 SRAM，然后 Vivado 就可以识别出来了。
+2. 添加 `--lower-memories` 参数，简化 SRAM，然后 Vivado 就可以识别出来了。
 
 ### 速度
 

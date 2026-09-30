@@ -4,16 +4,16 @@
 
 实验环境：macOS Catalina 10.15.2
 
-最近在 [rcore-rs/zircon-rs](https://github.com/rcore-os/zircon-rs) 项目中遇到一个比较玄学的问题，首先需求是在 macOS 的用户进程里开辟一段地址空间，然后把这个地址空间多次映射（权限可能不同、同一块内存可能被映射到多个地址），通过 mmap 模拟虚拟地址的映射。采用的是如下的方案：
+最近在 [rcore-rs/zircon-rs](<https://github.com/rcore-os/zircon-rs>) 项目中遇到一个比较玄学的问题，首先需求是在 macOS 的用户进程里开辟一段地址空间，然后把这个地址空间多次映射（权限可能不同、同一块内存可能被映射到多个地址），通过 mmap 模拟虚拟地址的映射。采用的是如下的方案：
 
 1. 在临时目录创建一个文件，把文件大小设为 16M（暂不考虑扩容）
-1. 需要映射一个虚拟地址到物理地址的时候，就对这个文件的物理地址偏移进行 FIXED 映射，虚拟地址就是期望的虚拟地址。
+2. 需要映射一个虚拟地址到物理地址的时候，就对这个文件的物理地址偏移进行 FIXED 映射，虚拟地址就是期望的虚拟地址。
 
 这样的方案在 Linux 下运行地很好，但在 macOS 下总是以一定概率在第二部出现 EPERM。网上搜了很多，但也没搜到相关的信息，于是自己断断续续地研究了一下，现在有一个比较初步的结果。
 
 ## TL；DR
 
-先说结论：调用一个带 PROT_EXEC 并且映射文件的 mmap 时，macOS 会进行安全检测，如果此时发现文件在文件系统上消失了，它会认为这可能是一个恶意软件行为，进行拦截，返回 EPERM。
+先说结论：调用一个带 PROT\_EXEC 并且映射文件的 mmap 时，macOS 会进行安全检测，如果此时发现文件在文件系统上消失了，它会认为这可能是一个恶意软件行为，进行拦截，返回 EPERM。
 
 而代码实际上在第一步和第二步之间，把临时目录删了：由于进程持有 fd，所以文件并不会真的删掉，当软件退出的时候文件自然会删除，这是临时文件的常见做法（见 tmpfile(3)）。
 
@@ -40,13 +40,13 @@ Library load (/path/to/temp/file) rejected: library load denied by system policy
 
 ### 一丝曙光
 
-这时候，@wangrunji0408 提供了一个方案：在 System Preferences -> Security & Privacy -> Privacy -> Developer Tools 中添加编译该 executable 的程序（如 iTerm、CLion）可以解决这个问题。那么问题应该比较明确了，就是 malware scan 的问题，如果信任了这个 App 为 Developer Tools，它产生的 executable 也是可信的，应该不是恶意软件。但在 tmux 环境下，它哪个 App 也不属于，没法继承，况且把这个权限开放出去也有潜在的安全问题。并且让每个开发者都要这么操作一遍很不方便。
+这时候，@wangrunji0408 提供了一个方案：在 System Preferences -\> Security &amp; Privacy -\> Privacy -\> Developer Tools 中添加编译该 executable 的程序（如 iTerm、CLion）可以解决这个问题。那么问题应该比较明确了，就是 malware scan 的问题，如果信任了这个 App 为 Developer Tools，它产生的 executable 也是可信的，应该不是恶意软件。但在 tmux 环境下，它哪个 App 也不属于，没法继承，况且把这个权限开放出去也有潜在的安全问题。并且让每个开发者都要这么操作一遍很不方便。
 
 ### 回到 Console
 
-今天刚好看到一个 [post](https://georgegarside.com/blog/macos/sierra-console-private/)，内容是如何在 macOS Catalina 中查看 log 中标记为 private 的内容。如果你注意到的话，上面的 log 中出现了几处 private，这并不是我改的，而是 macOS 自带的隐私机制（当然这种机制似乎并没有采用的很完全，一些消息源没有打上 private 的标签）。
+今天刚好看到一个 [post](<https://georgegarside.com/blog/macos/sierra-console-private/>)，内容是如何在 macOS Catalina 中查看 log 中标记为 private 的内容。如果你注意到的话，上面的 log 中出现了几处 private，这并不是我改的，而是 macOS 自带的隐私机制（当然这种机制似乎并没有采用的很完全，一些消息源没有打上 private 的标签）。
 
-然后按照上面的 post 的方法（[另一个 post](https://saagarjha.com/blog/2019/09/29/making-os-log-public-on-macos-catalina/)）开启了一下标记为 private 的内容，正好我的系统没有升级到 10.15.3 所以还能用。此时上面的第二条和第三条就出现了具体内容：
+然后按照上面的 post 的方法（[另一个 post](<https://saagarjha.com/blog/2019/09/29/making-os-log-public-on-macos-catalina/>)）开启了一下标记为 private 的内容，正好我的系统没有升级到 10.15.3 所以还能用。此时上面的第二条和第三条就出现了具体内容：
 
 ```text
 Unable (errno: 2) to read file at /path/to/temp/file for process path: /path/to/executable library path: /path/to/temp/file

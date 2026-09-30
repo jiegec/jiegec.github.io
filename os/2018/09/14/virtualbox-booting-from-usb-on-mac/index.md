@@ -1,6 +1,6 @@
 # 在 macOS 的 VirtualBox 上从 USB 启动
 
-做了一个 Windows 10 安装 U 盘，想测试一下能不能启动，于是想用 VirtualBox 起一个虚拟机。但是发现，一般情况下要从 ISO 或者把 U 盘克隆成一个 vdi/vmdk etc 再启动。不过找到了 Cem Arslan 的 [VirtualBox - Booting From USB (MAC)](https://www.linkedin.com/pulse/virtualbox-booting-from-usb-mac-cem-arslan) 实验了一下，确实可以用，以 `/dev/disk2` 为例方法如下：
+做了一个 Windows 10 安装 U 盘，想测试一下能不能启动，于是想用 VirtualBox 起一个虚拟机。但是发现，一般情况下要从 ISO 或者把 U 盘克隆成一个 vdi/vmdk etc 再启动。不过找到了 Cem Arslan 的 [VirtualBox - Booting From USB (MAC)](<https://www.linkedin.com/pulse/virtualbox-booting-from-usb-mac-cem-arslan>) 实验了一下，确实可以用，以 `/dev/disk2` 为例方法如下：
 
 ```shell
 $ diskutil unmountDisk /dev/disk2
@@ -9,7 +9,7 @@ $ VBoxManage internalcommands createrawvmdk -filename PATH_TO_VMDK -rawdisk /dev
 $ # Now boot from VirtualBox
 ```
 
-对于其它平台，可以参考 Tu Nguyen 的 [How to boot from USB in VirtualBox](https://www.aioboot.com/en/boot-from-usb-in-virtualbox/) 。
+对于其它平台，可以参考 Tu Nguyen 的 [How to boot from USB in VirtualBox](<https://www.aioboot.com/en/boot-from-usb-in-virtualbox/>) 。
 
 研究了一下生成的 vmdk 文件，大概是这样的：
 

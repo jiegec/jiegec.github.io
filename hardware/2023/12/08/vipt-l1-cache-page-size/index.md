@@ -7,8 +7,8 @@ VIPT（Virtual Index Physical Tag）是 L1 数据缓存常用的技术，利用�
 以防读者不记得 VIPT 是什么，这里再复习一下缓存的原理。首先，把数据的物理地址划分为三段：
 
 1. Tag
-1. Index
-1. Offset
+2. Index
+3. Offset
 
 缓存组织成多路，每一路有若干个项，每项里面是一个缓存行。查询时，首先根据 Index 作为下标，去索引缓存，得到多路的缓存行；然后再用 Tag 和多路缓存行进行比较，如果有匹配，则说明是命中；否则就是缓存缺失。
 
@@ -20,16 +20,16 @@ VIPT（Virtual Index Physical Tag）是 L1 数据缓存常用的技术，利用�
 
 但同时，VIPT 也给 L1 数据缓存带来了局限性。前面提到，VIPT 要求 Index 被包含在页内偏移中，那么可以来算一算，Index 最大是多少：
 
-假如页大小是 (P)，每个缓存行大小是 (C)，为了让 Index 包含在页内偏移中，Index 的个数（也叫做 Sets）(I) 需要满足 (I * C \\le P)。
+假如页大小是 \\(P\\)，每个缓存行大小是 \\(C\\)，为了让 Index 包含在页内偏移中，Index 的个数（也叫做 Sets）\\(I\\) 需要满足 \\(I \* C \\le P\\)。
 
-此时考虑一下数据缓存的总大小：每个 Index 有 Way 路缓存行，所以总大小是 (I * C * W)，其中 (W) 指的是路数。此时你会发现，数据缓存的总大小不大于 (W * P)，也就是路数乘以页的大小。
+此时考虑一下数据缓存的总大小：每个 Index 有 Way 路缓存行，所以总大小是 \\(I \* C \* W\\)，其中 \\(W\\) 指的是路数。此时你会发现，数据缓存的总大小不大于 \\(W \* P\\)，也就是路数乘以页的大小。
 
 换句话说，L1 数据缓存大小，受限于路数乘以页的大小。如果你去查看一些处理器，你会发现它们都取到了这个最大值：
 
-1. i9-13900K: L1 数据缓存 48KB，(W=12, P=4096)
-1. i9-10980XE: L1 数据缓存 32KB，(W=8, P=4096)
-1. EPYC 7551: L1 数据缓存 32KB，(W=8, P=4096)
-1. 3A6000: L1 数据缓存 64KB，(W=4, P=16384)
+1. i9-13900K: L1 数据缓存 48KB，\\(W=12, P=4096\\)
+2. i9-10980XE: L1 数据缓存 32KB，\\(W=8, P=4096\\)
+3. EPYC 7551: L1 数据缓存 32KB，\\(W=8, P=4096\\)
+4. 3A6000: L1 数据缓存 64KB，\\(W=4, P=16384\\)
 
 毕竟比较大的 L1 数据缓存对性能是有帮助的，当然了，太大了也会导致 Load To Use 延迟增加，可能得不偿失。
 
@@ -37,9 +37,9 @@ VIPT（Virtual Index Physical Tag）是 L1 数据缓存常用的技术，利用�
 
 这时候你可能要说了，等等！为啥有一些处理器不符合这个规则：
 
-1. Kunpeng-920: L1 数据缓存 64KB，(W=4, P=4096)
+1. Kunpeng-920: L1 数据缓存 64KB，\\(W=4, P=4096\\)
 
-此时 (W * P) 只有 16KB，为什么能够实现 64KB 的数据缓存？实际上，前面的讨论都基于一个假设：页表大小是固定的。要是页表大小不唯一呢？
+此时 \\(W \* P\\) 只有 16KB，为什么能够实现 64KB 的数据缓存？实际上，前面的讨论都基于一个假设：页表大小是固定的。要是页表大小不唯一呢？
 
 ## 多变的页表大小
 
@@ -55,12 +55,12 @@ VIPT（Virtual Index Physical Tag）是 L1 数据缓存常用的技术，利用�
 
 如果虚拟地址和物理地址都是一一对应，那么即使映射时修改了 `[13:12]` 位，Index 变了，也没问题，只要保存的 Tag 是完整的 `[VALEN-1:12]` 位，数据依然可以精确地找到，不会访问到错误的数据。但是，在实际使用的时候，有可能出现多个虚拟地址对应同一个物理地址，例如共享内存等等。举一个例子：
 
-1. 第一个虚拟页到物理页的映射：0x80000000 -> 0x00000000
-1. 第二个虚拟页到物理页的映射：0x80001000 -> 0x00000000
+1. 第一个虚拟页到物理页的映射：0x80000000 -\> 0x00000000
+2. 第二个虚拟页到物理页的映射：0x80001000 -\> 0x00000000
 
 这两个虚拟页对应同一个物理页，但是这两个虚拟页的 Index 却不相同，因为它们的第 `[13:12]` 位不相等。回顾 L1 数据缓存访问的流程，第一步就是用 Index 作为下标去访问，既然两个虚拟页的访问时下标就不一样，自然也没法访问到同样的数据，往第一个虚拟页写数据，从第二个虚拟页却读不出来，这就坏事了。这个现象叫做 virtual aliasing。
 
-这个问题怎么解决呢？阅读 [Cache and TLB Flushing Under Linux](https://www.kernel.org/doc/Documentation/cachetlb.txt)，里面有一段话：
+这个问题怎么解决呢？阅读 [Cache and TLB Flushing Under Linux](<https://www.kernel.org/doc/Documentation/cachetlb.txt>)，里面有一段话：
 
 ```text
 Is your port susceptible to virtual aliasing in its D-cache?
@@ -80,22 +80,22 @@ this value.
 
 这就解决了前面的问题：出现多个虚拟地址映射同一个物理地址时，既然 Index 不一致会有问题，那就软件上去保证 Index 一致，而保证 Index 一致，其实就是对齐到 `SHMLBA` 的倍数。回顾上面的例子：
 
-1. 第一个虚拟页到物理页的映射：0x80000000 -> 0x00000000
-1. 第二个虚拟页到物理页的映射：0x80001000 -> 0x00000000
+1. 第一个虚拟页到物理页的映射：0x80000000 -\> 0x00000000
+2. 第二个虚拟页到物理页的映射：0x80001000 -\> 0x00000000
 
 第二个页就没有对齐到 `SHMLBA`，也就是 16KB 的边界上。假如映射的时候，就保证第二个页对齐到 16KB 的边界上，就变成了：
 
-1. 第一个虚拟页到物理页的映射：0x80000000 -> 0x00000000
-1. 第二个虚拟页到物理页的映射：0x80004000 -> 0x00000000
+1. 第一个虚拟页到物理页的映射：0x80000000 -\> 0x00000000
+2. 第二个虚拟页到物理页的映射：0x80004000 -\> 0x00000000
 
 此时这两个页的虚拟地址的 `[13:12]` 位就相同了，不会出现 virtual aliasing 的问题。这个方法也叫 Page Coloring（的一种），额外要求共享内存中虚拟地址和物理地址的第 `[13:12]` 位相同。
 
 因此，在使用共享内存的时候，不要忘记了对齐到 `SHMLBA`，它不一定是页表的大小。
 
-这是软件做法，有没有硬件做法呢？答案是，有，可以参考 [What problem does cache coloring solve?](https://cs.stackexchange.com/a/32302) 和 [Designing a Virtual Memory System for the SHMAC Research Infrastructure](https://ntnuopen.ntnu.no/ntnu-xmlui/handle/11250/2467634) 第 3.7 节。这里列出来几种比较好理解的方法：
+这是软件做法，有没有硬件做法呢？答案是，有，可以参考 [What problem does cache coloring solve?](<https://cs.stackexchange.com/a/32302>) 和 [Designing a Virtual Memory System for the SHMAC Research Infrastructure](<https://ntnuopen.ntnu.no/ntnu-xmlui/handle/11250/2467634>) 第 3.7 节。这里列出来几种比较好理解的方法：
 
 1. 缓存缺失的时候，去其他 set 里寻找匹配，如果发现了，就把数据挪到当前的 virtual index 对应的位置。这个方法复杂点在于需要去其他 set 里寻找可能的匹配。
-1. 在 L2 缓存中记录缓存行对应的 virtual index，缓存缺失的时候，去询问 L2，L2 发现有 alias 的情况，告诉 L1 缓存，让他去指定的 set 里寻找数据，并且迁移。这个方法的好处是不需要像第一种方法那样去寻找可能的匹配，而是让 L2 去记录信息。缺点就是需要记录更多信息，另外要求 L2 缓存需要是 inclusive 的。见 [XiangShan Cache 别名问题](https://xiangshan-doc.readthedocs.io/zh-cn/latest/huancun/cache_alias/)
+2. 在 L2 缓存中记录缓存行对应的 virtual index，缓存缺失的时候，去询问 L2，L2 发现有 alias 的情况，告诉 L1 缓存，让他去指定的 set 里寻找数据，并且迁移。这个方法的好处是不需要像第一种方法那样去寻找可能的匹配，而是让 L2 去记录信息。缺点就是需要记录更多信息，另外要求 L2 缓存需要是 inclusive 的。见 [XiangShan Cache 别名问题](<https://xiangshan-doc.readthedocs.io/zh-cn/latest/huancun/cache_alias/>)
 
 此外还有一些比较复杂的方法，建议阅读上面的参考论文。
 
@@ -103,5 +103,5 @@ this value.
 
 ## 参考
 
-- [Page Colouring on ARMv6 (and a bit on ARMv7)](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/page-colouring-on-armv6-and-a-bit-on-armv7)
-- 推荐阅读：[浅谈现代处理器实现超大 L1 Cache 的方式](https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/)
+- [Page Colouring on ARMv6 (and a bit on ARMv7)](<https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/page-colouring-on-armv6-and-a-bit-on-armv7>)
+- 推荐阅读：[浅谈现代处理器实现超大 L1 Cache 的方式](<https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/>)

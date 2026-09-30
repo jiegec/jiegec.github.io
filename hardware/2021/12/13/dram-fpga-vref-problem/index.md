@@ -43,11 +43,11 @@ VREF the highest performance.
 用中文简单来说：
 
 1. 7 Series FPGA 中，Internal VREF 可以节省引脚，代价是 VREF 不会随着 VCCO 变化而变化（而是随着 VCCAUX 变化而变化），当 DRAM 频率提高的时候，可能无法满足 VREF 约等于 VDD 一半的要求
-1. UltraScale FPGA 中，Internal VREF 是随着 VCCO 变化而变化的，并且会比 External VREF 性能更好；因此 UltraScale FPGA 的 DDR4 只支持 Internal VREF。
+2. UltraScale FPGA 中，Internal VREF 是随着 VCCO 变化而变化的，并且会比 External VREF 性能更好；因此 UltraScale FPGA 的 DDR4 只支持 Internal VREF。
 
-以 MA703FA-35T 开发板为例，它使用的 FPGA 是 Artix7 35T，内存是 DDR3，采用的是 External VREF。它采用了 [TPS51200 Sink and Source DDR Termination Regulator](https://www.ti.com/lit/ds/symlink/tps51200.pdf) 芯片，将芯片的 REFOUT 芯片接到 DRAM 的 VREFDQ 和 VREFCA 引脚上。
+以 MA703FA-35T 开发板为例，它使用的 FPGA 是 Artix7 35T，内存是 DDR3，采用的是 External VREF。它采用了 [TPS51200 Sink and Source DDR Termination Regulator](<https://www.ti.com/lit/ds/symlink/tps51200.pdf>) 芯片，将芯片的 REFOUT 芯片接到 DRAM 的 VREFDQ 和 VREFCA 引脚上。
 
 ## 参考文档
 
-- [MIG 7 Series - Internal/External VREF Guidelines](https://support.xilinx.com/s/article/42036?language=en_US)
-- [UltraScale/UltraScale+ Memory IP - Can either external or internal VREF be used?](https://support.xilinx.com/s/article/64410?language=en_US)
+- [MIG 7 Series - Internal/External VREF Guidelines](<https://support.xilinx.com/s/article/42036?language=en_US>)
+- [UltraScale/UltraScale+ Memory IP - Can either external or internal VREF be used?](<https://support.xilinx.com/s/article/64410?language=en_US>)

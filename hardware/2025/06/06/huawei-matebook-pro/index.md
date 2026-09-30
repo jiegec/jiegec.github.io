@@ -85,9 +85,9 @@ devfs                                                  15G  104M   15G   1% /dev
 tmpfs                                                 1.0G  608K  0.9G   1% /dev/shm
 ```
 
-查看 [`/proc/cpuinfo`](https://jia.je/hardware/huawei-matebook-pro-cpuinfo.txt)。四个 0xd42（2.0 GHz），八个 0xd43（2.0 GHz），八个 0xd03（2.3 GHz），共 20 个逻辑核。从 part id 来看，0xd03 和 0xd42 对应麒麟 9010 的大核和中核，但 0xd43 是新的 part id。
+查看 [`/proc/cpuinfo`](<https://jia.je/blog/posts/hardware/huawei-matebook-pro-cpuinfo.txt>)。四个 0xd42（2.0 GHz），八个 0xd43（2.0 GHz），八个 0xd03（2.3 GHz），共 20 个逻辑核。从 part id 来看，0xd03 和 0xd42 对应麒麟 9010 的大核和中核，但 0xd43 是新的 part id。
 
-使用 <https://github.com/jiegec/SPECCPU2017Harmony> 性能测试：
+使用 [https://github.com/jiegec/SPECCPU2017Harmony](<https://github.com/jiegec/SPECCPU2017Harmony>) 性能测试：
 
 - X90 P-Core 2.3 GHz 0xd03 Full: INT 4.87 FP 7.42
 - X90 E-Core 2.0 GHz 0xd43 Full: INT 4.28 FP 6.52
@@ -96,9 +96,9 @@ tmpfs                                                 1.0G  608K  0.9G   1% /dev
 - 9010 P-Core 2.3 GHz 0xd03 Full: INT 3.96 FP 5.86
 - 9010 E-Core 2.2 GHz 0xd42 Full: INT 3.21 FP 4.72
 
-详细数据： <https://github.com/jiegec/SPECCPU2017Harmony/tree/master/results>。Best 代表每一项单独跑，散热条件好，Full 代表顺着跑一遍，散热条件差。由于编译器和编译选项不同，不能和在其他平台上跑的 SPEC CPU 2017 成绩直接对比，仅供参考。
+详细数据： [https://github.com/jiegec/SPECCPU2017Harmony/tree/master/results](<https://github.com/jiegec/SPECCPU2017Harmony/tree/master/results>)。Best 代表每一项单独跑，散热条件好，Full 代表顺着跑一遍，散热条件差。由于编译器和编译选项不同，不能和在其他平台上跑的 SPEC CPU 2017 成绩直接对比，仅供参考。
 
-大概性能排序：X90 P-Core > X90 E-Core > 9010 P-Core > X90 LPE-Core > 9010 E-Core > 9010 LPE-Core。
+大概性能排序：X90 P-Core \> X90 E-Core \> 9010 P-Core \> X90 LPE-Core \> 9010 E-Core \> 9010 LPE-Core。
 
 即使是同样的 2.3 GHz 0xd03 的核，X90 比 9010 快上 20%：可能是散热问题，或者缓存大小和内存带宽的问题，或许连微架构都是不一样的，这些都需要后续进一步测试。而 X90 的中核也比 9010 的大核要快。
 
@@ -131,7 +131,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> import requests
 >>> requests.get("https://github.com").status_code
 200
->>>
+>>> 
 ```
 
 需要 native 编译的库，比如 numpy 还不行，会提示找不到 make。
@@ -144,11 +144,11 @@ Type "help", "copyright", "credits" or "license" for more information.
 
 既然可以跑 shell，意味着可以 execve 了，意味着可以做 termux 的类似物了。期待鸿蒙 5 上早日有 Termux 用，直接跑 Linux 发行版。实际测了一下，Popen 确实是工作的。
 
-UPDATE: 开了个坑：<https://github.com/jiegec/Termony>，目前已经能跑很多命令了，包括在鸿蒙电脑上编译 C/C++ 代码。
+UPDATE: 开了个坑：[https://github.com/jiegec/Termony](<https://github.com/jiegec/Termony>)，目前已经能跑很多命令了，包括在鸿蒙电脑上编译 C/C++ 代码。
 
 试了一下 HOME 目录，发现它里面不能有可执行的文件，所以可能还是得打包到一个 App 里面，通过 `/data/app/bin` 类似的路径来访问。
 
-在 CodeArts IDE 里，可以访问 /data/storage/el1/bundle 目录，里面有一个 pc_entry.hap 文件，可以通过 `cat /data/storage/el1/bundle/pc_entry.hap | ssh hostname "cat - > pc_entry.hap"` 拷贝到其他机器上。这个文件有 1.9GB，可以看到在 `/data/app` 下面的各种文件，其实是来自于这个 `pc_entry.hap` 的 `hnp/arm64-v8a` 下面的一系列文件，例如 `git.hnp` 就是一个 zip 压缩包，里面就是 `/data/app/git.org/git_1.2` 目录的内容，这个东西叫做 `应用包内 Native 包（.hnp）`。这些文件在 module.json 里声明，对应 [hnpPackages 标签](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/module-configuration-file#hnppackages%E6%A0%87%E7%AD%BE)：
+在 CodeArts IDE 里，可以访问 /data/storage/el1/bundle 目录，里面有一个 pc\_entry.hap 文件，可以通过 `cat /data/storage/el1/bundle/pc_entry.hap | ssh hostname "cat - > pc_entry.hap"` 拷贝到其他机器上。这个文件有 1.9GB，可以看到在 `/data/app` 下面的各种文件，其实是来自于这个 `pc_entry.hap` 的 `hnp/arm64-v8a` 下面的一系列文件，例如 `git.hnp` 就是一个 zip 压缩包，里面就是 `/data/app/git.org/git_1.2` 目录的内容，这个东西叫做 `应用包内 Native 包（.hnp）`。这些文件在 module.json 里声明，对应 [hnpPackages 标签](<https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/module-configuration-file#hnppackages标签>)：
 
 ```json
 {
@@ -225,7 +225,7 @@ UPDATE: 2025-06-21 推送了 1.0.3 版本。实测在 shell 里面输入括号�
 
 UPDATE: 2025-12-01 尝试 CodeArts 1.0.9 版本，可以创建 C++ 项目了，编译没问题并且有自签名的提示，但是执行编译出来的程序还是会报错，估计还是自签名的机制还有问题。
 
-UPDATE: 2025-12-11 经 @w12101111 群友提醒，在设置->隐私和安全->高级->勾选运行外部来源的扩展程序之后，就可以在 CodeArts IDE 里运行和调试编译出来的 C++ 程序了。至此，鸿蒙电脑自己运行自己编译的 ELF 已经是可行的了。
+UPDATE: 2025-12-11 经 @w12101111 群友提醒，在设置-\>隐私和安全-\>高级-\>勾选运行外部来源的扩展程序之后，就可以在 CodeArts IDE 里运行和调试编译出来的 C++ 程序了。至此，鸿蒙电脑自己运行自己编译的 ELF 已经是可行的了。
 
 ### DevEco Studio
 
@@ -237,15 +237,15 @@ UPDATE: 2025-12-11 经 @w12101111 群友提醒，在设置->隐私和安全->高
 
 试了试在虚拟机里装 WSL，说没有硬件虚拟化，大概是没有打开嵌套虚拟化的功能。
 
-在 6 核 Oseasy 虚拟机里运行 ARM64 Geekbench 6：[Single-Core 1436, Multi-Core 5296](https://browser.geekbench.com/v6/cpu/12309313)。Oseasy 8 核：[Single-Core 1462, Multi-Core 7043](https://browser.geekbench.com/v6/cpu/12309427)。算上剩下的 12 个逻辑核，考虑虚拟化的开销，多核分数达到网传的 11640 分，感觉是可能的。
+在 6 核 Oseasy 虚拟机里运行 ARM64 Geekbench 6：[Single-Core 1436, Multi-Core 5296](<https://browser.geekbench.com/v6/cpu/12309313>)。Oseasy 8 核：[Single-Core 1462, Multi-Core 7043](<https://browser.geekbench.com/v6/cpu/12309427>)。算上剩下的 12 个逻辑核，考虑虚拟化的开销，多核分数达到网传的 11640 分，感觉是可能的。
 
 Oseasy 虚拟机只允许开到 8 个核心，实测下来，会优先调度到 0xD03 的八个逻辑核中其中四个逻辑核（不同时用一个物理核的两个逻辑核），之后再调度到 0xD43 的八个逻辑核中的四个逻辑核（也不同时用同一个物理核的两个逻辑核）。在 Oseasy 虚拟机里看到的 CPU 信息是 Cortex-A53，没有正确暴露外面的处理器信息，从 cpuinfo 来看，也没有暴露 SVE。
 
-UPDATE: 能跑 Linux 了，见 [在鸿蒙电脑上的虚拟机内启动 Linux](https://jia.je/hardware/2025/06/10/linux-vm-on-harmonyos-computer/index.md)。
+UPDATE: 能跑 Linux 了，见 [在鸿蒙电脑上的虚拟机内启动 Linux](<https://jia.je/blog/posts/software/linux-vm-on-harmonyos-computer/index.md>)。
 
 ### 融合开发引擎
 
-2026/04/01 更新：《融合开发引擎》App 在应用市场的应用尝鲜上架，可以获得一个 Linux 环境，Linux 6.6.0 内核的 openeuler。使用可见网络上的视频 [鸿蒙电脑官方欧拉虚拟机上线](https://www.bilibili.com/video/BV13z95BhEox/)。想用 Debian 的话，也可以按照 [HarmonyOS 6 Linux 容器替换成 debian trixie](https://www.bilibili.com/opus/1186292133496094724) 换成 Debian。
+2026/04/01 更新：《融合开发引擎》App 在应用市场的应用尝鲜上架，可以获得一个 Linux 环境，Linux 6.6.0 内核的 openeuler。使用可见网络上的视频 [鸿蒙电脑官方欧拉虚拟机上线](<https://www.bilibili.com/video/BV13z95BhEox/>)。想用 Debian 的话，也可以按照 [HarmonyOS 6 Linux 容器替换成 debian trixie](<https://www.bilibili.com/opus/1186292133496094724>) 换成 Debian。
 
 ## 外设
 
@@ -293,13 +293,13 @@ index 7b8532f..76c009c 100644
        {
 ```
 
-就可以在鸿蒙电脑上跑了。我编写的两个鸿蒙上的应用：<https://github.com/jiegec/SPECCPU2017Harmony> 和 <https://github.com/jiegec/NetworkToolsHarmony> 都能正常在 MateBook Pro 上运行。
+就可以在鸿蒙电脑上跑了。我编写的两个鸿蒙上的应用：[https://github.com/jiegec/SPECCPU2017Harmony](<https://github.com/jiegec/SPECCPU2017Harmony>) 和 [https://github.com/jiegec/NetworkToolsHarmony](<https://github.com/jiegec/NetworkToolsHarmony>) 都能正常在 MateBook Pro 上运行。
 
 测试的过程中，发现用 hdc 传文件到电脑比传手机更快：Pura 70 Pro+ 是 24 MB/s，MateBook Pro 是 31 MB/s。
 
 开源的鸿蒙应用也可以编译 + 运行：
 
-- <https://gitee.com/smdsbz/moonlight-ohos>
+- [https://gitee.com/smdsbz/moonlight-ohos](<https://gitee.com/smdsbz/moonlight-ohos>)
 
 目前还没找到怎么让鸿蒙电脑自己调试自己。
 
@@ -316,7 +316,7 @@ index 7b8532f..76c009c 100644
 
 ## Termony
 
-目前通过 <https://github.com/jiegec/Termony> 运行了一些 benchmark：
+目前通过 [https://github.com/jiegec/Termony](<https://github.com/jiegec/Termony>) 运行了一些 benchmark：
 
 ```shell
 $ vkpeak 0

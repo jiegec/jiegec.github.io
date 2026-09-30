@@ -6,11 +6,11 @@
 
 ## 临时解决方法
 
-根据关键字，找到了 [Chrome menus too slow after enabling fractional scaling in Ubuntu 20.04](https://askubuntu.com/questions/1274719/chrome-menus-too-slow-after-enabling-fractional-scaling-in-ubuntu-20-04)。按它的方法，关闭 Google Chrome 的硬件加速，发现卡顿问题确实解决了。
+根据关键字，找到了 [Chrome menus too slow after enabling fractional scaling in Ubuntu 20.04](<https://askubuntu.com/questions/1274719/chrome-menus-too-slow-after-enabling-fractional-scaling-in-ubuntu-20-04>)。按它的方法，关闭 Google Chrome 的硬件加速，发现卡顿问题确实解决了。
 
-类似地，也可以[关闭 VSCode 的硬件加速](https://gist.github.com/andriyudatama/fe5d00deb36feeea30ef35a5ea0f7eff)，在 Firefox 里也可以找到相应的设置。这样操作确实可以解决问题。但是，对于每一个出问题的应用都这样搞一遍，还是挺麻烦的。
+类似地，也可以[关闭 VSCode 的硬件加速](<https://gist.github.com/andriyudatama/fe5d00deb36feeea30ef35a5ea0f7eff>)，在 Firefox 里也可以找到相应的设置。这样操作确实可以解决问题。但是，对于每一个出问题的应用都这样搞一遍，还是挺麻烦的。
 
-另一个思路是，[不使用 Fractional Scaling，而只是把字体变大](https://askubuntu.com/questions/1230208/fractional-scaling-does-not-work-properly-ubuntu-20-04/1272794#1272794)。但毕竟和我们想要的效果不大一样。
+另一个思路是，[不使用 Fractional Scaling，而只是把字体变大](<https://askubuntu.com/questions/1230208/fractional-scaling-does-not-work-properly-ubuntu-20-04/1272794#1272794>)。但毕竟和我们想要的效果不大一样。
 
 ## 一些发现
 
@@ -19,18 +19,18 @@
 网上一顿搜到，找到了 xrandr 工具。下面是观察到的一些现象（GNOME 设置分辨率一直是 1920x1080）：
 
 | 放缩比例 | xrandr 显示的分辨率 | xrandr 显示的 transform |
-| -------- | ------------------- | ----------------------- |
-| 100%     | 1920x1080           | diag(1.0, 1.0, 1.0)     |
-| 125%     | 3072x1728           | diag(1.6, 1.6, 1.0)     |
-| 150%     | 2560x1440           | diag(1.33, 1.33, 1.0)   |
-| 175%     | 2208x1242           | diag(1.15, 1.15, 1.0)   |
-| 200%     | 1920x1080           | diag(1.0, 1.0, 1.0)     |
+| --- | --- | --- |
+| 100% | 1920x1080 | diag(1.0, 1.0, 1.0) |
+| 125% | 3072x1728 | diag(1.6, 1.6, 1.0) |
+| 150% | 2560x1440 | diag(1.33, 1.33, 1.0) |
+| 175% | 2208x1242 | diag(1.15, 1.15, 1.0) |
+| 200% | 1920x1080 | diag(1.0, 1.0, 1.0) |
 
-在 [xrandr 文档](https://www.x.org/releases/X11R7.5/doc/man/man1/xrandr.1.html) 中，写了：transform 是一个 3x3 矩阵，矩阵乘以输出的点的坐标得到图形缓存里面的坐标。
+在 [xrandr 文档](<https://www.x.org/releases/X11R7.5/doc/man/man1/xrandr.1.html>) 中，写了：transform 是一个 3x3 矩阵，矩阵乘以输出的点的坐标得到图形缓存里面的坐标。
 
 由此可以猜想：fractional scaling 的工作方式是，把绘制的 buffer 调大，然后再用 transform 把最终输出分辨率调成 1920x1080。可以看到，xrandr 显示的分辨率除以 transform 对应的值，就是 1920x1080。但这并不能解释 100% 和 200% 的区别，所以肯定还漏了什么信息。
 
-翻了翻 [mutter 实现 fractional scaling 的 pr](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_376_422)，找到了实现 scale 的一部分：
+翻了翻 [mutter 实现 fractional scaling 的 pr](<https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_376_422>)，找到了实现 scale 的一部分：
 
 ```cpp
 if (clutter_actor_get_resource_scale (priv->actor, &resource_scale) &&
@@ -41,7 +41,7 @@ if (clutter_actor_get_resource_scale (priv->actor, &resource_scale) &&
   }
 ```
 
-然后找到了一段对 scale 做 ceiling 的[代码](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_238_265)：
+然后找到了一段对 scale 做 ceiling 的[代码](<https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#989734a4aea877b0c1d80fa73cbe2ee59de79fba_238_265>)：
 
 ```cpp
 if (_clutter_actor_get_real_resource_scale (priv->actor, &resource_scale))
@@ -54,7 +54,7 @@ if (_clutter_actor_get_real_resource_scale (priv->actor, &resource_scale))
 
 这样，100% 和其他比例就区分开了。
 
-另外，也在[代码](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#d66a28cda989fbb17c8a7302b3f6360640c3c152_33_33) 中发现：
+另外，也在[代码](<https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3/diffs#d66a28cda989fbb17c8a7302b3f6360640c3c152_33_33>) 中发现：
 
 ```cpp
 #define SCALE_FACTORS_PER_INTEGER 4
@@ -78,20 +78,20 @@ $ gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuf
 接着又做了类似上面的测试（GNOME 设置分辨率一直是 2560x1600）：
 
 | 放缩比例 | xrandr 显示的分辨率 |
-| -------- | ------------------- |
-| 100%     | 2560x1600           |
-| 125%     | 2048x1280           |
-| 150%     | 1704x1065           |
-| 175%     | 1464x915            |
-| 200%     | 1280x800            |
+| --- | --- |
+| 100% | 2560x1600 |
+| 125% | 2048x1280 |
+| 150% | 1704x1065 |
+| 175% | 1464x915 |
+| 200% | 1280x800 |
 
-在这个测试中，xrandr 显示的 transform 一直都是单位矩阵；还用了来自 [xyproto/wallutils](https://github.com/xyproto/wallutils) 的 `wayinfo` 命令查看输出的分辨率，一直是 2560x1600，DPI 一直是 96。用 wallutils 的 xinfo 看到的结果和 xrandr 一致（通过 XWayland）。但是和物理机有一点不同：物理机有一个选项问要不要打开 fractional scaling，下面还会提示性能下降的问题；但是虚拟机上并没有这个提示，而是直接给了一些 Scale 比例的选项。
+在这个测试中，xrandr 显示的 transform 一直都是单位矩阵；还用了来自 [xyproto/wallutils](<https://github.com/xyproto/wallutils>) 的 `wayinfo` 命令查看输出的分辨率，一直是 2560x1600，DPI 一直是 96。用 wallutils 的 xinfo 看到的结果和 xrandr 一致（通过 XWayland）。但是和物理机有一点不同：物理机有一个选项问要不要打开 fractional scaling，下面还会提示性能下降的问题；但是虚拟机上并没有这个提示，而是直接给了一些 Scale 比例的选项。
 
 尝试了一下，在 GNOME over X11 上是找不到 fractional scaling 的（没有出现设置 scale 的选项）。找到一个实现这个功能的 fork：https://github.com/puxplaying/mutter-x11-scaling，不过没有尝试过。
 
 我也尝试在虚拟机中用 xrandr --scale，结果就是输出黑屏，需要重启 gdm 来恢复到登录界面。
 
-更新：由于物理机使用的是 Ubuntu，想到是不是 Ubuntu 采用了上面那个 fork 的 patch，然后就在 [changelog](https://changelogs.ubuntu.com/changelogs/pool/main/m/mutter/mutter_3.38.1-1ubuntu1/changelog) 中看到：
+更新：由于物理机使用的是 Ubuntu，想到是不是 Ubuntu 采用了上面那个 fork 的 patch，然后就在 [changelog](<https://changelogs.ubuntu.com/changelogs/pool/main/m/mutter/mutter_3.38.1-1ubuntu1/changelog>) 中看到：
 
 ```text
 mutter (3.38.1-1ubuntu1) groovy; urgency=medium
@@ -104,7 +104,7 @@ mutter (3.38.1-1ubuntu1) groovy; urgency=medium
     - Dropped, applied upstream
 ```
 
-也找到了对应的 [patch 文件](https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch?h=applied/ubuntu/groovy)。这也就解释了，为什么网上会说 GNOME over X11 支持 fractional scaling，并且需要用 gsettings 打开，而我在 Debian 和 Arch Linux 上设置这个选项也没有用了。原来是 Ubuntu 加的私货啊。
+也找到了对应的 [patch 文件](<https://git.launchpad.net/ubuntu/+source/mutter/tree/debian/patches/x11-Add-support-for-fractional-scaling-using-Randr.patch?h=applied/ubuntu/groovy>)。这也就解释了，为什么网上会说 GNOME over X11 支持 fractional scaling，并且需要用 gsettings 打开，而我在 Debian 和 Arch Linux 上设置这个选项也没有用了。原来是 Ubuntu 加的私货啊。
 
 在 patch 中，找到了这么一段配置的解释：
 

@@ -6,7 +6,7 @@
 
 ## 过程
 
-运行过程参考官方的 [OpenBMC Development Environment](https://github.com/openbmc/docs/blob/master/development/dev-environment.md) 文档进行，首先安装依赖和克隆仓库：
+运行过程参考官方的 [OpenBMC Development Environment](<https://github.com/openbmc/docs/blob/master/development/dev-environment.md>) 文档进行，首先安装依赖和克隆仓库：
 
 ```shell
 sudo apt install git python3-distutils gcc g++ make file wget \
@@ -45,7 +45,7 @@ ssh root@localhost -p 2222
 ipmitool -I lanplus -H 127.0.0.1 -U root -P 0penBmc -p 2623 mc info
 ```
 
-这也是用 OpenBMC 的一大好处：有真正的 SSH 可以用，可以看到内部的情况。通过 uname 可以看到，模拟的处理器架构是 armv6l，还是比较旧的。根据 [QEMU 文档](https://www.qemu.org/docs/master/system/arm/aspeed.html)，romulus 是基于 AST2500 的 OpenPOWER Romulus POWER9 BMC。AST2500 采用的是 800MHz ARM11 核心，确实是比较老了。
+这也是用 OpenBMC 的一大好处：有真正的 SSH 可以用，可以看到内部的情况。通过 uname 可以看到，模拟的处理器架构是 armv6l，还是比较旧的。根据 [QEMU 文档](<https://www.qemu.org/docs/master/system/arm/aspeed.html>)，romulus 是基于 AST2500 的 OpenPOWER Romulus POWER9 BMC。AST2500 采用的是 800MHz ARM11 核心，确实是比较老了。
 
 ### AST2600
 
@@ -71,7 +71,7 @@ qemu-system-arm -m 1024 -M ast2600-evb -nographic -drive file=./obmc-phosphor-im
 
 和之前一样，可以通过 SSH，HTTPS 和 IPMI 访问，但是没有 WebUI，只有 redfish。进系统以后可以看到 uname 的架构变成了 armv7l。
 
-此时按照 [【OpenBMC 系列】4.启动流程 使用 qume 模拟 ast2600-evb](https://blog.csdn.net/Datapad/article/details/125929179) 的文档，给 ast2600-evb target 加上 webui：
+此时按照 [【OpenBMC 系列】4.启动流程 使用 qume 模拟 ast2600-evb](<https://blog.csdn.net/Datapad/article/details/125929179>) 的文档，给 ast2600-evb target 加上 webui：
 
 进入 openbmc 目录，编辑 `build/evb-ast2600/conf/local.conf`，添加一行：
 

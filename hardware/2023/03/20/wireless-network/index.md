@@ -1,12 +1,12 @@
 # 802.11 学习
 
-本文的内容已经整合到[知识库](/kb/networking/wlan.html)中。
+本文的内容已经整合到[知识库](</kb/networking/wlan.html>)中。
 
 ## 背景
 
 最近在学习 802.11，在博客上记录一下我的学习过程。
 
-本文参考了 [802.11-1997](https://ieeexplore.ieee.org/document/654749) 并使用了标准中的图片。
+本文参考了 [802.11-1997](<https://ieeexplore.ieee.org/document/654749>) 并使用了标准中的图片。
 
 ## MAC 层帧格式
 
@@ -30,9 +30,9 @@
 
 ### 802.11b
 
-首先看 [802.11b](https://ieeexplore.ieee.org/document/972833)，802.11b 是对 802.11 的补充，主要定义了第 18 章 `High Rate, direct sequence spread spectrum PHY specification`，缩写 HR-DSSS。
+首先看 [802.11b](<https://ieeexplore.ieee.org/document/972833>)，802.11b 是对 802.11 的补充，主要定义了第 18 章 `High Rate, direct sequence spread spectrum PHY specification`，缩写 HR-DSSS。
 
-HR-DSSS 工作在 2.4 GHz 频段上，常用的是 13 个 channel，中心频率从 2412 MHz 到 2472 MHz 不等，呈等差数列，公差是 5 MHz。HR-DSSS 会占用 22MHz 的频谱，从中心频率减 11 MHz 到中心频率加 11 MHz，所以相邻 channel 会有干扰，见下图（取自 [Wikipedia](https://en.wikipedia.org/wiki/IEEE_802.11)）
+HR-DSSS 工作在 2.4 GHz 频段上，常用的是 13 个 channel，中心频率从 2412 MHz 到 2472 MHz 不等，呈等差数列，公差是 5 MHz。HR-DSSS 会占用 22MHz 的频谱，从中心频率减 11 MHz 到中心频率加 11 MHz，所以相邻 channel 会有干扰，见下图（取自 [Wikipedia](<https://en.wikipedia.org/wiki/IEEE_802.11>)）
 
 这就是为什么通常会把 2.4GHz 无线路由器的 channel 固定为 1、6 或 11。
 
@@ -46,27 +46,27 @@ HR-DSSS 工作在 2.4 GHz 频段上，常用的是 13 个 channel，中心频率
 
 5.5 Mbps 和 11 Mbps 则采用了其他方法。由于上面的 1 比 11 的转换比例太浪费了，所以为了提升速度，5.5 Mbps 和 11 Mbps 时采用的是 CCK 编码方式，具体来说，5.5 Mbps 的时候，输入的 4 个 bit 会映射为 8 个 chip，类似地 11 Mbps 的时候，输入的 8 个 bit 也映射到 8 个 chip。每个 chip 都是复数，采用 DQPSK 进行调制。
 
-可以看到，整个过程都是在冗余：速率低的时候，就冗余很多份；速率高的时候，冗余就比较少。实际上，5.5 Mbps 和 11 Mbps 还可以采用可选的 PBCC 进行编码，下面摘抄了 [About Data Modulation Format (802.11b/g DSSS/CCK/PBCC)](https://rfmw.em.keysight.com/wireless/helpfiles/89600b/webhelp/subsystems/wlan-dsss/content/dsss_about_datamodfmt.htm) 中 802.11b 不同速率和编码方式的表格：
+可以看到，整个过程都是在冗余：速率低的时候，就冗余很多份；速率高的时候，冗余就比较少。实际上，5.5 Mbps 和 11 Mbps 还可以采用可选的 PBCC 进行编码，下面摘抄了 [About Data Modulation Format (802.11b/g DSSS/CCK/PBCC)](<https://rfmw.em.keysight.com/wireless/helpfiles/89600b/webhelp/subsystems/wlan-dsss/content/dsss_about_datamodfmt.htm>) 中 802.11b 不同速率和编码方式的表格：
 
 | Data Modulation Formats | Spread Sequence Code scheme | Data Rate(Mbps) | Symbol Rate(Msps) | Chip Rate (Mcps) | Bits per Symbol | Modulation |
-| ----------------------- | --------------------------- | --------------- | ----------------- | ---------------- | --------------- | ---------- |
-| Barker 1                | 11 Chip Barker              | 1               | 1                 | 11               | 1               | DBPSK      |
-| Barker 2                | 11 Chip Barker              | 2               | 1                 | 11               | 2               | DQPSK      |
-| CCK 5.5                 | 8 chip CCK                  | 5.5             | 1.375             | 11               | 4               | DQPSK      |
-| CCK 11                  | 8 chip CCK                  | 11              | 1.375             | 11               | 8               | DQPSK      |
-| PBCC 5.5                | PBCC                        | 5.5             | 11                | N/A              | 0.5             | QPSK       |
-| PBCC 11                 | PBCC                        | 11              | 11                | N/A              | 1               | QPSK       |
+| --- | --- | --- | --- | --- | --- | --- |
+| Barker 1 | 11 Chip Barker | 1 | 1 | 11 | 1 | DBPSK |
+| Barker 2 | 11 Chip Barker | 2 | 1 | 11 | 2 | DQPSK |
+| CCK 5.5 | 8 chip CCK | 5.5 | 1.375 | 11 | 4 | DQPSK |
+| CCK 11 | 8 chip CCK | 11 | 1.375 | 11 | 8 | DQPSK |
+| PBCC 5.5 | PBCC | 5.5 | 11 | N/A | 0.5 | QPSK |
+| PBCC 11 | PBCC | 11 | 11 | N/A | 1 | QPSK |
 
 ### 802.11g
 
-[802.11g](https://ieeexplore.ieee.org/document/1210624) 定义了第 19 章 `Extended Rate PHY specification`，也就是 ERP(Extended Rate PHY)，其主要采用的技术是 OFDM，连起来就是 ERP-OFDM，额外支持更多速率：6、9、12、18、24、36、48 和 54 Mbps。各种调制技术的速率对比：
+[802.11g](<https://ieeexplore.ieee.org/document/1210624>) 定义了第 19 章 `Extended Rate PHY specification`，也就是 ERP(Extended Rate PHY)，其主要采用的技术是 OFDM，连起来就是 ERP-OFDM，额外支持更多速率：6、9、12、18、24、36、48 和 54 Mbps。各种调制技术的速率对比：
 
 - DSSS: 802.11 1/2 Mbps
 - CCK: 802.11b 5.5/11 Mbps
 - OFDM: 802.11g 6/9/12/18/24/36/48/54 Mbps
 - PBCC: 802.11b 5.5/11 Mbps, 802.11g 22/33 Mbps
 
-OFDM 的核心思想就是采用多个载波信号，这些载波信号的频率呈等差数列，同时保证各载波相互正交，这样就提高了数据传输速率。为了保证正交，相邻载波信号的频率的差要满足 (\\Delta{f} = k / T_U)，其中 k 是正整数，(T_U) 是每个 symbol 的时间（引用 [wikipedia](https://zh.wikipedia.org/zh-cn/%E6%AD%A3%E4%BA%A4%E9%A0%BB%E5%88%86%E5%A4%8D%E7%94%A8#%E6%AD%A3%E4%BA%A4)）。下面是 802.11 标准中的 OFDM PHY 的组成：
+OFDM 的核心思想就是采用多个载波信号，这些载波信号的频率呈等差数列，同时保证各载波相互正交，这样就提高了数据传输速率。为了保证正交，相邻载波信号的频率的差要满足 \\(\\Delta{f} = k / T\_U\\)，其中 k 是正整数，\\(T\_U\\) 是每个 symbol 的时间（引用 [wikipedia](<https://zh.wikipedia.org/zh-cn/正交頻分复用#正交>)）。下面是 802.11 标准中的 OFDM PHY 的组成：
 
 图中的缩写：
 
@@ -79,21 +79,21 @@ OFDM 的核心思想就是采用多个载波信号，这些载波信号的频率
 - AGC: Automatic Gain Control
 - AFC: Automatic Frequency Control
 
-802.11g 的信号带宽是 20MHz，分成 52 个子载波，子载波的间距是 0.3125 MHz（20 MHz / 64，(T\_{FFT}=3.2 \\mu s, \\Delta{f} = 1 / T\_{FFT})），所以实际上只占了 (0.3125 \\textit{MHz} * 52 = 16.25 \\textit{MHz}) 的频谱。其中 48 个用于传输数据，每个载波上可以采用不同的调制方法。54 Mbps 是怎么算的呢？802.11g 的 Symbol rate 是 250000 每秒（因为 (T\_{SYM} = 3.2 + 0.8 = 4 \\mu s)），如果使用 64-QAM 调制，那么每个 symbol 对应 6 个 bit，然后使用纠错码，纠错的时候浪费了 1/4 的位，实际数据占 3/4，一共 48 个载波，那么数据速率就是 $ 48 * 250000 * 6 * 3/4 = 54 \\textit{Mbps}$。
+802.11g 的信号带宽是 20MHz，分成 52 个子载波，子载波的间距是 0.3125 MHz（20 MHz / 64，\\(T\_{FFT}=3.2 \\mu s, \\Delta{f} = 1 / T\_{FFT}\\)），所以实际上只占了 \\(0.3125 \\textit{MHz} \* 52 = 16.25 \\textit{MHz}\\) 的频谱。其中 48 个用于传输数据，每个载波上可以采用不同的调制方法。54 Mbps 是怎么算的呢？802.11g 的 Symbol rate 是 250000 每秒（因为 \\(T\_{SYM} = 3.2 + 0.8 = 4 \\mu s\\)），如果使用 64-QAM 调制，那么每个 symbol 对应 6 个 bit，然后使用纠错码，纠错的时候浪费了 1/4 的位，实际数据占 3/4，一共 48 个载波，那么数据速率就是 $ 48 \* 250000 \* 6 \* 3/4 = 54 \\textit{Mbps}$。
 
 ### 802.11n
 
 802.11n 在 802.11g 的基础上添加了 MIMO，也就是可以用多个天线同时传输。
 
-首先还是考虑单天线的情况，基本和 802.11g 相同，区别是采用了 52（(N\_{SD})）个 OFDM 子载波用于传输数据，同时纠错码带来的浪费比例从 1/4 降到了 1/6，所以数据速率是 (52 * 250000 * 6 * 5/6 = 65 \\textit{Mbps})。802.11n 还提供了 Short GI（Guard Interval）选项，把 GI 从 800 ns 降低到 400ns，使得每个 symbol 的时间可以从 (3.2 + 0.8 = 4 \\mu s) 降低到 (3.2 + 0.4 = 3.6 \\mu s)，此时的数据速率达到 (52 * 1000000 / 3.6 * 6 * 5/6 = 72.2 \\textit{Mbps})。
+首先还是考虑单天线的情况，基本和 802.11g 相同，区别是采用了 52（\\(N\_{SD}\\)）个 OFDM 子载波用于传输数据，同时纠错码带来的浪费比例从 1/4 降到了 1/6，所以数据速率是 \\(52 \* 250000 \* 6 \* 5/6 = 65 \\textit{Mbps}\\)。802.11n 还提供了 Short GI（Guard Interval）选项，把 GI 从 800 ns 降低到 400ns，使得每个 symbol 的时间可以从 \\(3.2 + 0.8 = 4 \\mu s\\) 降低到 \\(3.2 + 0.4 = 3.6 \\mu s\\)，此时的数据速率达到 \\(52 \* 1000000 / 3.6 \* 6 \* 5/6 = 72.2 \\textit{Mbps}\\)。
 
-除此之外，802.11n 还引入了 40 MHz 频宽的选项，以占用更多频谱为代价，换来可以用 108 个子载波来传输数据，此时数据速率可以达到 (108 * 1000000 / 3.6 * 6 * 5 / 6 = 150 \\textit{Mbps})。
+除此之外，802.11n 还引入了 40 MHz 频宽的选项，以占用更多频谱为代价，换来可以用 108 个子载波来传输数据，此时数据速率可以达到 \\(108 \* 1000000 / 3.6 \* 6 \* 5 / 6 = 150 \\textit{Mbps}\\)。
 
-考虑多天线，如果同时两根天线传输数据，那么数据速率就是两倍，达到 (300 \\textit{Mbps})；最高可以同时四根天线传输数据，所以数据速率最高理论值是 (600 \\textit{Mbps})。
+考虑多天线，如果同时两根天线传输数据，那么数据速率就是两倍，达到 \\(300 \\textit{Mbps}\\)；最高可以同时四根天线传输数据，所以数据速率最高理论值是 \\(600 \\textit{Mbps}\\)。
 
 ### 802.11ac
 
-802.11ac 添加了 160 MHz 频宽的选项，可以提供 468 个子载波，调制方式从 64-QAM 提升到 256-QAM，同时最大可以有 8 根天线同时传输数据，最大数据速率是 (468 * 1000000 / 3.6 * 8 * 5 / 6 * 8 = 6933.3 \\textit{Mbps})。
+802.11ac 添加了 160 MHz 频宽的选项，可以提供 468 个子载波，调制方式从 64-QAM 提升到 256-QAM，同时最大可以有 8 根天线同时传输数据，最大数据速率是 \\(468 \* 1000000 / 3.6 \* 8 \* 5 / 6 \* 8 = 6933.3 \\textit{Mbps}\\)。
 
 由此可见，提高无线网络的速率的方法就是提高上式的各个系数：
 
@@ -107,15 +107,15 @@ OFDM 的核心思想就是采用多个载波信号，这些载波信号的频率
 
 ### 802.11ax
 
-802.11ax 可以提供 1960 个子载波（间距从 312.5 kHz 缩小到 78.125 kHz，(\\Delta{f} = 78.125 kHz, T\_{FFT} = 1 / \\Delta{f} = 12.8 \\mu s)），调制方式从 256-QAM 提升到 1024-QAM，但是 (T\_{SYM}) 也提高到了 (12.8 + 0.8 = 13.6 \\mu s)，最大数据速率是 (1960 * 1000000 / 13.6 * 10 * 5 / 6 * 8 = 9607.8 \\textit{Mbps})。
+802.11ax 可以提供 1960 个子载波（间距从 312.5 kHz 缩小到 78.125 kHz，\\(\\Delta{f} = 78.125 kHz, T\_{FFT} = 1 / \\Delta{f} = 12.8 \\mu s\\)），调制方式从 256-QAM 提升到 1024-QAM，但是 \\(T\_{SYM}\\) 也提高到了 \\(12.8 + 0.8 = 13.6 \\mu s\\)，最大数据速率是 \\(1960 \* 1000000 / 13.6 \* 10 \* 5 / 6 \* 8 = 9607.8 \\textit{Mbps}\\)。
 
 ### OFDM 对比
 
 下面总结了使用 OFDM 的 PHY 的各项参数，其中 Data rate 的计算公式：`Subcarrier * 1000000 / T_{SYM} * Coding Rate * MIMO streams`。
 
-| Standard | Subcarrier | T\_{SYM} | QAM bits | Coding Rate | MIMO streams | Data rate   |
-| -------- | ---------- | -------- | -------- | ----------- | ------------ | ----------- |
-| 802.11g  | 48         | 4 us     | 6        | 3/4         | 1            | 54 Mbps     |
-| 802.11n  | 108        | 3.6 us   | 6        | 5/6         | 4            | 600 Mbps    |
-| 802.11ac | 468        | 3.6 us   | 8        | 5/6         | 8            | 6933.3 Mbps |
-| 802.11ax | 1960       | 13.6 us  | 10       | 5/6         | 8            | 9607.8 Mbps |
+| Standard | Subcarrier | T\_{SYM} | QAM bits | Coding Rate | MIMO streams | Data rate |
+| --- | --- | --- | --- | --- | --- | --- |
+| 802.11g | 48 | 4 us | 6 | 3/4 | 1 | 54 Mbps |
+| 802.11n | 108 | 3.6 us | 6 | 5/6 | 4 | 600 Mbps |
+| 802.11ac | 468 | 3.6 us | 8 | 5/6 | 8 | 6933.3 Mbps |
+| 802.11ax | 1960 | 13.6 us | 10 | 5/6 | 8 | 9607.8 Mbps |

@@ -4,19 +4,19 @@
 
 为了方便集群的使用，想在 k8s 集群里部署一个 ceph 集群。
 
-[Ceph 介绍](https://docs.ceph.com/en/latest/start/intro/)
+[Ceph 介绍](<https://docs.ceph.com/en/latest/start/intro/>)
 
 Ceph 有这些组成部分：
 
 1. mon：monitor
-1. mgr：manager
-1. osd：storage
-1. mds(optional)：用于 CephFS
-1. radosgw(optional：用于 Ceph Object Storage
+2. mgr：manager
+3. osd：storage
+4. mds(optional)：用于 CephFS
+5. radosgw(optional：用于 Ceph Object Storage
 
 ## 配置
 
-我们采用的是 [rook](https://rook.io/) 来部署 ceph 集群。
+我们采用的是 [rook](<https://rook.io/>) 来部署 ceph 集群。
 
 参考文档：https://rook.github.io/docs/rook/v1.5/ceph-examples.html
 
@@ -42,13 +42,13 @@ kubectl apply -f rook/cluster/examples/kubernetes/ceph/csi/cephfs/storageclass.y
 
 接着，按照自己的需求编辑 `rook/cluster/exmaples/kuberenetes/ceph/cluster.yaml` 然后应用。此时你的集群应该就已经起来了。
 
-然后，可以[进 toolbox 查看 ceph 状态](https://rook.github.io/docs/rook/v1.5/ceph-toolbox.html)：
+然后，可以[进 toolbox 查看 ceph 状态](<https://rook.github.io/docs/rook/v1.5/ceph-toolbox.html>)：
 
 ```shell
 $ kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- bash
 ```
 
-也可以[进 direct-mount 容器查看 pv 路径](https://rook.github.io/docs/rook/v1.5/direct-tools.html)：
+也可以[进 direct-mount 容器查看 pv 路径](<https://rook.github.io/docs/rook/v1.5/direct-tools.html>)：
 
 ```shell
 # get volume path of pvc

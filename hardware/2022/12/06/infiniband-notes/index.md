@@ -1,6 +1,6 @@
 # InfiniBand 学习笔记
 
-本文的内容已经整合到[知识库](/kb/networking/infiniband.html)中。
+本文的内容已经整合到[知识库](</kb/networking/infiniband.html>)中。
 
 ## 概览
 
@@ -33,14 +33,14 @@ InfiniBand 的网络分为两层，第一层是由 End Node 和 Switch 组成的
 IB 支持四种 Transport Service，当 QP 在创建的时候，就需要从以下的四种中选择：
 
 1. Reliable Connection(RC)
-1. Reliable Datagram(RD)
-1. Unreliable Datagram(UD)
-1. Unreliable Connection(UC)
+2. Reliable Datagram(RD)
+3. Unreliable Datagram(UD)
+4. Unreliable Connection(UC)
 
 对于 IPoIB 等传输其他协议的情况，也可以直接封装：
 
 1. Raw IPv6 Datagram
-1. Raw Ethertype Datagram
+2. Raw Ethertype Datagram
 
 几种 Transport Service 的对比：
 
@@ -54,7 +54,7 @@ IB 支持四种 Transport Service，当 QP 在创建的时候，就需要从以�
 
 由于 LID 唯一确定了转发路径，所以如果网络有冗余，从一个 End Node 到另一个 End Node 有多条路径，那么为了利用上不同路径的带宽，每条路径都要分配一个 LID。为了简化，在分配的时候，Subnet Manager 会分配一段连续的 LID，具体来说，是 `2^{LMC}` 个，LMC 是 LID Mask Control，表示低多少位 Mask 掉属于同一个 Endpoint。例如 Base LID=4，LMC=2，那么实际上分配的 LID 是 `{4,5,6,7}`。
 
-opensm 的 LID 分配算法可以在[代码](https://github.com/linux-rdma/opensm/blob/844ab3b7edaad983449b5d3a4a773088b8daa299/opensm/osm_lid_mgr.c#L290)中找到。
+opensm 的 LID 分配算法可以在[代码](<https://github.com/linux-rdma/opensm/blob/844ab3b7edaad983449b5d3a4a773088b8daa299/opensm/osm_lid_mgr.c#L290>)中找到。
 
 LID 是一个 16 位的整数，所以同一个 Subnet 中可以连接的设备数量有限。更多的话就需要多个 Subnet。LID 定义：
 
@@ -77,20 +77,20 @@ LID 是一个 16 位的整数，所以同一个 Subnet 中可以连接的设备�
 - ibdiagnet
 - qperf
 
-使用 qperf/ib_send_lat 可以测量带宽和延迟。一个测试例子：
+使用 qperf/ib\_send\_lat 可以测量带宽和延迟。一个测试例子：
 
-- 以太网（udp_lat）：24.5 us
-- IPoIB (udp_lat): 8.7 us
-- IB (rc, ib_send_lat): 1.02 us
-- IB (rc_lat): 3.6 ~ 4.6 us
-- IB (uc_lat): 4.2 ~ 5.5 us
-- IB (ud_lat): 5.5 ~ 6.4 us
+- 以太网（udp\_lat）：24.5 us
+- IPoIB (udp\_lat): 8.7 us
+- IB (rc, ib\_send\_lat): 1.02 us
+- IB (rc\_lat): 3.6 \~ 4.6 us
+- IB (uc\_lat): 4.2 \~ 5.5 us
+- IB (ud\_lat): 5.5 \~ 6.4 us
 
 ## 参考文献
 
-- [Infiniband Architecture Overview](https://www.snia.org/sites/default/files/files2/files2/SDC2013/presentations/Hardware/DavidDeming_Infiniband_Architectural_Overview.pdf)
-- [InfiniBand Architecture Specification Volume 1 Release 1.2.1](https://www.afs.enea.it/asantoro/V1r1_2_1.Release_12062007.pdf)
-- [InfiniBand Architecture Specification Volume 2 Release 1.4](https://cw.infinibandta.org/document/dl/8566)
-- [An Introduction to the InfiniBand Architecture](https://cali-doc.unilim.fr/_media/mpi/intel-mpi/infinibandchap42.pdf)
+- [Infiniband Architecture Overview](<https://www.snia.org/sites/default/files/files2/files2/SDC2013/presentations/Hardware/DavidDeming_Infiniband_Architectural_Overview.pdf>)
+- [InfiniBand Architecture Specification Volume 1 Release 1.2.1](<https://www.afs.enea.it/asantoro/V1r1_2_1.Release_12062007.pdf>)
+- [InfiniBand Architecture Specification Volume 2 Release 1.4](<https://cw.infinibandta.org/document/dl/8566>)
+- [An Introduction to the InfiniBand Architecture](<https://cali-doc.unilim.fr/_media/mpi/intel-mpi/infinibandchap42.pdf>)
 - InfiniBand Network Architecture - MindShare
-- [ArchWiki - InfiniBand](https://wiki.archlinux.org/title/InfiniBand)
+- [ArchWiki - InfiniBand](<https://wiki.archlinux.org/title/InfiniBand>)

@@ -6,13 +6,13 @@
 
 ## 配置 NVIDIA APT 源
 
-Ubuntu 源有自带的 NVIDIA 驱动版本，但这里我们要使用 NVIDIA 的 APT 源。首先，我们要访问 <https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=20.04&target_type=deb_network>，在网页中选择我们的系统，例如：
+Ubuntu 源有自带的 NVIDIA 驱动版本，但这里我们要使用 NVIDIA 的 APT 源。首先，我们要访问 [https://developer.nvidia.com/cuda-downloads?target\_os=Linux&amp;target\_arch=x86\_64&amp;Distribution=Ubuntu&amp;target\_version=20.04&amp;target\_type=deb\_network](<https://developer.nvidia.com/cuda-downloads?target_os=Linux&amp;target_arch=x86_64&amp;Distribution=Ubuntu&amp;target_version=20.04&amp;target_type=deb_network>)，在网页中选择我们的系统，例如：
 
 1. Operating System: Linux
-1. Architecture: x86_64
-1. Distribution: Ubuntu
-1. Version: 20.04
-1. Installer Type: deb (network)
+2. Architecture: x86\_64
+3. Distribution: Ubuntu
+4. Version: 20.04
+5. Installer Type: deb (network)
 
 此时，下面就会显示一些命令，复制下来执行：
 
@@ -29,9 +29,9 @@ sudo apt-get update
 配置好源以后，接下来，我们就要安装 NVIDIA 驱动了。首先，我们要选取一个 NVIDIA 版本，选择的标准如下：
 
 1. 驱动版本需要支持所使用的显卡
-1. 驱动版本需要支持所使用的 CUDA 版本
+2. 驱动版本需要支持所使用的 CUDA 版本
 
-这些信息在网络上都可以查到，也可以参考 [NVIDIA 驱动和 CUDA 版本信息速查](https://jia.je/software/2021/12/26/nvidia-cuda/index.md)。
+这些信息在网络上都可以查到，也可以参考 [NVIDIA 驱动和 CUDA 版本信息速查](<https://jia.je/blog/posts/software/nvidia-cuda/index.md>)。
 
 假如我们已经选择了要安装 470.129.06 版本，那么，我们接下来要确认一下 NVIDIA 的 APT 源的版本名称：
 
@@ -106,7 +106,7 @@ CUDA 是可以多版本共存的，比如你可以把 CUDA 11.1 到 CUDA 11.7 �
 
 ## NVIDIA Container Toolkit
 
-安装方法：<https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#linux-distributions>
+安装方法：[https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html\#linux-distributions](<https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#linux-distributions>)
 
 命令：
 

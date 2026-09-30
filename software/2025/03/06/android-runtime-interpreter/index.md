@@ -2,11 +2,11 @@
 
 ## 背景
 
-在 [V8 Ignition 解释器的内部实现探究](https://jia.je/software/2025/03/01/v8-ignition-internals/index.md) 中探究了 JavaScript 引擎 V8 的解释器的实现，接下来分析一下 Android Runtime (ART) 的解释器，其原理也是类似的。本博客在 ARM64 Ubuntu 24.04 平台上针对 [Android Runtime (ART) 15.0.0 r1](https://android.googlesource.com/platform/art/+/refs/tags/android-15.0.0_r1/runtime/interpreter/) 版本进行分析。
+在 [V8 Ignition 解释器的内部实现探究](<https://jia.je/blog/posts/software/v8-ignition-internals/index.md>) 中探究了 JavaScript 引擎 V8 的解释器的实现，接下来分析一下 Android Runtime (ART) 的解释器，其原理也是类似的。本博客在 ARM64 Ubuntu 24.04 平台上针对 [Android Runtime (ART) 15.0.0 r1](<https://android.googlesource.com/platform/art/+/refs/tags/android-15.0.0_r1/runtime/interpreter/>) 版本进行分析。
 
 ## Dalvik Bytecode
 
-在分析解释器的代码前，需要先了解一下解释器的输入，也就是它执行的字节码格式是什么。Android Runtime 继承和发展了 [Dalvik VM 的字节码 Dalvik Bytecode](https://source.android.com/docs/core/runtime/dalvik-bytecode) 格式，因此在打包 Android 应用的时候，Java 代码最终会被翻译成 Dalvik Bytecode。
+在分析解释器的代码前，需要先了解一下解释器的输入，也就是它执行的字节码格式是什么。Android Runtime 继承和发展了 [Dalvik VM 的字节码 Dalvik Bytecode](<https://source.android.com/docs/core/runtime/dalvik-bytecode>) 格式，因此在打包 Android 应用的时候，Java 代码最终会被翻译成 Dalvik Bytecode。
 
 接下来来实践一下这个过程，从 Java 代码到 Dalvik Bytecode：
 
@@ -53,7 +53,7 @@ public class MainActivity {
 
 Java Bytecode 是个典型的栈式字节码，因此从 `int add(int, int)` 函数可以看到，它分别压栈第零个和第一个局部遍变量（即参数 `a` 和 `b`），然后用 `iadd` 指令从栈顶弹出两个元素，求和后再把结果压栈。
 
-接着，用 Android SDK 的 Build Tools 提供的命令 `d8` 来把它转换为 Dalvik Bytecode。如果你还没有安装 Android SDK，可以按照 [sdkmanager 文档](https://developer.android.com/tools/sdkmanager) 来安装 sdkmanager，再用 sdkmanager 安装较新版本的 `build-tools`。转换的命令为 `$ANDROID_HOME/build-tools/$VERSION/d8 MainActivity.class`，结果会保存在当前目录的 `classes.dex` 文件内。接着可以用 `$ANDROID_HOME/build-tools/$VERSION/dexdump -d classes.dex` 来查看 Dalvik Bytecode：
+接着，用 Android SDK 的 Build Tools 提供的命令 `d8` 来把它转换为 Dalvik Bytecode。如果你还没有安装 Android SDK，可以按照 [sdkmanager 文档](<https://developer.android.com/tools/sdkmanager>) 来安装 sdkmanager，再用 sdkmanager 安装较新版本的 `build-tools`。转换的命令为 `$ANDROID_HOME/build-tools/$VERSION/d8 MainActivity.class`，结果会保存在当前目录的 `classes.dex` 文件内。接着可以用 `$ANDROID_HOME/build-tools/$VERSION/dexdump -d classes.dex` 来查看 Dalvik Bytecode：
 
 ```text
 Processing 'classes.dex'...
@@ -131,16 +131,16 @@ Class #0            -
 对比 Java Bytecode，在 Dalvik Bytecode 里的 `add` 函数的实现就大不相同了：
 
 1. `add-int/2addr v0, v1`: 求寄存器 `v1` 和寄存器 `v0` 之和，在这里就对应 `a` 和 `b` 两个参数，结果写到 `v0` 寄存器当中
-1. `return v0`: 以寄存器 `v0` 为返回值，结束当前函数
+2. `return v0`: 以寄存器 `v0` 为返回值，结束当前函数
 
 可见 Dalvik Bytecode 采用的是类似 V8 的基于寄存器的字节码，不过没有 V8 的 `accumulator`。
 
-Dalvik Bytecode 的完整列表见 [Dalvik bytecode format](https://source.android.com/docs/core/runtime/dalvik-bytecode)，它的格式基本上是两个字节为一组，每组里第一个字节代表 Op 类型，第二个字节代表参数，有一些 Op 后面还会带有多组参数。
+Dalvik Bytecode 的完整列表见 [Dalvik bytecode format](<https://source.android.com/docs/core/runtime/dalvik-bytecode>)，它的格式基本上是两个字节为一组，每组里第一个字节代表 Op 类型，第二个字节代表参数，有一些 Op 后面还会带有多组参数。
 
 例如上面的 `add-int/2addr vA, vB` 指令的编码是：
 
 1. 第一个字节是 `0xb0`，表示这是一个 `add-int/2addr` Op
-1. 第二个字节共 8 位，低 4 位编码了 `vA` 的寄存器编号 `A`，高 4 位编码了 `vB` 的寄存器编号 `B`
+2. 第二个字节共 8 位，低 4 位编码了 `vA` 的寄存器编号 `A`，高 4 位编码了 `vB` 的寄存器编号 `B`
 
 所以 `add-int/2addr v0, v1` 的编码就是 `0xb0, 0 | (1 << 4)` 即 `0xb0, 0x10`。因为存得很紧凑，寄存器编号只有 4 位，所以这个 Op 的操作数不能访问 v16 或更高的寄存器。
 
@@ -149,9 +149,9 @@ Dalvik Bytecode 的完整列表见 [Dalvik bytecode format](https://source.andro
 一些比较复杂的 Op 会附带更多的参数，此时编码就可能涉及到更多的字节。比如 `invoke-virtual {vC, vD, vE, vF, vG}, meth@BBBB`，可以携带可变个寄存器参数，在编码的时候，格式如下：
 
 1. 第一个字节 `0x6e` 表示这是一个 `invoke-virtual` Op
-1. 第二个字节的高 4 位记录了参数个数
-1. 第三和第四个字节共 16 位，记录了要调用的函数的 index，这个 index 会被拿来索引 DEX 的 method_ids 表
-1. 第五和第六个字节共 16 位，配合第二个字节的低 4 位，最多可以传递 5 个寄存器参数，每个寄存器参数 4 位
+2. 第二个字节的高 4 位记录了参数个数
+3. 第三和第四个字节共 16 位，记录了要调用的函数的 index，这个 index 会被拿来索引 DEX 的 method\_ids 表
+4. 第五和第六个字节共 16 位，配合第二个字节的低 4 位，最多可以传递 5 个寄存器参数，每个寄存器参数 4 位
 
 因此在上面的代码中，`invoke-virtual {v1, v0}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@0003` 被编码为：`0x6e, 0x20, 0x03, 0x00, 0x01, 0x00`。另外构造了一个例子，把五个参数都用上：`invoke-virtual {v1, v4, v0, v2, v3}, LMainActivity;.add4:(IIII)I // method@0002` 被编码为 `0x6e, 0x53, 0x02, 0x00, 0x41, 0x20`，可以看到五个参数的编码顺序是第五个字节的低 4 位（`v1`）和高 4 位（`v4`），第六个字节的低 4 位（`v0`）和高 4 位（`v2`），最后是第二个字节的低 4 位（`v3`）。
 
@@ -159,7 +159,7 @@ Dalvik Bytecode 的完整列表见 [Dalvik bytecode format](https://source.andro
 
 ## 解释器
 
-Android Runtime (ART) 的解释器放在 `runtime/interpreter` 目录下。如果进行一些[考古](https://stackoverflow.com/questions/22187630/what-does-mterp-mean)，可以看到这个解释器的实现是从更早的 Dalvik VM 来的。它有两种不同的解释器实现：
+Android Runtime (ART) 的解释器放在 `runtime/interpreter` 目录下。如果进行一些[考古](<https://stackoverflow.com/questions/22187630/what-does-mterp-mean>)，可以看到这个解释器的实现是从更早的 Dalvik VM 来的。它有两种不同的解释器实现：
 
 第一个解释器基于 switch-case 的 C++ 代码实现，其逐个遍历 Op，根据 Op 的类型 Opcode 执行相应的操作，类似下面的代码：
 
@@ -174,7 +174,7 @@ for (each op of current function) {
 }
 ```
 
-第二个解释器以 [Token threading](https://en.wikipedia.org/wiki/Threaded_code#Token_threading) 的方式实现，每种 Op 对应一段代码。这段代码在完成 Op 的操作后，读取下一个 Op，再间接跳转到下一个 Op 对应的代码。其工作原理类似下面的代码，这里 [`goto *`](https://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html) 是 GNU C 的扩展，对应间接跳转指令，其目的地址取决于 `handlers[next_opcode]` 的值，意思是根据下一个 op 的 Opcode，找到对应的 handler，直接跳转过去：
+第二个解释器以 [Token threading](<https://en.wikipedia.org/wiki/Threaded_code#Token_threading>) 的方式实现，每种 Op 对应一段代码。这段代码在完成 Op 的操作后，读取下一个 Op，再间接跳转到下一个 Op 对应的代码。其工作原理类似下面的代码，这里 [`goto *`](<https://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html>) 是 GNU C 的扩展，对应间接跳转指令，其目的地址取决于 `handlers[next_opcode]` 的值，意思是根据下一个 op 的 Opcode，找到对应的 handler，直接跳转过去：
 
 ```c
   // op handlers array
@@ -241,7 +241,7 @@ op_sub:
   }
 ```
 
-代码中使用了 [X macro](https://en.wikipedia.org/wiki/X_macro) 的编程技巧：如果你需要在不同的地方重复出现同一个 list，比如在这里，就是所有可能的 Opcode 类型，你可以在一个头文件中用一个宏，以另一个宏为参数去列出来：
+代码中使用了 [X macro](<https://en.wikipedia.org/wiki/X_macro>) 的编程技巧：如果你需要在不同的地方重复出现同一个 list，比如在这里，就是所有可能的 Opcode 类型，你可以在一个头文件中用一个宏，以另一个宏为参数去列出来：
 
 ```c++
 // V(opcode, instruction_code, name, format, index, flags, extended_flags, verifier_flags);
@@ -361,14 +361,14 @@ cd runtime/interpreter/mterp
 其中 `wINST` 表示当前 Op 的前两个字节的内容，前面提到，`add-int/2addr vA, vB` 编码为两个字节，第一个字节是固定的 `0xb0`，第二个字节共 8 位，低 4 位编码了 `vA` 的寄存器编号 `A`，高 4 位编码了 `vB` 的寄存器编号 `B`。由于这是小端序的处理器，那么解释为 16 位整数，从高位到低位依次是：4 位的 `B`，4 位的 `A` 和 8 位的 `0xb0`。知道这个背景以后，再来分析每条指令做的事情，就很清晰：
 
 1. `lsr w3, wINST, #12`：求 `wINST` 右移动 12 位，得到了 `B`
-1. `ubfx w9, wINST, #8, #4`: `ubfx` 是 Bit Extract 指令，这里的意思是从 `wINST` 第 8 位开始取 4 位数据出来，也就是 `A`
-1. `GET_VREG w1, w3`: 读取寄存器编号为 `w3` 的值，写到 `w1` 当中，结合第一条指令，可知此时 `w1` 等于 `B` 寄存器的值
-1. `GET_VREG w0, w9`: 读取寄存器编号为 `w9` 的值，写到 `w0` 当中，结合第二条指令，可知此时 `w0` 等于 `A` 寄存器的值
-1. `FETCH_ADVANCE_INST 1`: 把 "PC" 往前移动 1 个单位的距离，也就是两个字节，并读取下一个 Op 到 `rINST` 当中
-1. `add w0, w0, w1`: 进行实际的整数加法运算，结果保存在 `w0` 当中
-1. `GET_INST_OPCODE ip`: 根据第五条指令读取的下一个 Op 的值 `rINST`，解析出它的 Opcode
-1. `SET_VREG w0, w9`: 把整数加法的结果写回到寄存器编号为 `w9` 的寄存器当中，结合第二条指令，可知写入的是 `A` 寄存器
-1. `GOTO_OPCODE ip`: 跳转到下一个 Op 对应的 handler
+2. `ubfx w9, wINST, #8, #4`: `ubfx` 是 Bit Extract 指令，这里的意思是从 `wINST` 第 8 位开始取 4 位数据出来，也就是 `A`
+3. `GET_VREG w1, w3`: 读取寄存器编号为 `w3` 的值，写到 `w1` 当中，结合第一条指令，可知此时 `w1` 等于 `B` 寄存器的值
+4. `GET_VREG w0, w9`: 读取寄存器编号为 `w9` 的值，写到 `w0` 当中，结合第二条指令，可知此时 `w0` 等于 `A` 寄存器的值
+5. `FETCH_ADVANCE_INST 1`: 把 "PC" 往前移动 1 个单位的距离，也就是两个字节，并读取下一个 Op 到 `rINST` 当中
+6. `add w0, w0, w1`: 进行实际的整数加法运算，结果保存在 `w0` 当中
+7. `GET_INST_OPCODE ip`: 根据第五条指令读取的下一个 Op 的值 `rINST`，解析出它的 Opcode
+8. `SET_VREG w0, w9`: 把整数加法的结果写回到寄存器编号为 `w9` 的寄存器当中，结合第二条指令，可知写入的是 `A` 寄存器
+9. `GOTO_OPCODE ip`: 跳转到下一个 Op 对应的 handler
 
 整体代码还是比较清晰的，只是说把计算 `A + B` 写入 `A` 的过程和读取下一个 Op 并跳转的逻辑穿插了起来，手动做了一次寄存器调度。那么这些 `GET_REG` 和 `FETCH_ADVANCE_INST` 等等具体又是怎么实现的呢？下面把宏展开后的代码贴出来：
 
@@ -418,35 +418,35 @@ cd runtime/interpreter/mterp
 
 各个寄存器的含义已经在上面的注释中写出，比如 `w23` 记录了当前 Op 的前 16 位的内容，`x29` 记录了当前的 frame pointer，通过它可以访问各个 virtual register；`x11` 是 PC，记录了正在执行的 Op 的地址；`x24` 记录了这些 op handler 的起始地址，由于每个 handler 都不超过 128 字节，且都对齐到 128 字节边界（`.balign NTERP_HANDLER_SIZE`），所以只需要简单的运算 `xIBASE + opcode * 128` 即可找到下一个 op 的 handler 地址，不需要再进行一次访存。
 
-如果要比较一下 Android Runtime 的 mterp (nterp) 和 [V8 的 Ignition 解释器](https://jia.je/software/2025/03/01/v8-ignition-internals/index.md)的实现，有如下几点相同与不同：
+如果要比较一下 Android Runtime 的 mterp (nterp) 和 [V8 的 Ignition 解释器](<https://jia.je/blog/posts/software/v8-ignition-internals/index.md>)的实现，有如下几点相同与不同：
 
 1. 两者都采用了 token threading 的方法，即在一个 Op 处理完成以后，计算出下一个 Op 的 handler 的地址，跳转过去
-1. V8 的 op handler 是动态生成的（`mksnapshot` 阶段），长度没有限制，允许生成比较复杂的汇编，但如果汇编比较短（比如 release 模式下），也可以节省一些内存；代价是需要一次额外的对 dispatch table 的访存，来找到 opcode 对应的 handler
-1. mterp 的 op handler 对齐到 128B 边界，带来的好处是不需要访问 dispatch table，直接根据 opcode 计算地址即可，不过由于很多 handler 很短，可能只有十条指令左右，就会浪费了一些内存
-1. V8 没有 handler 长度的限制，所以针对一些常见的 Op 做了优化（Short Star），可以减少一些跳转的开销
-1. V8 在区分 Smi(Small integer) 和对象的时候，做法是在 LSB 上打标记：0 表示 Smi，1 表示对象；mterp 则不同，它给每个虚拟寄存器维护了两个 32 位的值：一个保存在 xFP 指向的数组当中，记录的是它的实际的值，比如 int 的值，或者对象的引用；另一个保存在 xREFS 指向的数组当中，记录的是它引用的对象，如果不是对象，则记录的是 0
+2. V8 的 op handler 是动态生成的（`mksnapshot` 阶段），长度没有限制，允许生成比较复杂的汇编，但如果汇编比较短（比如 release 模式下），也可以节省一些内存；代价是需要一次额外的对 dispatch table 的访存，来找到 opcode 对应的 handler
+3. mterp 的 op handler 对齐到 128B 边界，带来的好处是不需要访问 dispatch table，直接根据 opcode 计算地址即可，不过由于很多 handler 很短，可能只有十条指令左右，就会浪费了一些内存
+4. V8 没有 handler 长度的限制，所以针对一些常见的 Op 做了优化（Short Star），可以减少一些跳转的开销
+5. V8 在区分 Smi(Small integer) 和对象的时候，做法是在 LSB 上打标记：0 表示 Smi，1 表示对象；mterp 则不同，它给每个虚拟寄存器维护了两个 32 位的值：一个保存在 xFP 指向的数组当中，记录的是它的实际的值，比如 int 的值，或者对象的引用；另一个保存在 xREFS 指向的数组当中，记录的是它引用的对象，如果不是对象，则记录的是 0
 
 除了以上列举的不同的地方以外，其实整体来看是十分类似的，下面是二者实现把整数加载到寄存器（`const/4 vA, #+B` 和 `LdaSmi`）的汇编的对比：
 
-| Operation             | mterp (nterp)                                             | Ignition                                        |
-| --------------------- | --------------------------------------------------------- | ----------------------------------------------- |
-| Extract Dest Register | `ubfx w0, w23, #8, #4`                                    | N/A (destination is always the accumulator)     |
-| Extract Const Integer | `sbfx w1, w23, #12, #4`                                   | `add x1, x19, #1; ldrsb w1, [x20, x1]`          |
-| Read Next Op          | `ldrh w23, [x22, #2]!`                                    | `add x19, x19, #2; ldrb w3, [x20, x19]`         |
-| Save Result           | `str w1, [x29, w0, uxtw #2]; str wzr, [x25, w0, uxtw #2]` | `add w0, w1, w1`                                |
-| Computed Goto         | `and x16, x23, 0xff; add x16, x24, x16, lsl #7; br x16`   | `ldr x2, [x21, x3, lsl #3]; mov x17, x2; br x2` |
+| Operation | mterp (nterp) | Ignition |
+| --- | --- | --- |
+| Extract Dest Register | `ubfx w0, w23, #8, #4` | N/A (destination is always the accumulator) |
+| Extract Const Integer | `sbfx w1, w23, #12, #4` | `add x1, x19, #1; ldrsb w1, [x20, x1]` |
+| Read Next Op | `ldrh w23, [x22, #2]!` | `add x19, x19, #2; ldrb w3, [x20, x19]` |
+| Save Result | `str w1, [x29, w0, uxtw #2]; str wzr, [x25, w0, uxtw #2]` | `add w0, w1, w1` |
+| Computed Goto | `and x16, x23, 0xff; add x16, x24, x16, lsl #7; br x16` | `ldr x2, [x21, x3, lsl #3]; mov x17, x2; br x2` |
 
 在寄存器的约定和使用上的区别：
 
-| Purpose          | mterp (nterp)          | Ignition                       |
-| ---------------- | ---------------------- | ------------------------------ |
-| Intepreter PC    | base + offset in `x22` | base in `x20`, offset in `x19` |
-| Virtual Register | relative to `x29`      | relative to `fp`               |
-| Dispatch Table   | computed from `x24`    | saved in `x21`                 |
+| Purpose | mterp (nterp) | Ignition |
+| --- | --- | --- |
+| Intepreter PC | base + offset in `x22` | base in `x20`, offset in `x19` |
+| Virtual Register | relative to `x29` | relative to `fp` |
+| Dispatch Table | computed from `x24` | saved in `x21` |
 
 ## Lua 解释器
 
-既然已经分析了 [V8](https://jia.je/software/2025/03/01/v8-ignition-internals/index.md) 和 Android Runtime 的解释器，也来简单看一下 [Lua](https://www.lua.org/) 的解释器实现。它写的非常简单，核心代码就在 `lvm.c` 当中：
+既然已经分析了 [V8](<https://jia.je/blog/posts/software/v8-ignition-internals/index.md>) 和 Android Runtime 的解释器，也来简单看一下 [Lua](<https://www.lua.org/>) 的解释器实现。它写的非常简单，核心代码就在 `lvm.c` 当中：
 
 ```c
 vmdispatch (GET_OPCODE(i)) {
@@ -491,5 +491,5 @@ static const void *const disptab[NUM_OPCODES] = {
 
 ## 参考
 
-- [What does mterp mean?](https://stackoverflow.com/questions/22187630/what-does-mterp-mean)
-- [Android 11 新引入的 Dalvik 字节码解释器 Nterp](https://zhuanlan.zhihu.com/p/523692715)
+- [What does mterp mean?](<https://stackoverflow.com/questions/22187630/what-does-mterp-mean>)
+- [Android 11 新引入的 Dalvik 字节码解释器 Nterp](<https://zhuanlan.zhihu.com/p/523692715>)

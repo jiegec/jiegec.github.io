@@ -1,23 +1,23 @@
 # 以太网的物理接口
 
-本文的内容已经整合到[知识库](/kb/networking/ethernet.html)中。
+本文的内容已经整合到[知识库](</kb/networking/ethernet.html>)中。
 
 ## 背景
 
 最近逐渐接触到了一些高速的以太网的接口，被一大堆的名字搞得有点懵，所以特意学习了一下并整理成这篇博客。
 
-更新：经 [@z4yx](https://github.com/z4yx) 指出，还可以看[华为的介绍文档](https://support.huawei.com/hedex/hdx.do?docid=EDOC1100156553&id=ZH-CN_TOPIC_0250303640&lang=zh)
+更新：经 [@z4yx](<https://github.com/z4yx>) 指出，还可以看[华为的介绍文档](<https://support.huawei.com/hedex/hdx.do?docid=EDOC1100156553&amp;id=ZH-CN_TOPIC_0250303640&amp;lang=zh>)
 
 ## 几几 BASE 杠什么是什么意思
 
 在下文里，经常可以看到类似 100BASE-TX 这种写法，它表示的意思是：
 
 1. BASE 前面的数字表示速率，比如 10，100，1000，10G 等等
-1. BASE 之后的第一个字母，常见的 T 表示双绞线，S 表示 850nm 光纤，L 表示 1310nm 光纤，C 表示同轴电缆
-1. 之后可能还有别的字母，比如 X 表示 8b/10b 或者 4b/5b（FE）的编码，R 表示 64b/66b 的编码
-1. 之后可能还有别的数字，如果是 LAN PHY 表示的是所使用的 lane 数量；如果是 WAN PHY 表示的是传输的公里数
+2. BASE 之后的第一个字母，常见的 T 表示双绞线，S 表示 850nm 光纤，L 表示 1310nm 光纤，C 表示同轴电缆
+3. 之后可能还有别的字母，比如 X 表示 8b/10b 或者 4b/5b（FE）的编码，R 表示 64b/66b 的编码
+4. 之后可能还有别的数字，如果是 LAN PHY 表示的是所使用的 lane 数量；如果是 WAN PHY 表示的是传输的公里数
 
-详见 [Wikipedia - Ethernet Physical Layer # Naming Conventions](https://en.wikipedia.org/wiki/Ethernet_physical_layer#Naming_conventions) 和 IEEE 802.3 1.2.3 节 Physical Layer and media notation：
+详见 [Wikipedia - Ethernet Physical Layer \# Naming Conventions](<https://en.wikipedia.org/wiki/Ethernet_physical_layer#Naming_conventions>) 和 IEEE 802.3 1.2.3 节 Physical Layer and media notation：
 
 ```text
 The data rate, if only a number, is in Mb/s, and if suffixed by a “G”, is in
@@ -35,7 +35,7 @@ in 1.4.
 - 100BASE-T: IEEE 802.3 Physical Layer specification for a 100 Mb/s CSMA/CD local area network. (See IEEE Std 802.3, Clause 22 and Clause 28.)
 - 100BASE-TX: IEEE 802.3 Physical Layer specification for a 100 Mb/s CSMA/CD local area network over two pairs of Category 5 twisted-pair cabling. (See IEEE Std 802.3, Clause 24 and Clause 25.)
 - 1000BASE-T: IEEE 802.3 Physical Layer specification for a 1000 Mb/s CSMA/CD LAN using four pairs of Category 5 balanced copper cabling. (See IEEE Std 802.3, Clause 40.)
-- 1000BASE-X: IEEE 802.3 Physical Layer specification for a 1000 Mb/s CSMA/CD LAN that uses a Physical Layer derived from ANSI X3.230-1994 (FC-PH) [B21]23. (See IEEE Std 802.3, Clause 36.)
+- 1000BASE-X: IEEE 802.3 Physical Layer specification for a 1000 Mb/s CSMA/CD LAN that uses a Physical Layer derived from ANSI X3.230-1994 (FC-PH) \[B21\]23. (See IEEE Std 802.3, Clause 36.)
 - 2.5GBASE-T: IEEE 802.3 Physical Layer specification for a 2.5 Gb/s LAN using four pairs of Category 5e/Class D balanced copper cabling. (See IEEE Std 802.3, Clause 126.)
 - 5GBASE-T: IEEE 802.3 Physical Layer specification for a 5 Gb/s LAN using four pairs of Category 5e/Class D balanced copper cabling. (See IEEE Std 802.3, Clause 126.)
 - 10GBASE-T: IEEE 802.3 Physical Layer specification for a 10 Gb/s LAN using four pairs of Class E or Class F balanced copper cabling. (See IEEE Std 802.3, Clause 55.)
@@ -53,8 +53,8 @@ in 1.4.
 
 连接器（connector）一般来说指的就是线缆和网络设备之间的物理接口了。常见的有：
 
-- [8P8C](https://en.wikipedia.org/wiki/Modular_connector#8P8C)：一般我们会称之为 RJ45，关于它们俩的关系，可以看 Wikipedia 上面的说明，不过在日常生活中，这两个混用其实也没有什么大问题
-- [LC](https://en.wikipedia.org/wiki/Optical_Documentationfiber_connector#LC)：一种光纤的接口，有两个突出来的插到 SFP 光模块中的突起，比较常见
+- [8P8C](<https://en.wikipedia.org/wiki/Modular_connector#8P8C>)：一般我们会称之为 RJ45，关于它们俩的关系，可以看 Wikipedia 上面的说明，不过在日常生活中，这两个混用其实也没有什么大问题
+- [LC](<https://en.wikipedia.org/wiki/Optical_Documentationfiber_connector#LC>)：一种光纤的接口，有两个突出来的插到 SFP 光模块中的突起，比较常见
 - [SFP+ DAC](<https://en.wikipedia.org/wiki/Twinaxial_cabling#SFP+_Direct-Attach_Copper_(10GSFP+Cu)>)：一般是 DAC（Direct Attatched Cable）线，线的两端直接就是 SFP+ 的接口，直接插到 SFP+ 笼子中，不需要光模块；更高速率的也有 DAC 线
 
 对于光纤的接口，注意购买的时候要和光模块对应，不然可能插不进去。常见的有 LC-LC，SC-LC，SC-SC 等等，表示线的两端分别是什么接口。
@@ -65,7 +65,7 @@ in 1.4.
 
 ## 各种 SFP
 
-[SFP](https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver) 是很常见的，特别是在高速的网络之中。而它又分为几种，对应不同的速率：
+[SFP](<https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver>) 是很常见的，特别是在高速的网络之中。而它又分为几种，对应不同的速率：
 
 - SFP: 1Gbps/100Mbps
 - SFP+: 10Gbps
@@ -81,26 +81,26 @@ in 1.4.
 
 可以看到，名字前面加了个 Q（Quad），速率就翻了 4 倍，因为有 4 个 lane，同时物理接口的尺寸也变大了。所以，不带 Q 的 SFP 的物理尺寸都一样，带 Q 的 SFP 物理尺寸都一样大，但后者比前者大一些（SFP 是 113.9 mm^2，QSFP 是 156 mm^2）。OSFP 又比 QSFP 更大一些，O 表示 Octal，就是 8 个 lane 的意思。
 
-可以在 [400G QSFP Transceiver Types and Fiber Connections](https://community.fs.com/blog/400g-qsfp-dd-transceiver-types-overview.html) 和 [400G OSFP Transceiver Types Overview](https://community.fs.com/blog/400g-osfp-transceiver-types-overview.html) 看到 QSFP-DD 和 OSFP 的对比。
+可以在 [400G QSFP Transceiver Types and Fiber Connections](<https://community.fs.com/blog/400g-qsfp-dd-transceiver-types-overview.html>) 和 [400G OSFP Transceiver Types Overview](<https://community.fs.com/blog/400g-osfp-transceiver-types-overview.html>) 看到 QSFP-DD 和 OSFP 的对比。
 
 通常，网络设备也会支持把一个 QSFP 接口拆成多个 SFP 接口来使用，比如有的线，一边是 QSFP28，另一边是 4xSFP28，只要设备支持即可，目的是节省空间。
 
-[SFP 标准 SFF INF-8074](https://members.snia.org/document/dl/26184) 规定了 [20 根信号线](https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver#Signals)，正反面各 10 根，重要的是下面的这些（括号里写得是 Pin 的编号）：
+[SFP 标准 SFF INF-8074](<https://members.snia.org/document/dl/26184>) 规定了 [20 根信号线](<https://en.wikipedia.org/wiki/Small_form-factor_pluggable_transceiver#Signals>)，正反面各 10 根，重要的是下面的这些（括号里写得是 Pin 的编号）：
 
-1. Mod_ABS（6）：模块是否插入
-1. RD+（13）、RD-（12）：接收数据的差分对
-1. TD+（18）、TD-（19）：传输数据的差分对
-1. SDA（4）、SCL（5）：模块的 I2C
-1. Tx_Fault（2）、Tx_Disable（3）、Rx_LOS（8）：一些状态信号
+1. Mod\_ABS（6）：模块是否插入
+2. RD+（13）、RD-（12）：接收数据的差分对
+3. TD+（18）、TD-（19）：传输数据的差分对
+4. SDA（4）、SCL（5）：模块的 I2C
+5. Tx\_Fault（2）、Tx\_Disable（3）、Rx\_LOS（8）：一些状态信号
 
 可以看到，收和发各有一个差分对共 4 条数据线。相对应的，QSFP 收和发各有四对差分对共 16 条数据线，一共 38 根线。并且有一些信号是复用了同样的 pin，这样的设计可以节省一些 pin，是很常见的。
 
 ## MII
 
-有时候，还会遇到各种 [MII](https://en.wikipedia.org/wiki/Media-independent_interface) 接口，也就是 MAC 和 PHY 之间的接口。有时候，还会伴随着 MDIO 接口，来进行控制信息的传输。它又分不同的类型：
+有时候，还会遇到各种 [MII](<https://en.wikipedia.org/wiki/Media-independent_interface>) 接口，也就是 MAC 和 PHY 之间的接口。有时候，还会伴随着 MDIO 接口，来进行控制信息的传输。它又分不同的类型：
 
 - Standard MII：速率是 100Mbps（25MHz\*4）或者 10Mbps（2.5Mhz\*4），TX 7 根线（4 DATA+CLK+EN+ER），RX 7+2 根线（4 DATA+CLK+DV+ER+CRS+COL），加上 MDIO 2 根线共 18 根线
-- RMII：速率是 100Mbps 或者 10Mbps，频率都是 50MHz，一共 10 根线（4 DATA+CLK+TX_EN+CRS_DV+RX_ER+MDIO+MDC），数据线是 TX 和 RX 各 2 根
+- RMII：速率是 100Mbps 或者 10Mbps，频率都是 50MHz，一共 10 根线（4 DATA+CLK+TX\_EN+CRS\_DV+RX\_ER+MDIO+MDC），数据线是 TX 和 RX 各 2 根
 - GMII：速率是 1000Mbps（125MHz\*8），数据线是 TX 和 RX 各 8 根；也支持速率 100Mbps（25MHz）和 10Mbps（2.5MHz）
 - RGMII：速率是 1000Mbps（125MHz\*4\*2，DDR），数据线是 TX 和 RX 各 4 根；也支持速率 100Mbps（25MHz\*4）和 10Mbps（2.5MHz\*4），一共是 5+5+2 根线
 - SGMII：速率是 1000Mbps（625MHz\*2\*8/10），采用 625MHz DDR 差分对 SerDes，采用 8b/10b 的编码
@@ -108,25 +108,25 @@ in 1.4.
 
 有的时候，MAC 和 PHY 是独立的，比如很多常见的 FPGA 开发板，在使用千兆网的时候，在板子上是 PHY 芯片，从 FPGA 到 PHY 通过 RGMII 连接，然后 PHY 再连接到 8P8C（RJ45）的连接器上。一般还会把 MDIO 也接到 FPGA 上面。如果有多个 PHY，就会吧 MDIO 通过总线的方式合并起来，给每个 PHY 配置不同的地址（一般是在指定的 PIN 上设置上拉/下拉电阻实现），就可以保证不冲突的访问。
 
-扩展阅读：[KXZ9031RNX Datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/00002117F.pdf)
+扩展阅读：[KXZ9031RNX Datasheet](<https://ww1.microchip.com/downloads/en/DeviceDoc/00002117F.pdf>)
 
 ## SGMII
 
-上面比较常见的是 GMII/RGMII/SGMII。其中比较特殊的是 [SGMII](https://archive.org/details/sgmii/mode/2up)，首先可以发现它信号很少，只有两对差分线 TX_P TX_N RX_P RX_N，其中时钟是可选的，因为可以从数据中恢复。你可能感到很奇怪，那么其他的信号，比如 DV/ER/CRS 等都去哪里了呢？其实是因为，SGMII 采用了 [8b/10b](https://zh.wikipedia.org/wiki/8b/10b) 的编码的同时，把这些控制信号通过一定的方式顺便编码进去了。具体来说，就是从 8 位的数据信号编码为 10 位的时候，有一些特殊的 10 位符号是没有对应 8 位的数据的，因此可以用这些特殊符号来表示一些信号，比如用 SPD（Start_of_Packet Delimiter，对应 /S/）和 EPD（End_of_Packet Delimiter，对应 /T/R/ 等）表示传输数据的开始和结尾，对应 TX_EN/RX_DV 信号；用 Error_Propagation（/V/）表示错误，对应 RX_ER 信号等等。所以，SGMII 其实还是一个 GMII 的变种，只不过采用 SerDes 的方式减少了引脚，MAC 内部或者 PHY 内部也是经过一个 GMII-SGMII 的转换，而其余部分是一样的。
+上面比较常见的是 GMII/RGMII/SGMII。其中比较特殊的是 [SGMII](<https://archive.org/details/sgmii/mode/2up>)，首先可以发现它信号很少，只有两对差分线 TX\_P TX\_N RX\_P RX\_N，其中时钟是可选的，因为可以从数据中恢复。你可能感到很奇怪，那么其他的信号，比如 DV/ER/CRS 等都去哪里了呢？其实是因为，SGMII 采用了 [8b/10b](<https://zh.wikipedia.org/wiki/8b/10b>) 的编码的同时，把这些控制信号通过一定的方式顺便编码进去了。具体来说，就是从 8 位的数据信号编码为 10 位的时候，有一些特殊的 10 位符号是没有对应 8 位的数据的，因此可以用这些特殊符号来表示一些信号，比如用 SPD（Start\_of\_Packet Delimiter，对应 /S/）和 EPD（End\_of\_Packet Delimiter，对应 /T/R/ 等）表示传输数据的开始和结尾，对应 TX\_EN/RX\_DV 信号；用 Error\_Propagation（/V/）表示错误，对应 RX\_ER 信号等等。所以，SGMII 其实还是一个 GMII 的变种，只不过采用 SerDes 的方式减少了引脚，MAC 内部或者 PHY 内部也是经过一个 GMII-SGMII 的转换，而其余部分是一样的。
 
 关于 8b/10b 的编码方式，可以阅读 IEEE 802.3 标准中的 `Table 36–1a—Valid data code-groups`，里面提到了两类的 Code Group：D 打头的，表示数据，有 256 种，从 8b 映射到 10b 的表达方式，并且为了保持直流平衡，有一种到两种表示方法。此外还有 12 个特殊的 Code Group：K 打头，它们的 10b 表达方式不会和数据冲突。表 `Table 36–3—Defined ordered sets` 中定义了 K 打头的 Code Group 含义：
 
 - /C/ Configuration:
-- /C1/ Configuration 1: /K28.5/D21.5/Config_Reg
-- /C2/ Configuration 2: /K28.5/D2.2/Config_Reg
+- /C1/ Configuration 1: /K28.5/D21.5/Config\_Reg
+- /C2/ Configuration 2: /K28.5/D2.2/Config\_Reg
 - /I/ IDLE:
 - /I1/ IDLE 1: /K28.5/D5.6/
 - /I2/ IDLE 2: /K28.5/D16.2/
 - Encapsulation:
-- /R/ Carrier_Extend: /K23.7/
-- /S/ Start_of_Packet: /K27.7/
-- /T/ End_of_Packet: /K29.7/
-- /V/ Error_Propagation: /K30.7/
+- /R/ Carrier\_Extend: /K23.7/
+- /S/ Start\_of\_Packet: /K27.7/
+- /T/ End\_of\_Packet: /K29.7/
+- /V/ Error\_Propagation: /K30.7/
 - /LI/ LPI (Low Power Idle):
 - /LI1/ LPI 1: /K28.5/D6.5/
 - /LI2/ LPI 2: /K28.5/D26.4/
@@ -135,9 +135,9 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 扩展阅读：
 
-- [Serial Gigabit Media Independent Interface](https://www.intel.com/content/www/us/en/programmable/solutions/technology/transceiver/protocols/pro-sgmii.html)
-- [1G/2.5G Ethernet PCS/PMA or SGMII v16.0](https://www.xilinx.com/support/documentation/ip_documentation/gig_ethernet_pcs_pma/v16_0/pg047-gig-eth-pcs-pma.pdf)
-- <https://en.wikipedia.org/wiki/Physical_coding_sublayer>
+- [Serial Gigabit Media Independent Interface](<https://www.intel.com/content/www/us/en/programmable/solutions/technology/transceiver/protocols/pro-sgmii.html>)
+- [1G/2.5G Ethernet PCS/PMA or SGMII v16.0](<https://www.xilinx.com/support/documentation/ip_documentation/gig_ethernet_pcs_pma/v16_0/pg047-gig-eth-pcs-pma.pdf>)
+- [https://en.wikipedia.org/wiki/Physical\_coding\_sublayer](<https://en.wikipedia.org/wiki/Physical_coding_sublayer>)
 
 ## 1000BASE-X 与 SFP 的关系
 
@@ -149,9 +149,9 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 那么 SFP 电口模块是怎么工作的呢？我们知道，电口采用的是 1000BASE-T 标准。实际上，它里面有一个 PHY 芯片，发送的时候，首先解码 1000BASE-X 变回原始数据，再按照 1000BASE-T 的方式编码再发出去；接收的时候，按照 1000BASE-T 进行解码，再重新编码为 1000BASE-X 发送给 PMA 层。
 
-还有一类电口模块，与上面不同的地方在于，SFP 上走的是 SGMII，而不是 1000BASE-X。这两种模式没有太大的区别，都是两对差分线，一收一发，所以很多时候二者是同时支持，可以切换的。例如 [Cisco Compatible 10/100/1000BASE-T SFP SGMII Copper RJ-45 100m Industrial Transceiver Module (LOS)](https://www.fs.com/products/177936.html?attribute=44906&id=1109184) 就是在 SFP 上走 SGMII 协议。
+还有一类电口模块，与上面不同的地方在于，SFP 上走的是 SGMII，而不是 1000BASE-X。这两种模式没有太大的区别，都是两对差分线，一收一发，所以很多时候二者是同时支持，可以切换的。例如 [Cisco Compatible 10/100/1000BASE-T SFP SGMII Copper RJ-45 100m Industrial Transceiver Module (LOS)](<https://www.fs.com/products/177936.html?attribute=44906&amp;id=1109184>) 就是在 SFP 上走 SGMII 协议。
 
-推荐阅读 [Designing a Copper SFP using the VSC8221 10/100/1000BASE-T PHY](https://ww1.microchip.com/downloads/en/Appnotes/VPPD-01080.pdf)，它里面讲了如何将 VSC8221 芯片用于电口模块：VSC8221 芯片一头是 1000BASEX（又称 802.3z SerDes，802.3z 就是 1000BASE-X）或者 SGMII，另一头是 1000BASE-T MDI。
+推荐阅读 [Designing a Copper SFP using the VSC8221 10/100/1000BASE-T PHY](<https://ww1.microchip.com/downloads/en/Appnotes/VPPD-01080.pdf>)，它里面讲了如何将 VSC8221 芯片用于电口模块：VSC8221 芯片一头是 1000BASEX（又称 802.3z SerDes，802.3z 就是 1000BASE-X）或者 SGMII，另一头是 1000BASE-T MDI。
 
 ## 物理层
 
@@ -175,6 +175,6 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 MDIO 是 MAC 和 PHY 之间一个低速的通信接口，定义在 IEEE 802.3 Clause 45，可以用来配置一些寄存器。它支持读和写，多个 PHY 可以共享一个 MDIO 总线，通过 5 位的地址区分。为了让 PHY 分配到不同的地址，PHY 通常会通过某些引脚的上下拉来决定它自己的 MDIO 地址，这样可以避免冲突。以 RTL8201F 为例，它的 PHY 的 MDIO 地址配置与 LED 输出引脚是共享的，根据外部电路的上下拉不同，配置 MDIO 地址的最低两位：
 
-也就是说，这款芯片的 MDIO 地址可以在二进制的 00000 到 00011 之间取。但不建议用 00000 地址，这是因为一些芯片会把 00000 重定义为广播，此时总线上的所有 PHY 芯片都要响应目标地址为自己的地址（非 00000）或者 00000 地址的请求（见 [MDIO Addressing](https://docs.amd.com/r/en-US/pg047-gig-eth-pcs-pma/MDIO-Addressing)）。RTL8211 在它的文档里描述了这个行为：
+也就是说，这款芯片的 MDIO 地址可以在二进制的 00000 到 00011 之间取。但不建议用 00000 地址，这是因为一些芯片会把 00000 重定义为广播，此时总线上的所有 PHY 芯片都要响应目标地址为自己的地址（非 00000）或者 00000 地址的请求（见 [MDIO Addressing](<https://docs.amd.com/r/en-US/pg047-gig-eth-pcs-pma/MDIO-Addressing>)）。RTL8211 在它的文档里描述了这个行为：
 
 这样的好处是可以同时往多个 PHY 芯片写入寄存器，但如果要从 00000 地址读寄存器的话，一旦多个 PHY 同时响应，MDIO 总线上就会出现冲突。不过如果只有一个 PHY 芯片连接到 MDIO 总线上，那么让 MAC 通过 00000 地址访问 PHY 也是可以的。

@@ -39,7 +39,7 @@ cd /usr/local/lib/node_modules/@vscode/ripgrep/bin && ln -s /usr/local/bin/rg
 cd /usr/local/lib/node_modules/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin && ln -s /usr/local/bin/rg
 ```
 
-然后，日志中会显示 @parcel/watcher 启动失败，显示 Undefined symbol，这是因为这个库截止到 v2.2.0 还没有做 FreeBSD 支持，等下个版本应该就支持了。需要使用 <https://github.com/parcel-bundler/watcher/pull/149> 版本，编译出 watcher.node 文件，替换：
+然后，日志中会显示 @parcel/watcher 启动失败，显示 Undefined symbol，这是因为这个库截止到 v2.2.0 还没有做 FreeBSD 支持，等下个版本应该就支持了。需要使用 [https://github.com/parcel-bundler/watcher/pull/149](<https://github.com/parcel-bundler/watcher/pull/149>) 版本，编译出 watcher.node 文件，替换：
 
 ```shell
 cd watcher

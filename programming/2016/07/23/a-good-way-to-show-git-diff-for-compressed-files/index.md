@@ -1,6 +1,6 @@
 # A good way to show git diff for compressed files
 
-I have found a good way to track changes in .gz files: Add these to ~/.gitconfig:
+I have found a good way to track changes in .gz files: Add these to \~/.gitconfig:
 
 ```text
 [core]
@@ -38,7 +38,7 @@ I have found a good way to track changes in .gz files: Add these to ~/.gitconfig
   textconv = hexdump -v -C
 ```
 
-And these to ~/.gitattributes:
+And these to \~/.gitattributes:
 
 ```text
 *.tar diff=tar
@@ -61,4 +61,4 @@ And these to ~/.gitattributes:
 
 And then you can `git diff` for .gz files.
 
-Codes are adapted from https://gist.github.com/RsrchBoy/11197048 and https://git.wiki.kernel.org/index.php/GitTips#Getting_a_plain-text_diff and https://gist.github.com/kbaird/2654115.
+Codes are adapted from https://gist.github.com/RsrchBoy/11197048 and https://git.wiki.kernel.org/index.php/GitTips\#Getting\_a\_plain-text\_diff and https://gist.github.com/kbaird/2654115.

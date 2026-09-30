@@ -18,9 +18,9 @@
 
 接着就开始启动 U 盘里的 Debian Installer Image 了。启动以后，可以看到进入了 grub shell，目测是 grub 找不到自己的配置文件，可以在 (hd1,msdos1)/boot/grub 下面找到。但是这个 image 的 device tree 和 kernel 都比较老，直接启动会发现，Debian Install 进去了，但是内置键盘和外置 USB 键盘都不工作，于是没法进行进一步的安装。
 
-这时候，在网上搜索了一下已有的在 X Elite 上运行 Linux 的尝试，发现有人在 ASUS 的 X Elite 笔记本上装好了（[来源](https://matrix.org/_matrix/media/v3/download/matrix.org/hrxnkHBVEacnUGKSnHPMUHRX/1000004724.jpg)），我就试着用 ASUS 对应型号笔记本的 device tree 去启动，依然不行，经过了解后（感谢 @imbushuo），得知 Surface 的内置键盘等外设需要通过 SAM 访问，需要额外的配置，目前不确定能否通过 device tree 启用。
+这时候，在网上搜索了一下已有的在 X Elite 上运行 Linux 的尝试，发现有人在 ASUS 的 X Elite 笔记本上装好了（[来源](<https://matrix.org/_matrix/media/v3/download/matrix.org/hrxnkHBVEacnUGKSnHPMUHRX/1000004724.jpg>)），我就试着用 ASUS 对应型号笔记本的 device tree 去启动，依然不行，经过了解后（感谢 @imbushuo），得知 Surface 的内置键盘等外设需要通过 SAM 访问，需要额外的配置，目前不确定能否通过 device tree 启用。
 
-但很快也发现有人在 Surface Laptop 7 上跑起来了（[来源](https://x.com/merckhung/status/1804972131182354604)），我发邮件问了这个作者，作者说他用的是外置的键盘，内置的键盘也不工作。放大观察作者录的视频，发现用的是最新的 master 分支的 Linux 内核，并且用的就是 CRD 的 device tree。到这里就比较有思路了：自己编译一个内核，然后用 x1e80100-crd.dtb 作为 device tree。
+但很快也发现有人在 Surface Laptop 7 上跑起来了（[来源](<https://x.com/merckhung/status/1804972131182354604>)），我发邮件问了这个作者，作者说他用的是外置的键盘，内置的键盘也不工作。放大观察作者录的视频，发现用的是最新的 master 分支的 Linux 内核，并且用的就是 CRD 的 device tree。到这里就比较有思路了：自己编译一个内核，然后用 x1e80100-crd.dtb 作为 device tree。
 
 于是魔改了 Debian Installer Image：替换掉 linux 内核，换成自己编译的最新版，解开 initrd，把里面的 kernel modules 也换成新内核的版本，再把新的 x1e80100-crd.dtb 复制上去，再用 grub 启动新内核 + 新 initrd + 新 Device Tree，发现 USB 外接键盘工作了！虽然只有 Type-C 工作，但是也足够完成剩下的工作了。
 
@@ -40,13 +40,13 @@ initrd  /boot/initrd.img-6.11.0-rc1-00043-g94ede2a3e913
 
 这样搞完，Debian 系统就正常起来了！
 
-本文也发到了 Reddit 上：https://www.reddit.com/r/SurfaceLinux/comments/1efmyb3/managed_to_install_baremetal_linux_on_snapdragon/
+本文也发到了 Reddit 上：https://www.reddit.com/r/SurfaceLinux/comments/1efmyb3/managed\_to\_install\_baremetal\_linux\_on\_snapdragon/
 
 UPDATE:
 
 1. (2024-07-31 更新) 不知道为啥，无线网卡忽然被 rfkill 了，没有找到原因，Windows 里可以继续正常使用
-1. (2024-07-31 更新) CPUFreq 驱动已经有 patch：[[PATCH V6 0/5] qcom: x1e80100: Enable CPUFreq](https://patchew.org/linux/20240612124056.39230-1-quic._5Fsibis@quicinc.com/)，打上即可自动调频
-1. (2024-07-31 更新) 内置的键盘的问题修好了，需要额外的补丁，见 https://github.com/jiegec/linux/tree/surface-laptop-7。
-1. (2024-09-05 更新) 上游合并了 Surface Laptop 7 (Romulus 13/15) 的 Device Tree (`arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts`)，内置的键盘也直接支持了，直接用上游的 Device Tree 即可启动，见 https://github.com/jiegec/linux/tree/surface-laptop-7-next，估计 6.12 就有正式支持了
-1. (2024-09-05 更新) 更新 Mesa 到 24.2.1，显卡加速也工作了
-1. (2024-10-25 更新) 修复了无线网卡被 rfkill 的问题：无线网卡有个引脚决定 rfkill hard block 状态，但在 Surface Laptop 7 上这个引脚被用于其他用途，因此如果依然用这个引脚判断是否被 hard block，就有问题；Windows 上的驱动，会读取 ACPI 的配置，忽略掉这个 hard block 的情况；Linux 上也有正在上游化的 patch 来实现类似的行为，但 Surface Laptop 7 基于 OF 而不是基于 ACPI，于是这个 patch 也不管用，只好直接 hack 掉 rfkill 检查，详见[该链接](https://github.com/dwhinham/linux-surface-pro-11/issues/1#issuecomment-2628699027)
+2. (2024-07-31 更新) CPUFreq 驱动已经有 patch：[\[PATCH V6 0/5\] qcom: x1e80100: Enable CPUFreq](<https://patchew.org/linux/20240612124056.39230-1-quic._5Fsibis@quicinc.com/>)，打上即可自动调频
+3. (2024-07-31 更新) 内置的键盘的问题修好了，需要额外的补丁，见 https://github.com/jiegec/linux/tree/surface-laptop-7。
+4. (2024-09-05 更新) 上游合并了 Surface Laptop 7 (Romulus 13/15) 的 Device Tree (`arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts`)，内置的键盘也直接支持了，直接用上游的 Device Tree 即可启动，见 https://github.com/jiegec/linux/tree/surface-laptop-7-next，估计 6.12 就有正式支持了
+5. (2024-09-05 更新) 更新 Mesa 到 24.2.1，显卡加速也工作了
+6. (2024-10-25 更新) 修复了无线网卡被 rfkill 的问题：无线网卡有个引脚决定 rfkill hard block 状态，但在 Surface Laptop 7 上这个引脚被用于其他用途，因此如果依然用这个引脚判断是否被 hard block，就有问题；Windows 上的驱动，会读取 ACPI 的配置，忽略掉这个 hard block 的情况；Linux 上也有正在上游化的 patch 来实现类似的行为，但 Surface Laptop 7 基于 OF 而不是基于 ACPI，于是这个 patch 也不管用，只好直接 hack 掉 rfkill 检查，详见[该链接](<https://github.com/dwhinham/linux-surface-pro-11/issues/1#issuecomment-2628699027>)

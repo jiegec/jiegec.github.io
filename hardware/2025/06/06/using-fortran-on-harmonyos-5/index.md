@@ -2,11 +2,11 @@
 
 ## 背景
 
-前段时间把 SPEC CPU 2017 移植到了鸿蒙 5 上：<https://github.com/jiegec/SPECCPU2017Harmony>，由于 SPEC CPU 2017 里有不少 Fortran 程序，所以就研究了一下怎么编译 Fortran 代码，最终搞成了，在这里记录一下。
+前段时间把 SPEC CPU 2017 移植到了鸿蒙 5 上：[https://github.com/jiegec/SPECCPU2017Harmony](<https://github.com/jiegec/SPECCPU2017Harmony>)，由于 SPEC CPU 2017 里有不少 Fortran 程序，所以就研究了一下怎么编译 Fortran 代码，最终搞成了，在这里记录一下。
 
 ## 过程
 
-HarmonyOS 5 的工具链用的是 LLVM 15，自带的编译器是 clang，那个时候还没有 LLVM flang。但是，经过实际测试，使用新版本的 flang，也是可以的，只是需要做一些额外的操作。例如 flang 有自己的 runtime（类比 libgcc 和 LLVM 的 compiler-rt），需要交叉编译一个 arm64 的版本，下面是仓库中 [build-flang.sh](https://github.com/jiegec/SPECCPU2017Harmony/blob/f02cbe4a043d4c1489ebfae8a190e4a1ab6ca2c8/build-flang.sh) 的内容：
+HarmonyOS 5 的工具链用的是 LLVM 15，自带的编译器是 clang，那个时候还没有 LLVM flang。但是，经过实际测试，使用新版本的 flang，也是可以的，只是需要做一些额外的操作。例如 flang 有自己的 runtime（类比 libgcc 和 LLVM 的 compiler-rt），需要交叉编译一个 arm64 的版本，下面是仓库中 [build-flang.sh](<https://github.com/jiegec/SPECCPU2017Harmony/blob/f02cbe4a043d4c1489ebfae8a190e4a1ab6ca2c8/build-flang.sh>) 的内容：
 
 ```shell
 #!/bin/sh
@@ -69,7 +69,7 @@ ls -al $DST
 fatal Fortran runtime error(/home/jiegec/llvm-project/flang/runtime/descriptor.cpp:74): not yet implemented: type category(6)
 ```
 
-参考 [[flang] fatal Fortran runtime error](https://github.com/llvm/llvm-project/issues/129877)，就知道是编译器版本和 runtime 不兼容的问题了。
+参考 [\[flang\] fatal Fortran runtime error](<https://github.com/llvm/llvm-project/issues/129877>)，就知道是编译器版本和 runtime 不兼容的问题了。
 
 编译好了 fortran runtime 之后，就可以用 flang-new-20 编译 fortran 代码了。这里给出 CMake 的配置方式，主要涉及到需要用的编译选项：
 

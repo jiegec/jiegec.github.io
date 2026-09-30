@@ -1,10 +1,10 @@
 # PCIe 学习笔记
 
-本文的内容已经整合到[知识库](/kb/hardware/pcie.html)中。
+本文的内容已经整合到[知识库](</kb/hardware/pcie.html>)中。
 
 ## 背景
 
-最近在知乎上看到 [LogicJitterGibbs](https://www.zhihu.com/people/ljgibbs) 的 [资料整理：可以学习 1W 小时的 PCIe](https://zhuanlan.zhihu.com/p/447134701)，我跟着资料学习了一下，然后在这里记录一些我学习 PCIe 的笔记。
+最近在知乎上看到 [LogicJitterGibbs](<https://www.zhihu.com/people/ljgibbs>) 的 [资料整理：可以学习 1W 小时的 PCIe](<https://zhuanlan.zhihu.com/p/447134701>)，我跟着资料学习了一下，然后在这里记录一些我学习 PCIe 的笔记。
 
 下面的图片主要来自 PCIe 3.0 标准以及 MindShare 的 PCIe 3.0 书本。
 
@@ -23,17 +23,21 @@ Prefix 和 Header 开头的一个字节是 `Fmt[2:0]` 和 `Type[4:0]` 字段。F
 它支持几类 Packet：
 
 - Memory: MMIO
+
   - Read Request(MRd)/Completion(CplD)
   - Write Request(MWr): 注意只有 Request，没有 Completion
   - AtomicOp Request(FetchAdd/Swap/CAS)/Completion(CplD)
   - Locked Memory Read(MRdLk)/Completion(CplDLk): Legacy
 - IO: Legacy
+
   - Read Request(IORd)/Completion(CplD)
   - Write Request(IOWr)/Completion(Cpl)
 - Configuration: 访问配置空间
+
   - Read Request(CfgRd0/CfgRd1)/Completion(CplD)
   - Write Request(CfgWr0/CfgWr1)/Completion(Cpl)
 - Message: 传输 event
+
   - Request(Msg/MsgD)
 
 括号里的是 TLP Type，对应了它 Fmt 和 Type 字段的取值。如果 Completion 失败了，原来应该是 CplD/CplDLk 的 Completion 会变成不带数据的 Cpl/CplLk。
@@ -45,6 +49,7 @@ TLP 路由有三个方法，决定了这个 TLP 目的地是哪里：
 - Address-based: 32 位或 64 位地址，用于 Memory 和 IO 请求
 - ID-based：lspci 看到的地址，也就是 Bus Device Function，用于 Configuration 请求
 - Implicit：用于 Message 请求，路由方法：
+
   - Routed to Root Complex
   - Routed by Address: PCIe 3.0 标准中没有用这个路由方法的 Message
   - Routed by ID
@@ -61,7 +66,7 @@ Data Link Layer 的主要功能是进行 TLP 的可靠传输。它在传输 TLP 
 - Ack DLLP: 告诉对方自己已经成功收到了 TLP
 - Nak DLLP：告诉对方自己接收 TLP 失败，请重试
 - InitFC1/InitFC2/UpdateFC DLLPs：流量控制
-- PM_Enter_L1/PM_Enter_L23/PM_Active_State_Request_L1/PM_Request_Ack：用于电源管理
+- PM\_Enter\_L1/PM\_Enter\_L23/PM\_Active\_State\_Request\_L1/PM\_Request\_Ack：用于电源管理
 
 Data Link Layer 收到上层要发送 TLP 时候，首先拼接 Sequence Number 和 LCRC，然后会保存在 retry buffer 中，通过 Physical Layer 发送。从 Physical Layer 收到新的 TLP/DLLP 时，会检查它的完整性（CRC），如果正确，就向发送方发送一个 Ack DLLP，并把 TLP 提交给 Transaction Layer；如果不正确，就向发送方发送一个 Nak DLLP。如果收到了 Ack DLLP，就可以把相应的 TLP 从 retry buffer 中删掉；如果收到了 Nak DLLP，则要重传。这样就实现了 TLP 的可靠传输。
 
@@ -82,6 +87,7 @@ Data Link Layer 的流量是 Credit-based 的：接受方会告诉发送方自�
 - Configuration 请求只能由 Host Bridge 发起
 - 如果 Configuration 请求是 Type0，那么这个请求的目的设备就是当前设备
 - 如果 Configuration 请求是 Type1，
+
   - 如果请求的 Bus Number 等于某一个 Downstream Port 的 Secondary Bus Number，则把 Configuration 请求转换为 Type0，然后发给该 Downstream Port
   - 如果不等于，但是 Bus Number 属于某一个 Downstream Port 的 Secondary Bus Number 和 Subordinate Bus Number 之间，则不修改 Configuration 请求，发送给该 Downstream Port。
 
@@ -100,8 +106,9 @@ Data Link Layer 的流量是 Credit-based 的：接受方会告诉发送方自�
 这些用于路由的区间上下界，可以在各个端口的 Type1 Configuration Space 中找到：
 
 - 路由 Type1 Configuration Request：Primary Bus Number, Secondary Bus Number, Subordinate Bus Number
-  - `Request Bus Number == Secondary Bus Number`: Type1 -> Type0
-  - `Secondary Bus Number < Request Bus Number <= Subordinate Bus Number`: Type1 -> Type1
+
+  - `Request Bus Number == Secondary Bus Number`: Type1 -\> Type0
+  - `Secondary Bus Number < Request Bus Number <= Subordinate Bus Number`: Type1 -\> Type1
 - 路由 IO Request：`I/O Base <= IO Address <= I/O Limit`
 - 路由 Prefetchable Memory Request：`Prefetchable Memory Base <= Memory Address <= Prefetchable Memory Limit`
 - 路由 Non-Prefetchable Memory Request：`Memory Base <= Memory Address <= Memory Limit`
@@ -110,7 +117,7 @@ Data Link Layer 的流量是 Credit-based 的：接受方会告诉发送方自�
 
 ### 分配
 
-既然知道了 BDF 是如何路由的，那么接下来的问题是，怎么枚举设备和交换机，分配 Bus Number。这个事情在系统启动的时候会做（例如 UEFI），Linux 中也有相关的代码。下面就来对着 [edk2](https://github.com/tianocore/edk2) 的源代码来看看它是怎么做的。
+既然知道了 BDF 是如何路由的，那么接下来的问题是，怎么枚举设备和交换机，分配 Bus Number。这个事情在系统启动的时候会做（例如 UEFI），Linux 中也有相关的代码。下面就来对着 [edk2](<https://github.com/tianocore/edk2>) 的源代码来看看它是怎么做的。
 
 在 edk2 中，分配 Bus Number 的核心代码是 `PciScanBus` 函数：
 
@@ -246,12 +253,13 @@ for (Device = 0; Device <= PCI_MAX_DEVICE; Device++) {
 从代码中去掉了一些热插拔相关的代码，简单来说，它的思路如下：
 
 1. 枚举当前设备下的 Device 和 Function
-1. 如果找到了一个桥设备，为它分配一个新的 Bus Number
+2. 如果找到了一个桥设备，为它分配一个新的 Bus Number
+
    1. 设置这个新的桥设备的 Primary Bus Number 为 Start Bus Number（也就是上一级的 Secondary Bus Number），Secondary Bus 是新分配的 Bus Number，Subordinate Bus Number 是最大值
-   1. 这样设置完成后，相当于所有的在 `[Secondary Bus Number, Max Bus Number]` 范围中的 Bus 请求都会路由到新的桥设备上
-   1. 递归调用 PciScanBus，参数是新的桥设备，Start Bus Number 为新的 Secondary Bus Number
-   1. 递归调用返回以后，新的桥设备下面所有的设备都分配到了自己的 Bus Number，这时候就可以知道准确的 Subordinate Bus Number 了，不再是刚才临时设置的 Max Bus Number，因此这时候再把准确的 Subordinate Bus Number 写入桥设备的 Subordinate Bus Number 中
-1. 枚举完所有设备以后，返回目前递归分配得到的最大的 Bus Number
+   2. 这样设置完成后，相当于所有的在 `[Secondary Bus Number, Max Bus Number]` 范围中的 Bus 请求都会路由到新的桥设备上
+   3. 递归调用 PciScanBus，参数是新的桥设备，Start Bus Number 为新的 Secondary Bus Number
+   4. 递归调用返回以后，新的桥设备下面所有的设备都分配到了自己的 Bus Number，这时候就可以知道准确的 Subordinate Bus Number 了，不再是刚才临时设置的 Max Bus Number，因此这时候再把准确的 Subordinate Bus Number 写入桥设备的 Subordinate Bus Number 中
+3. 枚举完所有设备以后，返回目前递归分配得到的最大的 Bus Number
 
 这样整理出来一看，其实很清楚，这就是一个 DFS 算法，在搜索过程中，为了保证当前的结点可达，保证从 Root Bridge 到当前的结点路径上的 Bus Number 范围都是 `[Secondary Bus Number, Max Bus Number]`；当结点搜索完以后，再回溯，回溯的时候就知道了实际分配到多大的 Bus Number，这时候再填回 Subordinate Bus Number，最后保证这个树上每一层的 `[Secondary Bus Number, Subordinate Bus Number]` 区间不重合，且每个子结点的区间都包含于父结点的区间。
 
@@ -369,19 +377,19 @@ if (PcdGetBool(PcdSrIovSupport) && (PciDevice->SrIovCapabilityOffset != 0)) {
 
 PCIe 6.0 引入了 PAM4 来替代原来的 NRZ，实现了波特率不变的情况下速度翻倍，并且不再使用 128b/130b，为了解决 PAM4 带来的更高的错误率，引入了 FEC，CRC 还有格雷码，以及新的 FLIT。
 
-网上可以搜到关于 PCIe 的 PPT：https://pcisig.com/sites/default/files/files/PCIe%206.0%20Webinar_Final\_.pdf 和 https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206_DDasSharma.pdf，以及关于 FLIT 的博客：https://pcisig.com/blog/pcie%C2%AE-60-specification-webinar-qa-deeper-dive-flit-mode-pam4-and-forward-error-correction-fec
+网上可以搜到关于 PCIe 的 PPT：https://pcisig.com/sites/default/files/files/PCIe%206.0%20Webinar\_Final\_.pdf 和 https://www.openfabrics.org/wp-content/uploads/2022-workshop/2022-workshop-presentations/206\_DDasSharma.pdf，以及关于 FLIT 的博客：https://pcisig.com/blog/pcie%C2%AE-60-specification-webinar-qa-deeper-dive-flit-mode-pam4-and-forward-error-correction-fec
 
 总结 FLIT 的要点：
 
 1. 每个 FLIT 固定长度 256 字节，其中 236 字节传输 TLP，6 字节传输 DLLP，8 字节传输 CRC，6 字节传输 FEC。
-1. 接受方接受到 FLIT 后，会尝试进行 FEC 解码，并且尝试修复错误，再进行 CRC 校验。如果中途出现了错误，则会发送一个 NAK 给发送方。
-1. 一个 TLP 可能跨越多个 FLIT，一个 FLIT 可能包括多个 TLP，根据 TLP 大小而定。TLP 不需要对齐到 FLIT 的开头或者结尾。
+2. 接受方接受到 FLIT 后，会尝试进行 FEC 解码，并且尝试修复错误，再进行 CRC 校验。如果中途出现了错误，则会发送一个 NAK 给发送方。
+3. 一个 TLP 可能跨越多个 FLIT，一个 FLIT 可能包括多个 TLP，根据 TLP 大小而定。TLP 不需要对齐到 FLIT 的开头或者结尾。
 
 可以发现，FLIT 的 CRC 用了 8 个字节，不再需要原来 TLP 和 DLLP 中的 ECRC 和 LCRC。在之前的 PCIe 版本，TLP 的可选 Digest 是 4 个字节的 ECRC，TLP+DLLP 的 LCRC 是 4 字节。具体采用多少字节的 CRC，和目标的错误率，以及传输的字节数相关。
 
 ## ATS
 
-ATS（Address Translation Service）是在 PCIe 上给外设提供查询页表的方式，从而可以使用虚拟地址。标准可以在 https://composter.com.ua/documents/ats_r1.1_26Jan09.pdf 处下载，以及关于 ATS 的 PPT：https://composter.com.ua/documents/Address_Translation_Services.pdf。
+ATS（Address Translation Service）是在 PCIe 上给外设提供查询页表的方式，从而可以使用虚拟地址。标准可以在 https://composter.com.ua/documents/ats\_r1.1\_26Jan09.pdf 处下载，以及关于 ATS 的 PPT：https://composter.com.ua/documents/Address\_Translation\_Services.pdf。
 
 它的整体工作方式如图：
 
@@ -390,6 +398,6 @@ ATS（Address Translation Service）是在 PCIe 上给外设提供查询页表�
 为了支持 ATS，需要支持如下的操作：
 
 1. PCIe Device 向 Translation Agent 发送 Translation Request；Translation Agent 向 PCIe Device 回复 Translation Completion；
-1. 当页表出现变化的时候，需要通知 PCIe 设备端的 TLB，因此需要向 PCIe 设备发送 Invalidate Request Message；PCIe 设备完成 TLB 刷新后，回复一个 Invalidate Complete Message。
+2. 当页表出现变化的时候，需要通知 PCIe 设备端的 TLB，因此需要向 PCIe 设备发送 Invalidate Request Message；PCIe 设备完成 TLB 刷新后，回复一个 Invalidate Complete Message。
 
 ATS 标准还定义了一个可选功能，就是 Page Request Interface（PRI），其实就是缺页的时候，设备可以去发送 Page Request，要求操作系统去分配一个物理页。这就像用户程序里 mmap 一个匿名的页，一开始是没有分配的，直到第一次访问的时候，出现缺页异常，然后 OS 分配一个物理页，再更新页表。这样的好处是用于 DMA 的物理页也可以 Swap 或者延迟分配。

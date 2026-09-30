@@ -4,7 +4,7 @@
 
 看到 @jsteward 在 M1 的 QEMU 中运行了 Windows on ARM，所以我先来试试 Debian on AArch64，这样会简单一些。
 
-参考：https://gist.github.com/niw/e4313b9c14e968764a52375da41b4278#file-readme-md
+参考：https://gist.github.com/niw/e4313b9c14e968764a52375da41b4278\#file-readme-md
 
 大约需要 3G 的硬盘空间。
 
@@ -27,7 +27,7 @@ make -j4
 
 ## 准备好文件系统
 
-需要下载 [EFI 固件](https://gist.github.com/niw/4f1f9bb572f40d406866f23b3127919b/raw/f546faea68f4149c06cca88fa67ace07a3758268/QEMU_EFI-cb438b9-edk2-stable202011-with-extra-resolutions.tar.gz) 和 [Debian 安装镜像](https://mirrors.tuna.tsinghua.edu.cn/debian-cd/current/arm64/iso-cd/debian-10.7.0-arm64-xfce-CD-1.iso)，解压前者以后把文件放同一个目录中，并且创建需要的文件：
+需要下载 [EFI 固件](<https://gist.github.com/niw/4f1f9bb572f40d406866f23b3127919b/raw/f546faea68f4149c06cca88fa67ace07a3758268/QEMU_EFI-cb438b9-edk2-stable202011-with-extra-resolutions.tar.gz>) 和 [Debian 安装镜像](<https://mirrors.tuna.tsinghua.edu.cn/debian-cd/current/arm64/iso-cd/debian-10.7.0-arm64-xfce-CD-1.iso>)，解压前者以后把文件放同一个目录中，并且创建需要的文件：
 
 ```shell
 $ ls *.fd
@@ -65,7 +65,7 @@ $ $QEMU/qemu-system-aarch64 \
   -display default,show-cursor=on
 ```
 
-需要注意的是，如果用 `-cdrom` 选项，Debian 会无法识别，所以需要走 SCSI。安装完成后，第一次重启可能会显示失败，不用管。另外，安装界面只在串口处显示，但不会显示在 GUI 中，估计是因为 [BUG](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=977466)（感谢 @Harry-Chen 指出）。
+需要注意的是，如果用 `-cdrom` 选项，Debian 会无法识别，所以需要走 SCSI。安装完成后，第一次重启可能会显示失败，不用管。另外，安装界面只在串口处显示，但不会显示在 GUI 中，估计是因为 [BUG](<https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=977466>)（感谢 @Harry-Chen 指出）。
 
 ## 启动系统
 

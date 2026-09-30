@@ -3,18 +3,18 @@
 ## 参考文档
 
 - [Intel® Many Integrated Core Architecture (Intel® MIC Architecture) - Advanced](<https://openlab-mu-internal.web.cern.ch/02_Press_Corner/Spotlights/Spotlights_items/Copies_of_Spotlights_items/2011/ManyIntegratedCore(MIC)ArchitectureAdvanced.pdf>)
-- [Intel® Xeon Phi coprocessor (codename Knights Corner)](https://ieeexplore.ieee.org/abstract/document/7476487)
-- <https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7453080>
-- [Knights Landing (KNL): 2nd Generation Intel® Xeon Phi™ Processor](https://www.alcf.anl.gov/files/HC27.25.710-Knights-Landing-Sodani-Intel.pdf)
-- [Fujitsu A64FX](https://en.wikipedia.org/wiki/Fujitsu_A64FX)
-- [Fujitsu Presents Post-K CPU Specifications](https://www.fujitsu.com/global/about/resources/news/press-releases/2018/0822-02.html)
-- [Fujitsu High Performance CPU for the Post-K Computer](https://web.archive.org/web/20201205202434/https://hotchips.org/hc30/2conf/2.13_Fujitsu_HC30.Fujitsu.Yoshida.rev1.2.pdf)
-- [SUPERCOMPUTER FUGAKU - SUPERCOMPUTER FUGAKU, A64FX 48C 2.2GHZ, TOFU INTERCONNECT D](https://www.top500.org/system/179807/)
-- [Preliminary Performance Evaluation of the Fujitsu A64FX Using HPC Applications](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9229635)
-- [FUJITSU Processor A64FX](https://www.fujitsu.com/downloads/SUPER/a64fx/a64fx_datasheet.pdf)
-- [NVIDIA A100 Tensor Core GPU Architecture](https://images.nvidia.cn/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf)
-- [NVIDIA TESLA V100 GPU ARCHITECTURE](https://images.nvidia.cn/content/volta-architecture/pdf/volta-architecture-whitepaper.pdf)
-- [NVIDIA A100 TENSOR CORE GPU](https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf)
+- [Intel® Xeon Phi coprocessor (codename Knights Corner)](<https://ieeexplore.ieee.org/abstract/document/7476487>)
+- [https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080](<https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080>)
+- [Knights Landing (KNL): 2nd Generation Intel® Xeon Phi™ Processor](<https://www.alcf.anl.gov/files/HC27.25.710-Knights-Landing-Sodani-Intel.pdf>)
+- [Fujitsu A64FX](<https://en.wikipedia.org/wiki/Fujitsu_A64FX>)
+- [Fujitsu Presents Post-K CPU Specifications](<https://www.fujitsu.com/global/about/resources/news/press-releases/2018/0822-02.html>)
+- [Fujitsu High Performance CPU for the Post-K Computer](<https://web.archive.org/web/20201205202434/https://hotchips.org/hc30/2conf/2.13_Fujitsu_HC30.Fujitsu.Yoshida.rev1.2.pdf>)
+- [SUPERCOMPUTER FUGAKU - SUPERCOMPUTER FUGAKU, A64FX 48C 2.2GHZ, TOFU INTERCONNECT D](<https://www.top500.org/system/179807/>)
+- [Preliminary Performance Evaluation of the Fujitsu A64FX Using HPC Applications](<https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=9229635>)
+- [FUJITSU Processor A64FX](<https://www.fujitsu.com/downloads/SUPER/a64fx/a64fx_datasheet.pdf>)
+- [NVIDIA A100 Tensor Core GPU Architecture](<https://images.nvidia.cn/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf>)
+- [NVIDIA TESLA V100 GPU ARCHITECTURE](<https://images.nvidia.cn/content/volta-architecture/pdf/volta-architecture-whitepaper.pdf>)
+- [NVIDIA A100 TENSOR CORE GPU](<https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf>)
 
 ## Xeon Phi - Intel MIC
 
@@ -47,25 +47,25 @@ Knights Landing:
 
 ## NVIDIA GPU
 
-| 型号 | 工艺          | Peak DP(TFLOPS) | 功耗 (W) | 性能功耗比 (TFLOPS/W) |
-| ---- | ------------- | --------------- | -------- | --------------------- |
-| P100 | 16 nm FinFET+ | 4.7             | 250      | 0.019                 |
-| V100 | 12 nm FFN     | 7               | 250-300  | 0.023-0.028           |
-| A100 | 7 nm N7       | 9.7             | 250-400  | 0.024-0.039           |
+| 型号 | 工艺 | Peak DP(TFLOPS) | 功耗 (W) | 性能功耗比 (TFLOPS/W) |
+| --- | --- | --- | --- | --- |
+| P100 | 16 nm FinFET+ | 4.7 | 250 | 0.019 |
+| V100 | 12 nm FFN | 7 | 250-300 | 0.023-0.028 |
+| A100 | 7 nm N7 | 9.7 | 250-400 | 0.024-0.039 |
 
-| 型号 | 内存容量 (GB) | 内存带宽 (GB/s) | 内存类型      | L2 缓存大小 | 寄存器堆大小 |
-| ---- | ------------- | --------------- | ------------- | ----------- | ------------ |
-| P100 | 12-16         | 549-732         | 4096 bit HBM2 | 4096 KB     | 14336 KB     |
-| V100 | 16-32         | 900             | 4096 bit HBM2 | 6144 KB     | 20480 KB     |
-| A100 | 40-80         | 1555-2039       | 5120 bit HBM2 | 40960 KB    | 27648 KB     |
+| 型号 | 内存容量 (GB) | 内存带宽 (GB/s) | 内存类型 | L2 缓存大小 | 寄存器堆大小 |
+| --- | --- | --- | --- | --- | --- |
+| P100 | 12-16 | 549-732 | 4096 bit HBM2 | 4096 KB | 14336 KB |
+| V100 | 16-32 | 900 | 4096 bit HBM2 | 6144 KB | 20480 KB |
+| A100 | 40-80 | 1555-2039 | 5120 bit HBM2 | 40960 KB | 27648 KB |
 
 | 型号 | SM 数量 | CUDA 核心数 | FP64 核心数 | SM 频率 (MHz) |
-| ---- | ------- | ----------- | ----------- | ------------- |
-| P100 | 56      | 3584        | 1792        | 1328          |
-| V100 | 80      | 5120        | 2560        | 1380          |
-| A100 | 108     | 6912        | 3456        | 1410          |
+| --- | --- | --- | --- | --- |
+| P100 | 56 | 3584 | 1792 | 1328 |
+| V100 | 80 | 5120 | 2560 | 1380 |
+| A100 | 108 | 6912 | 3456 | 1410 |
 
-- CUDA 核心数 = SM 数量 * 64
-- FP64 核心数 = SM 数量 * 32
-- Peak DP = FP64 核心数 * SM 频率 * 2
-- 寄存器堆大小 = SM 数量 * 256 KB
+- CUDA 核心数 = SM 数量 \* 64
+- FP64 核心数 = SM 数量 \* 32
+- Peak DP = FP64 核心数 \* SM 频率 \* 2
+- 寄存器堆大小 = SM 数量 \* 256 KB

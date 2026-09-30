@@ -2,7 +2,7 @@
 
 ## 背景
 
-ISCA 2020 的一篇文章 [The IBM z15 High Frequency Mainframe Branch Predictor Industrial Product](https://ieeexplore.ieee.org/document/9138999) 非常详细地解析了 IBM z15 Mainframe CPU 的分支预测器设计。本文是对这篇论文的学习和整理的笔记。
+ISCA 2020 的一篇文章 [The IBM z15 High Frequency Mainframe Branch Predictor Industrial Product](<https://ieeexplore.ieee.org/document/9138999>) 非常详细地解析了 IBM z15 Mainframe CPU 的分支预测器设计。本文是对这篇论文的学习和整理的笔记。
 
 ## 设计思路
 
@@ -22,16 +22,16 @@ z15 的 L1 BTB 的 8-way 意味着在一个周期可以进行 8 条分支的预�
 
 为了预测分支的方向，在 L1 BTB 里，也保存了 2 bit saturating counter，也就是 BTB 也充当了通常说的 BHT。除了 BHT 以外，为了预测分支方向，z15 记录了 Global Path Vector，也就是常说的 PHR，记录最近的 n 条 taken branch 的历史。z14 之前，GPV 记录了最近 9 条 taken branch 的历史，z14 和 z15，GPV 记录了最近 17 条 taken branch 的历史。GPV 中每个 taken branch 提供 2 bit 的信息。
 
-GPV 和 PC 作为 TAGE 的输入，进行方向预测。z15 采用了两个 TAGE PHT，都是 512 x 8 way，一共是 8K 分支的容量，历史短的 TAGE PHT 只用最近 9 条 taken branch 的历史，历史长的 TAGE PHT 则会用完整的 17 条 taken branch 的历史。论文里比较详细地描述了 TAGE 的实现，基本和 A. Seznec 的设计是一样的，也做了 USE_ALT_ON_NA 的改进。除了 TAGE 以外，z15 还有 Perceptron 预测器，有 32 个 entry，16 x 2 way，把系数和 GPV 进行点积（GPV 的每个 bit 映射为 1 和 -1），根据结果的符号决定跳转的方向。
+GPV 和 PC 作为 TAGE 的输入，进行方向预测。z15 采用了两个 TAGE PHT，都是 512 x 8 way，一共是 8K 分支的容量，历史短的 TAGE PHT 只用最近 9 条 taken branch 的历史，历史长的 TAGE PHT 则会用完整的 17 条 taken branch 的历史。论文里比较详细地描述了 TAGE 的实现，基本和 A. Seznec 的设计是一样的，也做了 USE\_ALT\_ON\_NA 的改进。除了 TAGE 以外，z15 还有 Perceptron 预测器，有 32 个 entry，16 x 2 way，把系数和 GPV 进行点积（GPV 的每个 bit 映射为 1 和 -1），根据结果的符号决定跳转的方向。
 
 因此一共有 BHT、TAGE 和 Perceptron 可以提供方向预测。为了判断用哪个预测器来提供最终的方向，规则是：
 
 1. 对于条件分支，记录它是否曾经跳和不跳过（Bidirectional），如果只往一个方向跳，就查 BHT
-1. 如果两个方向都跳过，此时 Perceptron 优先级更高，如果 Perceptron 命中且置信度高，则用 Perceptron 的结果
-1. 否则考察 TAGE 的预测结果，如果 TAGE 命中且置信度高，则用 TAGE 的结果
-1. 如果 Perceptron 和 TAGE 都没有命中，再用 BHT 的结果
+2. 如果两个方向都跳过，此时 Perceptron 优先级更高，如果 Perceptron 命中且置信度高，则用 Perceptron 的结果
+3. 否则考察 TAGE 的预测结果，如果 TAGE 命中且置信度高，则用 TAGE 的结果
+4. 如果 Perceptron 和 TAGE 都没有命中，再用 BHT 的结果
 
-简单来说，优先级是 Perceptron > TAGE > BHT。
+简单来说，优先级是 Perceptron \> TAGE \> BHT。
 
 为了预测间接分支的目的地址，z15 上 PC 和 GPV 通过哈希映射到 CTB（Changing Target Buffer）的表项上，每个表项记录了分支的目的地址。
 

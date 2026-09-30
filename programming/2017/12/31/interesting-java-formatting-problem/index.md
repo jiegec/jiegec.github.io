@@ -11,6 +11,6 @@ $ new SimpleDateFormat("YYYY-MM-dd").format(date)
 ===> 2018-12-31
 ```
 
-解决方案是，把格式换为 `yyyy-MM-dd` ，确实就可以了。于是我就去研究了一下文档： [Class SimpleDateFormat](https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html) ，发现了问题：
+解决方案是，把格式换为 `yyyy-MM-dd` ，确实就可以了。于是我就去研究了一下文档： [Class SimpleDateFormat](<https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html>) ，发现了问题：
 
-`y` 代表 `year` ，而 `Y` 代表 `week year` 。根据 [week year](https://docs.oracle.com/javase/7/docs/api/java/util/GregorianCalendar.html#week_year) ，因为今年最后的一个星期在明年的部分更多，于是这个星期被归在了明年，所以这一周属于 2018，这就可以解释之前的那个输出问题了。
+`y` 代表 `year` ，而 `Y` 代表 `week year` 。根据 [week year](<https://docs.oracle.com/javase/7/docs/api/java/util/GregorianCalendar.html#week_year>) ，因为今年最后的一个星期在明年的部分更多，于是这个星期被归在了明年，所以这一周属于 2018，这就可以解释之前的那个输出问题了。

@@ -46,7 +46,7 @@ Info : Listening on port 4444 for telnet connections
 参考：
 
 1. https://pansila.github.io/posts/7db4884d
-1. https://numato.com/kb/programming-mimas-a7-using-openocd-and-xc3sprog/
+2. https://numato.com/kb/programming-mimas-a7-using-openocd-and-xc3sprog/
 
 更新：OpenOCD 已经更新到 0.11.0，对于 Arty A7，采用下面的脚本进行烧写：
 

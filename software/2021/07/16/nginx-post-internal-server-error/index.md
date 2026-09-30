@@ -19,6 +19,6 @@ Context: http, server, location
 Sets buffer size for reading client request body. In case the request body is larger than the buffer, the whole body or only its part is written to a temporary file. By default, buffer size is equal to two memory pages. This is 8K on x86, other 32-bit platforms, and x86-64. It is usually 16K on other 64-bit platforms.
 ```
 
-详见 https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_buffer_size
+详见 https://nginx.org/en/docs/http/ngx\_http\_core\_module.html\#client\_body\_buffer\_size
 
 这就可以解释为什么 Nginx 返回 500 而且没有转发到后端，也可以解释为什么 Nginx 没有输出新的错误日志。

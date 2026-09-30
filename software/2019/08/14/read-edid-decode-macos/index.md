@@ -8,7 +8,7 @@
 ioreg -lw0 | grep IODisplayEDID
 ```
 
-输出里会出现 "IODisplayEDID" = \<00ffxxxxxxxxxxxxx> 的内容，尖括号内的就是 EDID 的内容。接着，我们采用 [edid-decode](https://git.linuxtv.org/edid-decode.git/) 进行解析：
+输出里会出现 "IODisplayEDID" = \<00ffxxxxxxxxxxxxx\> 的内容，尖括号内的就是 EDID 的内容。接着，我们采用 [edid-decode](<https://git.linuxtv.org/edid-decode.git/>) 进行解析：
 
 ```bash
 git clone git://linuxtv.org/edid-decode.git

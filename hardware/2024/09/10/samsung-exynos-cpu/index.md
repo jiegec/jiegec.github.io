@@ -2,19 +2,19 @@
 
 ## 背景
 
-ISCA 2020 的一篇文章 [Evolution of the Samsung Exynos CPU Microarchitecture](https://ieeexplore.ieee.org/document/9138988) 非常详细地解析了三星 Exynos 自研 CPU 微架构的演进历史。本文是对这篇论文的学习和整理的笔记。
+ISCA 2020 的一篇文章 [Evolution of the Samsung Exynos CPU Microarchitecture](<https://ieeexplore.ieee.org/document/9138988>) 非常详细地解析了三星 Exynos 自研 CPU 微架构的演进历史。本文是对这篇论文的学习和整理的笔记。
 
 ## 分支预测器
 
-文章 Chapter IV 讲述了 Exynos 系列微架构的分支预测器实现。Exynos 微架构用的是 [Scaled Hashed Perceptron](https://ieeexplore.ieee.org/document/903263) 分支方向预测器，这个分支预测器的提出者 Daniel A. Jiménez 也在这篇论文的作者列表中。现在采用基于 Perceptron 的分支预测器的处理器不多，AMD 的 Zen 1 用了，Zen 2 是 Perceptron 加 TAGE，Zen 3 以后就只有 TAGE 了。
+文章 Chapter IV 讲述了 Exynos 系列微架构的分支预测器实现。Exynos 微架构用的是 [Scaled Hashed Perceptron](<https://ieeexplore.ieee.org/document/903263>) 分支方向预测器，这个分支预测器的提出者 Daniel A. Jiménez 也在这篇论文的作者列表中。现在采用基于 Perceptron 的分支预测器的处理器不多，AMD 的 Zen 1 用了，Zen 2 是 Perceptron 加 TAGE，Zen 3 以后就只有 TAGE 了。
 
 除了方向预测器，还需要有 BTB 来识别分支以及记录分支的目的地址。为了性能，每个周期都要预测至少一个分支，所以一般会有一个 0-bubble 的 BTB，在这里叫 uBTB（microBTB，用 u 代替希腊字母 μ）。但也因为时序的限制，不会做的太大。为了支持有更大的容量，通常还会有更大的，延迟也更长的 BTB，在这里叫 mBTB（Main BTB），最大的是 L2 BTB，还有后面会讲到处理边界情况的 vBTB。同理，分支预测器也有容量和延迟的双重考虑，设置不同大小和容量的分支预测器，也可能会分多级，和 0-bubble uBTB 配对的 LHP（Local History Perception）以及 1-2 bubble mBTB 配对的完整的 SHP（Scaled Hashed Perception）。此外还有 RAS（Return Address Stack）负责函数返回地址的预测。
 
-首先从 Exynos 最早的分支预测器设计开始。一开始设计的时候，就考虑到要支持 2 prediction/clock 的场景，前提是第一个分支是 not taken 的。例如有两条分支指令，第一条是条件分支指令，如果第一条分支 taken，那就以第一条分支的结果为准；如果第一条分支 not taken，那就应该以第二条分支的结果为准。这样可以在比较低的开销的前提下，一个周期预测两条分支指令，提高分支预测的性能，如果不做这个优化的话，需要先预测第一条分支，预测完，再去预测第二条分支。论文中指出，对于这种需要预测 2 个分支的场景，有 60% 的情况是第一条分支 taken，24% 情况是第一条分支 not taken 并且第二条分支 taken，两个都 not taken 的情况占 16%。那么后 40% 的情况就可以得到性能提升。这个优化还是挺常见的，例如[香山南湖架构](https://raw.githubusercontent.com/OpenXiangShan/XiangShan-doc/main/slides/20220825-RVSC-%E9%A6%99%E5%B1%B1%E5%A4%84%E7%90%86%E5%99%A8%E5%89%8D%E7%AB%AF%E5%8F%96%E6%8C%87%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B.pdf)做了这个优化，而且虽然可以 2 predictions/cycle，但实际上只有一个 Fetch Packet，也最多 1 taken prediction/cycle。
+首先从 Exynos 最早的分支预测器设计开始。一开始设计的时候，就考虑到要支持 2 prediction/clock 的场景，前提是第一个分支是 not taken 的。例如有两条分支指令，第一条是条件分支指令，如果第一条分支 taken，那就以第一条分支的结果为准；如果第一条分支 not taken，那就应该以第二条分支的结果为准。这样可以在比较低的开销的前提下，一个周期预测两条分支指令，提高分支预测的性能，如果不做这个优化的话，需要先预测第一条分支，预测完，再去预测第二条分支。论文中指出，对于这种需要预测 2 个分支的场景，有 60% 的情况是第一条分支 taken，24% 情况是第一条分支 not taken 并且第二条分支 taken，两个都 not taken 的情况占 16%。那么后 40% 的情况就可以得到性能提升。这个优化还是挺常见的，例如[香山南湖架构](<https://raw.githubusercontent.com/OpenXiangShan/XiangShan-doc/main/slides/20220825-RVSC-香山处理器前端取指架构演进.pdf>)做了这个优化，而且虽然可以 2 predictions/cycle，但实际上只有一个 Fetch Packet，也最多 1 taken prediction/cycle。
 
 SHP，也就是那个最大的 Perceptron 预测器，包含了 8 个表，每个表有 1024 个权重，每个 BTB 表项还给每个分支记录了一个 bias。预测的时候，根据 GHR（根据分支 taken/not taken 历史）和 PHR（根据 taken branch 地址）以及分支的 PC 经过哈希，得到 table 的 index，根据 index 去访问权重。把从 8 个表里读出来的权重加起来，再加上 bias 的两倍，得到最早的计算结果，如果是非负数，则预测为 taken；负数则预测为 not taken。
 
-知道分支的实际跳转方向后，如果预测错误了，或者预测对了，但是计算结果太接近 0，就需要更新 weight。更新时，会更新参与到计算的来自各个表的 weight，如果是 taken，那就增加 weight；如果是 not taken，就减少 weight。Exynos M1 采用了 165 位的 GHR，也就是最近 165 条条件分支的跳转方向，以及 80 位的 PHR，每个 taken branch 会向 PHR 贡献 3 个 bit（B[4:2]），但是没说移位多少。这样就构成了一个 Perceptron 预测器。
+知道分支的实际跳转方向后，如果预测错误了，或者预测对了，但是计算结果太接近 0，就需要更新 weight。更新时，会更新参与到计算的来自各个表的 weight，如果是 taken，那就增加 weight；如果是 not taken，就减少 weight。Exynos M1 采用了 165 位的 GHR，也就是最近 165 条条件分支的跳转方向，以及 80 位的 PHR，每个 taken branch 会向 PHR 贡献 3 个 bit（B\[4:2\]），但是没说移位多少。这样就构成了一个 Perceptron 预测器。
 
 特别地，针对总是跳转的分支，例如无条件跳转分支，或者总是跳转的条件分支，就不用更新 SHP 了，他们只需要在 BTB 中标记一下即可，避免污染 SHP，干扰其他分支的预测。类似的思路也挺常见的，AMD 的做法是，对于从来没有跳转过的条件分支指令，不分配 BTB 表项，并且预测为不跳转；当条件分支了跳转第一次，那就会在 BTB 中分配表项，标记为 always taken，表示预测为总是跳转；当条件分支跳转和不跳转各至少一次，才启用分支方向预测器。
 
@@ -28,11 +28,11 @@ SHP，也就是那个最大的 Perceptron 预测器，包含了 8 个表，每�
 
 由于这个初始的分支预测器设计只有一个 main BTB，需要 2 bubble 才能出一个 taken branch，在 taken branch 很密集的时候，就需要三个周期一个 taken branch 了，这性能肯定不够好。所以 Exynos M1 引入了 0-bubble 的 uBTB，容量比较小，好处是快，一般这种 0-bubble BTB 也可以叫做 Next Line Predictor，预测下一个周期的 Fetch 地址。
 
-为了实现 0-bubble 的 uBTB，Exynos M1 用了一个基于图的结构来记录分支之间的跳转关系，配合一个记录分支局部历史的 Hashed Perceptron 算法来预测方向。这个预测算法也是第一次见，在三星的专利 [High performance zero bubble conditional branch prediction using micro branch target buffer](https://patents.google.com/patent/US20170068539A1/en) 中提出，大题思路其实就是把基本块学习出来，找到分支之间 taken 和 not taken 的关系，以每个分支为一个结点，如果一个分支 taken 以后会到另一个分支，那就在这两个分支对应的结点之间连一条 taken 的有向边，类似地，not taken 也会连 not taken 的有向边。
+为了实现 0-bubble 的 uBTB，Exynos M1 用了一个基于图的结构来记录分支之间的跳转关系，配合一个记录分支局部历史的 Hashed Perceptron 算法来预测方向。这个预测算法也是第一次见，在三星的专利 [High performance zero bubble conditional branch prediction using micro branch target buffer](<https://patents.google.com/patent/US20170068539A1/en>) 中提出，大题思路其实就是把基本块学习出来，找到分支之间 taken 和 not taken 的关系，以每个分支为一个结点，如果一个分支 taken 以后会到另一个分支，那就在这两个分支对应的结点之间连一条 taken 的有向边，类似地，not taken 也会连 not taken 的有向边。
 
 有了图以后，就可以直接从图中知道下一个会到达的分支在哪里，即使这个分支可能距离很远；而常规的 BTB 设计里，则是拿到地址以后，用地址去寻找匹配的 BTB entry，这个过程中可能会扫描到一些不存在分支指令的代码块。这里也支持前面说的连续两个分支同时预测的情况，在同一个周期内预测两个分支，如果第一个分支不跳，就用第二个分支的结果，在树上转移。为了省电，当 uBTB 预测准确率较高，图记录了最近执行的所有分支，那么 uBTB 就可以火力全开，保持 0-bubble 的预测，这个预测在后面的流水线中会被 mBTB 和 SHP 进行进一步的确认。如果准确率特别高，认为 mBTB 和 SHP 大概率也会得到相同的预测结果，就会进一步停止 mBTB 和 SHP 的使用，降低功耗，这时候就要靠后端的 Branch Unit 来检查预测是否正确。
 
-这就是 Exynos M1 和 M2 的分支预测器设计。上面的专利[High performance zero bubble conditional branch prediction using micro branch target buffer](https://patents.google.com/patent/US20170068539A1/en)还给出了前端的流水线各级的功能：
+这就是 Exynos M1 和 M2 的分支预测器设计。上面的专利[High performance zero bubble conditional branch prediction using micro branch target buffer](<https://patents.google.com/patent/US20170068539A1/en>)还给出了前端的流水线各级的功能：
 
 这个图中没有绘制 uBTB 内部的结构，uBTB 负责给出初始的预测，到 B1 阶段，从 B1 开始，会经过两条流水线，上面的流水线是 mBTB + SHP 负责更精确的预测，下面的流水线是查询 ITLB + 读取 ICache。上面说 2-bubble 的 mBTB，实际上就是从 B1 得到 Fetch Window，B2 读取 mBTB 和 SHP 的权重，等到 B3 完成之后才可以计算出结果，判断是 taken 还是 not taken，如果预测的结果和 uBTB 预测不一致，就需要刷流水，从 B1 重新开始：B1 B2 B3 B1 B2 B3，三个周期一个 taken branch。
 
@@ -75,8 +75,8 @@ Exynos M1 到 M4 没有 uOP Cache，所有指令都需要经过取指和译码�
 那么什么时候 uOP Cache 启用呢？论文中提到了一个状态机：
 
 1. FilterMode：当 uBTB 在学习分支之间的关系时，也在检查这段代码能否放到 uOP Cache 里，如果可以的话，转移到 BuildMode
-1. BuildMode：开始把译码得到的 uOP 保存到 uOP Cache 内部，同时和 uBTB 学习到的图进行比对，当图中大部分的边对应的指令都已经被 uOP Cache 学习到，说明 uOP Cache 已经捕捉了大部分需要的指令，进入 FetchMode
-1. FetchMode：指令缓存和译码部件被关闭，节省功耗，所有指令都从 uOP Cache 提供；此时如果 uBTB 的准确率很高，mBTB 也可以关掉，进一步节省功耗。当 uOP Cache 命中率降低，切换回 FilterMode
+2. BuildMode：开始把译码得到的 uOP 保存到 uOP Cache 内部，同时和 uBTB 学习到的图进行比对，当图中大部分的边对应的指令都已经被 uOP Cache 学习到，说明 uOP Cache 已经捕捉了大部分需要的指令，进入 FetchMode
+3. FetchMode：指令缓存和译码部件被关闭，节省功耗，所有指令都从 uOP Cache 提供；此时如果 uBTB 的准确率很高，mBTB 也可以关掉，进一步节省功耗。当 uOP Cache 命中率降低，切换回 FilterMode
 
 这种设计还是比较常见的，uOP Cache 和 Decoder 不会同时工作，而是二选一，根据 uOP Cache 的命中率来决定谁来工作。然后进一步为了避免 uOP Cache 填充的功耗，如果 uBTB 发现这些代码放不下 uOP Cache 中，就不填充 uOP Cache 了，这就是 FilterMode 的设计的意义。
 

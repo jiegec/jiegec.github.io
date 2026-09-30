@@ -11,7 +11,7 @@ SERVER ${hostname} ${hostid} ${port}
 VENDER snpslmd /path/to/scl/2018.06/linux64/bin/snpslmd
 ```
 
-然后把 $LM_LICENSE_FILE 指向这个文件路径，就可以了。这一部分感谢 @Jackey-Huo。
+然后把 $LM\_LICENSE\_FILE 指向这个文件路径，就可以了。这一部分感谢 @Jackey-Huo。
 
 随手写了一个简化版的点亮数字人生（没有数码管），得到了 bistream，准备往板子里刷，然后问题出现了：
 

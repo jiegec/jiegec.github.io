@@ -6,7 +6,7 @@
 
 ## AXI DMA
 
-文档：<https://docs.xilinx.com/r/en-US/pg021_axi_dma>
+文档：[https://docs.xilinx.com/r/en-US/pg021\_axi\_dma](<https://docs.xilinx.com/r/en-US/pg021_axi_dma>)
 
 如果在 Xilinx FPGA 上使用过以太网，那大概率会接触到 AXI DMA 这个 IP，它负责把以太网 MAC 的 AXI Stream 数据用 DMA 的形式通过内存来与操作系统交互。
 
@@ -14,10 +14,10 @@
 
 它的收和发各是一个队列，首先来看发送队列：
 
-发送队列由一个头指针（MM2S_CURDESC）和一个尾指针定义（MM2S_TAILDESC），指针指向的是一个 Scatter Gather Descriptor，Descriptor 的内容包括：
+发送队列由一个头指针（MM2S\_CURDESC）和一个尾指针定义（MM2S\_TAILDESC），指针指向的是一个 Scatter Gather Descriptor，Descriptor 的内容包括：
 
 - NXTDESC：队列下一项的地址
-- BUFFER_ADDRESS：要传输的数据的地址
+- BUFFER\_ADDRESS：要传输的数据的地址
 - CONTROL：控制信息
 - STATUS：状态信息
 - APP0 to APP4：附带的信息
@@ -32,7 +32,7 @@ struct axi_dma_desc {
 };
 ```
 
-当 MM2S_TAILDESC 被更新的时候，硬件会从 CURDESC 开始逐个 Descriptor 处理，直到遇到 TAILDESC 为止：
+当 MM2S\_TAILDESC 被更新的时候，硬件会从 CURDESC 开始逐个 Descriptor 处理，直到遇到 TAILDESC 为止：
 
 ```c
 // when taildesc is changed
@@ -50,7 +50,7 @@ void taildesc_changed() {
 
 #### U-Boot
 
-下面来看 U-Boot 的例子，驱动是 [xilinx_axi_emac.c](https://github.com/u-boot/u-boot/blob/v2023.01/drivers/net/xilinx_axi_emac.c)。这个驱动的实现很简单：每次需要发送的时候，只准备一个 Descriptor，发完就轮询直到发送成功。显然这个写法没有很好地利用 DMA 的异步特性，但胜在简单。下面是 `axiemac_send` 的部分源码：
+下面来看 U-Boot 的例子，驱动是 [xilinx\_axi\_emac.c](<https://github.com/u-boot/u-boot/blob/v2023.01/drivers/net/xilinx_axi_emac.c>)。这个驱动的实现很简单：每次需要发送的时候，只准备一个 Descriptor，发完就轮询直到发送成功。显然这个写法没有很好地利用 DMA 的异步特性，但胜在简单。下面是 `axiemac_send` 的部分源码：
 
 ```c
 static int axiemac_send(struct udevice *dev, void *ptr, int len) {
@@ -89,7 +89,7 @@ static int axiemac_send(struct udevice *dev, void *ptr, int len) {
 
 #### Linux
 
-再来看 Linux 的 驱动：[xilinx_axienet_main.c](https://github.com/torvalds/linux/blob/v6.2/drivers/net/ethernet/xilinx/xilinx_axienet_main.c)。它采取的方法是分配一个 Descriptor 数组，然后把数组的每一项都指向下一项（最后一项指向第一项），形成一个链表形式的循环队列，维护一个尾指针。下面是初始化代码：
+再来看 Linux 的 驱动：[xilinx\_axienet\_main.c](<https://github.com/torvalds/linux/blob/v6.2/drivers/net/ethernet/xilinx/xilinx_axienet_main.c>)。它采取的方法是分配一个 Descriptor 数组，然后把数组的每一项都指向下一项（最后一项指向第一项），形成一个链表形式的循环队列，维护一个尾指针。下面是初始化代码：
 
 ```c
 static int axienet_dma_bd_init(struct net_device *ndev) {
@@ -161,8 +161,8 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev) {
 实现思路：
 
 1. 检查是否有足够的空闲 Descriptor
-1. 对于要发送的数据的每一段，都填入一个 Descriptor
-1. 写入新的 tail 指针，启动 DMA
+2. 对于要发送的数据的每一段，都填入一个 Descriptor
+3. 写入新的 tail 指针，启动 DMA
 
 那么，又有一个问题：如何知道硬件完成了 DMA 传输，释放了 Descriptor 呢？答案是，AXI DMA 传输完成时，会通过中断通知 CPU，Linux 最终会调用 `axienet_free_tx_chain` 函数：
 
@@ -214,7 +214,7 @@ static int axienet_free_tx_chain(struct axienet_local *lp, u32 first_bd,
 
 ### 接收队列
 
-接收队列结构与发送队列相似，但不同的是，生产者和消费者的角色对调，驱动为了保证随时可以接收数据，需要预先准备好 Descriptor，当 AXI DMA 从以太网 MAC 收到数据的时候，随时有 Descriptor 可以使用，写入数据后，再通知 CPU。和发送队列一样，接收队列由一个头指针（S2MM_CURDESC）和一个尾指针定义（S2MM_TAILDESC），指针指向的 Descriptor 结构与发送队列一致。硬件的接收逻辑和发送逻辑类似，只不过方向相反。
+接收队列结构与发送队列相似，但不同的是，生产者和消费者的角色对调，驱动为了保证随时可以接收数据，需要预先准备好 Descriptor，当 AXI DMA 从以太网 MAC 收到数据的时候，随时有 Descriptor 可以使用，写入数据后，再通知 CPU。和发送队列一样，接收队列由一个头指针（S2MM\_CURDESC）和一个尾指针定义（S2MM\_TAILDESC），指针指向的 Descriptor 结构与发送队列一致。硬件的接收逻辑和发送逻辑类似，只不过方向相反。
 
 #### U-Boot
 
@@ -424,7 +424,7 @@ AXI DMA 提供了一个 Descriptor 链来异步地传输数据，U-Boot 为了�
 
 Intel 82599 是一个有线网卡，Linux 的驱动是 ixgbe。Intel 82599 为收和发都提供了多个队列，每个队列都对应了一个 Descriptor 数组，在内存中连续存放。Linux 驱动使用了 64 个接收队列和发送队列。
 
-文档链接：<https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf>
+文档链接：[https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf](<https://cdrdv2-public.intel.com/331520/82599-datasheet-v3-4.pdf>)
 
 ### 接收队列
 
@@ -583,7 +583,7 @@ netdev_tx_t ixgbe_xmit_frame_ring(struct sk_buff *skb,
 
 接下来看看 ConnectX-4 是如何设计它的各个队列的。首先，它有 Work Queue，用于发送数据（Send Queue）和准备接收数据的缓冲区（Receive Queue），然后硬件处理 Work Queue 中的 Entry 后，就会把结果写入到 Completion Queue，并且通过 Event Queue 通知 CPU。
 
-文档：<https://network.nvidia.com/files/doc-2020/ethernet-adapters-programming-manual.pdf>
+文档：[https://network.nvidia.com/files/doc-2020/ethernet-adapters-programming-manual.pdf](<https://network.nvidia.com/files/doc-2020/ethernet-adapters-programming-manual.pdf>)
 
 ### Work Queue
 
@@ -617,22 +617,22 @@ ownership cqe_ownership(cqe) {
 }
 ```
 
-可以看到，它根据 consumer_counter 的当前值的高位（mask 掉 CQ 大小对应的 bits）与 CQE 的 owner 字段进行比对，如果相等，就认为是属于软件；否则则是属于硬件。软件在轮询的时候，只有遇到 SW ownership 的 CQE 才会处理，否则就忽略。乍一看，这个设计挺奇怪的，因为溢出的问题，`((consumer_counter >> log2_cq_size) & 1)` 每次溢出就会取反，所以相应的 ownership 的对应关系也会取反。回想一下，之前 AXI DMA 的做法，接收的时候，软件设置一个状态位，硬件完成接收以后，也设置一个状态位，软件完成处理以后，再恢复状态位为可以接收的状态，这样来回操作比较麻烦。在 ConnectX-4 的这种设计下，硬件只需要在填 CQE 的时候，toggle 一下 owner 位即可，软件不需要修改内容，只需要修改 consumer_counter。
+可以看到，它根据 consumer\_counter 的当前值的高位（mask 掉 CQ 大小对应的 bits）与 CQE 的 owner 字段进行比对，如果相等，就认为是属于软件；否则则是属于硬件。软件在轮询的时候，只有遇到 SW ownership 的 CQE 才会处理，否则就忽略。乍一看，这个设计挺奇怪的，因为溢出的问题，`((consumer_counter >> log2_cq_size) & 1)` 每次溢出就会取反，所以相应的 ownership 的对应关系也会取反。回想一下，之前 AXI DMA 的做法，接收的时候，软件设置一个状态位，硬件完成接收以后，也设置一个状态位，软件完成处理以后，再恢复状态位为可以接收的状态，这样来回操作比较麻烦。在 ConnectX-4 的这种设计下，硬件只需要在填 CQE 的时候，toggle 一下 owner 位即可，软件不需要修改内容，只需要修改 consumer\_counter。
 
 这样看可能比较迷糊，来拆解一下整个过程。首先是 AXI DMA 的接收队列的 Descriptor 的处理：
 
 1. 软件设置 status = 0 表示这个 Descriptor 可以接收
-1. 硬件设置 status |= COMPLETED
-1. 软件读取 status 发现 COMPLETED，处理数据，然后重新设置 status = 0
+2. 硬件设置 status |= COMPLETED
+3. 软件读取 status 发现 COMPLETED，处理数据，然后重新设置 status = 0
 
 可以看到，Descriptor 的内容是软件和硬件来回修改。ConnectX-4 的设计下，软件不需要对 CQE 做任何修改：
 
-1. 初始情况下，owner = 1 和 consumer_counter = 0，对应 HW owner，所以软件不会认为是合法的 CQE
-1. 硬件开始向 CQ 插入 CQE，此时 owner ^=1 变为 0，对应 SW owner，所以软件可以开始读取并处理 CQE
-1. 硬件不断插入，出现了第一次溢出，软件跟着处理，也第一次溢出了，此时 `((consumer_counter >> log2_cq_size) & 1) = 1`，此时 1 对应 SW owner，0 对应 HW owner。当硬件插入 CQE 以后，owner 才从 0（HW owner）又变回 1（SW owner），软件就知道，可以继续读取并处理 CQE
-1. 这个过程继续下去，owner 的含义不断翻转
+1. 初始情况下，owner = 1 和 consumer\_counter = 0，对应 HW owner，所以软件不会认为是合法的 CQE
+2. 硬件开始向 CQ 插入 CQE，此时 owner ^=1 变为 0，对应 SW owner，所以软件可以开始读取并处理 CQE
+3. 硬件不断插入，出现了第一次溢出，软件跟着处理，也第一次溢出了，此时 `((consumer_counter >> log2_cq_size) & 1) = 1`，此时 1 对应 SW owner，0 对应 HW owner。当硬件插入 CQE 以后，owner 才从 0（HW owner）又变回 1（SW owner），软件就知道，可以继续读取并处理 CQE
+4. 这个过程继续下去，owner 的含义不断翻转
 
-可以看到，整个过程软件不需要写入 CQE 的内容，只需要不断轮询并更新 consumer_counter。硬件实现也很简单，不断地对 owner 进行异或，就实现了通知软件的功能。这就类似于，每当 counter 溢出的时候，就自动“清空”所有 CQE 的“valid”位，然后硬件再设置“valid = 1”。硬件只需要保证 producer_counter 不会追上 consumer_counter 就可以了，硬件也不需要去读取 CQE 的内容来判断软件是否处理完成。这个方式还是比较有意思的。
+可以看到，整个过程软件不需要写入 CQE 的内容，只需要不断轮询并更新 consumer\_counter。硬件实现也很简单，不断地对 owner 进行异或，就实现了通知软件的功能。这就类似于，每当 counter 溢出的时候，就自动“清空”所有 CQE 的“valid”位，然后硬件再设置“valid = 1”。硬件只需要保证 producer\_counter 不会追上 consumer\_counter 就可以了，硬件也不需要去读取 CQE 的内容来判断软件是否处理完成。这个方式还是比较有意思的。
 
 ```c
 static void *get_sw_cqe(struct mlx5_ib_cq *cq, int n)

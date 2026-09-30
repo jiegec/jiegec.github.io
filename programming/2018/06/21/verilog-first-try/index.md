@@ -6,4 +6,4 @@
 
 接下来就是实现一些基本的算术指令，然后讲计算的结果写入到相应的寄存器中。这样做完之后，就可以做一个基于 verilator 的简易 A+B 程序了。
 
-我的代码发布在[jiegec/learn_verilog](https://github.com/jiegec/learn_verilog)中。最近马上到考试周，可能到暑假会更频繁地更新吧。
+我的代码发布在[jiegec/learn\_verilog](<https://github.com/jiegec/learn_verilog>)中。最近马上到考试周，可能到暑假会更频繁地更新吧。

@@ -1,6 +1,6 @@
 # 浅谈乱序执行 CPU（一：乱序）
 
-本文的内容已经整合到[知识库](/kb/hardware/ooo_cpu.html)中。
+本文的内容已经整合到[知识库](</kb/hardware/ooo_cpu.html>)中。
 
 ## 背景
 
@@ -10,21 +10,21 @@
 
 本系列的所有文章：
 
-- [浅谈乱序执行 CPU（一：乱序）](https://jia.je/hardware/2021/09/14/brief-into-ooo/index.md)
-- [浅谈乱序执行 CPU（二：访存）](https://jia.je/hardware/2022/03/31/brief-into-ooo-2/index.md)
-- [浅谈乱序执行 CPU（三：前端）](https://jia.je/hardware/2024/09/12/brief-into-ooo-3/index.md)
+- [浅谈乱序执行 CPU（一：乱序）](<https://jia.je/blog/posts/hardware/brief-into-ooo/index.md>)
+- [浅谈乱序执行 CPU（二：访存）](<https://jia.je/blog/posts/hardware/brief-into-ooo-2/index.md>)
+- [浅谈乱序执行 CPU（三：前端）](<https://jia.je/blog/posts/hardware/brief-into-ooo-3/index.md>)
 
 ## 经典 Tomasulo
 
-参考 [Stanford 教材](https://people.eecs.berkeley.edu/~pattrsn/252F96/Lecture04.pdf)
+参考 [Stanford 教材](<https://people.eecs.berkeley.edu/~pattrsn/252F96/Lecture04.pdf>)
 
 经典 Tomasulo，也是 Wikipedia 上描述的 Tomasulo 算法，它的核心是保留站。指令在 Decode 之后，会被分配到一个保留站中。保留站有以下的这些属性：
 
 1. Op：需要执行的操作
-1. Qj，Qk：操作数依赖的指令目前所在的保留站 ID
-1. Vj，Vk：操作数的值
-1. Rj，Rk：操作数是否 ready（或者用特殊的 Qj，Qk 值表示是否 ready）
-1. Busy：这个保留站被占用
+2. Qj，Qk：操作数依赖的指令目前所在的保留站 ID
+3. Vj，Vk：操作数的值
+4. Rj，Rk：操作数是否 ready（或者用特殊的 Qj，Qk 值表示是否 ready）
+5. Busy：这个保留站被占用
 
 此外还有一个 mapping（Wikipedia 上叫做 RegisterStat），记录了寄存器是否会被某个保留站中的指令写入。
 
@@ -44,7 +44,7 @@
 
 ## ROB (ReOrder Buffer)
 
-[参考教材](https://web.stanford.edu/class/cs349g/cs349g-speculation.pdf)
+[参考教材](<https://web.stanford.edu/class/cs349g/cs349g-speculation.pdf>)
 
 为了实现精确异常，我们需要引入 ROB。在上面的 Tomasulo 算法中，计算单元计算完成的时候，就会把结果写入到寄存器堆中，因此精确异常时难以得到正确的寄存器堆取值。既然我们希望寄存器堆的状态与顺序执行的结果一致，我们需要引入 ROB。
 
@@ -54,7 +54,7 @@ ROB 实际上就是一个循环队列，队列头尾指针之间就是正在执�
 
 这种方法中，ROB 的大小成为了一个新的瓶颈，因为每条在正在执行的指令都需要在 ROB 中记录一份。不过好处是实现了精确异常。
 
-Pentium III 采用的就是这种方法，在 [The Microarchitecture of the Pentium4 Processor](https://courses.cs.washington.edu/courses/cse378/10au/lectures/Pentium4Arch.pdf) 中是这么描述的：
+Pentium III 采用的就是这种方法，在 [The Microarchitecture of the Pentium4 Processor](<https://courses.cs.washington.edu/courses/cse378/10au/lectures/Pentium4Arch.pdf>) 中是这么描述的：
 
 > It allocates the data result registers and the ROB entries as a single, wide entity with a data and a status field. The ROB data field is used to store the data result value of the uop, and the ROB status field is used to track the status of the uop as it is executing in the machine. These ROB entries are allocated and deallocated sequentially and are pointed to by a sequence number that indicates the relative age of these entries. Upon retirement, the result data is physically copied from the ROB data result field into the separate Retirement Register File (RRF). The RAT points to the current version of each of the architectural registers such as EAX. This current register could be in the ROB or in the RRF.
 
@@ -74,7 +74,7 @@ Issue Queue 可以理解为保留站的简化版，它不再保存操作数的�
 
 接下来讨论一些细节。首先是，物理寄存器何时释放。当一条指令写入一个架构寄存器的时候，在下一次这个架构寄存器被写入之前，这个寄存器的值都有可能被读取，因此这个架构寄存器到物理寄存器的映射要保留。如果我们能保证读取这个值的指令都已经完成，我们就可以释放这个物理寄存器了。一个方法是，我在覆盖架构寄存器到物理寄存器的映射时，我还要记录原来的物理寄存器，当该指令在 ROB 中提交了（从队头出去了），说明之前可能依赖这个物理寄存器的所有指令都完成了，这时候就可以把原来的物理寄存器放到未映射的列表中。
 
-还有一个问题，就是在遇到异常的时候，如何恢复在异常指令处的架构寄存器到物理寄存器的映射呢？一个办法是，利用我在 ROB 中记录的被覆盖的物理寄存器编号，从 ROB 队尾往前回滚，当发现一条指令覆盖了一个架构寄存器映射的时候，就恢复为覆盖之前的值。这样，当回滚到异常指令的时候，就会得到正确的映射。[MIPS R10K 的论文](https://ieeexplore.ieee.org/document/491460)中是这么描述的：
+还有一个问题，就是在遇到异常的时候，如何恢复在异常指令处的架构寄存器到物理寄存器的映射呢？一个办法是，利用我在 ROB 中记录的被覆盖的物理寄存器编号，从 ROB 队尾往前回滚，当发现一条指令覆盖了一个架构寄存器映射的时候，就恢复为覆盖之前的值。这样，当回滚到异常指令的时候，就会得到正确的映射。[MIPS R10K 的论文](<https://ieeexplore.ieee.org/document/491460>)中是这么描述的：
 
 ```text
 The active list contains the logical-destination register number and its
@@ -90,14 +90,14 @@ returns new physical registers to the free lists by restoring their read
 pointers.
 ```
 
-和 @CircuitCoder 讨论并参考 [BOOM 文档](https://docs.boom-core.org/en/latest/sections/reorder-buffer.html#parameterization-rollback-versus-single-cycle-reset) 后发现，另一种办法是记录一个 Committed Map Table，也就是，只有当 ROB Head 的指令被 Commit 的时候，才更新 Committed Map Table，可以认为是顺序执行的寄存器映射表。当发生异常的时候，把 Committed Map Table 覆盖到 Register Map Table 上。这样需要的周期比较少，但是时序可能比较差。从 [The Microarchitecture of the Pentium4 Processor](https://courses.cs.washington.edu/courses/cse378/10au/lectures/Pentium4Arch.pdf) 的图 5 来看，Pentium 4 也是采用这种实现方法，分别维护 Frontend RAT 和 Retirement RAT。
+和 @CircuitCoder 讨论并参考 [BOOM 文档](<https://docs.boom-core.org/en/latest/sections/reorder-buffer.html#parameterization-rollback-versus-single-cycle-reset>) 后发现，另一种办法是记录一个 Committed Map Table，也就是，只有当 ROB Head 的指令被 Commit 的时候，才更新 Committed Map Table，可以认为是顺序执行的寄存器映射表。当发生异常的时候，把 Committed Map Table 覆盖到 Register Map Table 上。这样需要的周期比较少，但是时序可能比较差。从 [The Microarchitecture of the Pentium4 Processor](<https://courses.cs.washington.edu/courses/cse378/10au/lectures/Pentium4Arch.pdf>) 的图 5 来看，Pentium 4 也是采用这种实现方法，分别维护 Frontend RAT 和 Retirement RAT。
 
 ## Implicit Renaming(ROB) 和 Explicit Renaming 的比较
 
 这两种方法主要区别：
 
 1. Implicit Renaming 在分发的时候，就会从寄存器堆读取数据，保存到保留站中；而 Explicit Renaming 是指令从 Issue Queue 到执行单元时候从寄存器堆读取数据
-1. Implicit Renaming 的寄存器堆读取口较少，只需要考虑发射数乘以操作数个数，但所有类型的寄存器堆（整数、浮点）都需要读取；Explicit Renaming 的寄存器堆读取口更多，对于每个 Issue Queue，都需要操作数个数个读取口，但好处是可以屏蔽掉不需要访问的读取口，比如浮点 FMA 流水不需要读取整数寄存器堆。写和读是类似的：Implicit Renaming 中，寄存器堆的写入是从 ROB 上提交；而 Explicit Renaming 则是执行单元计算完后写入寄存器堆。
+2. Implicit Renaming 的寄存器堆读取口较少，只需要考虑发射数乘以操作数个数，但所有类型的寄存器堆（整数、浮点）都需要读取；Explicit Renaming 的寄存器堆读取口更多，对于每个 Issue Queue，都需要操作数个数个读取口，但好处是可以屏蔽掉不需要访问的读取口，比如浮点 FMA 流水不需要读取整数寄存器堆。写和读是类似的：Implicit Renaming 中，寄存器堆的写入是从 ROB 上提交；而 Explicit Renaming 则是执行单元计算完后写入寄存器堆。
 
 ## 其他优化的手段
 
@@ -124,36 +124,36 @@ pointers.
 但是，直接这么做会带来一个问题：我们前面提到，物理寄存器的释放规则是，同一个架构寄存器，在创建新的物理寄存器映射的指令从 ROB 提交的时候，旧的物理寄存器可以释放。举个例子：
 
 1. 假如 r0 一开始映射到物理寄存器 p0
-1. 来了一条指令，要写入 r0，这时候分配了一个新的物理寄存器 p1，把 r0 映射到 p1
-1. 当这条指令提交的时候，所有可能读取 p0 的指令都已经提交过了，因此可以把 p0 释放掉
+2. 来了一条指令，要写入 r0，这时候分配了一个新的物理寄存器 p1，把 r0 映射到 p1
+3. 当这条指令提交的时候，所有可能读取 p0 的指令都已经提交过了，因此可以把 p0 释放掉
 
 现在问题来了，如果实现了 Move Elimination，把 r1 直接指向了 r0 的物理寄存器，也就是 p0，此时同一个物理寄存器被两个架构寄存器所使用，如果按照上面的方法做，p0 会被错误的释放掉。那么就需要改进寄存器释放的实现方法。
 
-[Zero cycle move 专利](https://patents.google.com/patent/US20130275720A1/) 和 [Zero cycle move using free list counts 专利](https://patents.google.com/patent/US20160026463A1) 提到了一个方法，对于在 Move Elimination 被重复映射的物理寄存器，在 Duplicated Register Array 中记录它的重复次数，类似于引用计数法，Move Elimination 的时候增加引用计数，当引用计数到零的时候再释放：
+[Zero cycle move 专利](<https://patents.google.com/patent/US20130275720A1/>) 和 [Zero cycle move using free list counts 专利](<https://patents.google.com/patent/US20160026463A1>) 提到了一个方法，对于在 Move Elimination 被重复映射的物理寄存器，在 Duplicated Register Array 中记录它的重复次数，类似于引用计数法，Move Elimination 的时候增加引用计数，当引用计数到零的时候再释放：
 
 1. 假如 r0 一开始映射到物理寄存器 p0
-1. 执行 Move Elimination，把 r1 也指向了 p0，在 Duplicated Register Array 中记录 p0 重复了两次
-1. 来了一条指令 A，要写入 r0，这时候分配了一个新的物理寄存器 p1，把 r0 映射到 p1
-1. 当指令 A 提交的时候，发现 Duplicated Register Array 中记录 p0 重复了两次，由于 r0 不再映射到 p0，所以计数减去一，如果后续有指令写入 r1，提交的时候才会把 p0 最终释放掉
+2. 执行 Move Elimination，把 r1 也指向了 p0，在 Duplicated Register Array 中记录 p0 重复了两次
+3. 来了一条指令 A，要写入 r0，这时候分配了一个新的物理寄存器 p1，把 r0 映射到 p1
+4. 当指令 A 提交的时候，发现 Duplicated Register Array 中记录 p0 重复了两次，由于 r0 不再映射到 p0，所以计数减去一，如果后续有指令写入 r1，提交的时候才会把 p0 最终释放掉
 
-[Last physical register reference scheme 专利](https://patents.google.com/patent/US20210064376A1) 提到了另一种办法：Rename 的时候，“遍历”一下 RAT，看看旧的物理寄存器还有多少人在用，如果只剩下一个，打标记，当指令提交的时候，释放旧的物理寄存器；如果剩下不止一个，那就不释放旧的物理寄存器。举个例子：
+[Last physical register reference scheme 专利](<https://patents.google.com/patent/US20210064376A1>) 提到了另一种办法：Rename 的时候，“遍历”一下 RAT，看看旧的物理寄存器还有多少人在用，如果只剩下一个，打标记，当指令提交的时候，释放旧的物理寄存器；如果剩下不止一个，那就不释放旧的物理寄存器。举个例子：
 
-1. 假如 r0 一开始映射到物理寄存器 p0，此时的 RAT 是 r0 -> p0
-1. 执行 Move Elimination，把 r1 也指向了 p0，此时的 RAT 是 r0 -> p0，r1 -> p0
-1. 来了一条指令 A，要写入 r0，r0 之前指向 p0，扫描 RAT，发现 p0 原来有两个架构寄存器的映射：r0 -> p0 和 r1 -> p0，于是标记指令 A 为 Not Last Reference，同时分配了一个新的物理寄存器 p1，把 r0 映射到 p1，此时的 RAT 是 r0 -> p1，r1 -> p0
-1. 又来了一条指令 B，要写入 r1，r1 之前指向 p0，扫描 RAT，发现 p0 只有一个架构寄存器的映射：r1 -> p0，意味着当指令 B 要提交的时候，p0 可以释放了，所以标记指令 B 为 Last Reference
-1. 当指令 A 提交的时候，因为标记为 Not Last Reference，所以不会释放 p0
-1. 当指令 B 提交的时候，因为标记为 Last Reference，所以要释放 p0
+1. 假如 r0 一开始映射到物理寄存器 p0，此时的 RAT 是 r0 -\> p0
+2. 执行 Move Elimination，把 r1 也指向了 p0，此时的 RAT 是 r0 -\> p0，r1 -\> p0
+3. 来了一条指令 A，要写入 r0，r0 之前指向 p0，扫描 RAT，发现 p0 原来有两个架构寄存器的映射：r0 -\> p0 和 r1 -\> p0，于是标记指令 A 为 Not Last Reference，同时分配了一个新的物理寄存器 p1，把 r0 映射到 p1，此时的 RAT 是 r0 -\> p1，r1 -\> p0
+4. 又来了一条指令 B，要写入 r1，r1 之前指向 p0，扫描 RAT，发现 p0 只有一个架构寄存器的映射：r1 -\> p0，意味着当指令 B 要提交的时候，p0 可以释放了，所以标记指令 B 为 Last Reference
+5. 当指令 A 提交的时候，因为标记为 Not Last Reference，所以不会释放 p0
+6. 当指令 B 提交的时候，因为标记为 Last Reference，所以要释放 p0
 
 它的思路也很简单：与其记录引用计数，不如就去查查 RAT，看看实际上到底引用了多少次，如果只剩下一次了，那提交的时候就要释放；如果引用了不止一次，那就不释放。但是这个方法的难点是，怎么在硬件上快速查询 RAT，知道有多少个架构寄存器映射到这个物理寄存器上。
 
-这部分内容参考了 [AArch64-Explore: Exploration of Apple CPUs](https://github.com/name99-org/AArch64-Explore) 的分析。
+这部分内容参考了 [AArch64-Explore: Exploration of Apple CPUs](<https://github.com/name99-org/AArch64-Explore>) 的分析。
 
 ## 精确异常 vs 非精确异常
 
-精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，[网上资料](http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf) 说，这种情况下硬件实现更简单，但是软件上处理比较困难。
+精确异常是指发生异常的指令之前的指令都完成，之后的没有执行。一般来说，实现方式是完成异常指令之前的所有指令，并撤销异常指令之后的指令的作用。非精确异常则是不保证这个性质，[网上资料](<http://bwrcs.eecs.berkeley.edu/Classes/cs152/lectures/lec12-exceptions.pdf>) 说，这种情况下硬件实现更简单，但是软件上处理比较困难。
 
-一个非精确异常的例子是 [Alpha](https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf)，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：`In general, it is not feasible to fix up the result value or to continue from the trap.`。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：
+一个非精确异常的例子是 [Alpha](<https://courses.cs.washington.edu/courses/cse548/99wi/other/alphahb2.pdf>)，在章节 4.7.6.1 中提到，一些浮点计算异常可能是非精确的，并且说了一句：`In general, it is not feasible to fix up the result value or to continue from the trap.`。同时给出了一些条件，只有当指令序列满足这些条件的时候，异常才是可以恢复的。还有一段描述，摘录在这里：
 
 ```text
 Alpha lets the software implementor determine the precision of
@@ -168,7 +168,7 @@ inserted in the program to force traps to be delivered at specific
 points.
 ```
 
-具体来说，在 [Reference Manual](http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf) 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64 位，低 32 位对应整数寄存器，高 32 位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。
+具体来说，在 [Reference Manual](<http://www.bitsavers.org/pdf/dec/alpha/Sites_AlphaAXPArchitectureReferenceManual_2ed_1995.pdf>) 中第 5.4.1 章节，可以看到当触发 Arithmetic Trap 的时候，会进入 Kernel 的 entArith 函数，并提供参数：a0 表示 exception summary，a1 表示 register write mask。exception summary 可以用来判断发生了什么类型的 exception，比如 integer overflow，inexact result 等等。一个比较特别的 exception 类型是 software completion。第二个参数表示的是触发异常的指令（一个或多个）会写入哪些寄存器（64 位，低 32 位对应整数寄存器，高 32 位对应浮点寄存器），然后保存下来的 PC 值为最后一条执行的指令的下一个地址，从触发异常的第一条指令到最后一条指令就是 trap shadow，这部分指令可能执行了一部分，没有执行一部分，一部分执行结果是错误的。
 
 Linux 处理代码在 `arch/alpha/kernel/traps.c` 的 `do_entArith` 函数中。首先判断，如果是 software completion，那就要进行处理；否则直接 SIGFPE 让程序自己处理或者退出。如果是精确异常，那就对 PC-4 进行浮点模拟；如果是非精确异常，就从 trap shadow 的最后一条指令开始往前搜索，并同时记录遇到的指令写入的寄存器，如果发现指令的写入的寄存器已经覆盖了 register write mask，就说明找到了 trap shadow 的开头，则模拟这条指令，然后从下一条开始重新执行。具体代码如下：
 
@@ -255,18 +255,18 @@ external aborts precise wherever possible.
 
 不过这更多是因为内存的无法预知的错误，这种时候机器直接可以拿去维修了。
 
-[文章](https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/5056/can-anyone-provide-an-example-of-asynchronous-exceptions) 提到了两个 precise/imprecise async/sync的例子：
+[文章](<https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/5056/can-anyone-provide-an-example-of-asynchronous-exceptions>) 提到了两个 precise/imprecise async/sync的例子：
 
 1. 外部中断是异步的，同时也是 precise 的。
-1. 对于一个 Write-allocate 的缓存，如果程序写入一个不存在的物理地址，那么写入缓存的时候不会出现错误，但当这个 cache line 被写入到总线上的时候，就会触发异常，这个异常是异步并且非精确的，因为之前触发这个异常的指令可能已经完成很久了。这种时候这个进程也大概率没救了，直接 SIGBUS 退出。
+2. 对于一个 Write-allocate 的缓存，如果程序写入一个不存在的物理地址，那么写入缓存的时候不会出现错误，但当这个 cache line 被写入到总线上的时候，就会触发异常，这个异常是异步并且非精确的，因为之前触发这个异常的指令可能已经完成很久了。这种时候这个进程也大概率没救了，直接 SIGBUS 退出。
 
 ## 处理器仿真模型
 
 最后列举一下科研里常用的一些处理器仿真模型：
 
-- gem5: [论文 The gem5 Simulator: Version 20.0+](https://arxiv.org/abs/2007.03152) [代码](https://gem5.googlesource.com/public/gem5)
-- Multi2Sim: [论文 Multi2Sim: A simulation framework for CPU-GPU computing](https://ieeexplore.ieee.org/document/7842946) [代码](https://github.com/Multi2Sim/multi2sim)
-- Scarab: [代码](https://github.com/hpsresearchgroup/scarab)
-- Sniper: [论文 Sniper: exploring the level of abstraction for scalable and accurate parallel multi-core simulation](https://dl.acm.org/doi/abs/10.1145/2063384.2063454) [官网](https://snipersim.org/w/The_Sniper_Multi-Core_Simulator) [仓库](https://github.com/snipersim/snipersim)
-- ZSim: [论文 ZSim: fast and accurate microarchitectural simulation of thousand-core systems](https://people.csail.mit.edu/sanchez/papers/2013.zsim.isca.pdf) [代码](https://github.com/s5z/zsim)
-- PTLsim: [论文 PTLsim: A Cycle Accurate Full System x86-64 Microarchitectural Simulator](https://ieeexplore.ieee.org/document/4211019)
+- gem5: [论文 The gem5 Simulator: Version 20.0+](<https://arxiv.org/abs/2007.03152>) [代码](<https://gem5.googlesource.com/public/gem5>)
+- Multi2Sim: [论文 Multi2Sim: A simulation framework for CPU-GPU computing](<https://ieeexplore.ieee.org/document/7842946>) [代码](<https://github.com/Multi2Sim/multi2sim>)
+- Scarab: [代码](<https://github.com/hpsresearchgroup/scarab>)
+- Sniper: [论文 Sniper: exploring the level of abstraction for scalable and accurate parallel multi-core simulation](<https://dl.acm.org/doi/abs/10.1145/2063384.2063454>) [官网](<https://snipersim.org/w/The_Sniper_Multi-Core_Simulator>) [仓库](<https://github.com/snipersim/snipersim>)
+- ZSim: [论文 ZSim: fast and accurate microarchitectural simulation of thousand-core systems](<https://people.csail.mit.edu/sanchez/papers/2013.zsim.isca.pdf>) [代码](<https://github.com/s5z/zsim>)
+- PTLsim: [论文 PTLsim: A Cycle Accurate Full System x86-64 Microarchitectural Simulator](<https://ieeexplore.ieee.org/document/4211019>)

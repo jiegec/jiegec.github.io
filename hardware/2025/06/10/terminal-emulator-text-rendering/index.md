@@ -2,13 +2,13 @@
 
 ## 背景
 
-最近在造鸿蒙电脑上的终端模拟器 [Termony](https://github.com/jiegec/Termony)，一开始用 ArkTS 的 Text + Span 空间来绘制终端，后来发现这样性能和可定制性比较差，就选择了自己用 OpenGL 实现，顺带学习了一下终端模拟器的文字绘制是什么样的一个过程。
+最近在造鸿蒙电脑上的终端模拟器 [Termony](<https://github.com/jiegec/Termony>)，一开始用 ArkTS 的 Text + Span 空间来绘制终端，后来发现这样性能和可定制性比较差，就选择了自己用 OpenGL 实现，顺带学习了一下终端模拟器的文字绘制是什么样的一个过程。
 
 ## 读取字形
 
-文本绘制，首先就要从字体文件中读取字形，提取出 Bitmap 来，然后把 Bitmap 绘制到该去的地方。为了提取这些信息，首先用 FreeType 库，它可以解析字体文件，然后计算出给定大小的给定字符的 Bitmap。但是，这个 Bitmap 它只记录字体非空白的部分（准确的说，是 Bounding Box），如下图的 width * height 部分：
+文本绘制，首先就要从字体文件中读取字形，提取出 Bitmap 来，然后把 Bitmap 绘制到该去的地方。为了提取这些信息，首先用 FreeType 库，它可以解析字体文件，然后计算出给定大小的给定字符的 Bitmap。但是，这个 Bitmap 它只记录字体非空白的部分（准确的说，是 Bounding Box），如下图的 width \* height 部分：
 
-（图源：[Managing Glyphs - FreeType Tutorial II](https://freetype.org/freetype2/docs/tutorial/step2.html)）
+（图源：[Managing Glyphs - FreeType Tutorial II](<https://freetype.org/freetype2/docs/tutorial/step2.html>)）
 
 其中 x 轴，应该是同一行的字体对齐的，这样才会看到有高有低的字符出现在同一行，而不是全部上对齐或者下对齐。得到的 Bitmap 是行优先的，也就是说：
 
@@ -85,7 +85,7 @@ vertex shader 只是简单地把这些信息传递到顶点的坐标和 fragment
 
 ```cpp
 glEnable(GL_BLEND);
-glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 ```
 
 它使得 blending 采用如下的公式：
@@ -151,7 +151,7 @@ final.b = textColor.b * alpha + dest.b * (1 - alpha);
 - 顶点 3：(xpos, ypos + h)，下标是 `0`，uv 坐标是 (0, 0)
 - 顶点 4：(xpos + w, ypos + h)，下标是 `width-1`，uv 坐标是 (1, 0)
 
-为了绘制这个矩形，绘制两个三角形，分别是 3->1->2 和 3->2->4，一共六个顶点的 (x, y, u, v) 信息就是：
+为了绘制这个矩形，绘制两个三角形，分别是 3-\>1-\>2 和 3-\>2-\>4，一共六个顶点的 (x, y, u, v) 信息就是：
 
 - 3: (xpos , ypos + h, 0, 0)
 - 1: (xpos , ypos , 0, 1)
@@ -167,7 +167,7 @@ final.b = textColor.b * alpha + dest.b * (1 - alpha);
 - xpos = originX + bearingX
 - ypos = originY + bearingY - height
 
-至此就实现了逐个字符绘制需要的所有内容。这也是 [Text Rendering - Learn OpenGL](https://learnopengl.com/In-Practice/Text-Rendering) 这篇文章所讲的内容。
+至此就实现了逐个字符绘制需要的所有内容。这也是 [Text Rendering - Learn OpenGL](<https://learnopengl.com/In-Practice/Text-Rendering>) 这篇文章所讲的内容。
 
 ## Texture Atlas
 
@@ -177,6 +177,7 @@ final.b = textColor.b * alpha + dest.b * (1 - alpha);
 
 - bitmap 的拼接，这一步比较灵活，理想情况下是构造一个比较紧密的排布，但也可以留一些空间，直接对齐到最大宽度/高度的整数倍网格上，然后进行 uv 坐标的计算
 - 剩下的，就是在计算顶点信息的时候，用计算好的 uv 坐标，其中 left/right 对应 bitmap 左右两侧的 u 坐标，top/bottom 对应 bitmap 上下两侧的 v 坐标（注意 top 比 bottom 小，因为竖直方向是反的）：
+
   - 3: (xpos , ypos + h, left , top )
   - 1: (xpos , ypos , left , bottom)
   - 2: (xpos + w, ypos , right, bottom)
@@ -237,10 +238,10 @@ final.a = 1.0;
 
 由于是 OpenGL 做的 blending，我们需要用 OpenGL 自带的 blending mode 来实现上述公式。OpenGL 可以指定 RGB 的 source 和 dest 的 blending 方式，比如：
 
-- GL_ONE：乘以 1 的系数
-- GL_ONE_MINUS_SRC_ALPHA：乘以 (1 - source.a) 的系数
+- GL\_ONE：乘以 1 的系数
+- GL\_ONE\_MINUS\_SRC\_ALPHA：乘以 (1 - source.a) 的系数
 
-根据这个，就可以想到，设置 `source = vec4(textColor.rgb * alpha, alpha)`，设置 source 采用 GL_ONE 方式，dest 采用 GL_ONE_MINUS_SRC_ALPHA 模式，那么 OpenGL 负责剩下的 blending 工作 `final = source * 1 + dest * (1 - source.a)`（要求 `dest.a = 1.0`）：
+根据这个，就可以想到，设置 `source = vec4(textColor.rgb * alpha, alpha)`，设置 source 采用 GL\_ONE 方式，dest 采用 GL\_ONE\_MINUS\_SRC\_ALPHA 模式，那么 OpenGL 负责剩下的 blending 工作 `final = source * 1 + dest * (1 - source.a)`（要求 `dest.a = 1.0`）：
 
 ```cpp
 final.r = source.r * 1.0 + dest.r * (1 - source.a) = textColor.r * alpha + dest.r * (1 - alpha);
@@ -249,14 +250,14 @@ final.b = source.b * 1.0 + dest.b * (1 - source.a) = textColor.b * alpha + dest.
 final.a = source.a * 1.0 + dest.a * (1 - source.a) = alpha + 1.0 * (1 - alpha) = 1.0;
 ```
 
-正好实现了想要的计算公式。这个方法来自于 [Text Rendering - WebRender](https://github.com/servo/webrender/blob/main/webrender/doc/text-rendering.md)。有了这个推导后，就可以分两轮，完成终端里前后景的绘制了。
+正好实现了想要的计算公式。这个方法来自于 [Text Rendering - WebRender](<https://github.com/servo/webrender/blob/main/webrender/doc/text-rendering.md>)。有了这个推导后，就可以分两轮，完成终端里前后景的绘制了。
 
-目前 [Termony](https://github.com/jiegec/Termony) 用的就是这种实现方法：
+目前 [Termony](<https://github.com/jiegec/Termony>) 用的就是这种实现方法：
 
 - 首先把不同字重的各种字符的 bitmap 拼在一起，放在一个 texture 内部
 - 使用两阶段绘制，第一阶段
 
-注：如果在 source 使用 GL_SRC_ALPHA，设置 `source = vec4(textColor.rgb, alpha)`，这样 `final.r = source.r * source.a + dest.r * (1 - source.a) = textColor.r * alpha + dest.r * (1 - alpha)`，结果是上面是一样的，不过这个时候 final 的 alpha 值等于 `source.a * source.a + dest.a * (1 - source.a)` 是 alpha 和 dest.a 经过 blend 以后的结果，不再是 1.0，如果不用它就无所谓。上面这种 `vec4(textColor.rgb * alpha, alpha)` 的计算方法，叫做 premultiplied alpha，也就是预先把 alpha 乘到颜色项里，可以方便后续的计算。
+注：如果在 source 使用 GL\_SRC\_ALPHA，设置 `source = vec4(textColor.rgb, alpha)`，这样 `final.r = source.r * source.a + dest.r * (1 - source.a) = textColor.r * alpha + dest.r * (1 - alpha)`，结果是上面是一样的，不过这个时候 final 的 alpha 值等于 `source.a * source.a + dest.a * (1 - source.a)` 是 alpha 和 dest.a 经过 blend 以后的结果，不再是 1.0，如果不用它就无所谓。上面这种 `vec4(textColor.rgb * alpha, alpha)` 的计算方法，叫做 premultiplied alpha，也就是预先把 alpha 乘到颜色项里，可以方便后续的计算。
 
 ## 在鸿蒙上使用 OpenGL 渲染
 
@@ -401,5 +402,5 @@ eglSwapBuffers(egl_display, egl_surface);
 
 ## 参考
 
-- [Text Rendering - Learn OpenGL](https://learnopengl.com/In-Practice/Text-Rendering)
-- [Text Rendering - WebRender](https://github.com/servo/webrender/blob/main/webrender/doc/text-rendering.md)
+- [Text Rendering - Learn OpenGL](<https://learnopengl.com/In-Practice/Text-Rendering>)
+- [Text Rendering - WebRender](<https://github.com/servo/webrender/blob/main/webrender/doc/text-rendering.md>)

@@ -5,11 +5,11 @@
 我是陈嘉杰。
 
 - 邮箱：c at jia.je / drcjj at tsinghua.edu.cn / cjj21 at mails.tsinghua.edu.cn（曾用邮箱）/ chenjj17 at mails.tsinghua.edu.cn（曾用邮箱）
-- GitHub：[@jiegec](https://github.com/jiegec)
-- B 站：<https://space.bilibili.com/11372427>
-- 知乎：<https://www.zhihu.com/people/jiege-chen>
-- Google Scholar：<https://scholar.google.com/citations?user=ayzH8MsAAAAJ&hl=en>
-- ORCID: <https://orcid.org/0000-0001-9408-5030>
+- GitHub：[@jiegec](<https://github.com/jiegec>)
+- B 站：[https://space.bilibili.com/11372427](<https://space.bilibili.com/11372427>)
+- 知乎：[https://www.zhihu.com/people/jiege-chen](<https://www.zhihu.com/people/jiege-chen>)
+- Google Scholar：[https://scholar.google.com/citations?user=ayzH8MsAAAAJ&amp;hl=en](<https://scholar.google.com/citations?user=ayzH8MsAAAAJ&amp;hl=en>)
+- ORCID: [https://orcid.org/0000-0001-9408-5030](<https://orcid.org/0000-0001-9408-5030>)
 
 ## 教育经历
 
@@ -20,73 +20,73 @@
 
 ### 教材
 
-- 刘卫东，李山山，陈嘉杰，高一川。[计算机组成实验教程](https://xuanshu.hep.com.cn/front/book/findBookDetails?bookId=67114305e4efbc722ba48524), 高等教育出版社，2025
+- 刘卫东，李山山，陈嘉杰，高一川。[计算机组成实验教程](<https://xuanshu.hep.com.cn/front/book/findBookDetails?bookId=67114305e4efbc722ba48524>), 高等教育出版社，2025
 
 ### 科创指导
 
-- 为 [计算机系学生获得第八届“龙芯杯”全国大学生计算机系统能力大赛——处理器设计赛特等奖](https://www.tsinghua.edu.cn/info/1175/113814.htm) 提供技术指导，2024 年 9 月
-- 为 [计算机系学生获得第七届“龙芯杯”全国大学生计算机系统能力大赛特等奖](https://www.cs.tsinghua.edu.cn/info/1058/5663.htm) 提供技术指导，2023 年 8 月
-- 为 [计算机系学生获得第六届“龙芯杯”全国大学生计算机系统能力大赛处理器设计赛特等奖](https://www.tsinghua.edu.cn/info/1176/97601.htm) 提供技术指导，2022 年 8 月
-- 为 [计算机系学生超算团队获得国际大学生超算竞赛（ISC22）总冠军](https://www.cs.tsinghua.edu.cn/info/1058/5040.htm) 提供技术指导，2022 年 6 月
-- 为 [计算机系学生获得第五届“龙芯杯”全国大学生计算机系统能力大赛特等奖](https://www.tsinghua.edu.cn/info/1176/97601.htm) 提供技术指导，2021 年 8 月
+- 为 [计算机系学生获得第八届“龙芯杯”全国大学生计算机系统能力大赛——处理器设计赛特等奖](<https://www.tsinghua.edu.cn/info/1175/113814.htm>) 提供技术指导，2024 年 9 月
+- 为 [计算机系学生获得第七届“龙芯杯”全国大学生计算机系统能力大赛特等奖](<https://www.cs.tsinghua.edu.cn/info/1058/5663.htm>) 提供技术指导，2023 年 8 月
+- 为 [计算机系学生获得第六届“龙芯杯”全国大学生计算机系统能力大赛处理器设计赛特等奖](<https://www.tsinghua.edu.cn/info/1176/97601.htm>) 提供技术指导，2022 年 8 月
+- 为 [计算机系学生超算团队获得国际大学生超算竞赛（ISC22）总冠军](<https://www.cs.tsinghua.edu.cn/info/1058/5040.htm>) 提供技术指导，2022 年 6 月
+- 为 [计算机系学生获得第五届“龙芯杯”全国大学生计算机系统能力大赛特等奖](<https://www.tsinghua.edu.cn/info/1176/97601.htm>) 提供技术指导，2021 年 8 月
 
 ### 科创
 
-- [2021 年国际大学生超算竞赛（ISC21）总冠军](https://www.tsinghua.edu.cn/info/1660/85574.htm)，2021 年 7 月
-- [2020-2021 ASC 世界大学生超级计算机竞赛 (ASC20-21) 亚军、e-Prize 计算挑战奖、超级团队奖、应用创新奖](https://m.21jingji.com/article/20210514/herald/23da9724134ceb3734250c73f5f80ce4_zaker.html)，2021 年 5 月
-- [2020 国际大学生超级计算机竞赛（SC20）总冠军、LINPACK 基准测试最高性能奖](https://www.tsinghua.edu.cn/info/1177/26132.htm)，2020 年 11 月
-- [2020 年华为毕昇杯计算机编译系统设计赛一等奖](https://www.cnur.com/xueshu/255.html)，2020 年 9 月
-- [2019 第三届“龙芯杯”全国大学生计算机系统能力培养大赛特等奖](https://www.cs.tsinghua.edu.cn/info/1058/1066.htm)，2019 年 8 月
+- [2021 年国际大学生超算竞赛（ISC21）总冠军](<https://www.tsinghua.edu.cn/info/1660/85574.htm>)，2021 年 7 月
+- [2020-2021 ASC 世界大学生超级计算机竞赛 (ASC20-21) 亚军、e-Prize 计算挑战奖、超级团队奖、应用创新奖](<https://m.21jingji.com/article/20210514/herald/23da9724134ceb3734250c73f5f80ce4_zaker.html>)，2021 年 5 月
+- [2020 国际大学生超级计算机竞赛（SC20）总冠军、LINPACK 基准测试最高性能奖](<https://www.tsinghua.edu.cn/info/1177/26132.htm>)，2020 年 11 月
+- [2020 年华为毕昇杯计算机编译系统设计赛一等奖](<https://www.cnur.com/xueshu/255.html>)，2020 年 9 月
+- [2019 第三届“龙芯杯”全国大学生计算机系统能力培养大赛特等奖](<https://www.cs.tsinghua.edu.cn/info/1058/1066.htm>)，2019 年 8 月
 
-超算队主页：<https://sc.team/>
+超算队主页：[https://sc.team/](<https://sc.team/>)
 
 ### 课程改革
 
 在多年的教学经历中，我参与了这些课程的教学或实验，主导或参与了部分课程的教学或实验改革：
 
-- [计算机文化基础](https://edu.cs.tsinghua.edu.cn/cca/)：设计面向零基础的数字电路实操
+- [计算机文化基础](<https://edu.cs.tsinghua.edu.cn/cca/>)：设计面向零基础的数字电路实操
 - 计算机程序设计基础
 - Python 程序设计进阶
-- [程序设计训练（Rust 课堂）](https://lab.cs.tsinghua.edu.cn/rust/)：设计课程大小作业
-- [实验物理的大数据方法](https://git.tsinghua.edu.cn/physics-data/)：设计课程小作业
+- [程序设计训练（Rust 课堂）](<https://lab.cs.tsinghua.edu.cn/rust/>)：设计课程大小作业
+- [实验物理的大数据方法](<https://git.tsinghua.edu.cn/physics-data/>)：设计课程小作业
 - 汇编语言程序设计
 - 计算机系统概论
 - 数据库技术及应用
-- [数字逻辑实验](https://lab.cs.tsinghua.edu.cn/digital-logic-lab/doc/)：针对疫情期间实验需求，设计在线实验平台
-- [数字逻辑设计](https://lab.cs.tsinghua.edu.cn/digital-design/doc/)
-- [操作系统](https://github.com/rcore-os/)：使用 Rust 语言编写操作系统
-- [计算机组成原理](https://lab.cs.tsinghua.edu.cn/cod-lab-docs/)：设计 Wishbone 总线实验、计算机组成原理与计算机网络原理联合（简称计网联合）硬件路由器实验、NPU 实验
-- [计算机网络原理](https://lab.cs.tsinghua.edu.cn/router/doc/)：设计路由器软件实验、计算机组成原理与计算机网络原理联合硬件路由器实验
-- [计算机网络专题训练](https://lab.cs.tsinghua.edu.cn/tcp/doc/)：设计 TCP 实验
+- [数字逻辑实验](<https://lab.cs.tsinghua.edu.cn/digital-logic-lab/doc/>)：针对疫情期间实验需求，设计在线实验平台
+- [数字逻辑设计](<https://lab.cs.tsinghua.edu.cn/digital-design/doc/>)
+- [操作系统](<https://github.com/rcore-os/>)：使用 Rust 语言编写操作系统
+- [计算机组成原理](<https://lab.cs.tsinghua.edu.cn/cod-lab-docs/>)：设计 Wishbone 总线实验、计算机组成原理与计算机网络原理联合（简称计网联合）硬件路由器实验、NPU 实验
+- [计算机网络原理](<https://lab.cs.tsinghua.edu.cn/router/doc/>)：设计路由器软件实验、计算机组成原理与计算机网络原理联合硬件路由器实验
+- [计算机网络专题训练](<https://lab.cs.tsinghua.edu.cn/tcp/doc/>)：设计 TCP 实验
 
 ## 课程公开录像
 
 以下是我在课堂上讲课且公开的录像：
 
-- [2026 秋《计算机文化基础》数字原住民的认知迁移 2026.9.16](https://www.bilibili.com/video/BV1wFeg6XES3)
-- [2026 夏《程序设计训练（Rust 语言）》AI Agent 大作业选题点评 2026.9.1](https://www.bilibili.com/video/BV1KYeY6bEsK)
-- [2023 秋《计算机网络原理》软件实验及理论背景详解 2023.10.10](https://www.bilibili.com/video/BV1QEeh6cERE)
-- [2021 秋《计算机网络原理》编程作业习题课 2021.11.3](https://www.bilibili.com/video/BV1G3e46JEsg)
-- [2021 夏《汇编语言程序设计》AttackLab 实验讲解 2021.9.6](https://www.bilibili.com/video/BV1WLY26sEAH)
-- [2021 夏《汇编语言程序设计》汇编实验准备知识讲解 2021.8.18](https://www.bilibili.com/video/BV1ZxY262EuG)
+- [2026 秋《计算机文化基础》数字原住民的认知迁移 2026.9.16](<https://www.bilibili.com/video/BV1wFeg6XES3>)
+- [2026 夏《程序设计训练（Rust 语言）》AI Agent 大作业选题点评 2026.9.1](<https://www.bilibili.com/video/BV1KYeY6bEsK>)
+- [2023 秋《计算机网络原理》软件实验及理论背景详解 2023.10.10](<https://www.bilibili.com/video/BV1QEeh6cERE>)
+- [2021 秋《计算机网络原理》编程作业习题课 2021.11.3](<https://www.bilibili.com/video/BV1G3e46JEsg>)
+- [2021 夏《汇编语言程序设计》AttackLab 实验讲解 2021.9.6](<https://www.bilibili.com/video/BV1WLY26sEAH>)
+- [2021 夏《汇编语言程序设计》汇编实验准备知识讲解 2021.8.18](<https://www.bilibili.com/video/BV1ZxY262EuG>)
 
 ## 科研
 
 ### 发表
 
-- Kaiyuan Rong†, Jiajie Chen†, Junqi Fang, Peng Qu, Hanyin Liu, Youhui Zhang, Dapeng Ju, Dongsheng Wang. “iEnFlow: Endogenous Control-Flow Attacks via Conditional Branch Prediction on Apple Silicon”. In: Proceedings of the 2026 ACM SIGSAC Conference on Computer and Communications Security (CCS ’26), November 15–19, 2026, The Hague, Netherlands. ACM, New York, NY, USA, 17 pages. [DOI](https://doi.org/10.1145/3830454.3832569) [Paper](https://craft.cs.tsinghua.edu.cn/papers/iEnFlow_full.pdf) [Code](https://github.com/CPU-Security/iEnFlow)
-- Jiajie Chen, Tingji Zhang, Xiaoyi Liu, Xuefeng Zhang, Peng Qu, and Youhui Zhang. “Emender: Optimizing Prefetch Priority and Throttling in VBerti+Pythia”. In: 4th Data Prefetching Championship (DPC4) in conjunction with the 32nd IEEE International Symposium on High-Performance Computer Architecture (HPCA) (2026). [Website](https://sites.google.com/view/dpc4-2026/program/main-program) [Paper](https://github.com/CMU-SAFARI/DPC4/blob/main/final-versions/Emender-final.pdf) [Code](https://github.com/CMU-SAFARI/DPC4/blob/main/submissions/Emender) [Presentation](https://docs.google.com/presentation/d/1U0pgHNeT2ly43KxVYfMAiMNP_4N-zqja/edit)
-- Runda Liu, Shengqi Chen, Jiajie Chen, Songjie Niu, Yuchun Ma, and Xiaofeng Tang. “Iterative Design of a Teaching Assistant Training Program in Computer Science Using the Agile Method”. In: Proceedings of the 56th ACM Technical Symposium on Computer Science Education V. 1. SIGCSE TS 2025, pp. 680–686. [DOI](https://doi.org/10.1145/3641554.3701829) [Paper](https://dl.acm.org/doi/10.1145/3641554.3701829) [Website](https://thucstac.github.io/TAC/)
-- Jiajie Chen, Peng Qu, and Youhui Zhang. Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis. arXiv: 2411.13900. [Paper](https://arxiv.org/abs/2411.13900) [Code](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/reports/dissecting_cbp_of_apple_firestorm_and_qualcomm_oryon/README.md) [Presentation](https://docs.google.com/presentation/d/1RKGvQQFfQKe4IuOHWtqzM6XcwrykEGJa_f2JFoLG0sM/edit)
-- Jiajie Chen, Le Yang, and Youhui Zhang. “GaBAN: A Generic and Flexibly Programmable Vector Neuro-Processor on FPGA”. In: Proceedings of the 59th ACM/IEEE Design Automation Conference (DAC). DAC ’22, pp. 931–936. [DOI](https://doi.org/10.1145/3489517.3530561) [Paper](https://dl.acm.org/doi/10.1145/3489517.3530561) [Code](https://github.com/CRAFT-THU/GaBAN)
-- Huanqi Cao and Jiajie Chen. “Design and Implementation of ShenWei Universal C/C++”. In: arXiv preprint arXiv:2208.00607 (2022). [Paper](https://arxiv.org/abs/2208.00607)
-- Peng Qu, Jiajie Chen, Youhui Zhang, and Weimin Zheng. “A Proposal of Software-Hardware Decoupling Hardware Design Method for Brain-Inspired Computing”. In: Journal of Computer Research and Development (JCRD) 58.6, 1146 (2021), p. 1146. [DOI](https://doi.org/10.7544/issn1000-1239.2021.20210170) [Paper](https://crad.ict.ac.cn/cn/article/doi/10.7544/issn1000-1239.2021.20210170)
-- Runxin Zhong, Jiajie Chen, Chen Zhang, Mingshu Zhai, Zeyu Song, Yutian Wang, Wentao Han, Lin Gan, and Jidong Zhai. “Critique of“MemXCT: Memory-Centric X-Ray CT Reconstruction With Massive Parallelization”by SCC Team From Tsinghua University”. In: IEEE Transactions on Parallel and Distributed Systems (TPDS) 33.9 (2022), pp. 2050–2053. [DOI](https://doi.org/10.1109/TPDS.2021.3108964) [Paper](https://ieeexplore.ieee.org/document/9600647/)
+- Kaiyuan Rong†, Jiajie Chen†, Junqi Fang, Peng Qu, Hanyin Liu, Youhui Zhang, Dapeng Ju, Dongsheng Wang. “iEnFlow: Endogenous Control-Flow Attacks via Conditional Branch Prediction on Apple Silicon”. In: Proceedings of the 2026 ACM SIGSAC Conference on Computer and Communications Security (CCS ’26), November 15–19, 2026, The Hague, Netherlands. ACM, New York, NY, USA, 17 pages. [DOI](<https://doi.org/10.1145/3830454.3832569>) [Paper](<https://craft.cs.tsinghua.edu.cn/papers/iEnFlow_full.pdf>) [Code](<https://github.com/CPU-Security/iEnFlow>)
+- Jiajie Chen, Tingji Zhang, Xiaoyi Liu, Xuefeng Zhang, Peng Qu, and Youhui Zhang. “Emender: Optimizing Prefetch Priority and Throttling in VBerti+Pythia”. In: 4th Data Prefetching Championship (DPC4) in conjunction with the 32nd IEEE International Symposium on High-Performance Computer Architecture (HPCA) (2026). [Website](<https://sites.google.com/view/dpc4-2026/program/main-program>) [Paper](<https://github.com/CMU-SAFARI/DPC4/blob/main/final-versions/Emender-final.pdf>) [Code](<https://github.com/CMU-SAFARI/DPC4/blob/main/submissions/Emender>) [Presentation](<https://docs.google.com/presentation/d/1U0pgHNeT2ly43KxVYfMAiMNP_4N-zqja/edit>)
+- Runda Liu, Shengqi Chen, Jiajie Chen, Songjie Niu, Yuchun Ma, and Xiaofeng Tang. “Iterative Design of a Teaching Assistant Training Program in Computer Science Using the Agile Method”. In: Proceedings of the 56th ACM Technical Symposium on Computer Science Education V. 1. SIGCSE TS 2025, pp. 680–686. [DOI](<https://doi.org/10.1145/3641554.3701829>) [Paper](<https://dl.acm.org/doi/10.1145/3641554.3701829>) [Website](<https://thucstac.github.io/TAC/>)
+- Jiajie Chen, Peng Qu, and Youhui Zhang. Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis. arXiv: 2411.13900. [Paper](<https://arxiv.org/abs/2411.13900>) [Code](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/reports/dissecting_cbp_of_apple_firestorm_and_qualcomm_oryon/README.md>) [Presentation](<https://docs.google.com/presentation/d/1RKGvQQFfQKe4IuOHWtqzM6XcwrykEGJa_f2JFoLG0sM/edit>)
+- Jiajie Chen, Le Yang, and Youhui Zhang. “GaBAN: A Generic and Flexibly Programmable Vector Neuro-Processor on FPGA”. In: Proceedings of the 59th ACM/IEEE Design Automation Conference (DAC). DAC ’22, pp. 931–936. [DOI](<https://doi.org/10.1145/3489517.3530561>) [Paper](<https://dl.acm.org/doi/10.1145/3489517.3530561>) [Code](<https://github.com/CRAFT-THU/GaBAN>)
+- Huanqi Cao and Jiajie Chen. “Design and Implementation of ShenWei Universal C/C++”. In: arXiv preprint arXiv:2208.00607 (2022). [Paper](<https://arxiv.org/abs/2208.00607>)
+- Peng Qu, Jiajie Chen, Youhui Zhang, and Weimin Zheng. “A Proposal of Software-Hardware Decoupling Hardware Design Method for Brain-Inspired Computing”. In: Journal of Computer Research and Development (JCRD) 58.6, 1146 (2021), p. 1146. [DOI](<https://doi.org/10.7544/issn1000-1239.2021.20210170>) [Paper](<https://crad.ict.ac.cn/cn/article/doi/10.7544/issn1000-1239.2021.20210170>)
+- Runxin Zhong, Jiajie Chen, Chen Zhang, Mingshu Zhai, Zeyu Song, Yutian Wang, Wentao Han, Lin Gan, and Jidong Zhai. “Critique of“MemXCT: Memory-Centric X-Ray CT Reconstruction With Massive Parallelization”by SCC Team From Tsinghua University”. In: IEEE Transactions on Parallel and Distributed Systems (TPDS) 33.9 (2022), pp. 2050–2053. [DOI](<https://doi.org/10.1109/TPDS.2021.3108964>) [Paper](<https://ieeexplore.ieee.org/document/9600647/>)
 
 ## 荣誉
 
 - 清华大学计算机系优秀博士毕业生，2026 年 6 月
-- [2022 年清华大学优秀助教奖](https://mp.weixin.qq.com/s/obocOcYgD4hMs1cqBVJ0sg)，2022 年 12 月
+- [2022 年清华大学优秀助教奖](<https://mp.weixin.qq.com/s/obocOcYgD4hMs1cqBVJ0sg>)，2022 年 12 月
 - 清华大学 2021 级博士生“未来学者奖学金”，2021 年 9 月
 - 清华大学计算机系优秀本科毕业生，2021 年 6 月
 - 2020 年清华大学计算机系钟士模奖，2020 年 12 月

@@ -2,11 +2,11 @@
 
 ## 背景
 
-AMD Zen 1 是 AMD 在 2017 年发布的 Zen 系列第一代微架构。在之前，我们分析了 ARM Neoverse [N1](https://jia.je/hardware/2025/06/05/arm-neoverse-n1-btb/index.md) 和 [V1](https://jia.je/hardware/2025/06/23/arm-neoverse-v1-btb/index.md) 的 BTB，那么现在也把视线转到 AMD 上，看看 AMD 的 Zen 系列的 BTB 是如何演进的。
+AMD Zen 1 是 AMD 在 2017 年发布的 Zen 系列第一代微架构。在之前，我们分析了 ARM Neoverse [N1](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb/index.md>) 和 [V1](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb/index.md>) 的 BTB，那么现在也把视线转到 AMD 上，看看 AMD 的 Zen 系列的 BTB 是如何演进的。
 
 ## 官方信息
 
-AMD 在 [Software Optimization Guide for AMD Family 17h Processors (Publication No. 55723)](https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/55723_3_01_0.zip) 中有如下的表述：
+AMD 在 [Software Optimization Guide for AMD Family 17h Processors (Publication No. 55723)](<https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/55723_3_01_0.zip>) 中有如下的表述：
 
 > The branch target buffer (BTB) is a three-level structure accessed using the fetch address of the current fetch block.
 
@@ -112,8 +112,8 @@ Zen 1 的第三级 BTB 可以保存 4096 个 entry，但不确定这个 entry �
 测试到这里就差不多了，更大的 stride 得到的也是类似的结果，总结一下前面的发现：
 
 - L0 BTB 是 (4+4)-entry，1 cycle latency，不随着 stride 变化，全相连
-- L1 BTB 是 256-entry，2 cycle latency，容量随着 stride 变化，大概率是 PC[n:3] 这一段被用于 index，使得 stride=16B 开始容量不断减半
-- L2 BTB 是 2048-entry，5 cycle latency，容量随着 stride 变化，大概率是 PC[n:6] 这一段被用于 index，使得 stride=128B 开始容量不断减半；每个 entry 最多保存两条分支，前提是这两条分支在同一个 cacheline 当中，并且第一条是 cond，第二条是 uncond；因此最多保存 4096 个分支
+- L1 BTB 是 256-entry，2 cycle latency，容量随着 stride 变化，大概率是 PC\[n:3\] 这一段被用于 index，使得 stride=16B 开始容量不断减半
+- L2 BTB 是 2048-entry，5 cycle latency，容量随着 stride 变化，大概率是 PC\[n:6\] 这一段被用于 index，使得 stride=128B 开始容量不断减半；每个 entry 最多保存两条分支，前提是这两条分支在同一个 cacheline 当中，并且第一条是 cond，第二条是 uncond；因此最多保存 4096 个分支
 
 也总结一下前面发现了各种没有解释的遗留问题：
 
@@ -171,8 +171,8 @@ Zen 1 的第三级 BTB 可以保存 4096 个 entry，但不确定这个 entry �
 
 那么到底是 2 路组相连，还是 4 路组相连呢，另外这个组相连的 set 是怎么构成的呢？
 
-首先回忆一下，在 [ARM Neoverse N1](https://jia.je/hardware/2025/06/05/arm-neoverse-n1-btb/index.md) 中，连续的 32B 内能放 6 个分支，但是 stride=8B 的时候，一次就会往同一个 set 里增加 4 个分支，于是一个 set 内的分支数从 0 变到 4 再变到 8，拐点出现在 4 个分支，而不是 6 个分支。因此为了达到前面出现的 3072 和 2560 的拐点，新增的分支也得均匀地分到各个 set 当中。
+首先回忆一下，在 [ARM Neoverse N1](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb/index.md>) 中，连续的 32B 内能放 6 个分支，但是 stride=8B 的时候，一次就会往同一个 set 里增加 4 个分支，于是一个 set 内的分支数从 0 变到 4 再变到 8，拐点出现在 4 个分支，而不是 6 个分支。因此为了达到前面出现的 3072 和 2560 的拐点，新增的分支也得均匀地分到各个 set 当中。
 
-前面根据 L2 BTB 的容量分析到，L2 BTB 的 Index 可能是 PC[n:6]，但肯定不是简单的这么取，否则也会出现 ARM Neoverse N1 类似的问题。只能说明 PC[6] 往上有若干个 bit 是单独出现在 L2 BTB 的 Index 当中的，而 PC[5] 以下的 bit，可能以某种哈希函数的形式，参与到 Index 当中。
+前面根据 L2 BTB 的容量分析到，L2 BTB 的 Index 可能是 PC\[n:6\]，但肯定不是简单的这么取，否则也会出现 ARM Neoverse N1 类似的问题。只能说明 PC\[6\] 往上有若干个 bit 是单独出现在 L2 BTB 的 Index 当中的，而 PC\[5\] 以下的 bit，可能以某种哈希函数的形式，参与到 Index 当中。
 
-所以，L2 BTB 可能是以 PC[n:6] 作为 Index 去访问，然后内部有多个 bank，每个 bank 内部是 2 路组相连。bank index 是通过 PC 经过哈希计算得来，使得在 stride=4B/8B 的时候，体现出 2 路组相连，而在 stride=16B 的时候，体现出 4 路组相连。同时，分支还能够均匀地分布到各个 bank 当中，避免了和 ARM Neoverse N1 类似的情况的发生。
+所以，L2 BTB 可能是以 PC\[n:6\] 作为 Index 去访问，然后内部有多个 bank，每个 bank 内部是 2 路组相连。bank index 是通过 PC 经过哈希计算得来，使得在 stride=4B/8B 的时候，体现出 2 路组相连，而在 stride=16B 的时候，体现出 4 路组相连。同时，分支还能够均匀地分布到各个 bank 当中，避免了和 ARM Neoverse N1 类似的情况的发生。

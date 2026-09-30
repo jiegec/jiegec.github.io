@@ -2,7 +2,7 @@
 
 作为不清真的网络管理员，为了配置一套完整的统一认证系统，陈老师采用了 Windows AD 的方法给这里配置统一认证。重装了系统，自然要把之前的统一认证再配到新装的 Archlinux 上。
 
-参考资料： [Active Directory Integration](https://wiki.archlinux.org/index.php/Active_Directory_Integration)
+参考资料： [Active Directory Integration](<https://wiki.archlinux.org/index.php/Active_Directory_Integration>)
 
 首先安装相应的包：
 
@@ -67,7 +67,7 @@ net ads lookup
 需求：
 
 1. 如果一个用户名既有本地用户也有域上的用户，选择前者
-1. 用户要修改密码的话，如果是域用户，则要求走 Windows AD 那套方法改密码；否则仅修改本地用户密码。
+2. 用户要修改密码的话，如果是域用户，则要求走 Windows AD 那套方法改密码；否则仅修改本地用户密码。
 
 实现：
 
@@ -84,7 +84,7 @@ auth optional                           pam_permit.so
 auth required                           pam_env.so
 ```
 
-首先利用 pam_localuser.so 匹配用户名和 `/etc/passwd` ，如果有， `success=1` 代表跳过下面一条规则，故会跳到 pam_unix.so 这一行。如果失败，`default=ignore` 表示忽略它的结果。如果是本地用户，匹配 pam_localuser.so 成功后跳到 pam_unix.so，如果成功了则跳到第五行，pam_permit.so 代表通过，最后由 pam_env.so 配置环境变量。如果是域用户，则由 pam_winbind.so 处理，如果成功，同样跳到第 5 条。如果本地用户和域用户都失败，就 pam_deny.so 认证失败。
+首先利用 pam\_localuser.so 匹配用户名和 `/etc/passwd` ，如果有， `success=1` 代表跳过下面一条规则，故会跳到 pam\_unix.so 这一行。如果失败，`default=ignore` 表示忽略它的结果。如果是本地用户，匹配 pam\_localuser.so 成功后跳到 pam\_unix.so，如果成功了则跳到第五行，pam\_permit.so 代表通过，最后由 pam\_env.so 配置环境变量。如果是域用户，则由 pam\_winbind.so 处理，如果成功，同样跳到第 5 条。如果本地用户和域用户都失败，就 pam\_deny.so 认证失败。
 
 第二部分：account
 
@@ -111,7 +111,7 @@ password optional                       pam_permit.so
 
 这里实现了我们的需求：如果是本地用户，提醒用户当前要修改的是本地用户的密码；如果是域用户，则输出信息后直接拒绝。
 
-这里的 /etc/pam.d/messages/ad_reject_change_passwd.txt 内容如下：
+这里的 /etc/pam.d/messages/ad\_reject\_change\_passwd.txt 内容如下：
 
 ```text
 Hi %u, please go to xxxxxxx to change your Active Directory password!
@@ -143,4 +143,4 @@ password        include         system-auth
 
 这样就配好了认证。自己对这套东西的理解还不够深，以后遇到了要继续钻研。
 
-扩展阅读： [PAM 配置简介 - 王邈](https://innull.com/pam-configuration-how-to/)
+扩展阅读： [PAM 配置简介 - 王邈](<https://innull.com/pam-configuration-how-to/>)

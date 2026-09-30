@@ -2,28 +2,28 @@
 
 ## 背景
 
-[之前](https://jia.je/hardware/2025/01/12/intel-gracemont/index.md) 测试了 Intel Alder Lake 的 P 核微架构，这次就来测一下 Alder Lake 的 E 核微架构 Gracemont。
+[之前](<https://jia.je/blog/posts/hardware/intel-gracemont/index.md>) 测试了 Intel Alder Lake 的 P 核微架构，这次就来测一下 Alder Lake 的 E 核微架构 Gracemont。
 
 ## 官方信息
 
 Intel 关于 Gracemont 微架构有这些官方的信息：
 
-- [Intel Alder Lake CPU Architectures](https://ieeexplore.ieee.org/document/9747991)
-- [Alder Lake Architecture on Hot Chips 33](https://hc33.hotchips.org/assets/program/conference/day1/HC2021.C1.1%20Intel%20Efraim%20Rotem.pdf)
-- [Intel 64 and IA-32 Architectures Optimization Reference Manual Volume 1](https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html)
+- [Intel Alder Lake CPU Architectures](<https://ieeexplore.ieee.org/document/9747991>)
+- [Alder Lake Architecture on Hot Chips 33](<https://hc33.hotchips.org/assets/program/conference/day1/HC2021.C1.1 Intel Efraim Rotem.pdf>)
+- [Intel 64 and IA-32 Architectures Optimization Reference Manual Volume 1](<https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html>)
 
 ## 现有评测
 
 网上已经有较多针对 Gracemont 微架构的评测和分析，建议阅读：
 
-- [Gracemont: Revenge of the Atom Cores](https://chipsandcheese.com/2021/12/21/gracemont-revenge-of-the-atom-cores/)
-- [Intel’s Gracemont Small Core Eclipses Last-Gen Big Core Performance](https://fuse.wikichip.org/news/6102/intels-gracemont-small-core-eclipses-last-gen-big-core-performance/)
+- [Gracemont: Revenge of the Atom Cores](<https://chipsandcheese.com/2021/12/21/gracemont-revenge-of-the-atom-cores/>)
+- [Intel’s Gracemont Small Core Eclipses Last-Gen Big Core Performance](<https://fuse.wikichip.org/news/6102/intels-gracemont-small-core-eclipses-last-gen-big-core-performance/>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Intel Gracemont 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Intel Gracemont 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 前端
 
@@ -69,7 +69,7 @@ Gracemont 的 Clustered Decode 架构比较特别，目前没有找到方法去�
 
 为了解决这个问题，修改代码，在函数里构造两个 call 去调用同一个函数，这样 ret 的返回地址就会变化了，称这个版本为 B。这时候跑出来的结果比较奇怪，周期数快速上升：
 
-同样的 B 版本代码在 AMD Zen3 和 Apple Firestorm 的处理器上，可以观察到在符合预期的 Return Stack 大小处出现性能拐点，和 A 版本代码得到的结论一致。而 B 版本代码在 Golden Cove 上，会观察到在 6 的附近有一个性能下降如下图，但之前用 [A 版本代码测得的拐点为 20](https://jia.je/hardware/2025/01/12/intel-gracemont/index.md):
+同样的 B 版本代码在 AMD Zen3 和 Apple Firestorm 的处理器上，可以观察到在符合预期的 Return Stack 大小处出现性能拐点，和 A 版本代码得到的结论一致。而 B 版本代码在 Golden Cove 上，会观察到在 6 的附近有一个性能下降如下图，但之前用 [A 版本代码测得的拐点为 20](<https://jia.je/blog/posts/hardware/intel-gracemont/index.md>):
 
 这个区别背后的原因还需要进一步的分析。下面是两个版本的汇编代码的对比：
 
@@ -111,6 +111,7 @@ func_n:
 官方信息：
 
 - 6 alu ports: 0/1/2/3/30/31
+
   - P0: ALU/SHIFT
   - P1: ALU/SHIFT/MUL/DIV
   - P2: ALU/SHIFT/MUL/DIV
@@ -118,6 +119,7 @@ func_n:
   - P30: JMP
   - P31: JMP
 - 3 simd ports: 20/21/22
+
   - P20: SALU/SIMUL/FMUL/FADD/FDIV/AES/SHA
   - P21: SALU/FMUL/FADD/AES
   - P22: SALU
@@ -164,11 +166,11 @@ func_n:
 经过实际测试，Gracemont 上如下的情况可以成功转发，对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | {}       | {}       | {}       |
-| 16b Store   | {0}     | {0}      | {}       | {}       |
-| 32b Store   | {0}     | {0}      | {0}      | {}       |
-| 64b Store   | {0}     | {0}      | {0,4}    | {0}      |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | {} | {} | {} |
+| 16b Store | {0} | {0} | {} | {} |
+| 32b Store | {0} | {0} | {0} | {} |
+| 64b Store | {0} | {0} | {0,4} | {0} |
 
 可以看到，Gracemont 在 Store 包含 Load 且地址相同时可以转发。特别地，针对 64b Store 到 32b Load 转发还允许 y-x=4。各种情况下的 CPI：
 
@@ -205,7 +207,7 @@ func_n:
 
 为了让 Load 预测执行，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之间在内存上的依赖。这个预测器就是 Memory Dependency Predictor，负责预测是否有依赖。如果没有依赖，Load 就可以提前执行，但如果实际上有依赖，就需要回滚。
 
-参考 [Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks](https://www.usenix.org/conference/usenixsecurity21/presentation/ragab) 和 [Memory Disambiguation on Skylake](https://github.com/travisdowns/uarch-bench/wiki/Memory-Disambiguation-on-Skylake) 的方法，构造一对 Store-Load，通过延迟 Store 地址的计算，从周期数可以区分出硬件是否进行了预测，以及预测正确与否：
+参考 [Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks](<https://www.usenix.org/conference/usenixsecurity21/presentation/ragab>) 和 [Memory Disambiguation on Skylake](<https://github.com/travisdowns/uarch-bench/wiki/Memory-Disambiguation-on-Skylake>) 的方法，构造一对 Store-Load，通过延迟 Store 地址的计算，从周期数可以区分出硬件是否进行了预测，以及预测正确与否：
 
 ```asm
 ; Listing 4 of Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks
@@ -233,22 +235,22 @@ ret
 
 接下来测试这些计数器是怎么维护的。方法是，设置两个 Store-Load 对，其中第一对总是有依赖，第二对总是没有依赖，调整两个 Load 指令的地址，看看什么时候会出现性能下降。出现性能下降就意味着这两个 Load 指令被映射到了同一个 2-bit 饱和计数器上，那么根据上面的规律，它们总是会被预测为有依赖。测试结果如下：
 
-可见当两个 Load 地址在低 16 位相同时，会被映射到同一个计数器上。不过这并不代表它就有 65536 个计数器，下面来测试一下实际有多少。思路是，构造多对 Store-Load，让它们的 Load 地址的低 16 位不同，然后都让它们有依赖，观察到多少对 Store-Load 时出现性能下降。通过 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/) 的 Fast Data 测试方法，可得它的容量是 26：
+可见当两个 Load 地址在低 16 位相同时，会被映射到同一个计数器上。不过这并不代表它就有 65536 个计数器，下面来测试一下实际有多少。思路是，构造多对 Store-Load，让它们的 Load 地址的低 16 位不同，然后都让它们有依赖，观察到多少对 Store-Load 时出现性能下降。通过 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的 Fast Data 测试方法，可得它的容量是 26：
 
-猜测它是一个 26 路全相联的设计，每个表项有 16-bit 的 tag（取自 Load PC 低 16 位）和 2-bit 饱和计数器。未命中时预测无依赖，如果实际有依赖则插入表项，计数器置零。命中时根据计数器值预测：无依赖加一，有依赖置零，到 3 时预测无依赖。另一种可能是计数器到 3 时表项被删除，效果相同。究竟是哪种还有待后续研究，不过从利用率的角度来说，删除的可能性更大。这种设计和 ARM Neoverse N2 比较类似，和 [Golden Cove](https://jia.je/hardware/2025/01/10/intel-golden-cove/index.md) 又不太一样，三者对比如下：
+猜测它是一个 26 路全相联的设计，每个表项有 16-bit 的 tag（取自 Load PC 低 16 位）和 2-bit 饱和计数器。未命中时预测无依赖，如果实际有依赖则插入表项，计数器置零。命中时根据计数器值预测：无依赖加一，有依赖置零，到 3 时预测无依赖。另一种可能是计数器到 3 时表项被删除，效果相同。究竟是哪种还有待后续研究，不过从利用率的角度来说，删除的可能性更大。这种设计和 ARM Neoverse N2 比较类似，和 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) 又不太一样，三者对比如下：
 
-|                      | Gracemont | Neoverse N2 | Golden Cove                                    |
-| -------------------- | --------- | ----------- | ---------------------------------------------- |
-| 容量                 | 26        | 32          | 512                                            |
-| tag 位数             | 16        | 15          | N/A，用 PC[8:0] 直接映射                       |
-| ctr 位数             | 2         | 4           | 4                                              |
-| 新表项 ctr 取值      | 0         | 1           | N/A，表项总是存在                              |
-| 不命中时预测为       | 无依赖    | 无依赖      | N/A，总是命中                                  |
-| 命中时预测为         | 有依赖    | 有依赖      | ctr==15 时预测无依赖，否则有依赖               |
-| 命中时有依赖         | ctr=0     | ctr-=1      | ctr=0                                          |
-| 命中时无依赖         | ctr+=1    | ctr+=1      | ctr+=1                                         |
-| ctr 等于多少时 evict | 3         | 15          | N/A，不会 evict                                |
-| 是否有全局预测器     | 无        | 无          | 有，可以覆盖局部预测器的结果，强制预测为有依赖 |
+|  | Gracemont | Neoverse N2 | Golden Cove |
+| --- | --- | --- | --- |
+| 容量 | 26 | 32 | 512 |
+| tag 位数 | 16 | 15 | N/A，用 PC\[8:0\] 直接映射 |
+| ctr 位数 | 2 | 4 | 4 |
+| 新表项 ctr 取值 | 0 | 1 | N/A，表项总是存在 |
+| 不命中时预测为 | 无依赖 | 无依赖 | N/A，总是命中 |
+| 命中时预测为 | 有依赖 | 有依赖 | ctr==15 时预测无依赖，否则有依赖 |
+| 命中时有依赖 | ctr=0 | ctr-=1 | ctr=0 |
+| 命中时无依赖 | ctr+=1 | ctr+=1 | ctr+=1 |
+| ctr 等于多少时 evict | 3 | 15 | N/A，不会 evict |
+| 是否有全局预测器 | 无 | 无 | 有，可以覆盖局部预测器的结果，强制预测为有依赖 |
 
 ### L1 DCache
 
@@ -265,7 +267,7 @@ ret
 
 用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过把 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈。奇怪的是，虽然官方信息写的是 32-entry 的 L1 DTLB，但是实测它有 48-entry：
 
-这个观察和 [Meteor Lake’s E-Cores: Crestmont Makes Incremental Progress](https://chipsandcheese.com/p/meteor-lakes-e-cores-crestmont-makes-incremental-progress) 是一致的，怀疑是 Intel 写错了数据。
+这个观察和 [Meteor Lake’s E-Cores: Crestmont Makes Incremental Progress](<https://chipsandcheese.com/p/meteor-lakes-e-cores-crestmont-makes-incremental-progress>) 是一致的，怀疑是 Intel 写错了数据。
 
 ### L2 TLB
 

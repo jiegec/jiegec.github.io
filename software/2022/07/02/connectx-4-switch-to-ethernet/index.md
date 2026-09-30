@@ -6,7 +6,7 @@
 
 ## 切换方法
 
-在 [Using mlxconfig](https://docs.nvidia.com/networking/display/mftv422/using+mlxconfig) 文档中，写了如何切换网卡为 Infiniband 模式：
+在 [Using mlxconfig](<https://docs.nvidia.com/networking/display/mftv422/using+mlxconfig>) 文档中，写了如何切换网卡为 Infiniband 模式：
 
 ```shell
 $ mlxconfig -d /dev/mst/mt4103_pci_cr0 set LINK_TYPE_P1=1 LINK_TYPE_P2=1
@@ -28,7 +28,7 @@ Applying... Done!
 
 ## MST 安装
 
-要使用 mlxconfig，就需要安装 [MFT(Mellanox Firmware Tools)](https://network.nvidia.com/products/adapter-software/firmware-tools/)。我们用的是 Debian bookworm，于是要下载 DEB：
+要使用 mlxconfig，就需要安装 [MFT(Mellanox Firmware Tools)](<https://network.nvidia.com/products/adapter-software/firmware-tools/>)。我们用的是 Debian bookworm，于是要下载 DEB：
 
 ```shell
 wget https://www.mellanox.com/downloads/MFT/mft-4.20.1-14-x86_64-deb.tgz
@@ -44,7 +44,7 @@ unar mft-4.21.0-99-x86_64-deb.tgz
 cd mft-4.21.0-99-x86_64-deb
 ```
 
-尝试用 `sudo ./install.sh` 安装，发现 dkms 报错。查看日志，发现是因为内核过高（5.18），有函数修改了用法，即要把 pci_unmap_single 的调用改为 dma_unmap_single，并且修改第一个参数，如 [linux commit a2e759612e5ff3858856fe97be5245eecb84e29b](https://github.com/torvalds/linux/commit/a2e759612e5ff3858856fe97be5245eecb84e29b) 指出的那样：
+尝试用 `sudo ./install.sh` 安装，发现 dkms 报错。查看日志，发现是因为内核过高（5.18），有函数修改了用法，即要把 pci\_unmap\_single 的调用改为 dma\_unmap\_single，并且修改第一个参数，如 [linux commit a2e759612e5ff3858856fe97be5245eecb84e29b](<https://github.com/torvalds/linux/commit/a2e759612e5ff3858856fe97be5245eecb84e29b>) 指出的那样：
 
 ```text
 -           pci_unmap_single(dev->pci_dev, dev->dma_props[i].dma_map, DMA_MBOX_SIZE, DMA_BIDIRECTIONAL);
@@ -98,7 +98,7 @@ Applying... Done!
 
 显示各个配置可能的选项和内容：`sudo mlxconfig -d /dev/mst/mtxxxx_pciconf0 show_confs`
 
-整个安装流程在仓库 <https://github.com/jiegec/mft-debian-bookworm> 中用脚本实现。
+整个安装流程在仓库 [https://github.com/jiegec/mft-debian-bookworm](<https://github.com/jiegec/mft-debian-bookworm>) 中用脚本实现。
 
 UPDATE: 太新的 MFT 版本不支持比较旧的网卡，例如 4.22.1-LTS 支持 ConnectX-3，但 4.26.1-LTS 就不支持了。
 
@@ -107,7 +107,7 @@ UPDATE: 太新的 MFT 版本不支持比较旧的网卡，例如 4.22.1-LTS 支�
 如果要在 ESXi 上把网卡改成以太网模式，可以参考下面的文档：
 
 - https://docs.nvidia.com/networking/pages/releaseview.action?pageId=15049813
-- https://docs.nvidia.com/networking/plugins/servlet/mobile?contentId=15051769#content/view/15051769
+- https://docs.nvidia.com/networking/plugins/servlet/mobile?contentId=15051769\#content/view/15051769
 
 命令（ESXi 7.0U3）：
 

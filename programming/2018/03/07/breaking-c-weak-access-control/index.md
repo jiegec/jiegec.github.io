@@ -4,7 +4,7 @@
 
 昨天上课，有同学问，如果用户偷偷把 `private` 改成 `public` 再和原有的库链接，是不是就可以在用户代码里更改了。这个答案是肯定的。下面我们就做个实验：
 
-首先，创建 good_class.h 和 good_class.cpp:
+首先，创建 good\_class.h 和 good\_class.cpp:
 
 ```c++
 class SomeClass {
@@ -29,7 +29,7 @@ int SomeClass::getData() {
 clang++ -c good_class.cpp -o good_class.o
 ```
 
-然后，修改 good_class.cpp 并写一个 evil_user.cpp
+然后，修改 good\_class.cpp 并写一个 evil\_user.cpp
 
 ```c++
 class SomeClass {
@@ -63,6 +63,6 @@ clang++ good_class.o evil_user.cpp -o evil
 一些提醒：
 
 1. `C++` 的访问控制十分的弱，仅仅是编译期。所以是很容易绕过的。
-1. 对于不想泄露源代码的库，不要导出 `C++` 的类和函数。选择导出 `C` 函数，结构体用 incomplete type 或者干脆 `void *` 。
+2. 对于不想泄露源代码的库，不要导出 `C++` 的类和函数。选择导出 `C` 函数，结构体用 incomplete type 或者干脆 `void *` 。
 
-扩展阅读： [L 叔的通过虚函数表访问私有函数](https://liam0205.me/2018/01/23/crack-private-member-function-by-vtable/) 。
+扩展阅读： [L 叔的通过虚函数表访问私有函数](<https://liam0205.me/2018/01/23/crack-private-member-function-by-vtable/>) 。

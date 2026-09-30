@@ -1,4 +1,4 @@
-# libc++ 的 uniform_int_distribution 性能问题
+# libc++ 的 uniform\_int\_distribution 性能问题
 
 ## 背景
 
@@ -42,13 +42,13 @@ int main() {
 }
 ```
 
-首先上结论：GCC-13 Homebrew 用的是 libstdc++，而 Apple Clang 用的是 libc++；libstdc++ 优化了 uniform_int_distribution 的实现，而 libc++ 采用的是朴素的实现，同时参数的选取正好触发了朴素实现的最坏情况，因此性能差距巨大。
+首先上结论：GCC-13 Homebrew 用的是 libstdc++，而 Apple Clang 用的是 libc++；libstdc++ 优化了 uniform\_int\_distribution 的实现，而 libc++ 采用的是朴素的实现，同时参数的选取正好触发了朴素实现的最坏情况，因此性能差距巨大。
 
 ## 探究
 
 从现象上来看，看起来是 GCC 和 Clang 的性能差异很大，但由于这里涉及到了 STL 的实现，因此控制变量很重要：经过测试，发现 Clang + libstdc++ 性能好，GCC + libstdc++ 性能好，Clang + libc++ 性能差。
 
-因此问题大概可以定位在 libc++ 上。那么，就去找 libc++ 的 uniform_int_distribution 实现：
+因此问题大概可以定位在 libc++ 上。那么，就去找 libc++ 的 uniform\_int\_distribution 实现：
 
 ```c++
 // https://github.com/llvm/llvm-project/blob/9b2dfff57a382b757c358b43ee1df7591cb480ee/libcxx/include/__random/uniform_int_distribution.h#L233-L257
@@ -86,9 +86,9 @@ _LIBCPP_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK
 - branch-misses: 30% of all branches
 - Top-down: 44.6% Bad Speculation
 
-说明分支预测确实成为了瓶颈。那么 libstdc++ 是怎么实现的，为什么它没有这个问题？经过搜索，发现了一篇博客：[Doubling the speed of std::uniform_int_distribution in the GNU C++ library (libstdc++)](https://lemire.me/blog/2019/09/28/doubling-the-speed-of-stduniform_int_distribution-in-the-gnu-c-library/)：
+说明分支预测确实成为了瓶颈。那么 libstdc++ 是怎么实现的，为什么它没有这个问题？经过搜索，发现了一篇博客：[Doubling the speed of std::uniform\_int\_distribution in the GNU C++ library (libstdc++)](<https://lemire.me/blog/2019/09/28/doubling-the-speed-of-stduniform_int_distribution-in-the-gnu-c-library/>)：
 
-论文 [Fast Random Integer Generation in an Interval](https://arxiv.org/abs/1805.10941) 提出了新的 uniform_int_distribution 实现，比原来的实现得到了两倍的性能提升，并且合并到了 [libstdc++ 的实现](https://gcc.gnu.org/git/?p=gcc.git;a=blobdiff;f=libstdc%2B%2B-v3/include/bits/uniform_int_dist.h;h=ecb8574864aee10b9ea164379fffef27c7bdb0df;hp=6e1e3d5fc5fe8f7f22e62a85b35dc8bfa4743372;hb=98c37d3bacbb2f8bbbe56ed53a9547d3be01b66b;hpb=6ce2cb116af6e0965ff0dd69e7fd1925cf5dc68c)当中。
+论文 [Fast Random Integer Generation in an Interval](<https://arxiv.org/abs/1805.10941>) 提出了新的 uniform\_int\_distribution 实现，比原来的实现得到了两倍的性能提升，并且合并到了 [libstdc++ 的实现](<https://gcc.gnu.org/git/?p=gcc.git;a=blobdiff;f=libstdc%2B%2B-v3/include/bits/uniform_int_dist.h;h=ecb8574864aee10b9ea164379fffef27c7bdb0df;hp=6e1e3d5fc5fe8f7f22e62a85b35dc8bfa4743372;hb=98c37d3bacbb2f8bbbe56ed53a9547d3be01b66b;hpb=6ce2cb116af6e0965ff0dd69e7fd1925cf5dc68c>)当中。
 
 所以到这里，问题就比较清晰了：libstdc++ 实现了更好的算法，同时 libc++ 的算法遇到了最坏情况，二者合起来，就观测到了巨大的性能差距。
 
@@ -99,4 +99,4 @@ _LIBCPP_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK
 
 可见这里就是大概两倍的性能差距，这个差距就来源于 libstdc++ 实现的更好的采样算法。
 
-解决方法就是，等 libc++ 也实现更好的算法，或者在需要用 uniform_int_distribution 的时候，避免链接 libc++，或者自己实现更好的算法。
+解决方法就是，等 libc++ 也实现更好的算法，或者在需要用 uniform\_int\_distribution 的时候，避免链接 libc++，或者自己实现更好的算法。

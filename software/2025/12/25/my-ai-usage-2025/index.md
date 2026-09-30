@@ -10,12 +10,12 @@
 
 首先的一个冲击来自于 Vibe Coding。我写代码也有大概十五年了，一直都是坚持自己写代码，但今年从一些朋友那里了解到一些 Vibe Coding 的效果以后，也自己尝试了一下，确实能够感受到 Vibe Coding 对写代码的巨大冲击，我的心态也出现了一定的变化。Vibe Coding 并不复杂，其实就是用一些 Coding 客户端，配上 LLM 加一些 Tool Call，使得 LLM 可以自己编写、测试和运行代码。目前随着 LLM 能力的变强，Vibe Coding 逐渐成为了一个可以负担得起且效果不错的东西。结合实际的使用，以及受朋友们的一些启发，我目前已经用它进行了一些 Vibe Coding 尝试，例如：
 
-1. 写一些简单的 MCP 服务器，例如 [devdocs-mcp-server](https://github.com/jiegec/devdocs-mcp-server) 把 devdocs.io 的文档通过 MCP 暴露给 LLM，让它可以精确读取标准库的文档，避免幻觉，还有让 LLM 可以读取波形文件的 [waveform-mcp](https://github.com/jiegec/waveform-mcp)；
-1. 写一个 API 路由器 [llm-api-router](https://github.com/jiegec/llm-api-router)，可以在多个 API 提供商之间自动 Fallback，类似于本地版的 OpenRouter，但在这里主要是为了解决 Rate Limit 问题；
-1. 对已有代码的一些改进，比如实现 TODO，修复代码 BUG 等等；
-1. 给定提示词，让 LLM 用 Typst 或者 SVG 绘图，相比直接 AI 绘图，我更希望是可编辑的矢量图；
-1. 给定一张图，让 LLM 用 Typst 或者 SVG 复刻出来，然后再用 Vision LLM 识别绘制出来的图，观察内容是否和输入足够相似；
-1. 对于闭源的软件，让 LLM 自动逆向工程，得到一份关于内部实现的代码，甚至让它实现一份开源的等价实现。
+1. 写一些简单的 MCP 服务器，例如 [devdocs-mcp-server](<https://github.com/jiegec/devdocs-mcp-server>) 把 devdocs.io 的文档通过 MCP 暴露给 LLM，让它可以精确读取标准库的文档，避免幻觉，还有让 LLM 可以读取波形文件的 [waveform-mcp](<https://github.com/jiegec/waveform-mcp>)；
+2. 写一个 API 路由器 [llm-api-router](<https://github.com/jiegec/llm-api-router>)，可以在多个 API 提供商之间自动 Fallback，类似于本地版的 OpenRouter，但在这里主要是为了解决 Rate Limit 问题；
+3. 对已有代码的一些改进，比如实现 TODO，修复代码 BUG 等等；
+4. 给定提示词，让 LLM 用 Typst 或者 SVG 绘图，相比直接 AI 绘图，我更希望是可编辑的矢量图；
+5. 给定一张图，让 LLM 用 Typst 或者 SVG 复刻出来，然后再用 Vision LLM 识别绘制出来的图，观察内容是否和输入足够相似；
+6. 对于闭源的软件，让 LLM 自动逆向工程，得到一份关于内部实现的代码，甚至让它实现一份开源的等价实现。
 
 目前给我的感觉是，LLM 借助各种 MCP Tooling，在很多事情上可以做的很好，但也有一些前提条件。第一是 LLM 需要有针对这个事情的知识，但如果它的知识停留在几年前，又做一些比较新的东西（例如 Typst 语法很多 LLM 就不会写），它就比较难写对；第二是，一定要给 LLM 反馈的路径，能够让它自产自纠自查，不然幻觉是很难避免的，一次写对的情况很少，有反馈和无反馈完全是两个表现；第三是，目前 LLM 做复杂事情需要大量的 Token，这就意味着 API 调用时间和开销都是不可忽略的因素，即使我用了比较便宜的 DeepSeek 模型，让 LLM 在后台跑几个小时，价格一样受不了。
 

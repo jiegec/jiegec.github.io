@@ -5,27 +5,29 @@
 测试环境如下：
 
 1. Debian Trixie 发布前的测试：Debian Bookworm, GCC 12.2.0
-1. LoongArch 以及 Debian Trixie 发布后的测试：Debian Trixie, GCC 14.2.0
-1. HarmonyOS NEXT 测试：HarmonyOS NEXT 5，Clang 15.0.4 + Flang 20.1.7，详见 [jiegec/SPECCPU2017Harmony](https://github.com/jiegec/SPECCPU2017Harmony/tree/master/results)；X90 带有 VM 的代表是在 Linux 虚拟机中测试
-1. 此外有针对不同编译器和编译器版本对比的测试，相关测试结果都进行了标注
+2. LoongArch 以及 Debian Trixie 发布后的测试：Debian Trixie, GCC 14.2.0
+3. HarmonyOS NEXT 测试：HarmonyOS NEXT 5，Clang 15.0.4 + Flang 20.1.7，详见 [jiegec/SPECCPU2017Harmony](<https://github.com/jiegec/SPECCPU2017Harmony/tree/master/results>)；X90 带有 VM 的代表是在 Linux 虚拟机中测试
+4. 此外有针对不同编译器和编译器版本对比的测试，相关测试结果都进行了标注
 
 ## 注意事项
 
 注意事项如下：
 
 1. 分数只有在控制变量时（即一般所说的“用相同二进制测得”，此外还有一些影响性能的变量见下）可以用来比较**相同指令集**的不同处理器的性能，即通过测试结果比较：
+
    1. AMD64 指令集的 Intel 和 AMD 处理器的性能
-   1. ARM64 指令集的 Apple、ARM、Huawei 和 Qualcomm 处理器的性能
-   1. LoongArch 指令集的不同处理器的性能
-1. 用分数来进行**不同指令集**的处理器之间的性能比较，则说服力较弱
-1. 即使是相同硬件，如下因素都可能对测试结果产生**显著的影响**：
+   2. ARM64 指令集的 Apple、ARM、Huawei 和 Qualcomm 处理器的性能
+   3. LoongArch 指令集的不同处理器的性能
+2. 用分数来进行**不同指令集**的处理器之间的性能比较，则说服力较弱
+3. 即使是相同硬件，如下因素都可能对测试结果产生**显著的影响**：
+
    1. 不同编译器（例如 SPEC CPU 2017 在同等编译选项下 GCC 通常比 Clang 快）
-   1. 不同编译器版本（通常新版本比旧版本快，但也有反例）
-   1. 不同编译选项（例如是否开 LTO，是否设置 -march=native）
-   1. 不同的内存分配器实现（libc 自带 malloc 或 jemalloc）
-   1. 不同的标准库实现（比如 glibc 还是 musl）
-   1. 不同的调频、调度或绑核策略（比如不当的绑核让频率从 4.0GHz 降到 3.4GHz）
-   1. 不同的内核版本（比如部分内核版本会明显劣化性能）
+   2. 不同编译器版本（通常新版本比旧版本快，但也有反例）
+   3. 不同编译选项（例如是否开 LTO，是否设置 -march=native）
+   4. 不同的内存分配器实现（libc 自带 malloc 或 jemalloc）
+   5. 不同的标准库实现（比如 glibc 还是 musl）
+   6. 不同的调频、调度或绑核策略（比如不当的绑核让频率从 4.0GHz 降到 3.4GHz）
+   7. 不同的内核版本（比如部分内核版本会明显劣化性能）
 
 简而言之，不给完整测试环境信息的前提下给出的分数，都是不靠谱的。
 
@@ -33,40 +35,40 @@
 
 ## 测试结果
 
-要查看 SPEC CPU 不同版本以及测试项的测试结果，可通过[交互式图表](https://jia.je/benchmark/viewer.html)查看，或点击以下链接查看原始数据：
+要查看 SPEC CPU 不同版本以及测试项的测试结果，可通过[交互式图表](<https://jia.je/benchmark/viewer.html>)查看，或点击以下链接查看原始数据：
 
-- [SPEC CPU INT/FP 2026 Rate](https://jia.je/benchmark/spec-cpu-2026-rate/index.md)
-- [SPEC CPU INT/FP 2017 Rate](https://jia.je/benchmark/spec-cpu-2017-rate/index.md)
+- [SPEC CPU INT/FP 2026 Rate](<https://jia.je/benchmark/spec-cpu-2026-rate/index.md>)
+- [SPEC CPU INT/FP 2017 Rate](<https://jia.je/benchmark/spec-cpu-2017-rate/index.md>)
 
 ## 浮点峰值性能
 
-| uArch                      | DP FLOP/cycle | SP FLOP/cycle | ISA       |
-| -------------------------- | ------------- | ------------- | --------- |
-| AMD Zen 5                  | 32            | 64            | AVX512F   |
-| Intel Skylake              | 32            | 64            | AVX512F   |
-| Intel Sunny Cove           | 32            | 64            | AVX512F   |
-| AMD Zen 4                  | 16            | 32            | AVX512F   |
-| AMD Zen 3                  | 16            | 32            | AVX512F   |
-| AMD Zen 2                  | 16            | 32            | FMA       |
-| ARM Neoverse V3            | 16            | 32            | SVE(128b) |
-| ARM Neoverse V2            | 16            | 32            | SVE(128b) |
-| ARM Neoverse V1            | 16            | 32            | SVE(256b) |
-| Apple Avalanche            | 16            | 32            | ASIMD     |
-| Apple Firestorm            | 16            | 32            | ASIMD     |
-| Intel Broadwell            | 16            | 32            | FMA       |
-| Intel Golden Cove (Client) | 16            | 32            | FMA       |
-| Intel Haswell              | 16            | 32            | FMA       |
-| Loongson LA664             | 16            | 32            | LASX      |
-| Loongson LA464             | 16            | 32            | LASX      |
-| Qualcomm Oryon             | 16            | 32            | ASIMD     |
-| AMD Zen 1                  | 8             | 16            | FMA       |
-| ARM Cortex A78             | 8             | 16            | ASIMD     |
-| ARM Cortex X1              | 8             | 16            | ASIMD     |
-| ARM Icestorm               | 8             | 16            | ASIMD     |
-| ARM Neoverse N2            | 8             | 16            | SVE(128b) |
-| ARM Neoverse N1            | 8             | 16            | ASIMD     |
-| Intel Gracemont            | 8             | 16            | FMA       |
-| Hisilicon TSV110           | 4             | 16            | ASIMD     |
+| uArch | DP FLOP/cycle | SP FLOP/cycle | ISA |
+| --- | --- | --- | --- |
+| AMD Zen 5 | 32 | 64 | AVX512F |
+| Intel Skylake | 32 | 64 | AVX512F |
+| Intel Sunny Cove | 32 | 64 | AVX512F |
+| AMD Zen 4 | 16 | 32 | AVX512F |
+| AMD Zen 3 | 16 | 32 | AVX512F |
+| AMD Zen 2 | 16 | 32 | FMA |
+| ARM Neoverse V3 | 16 | 32 | SVE(128b) |
+| ARM Neoverse V2 | 16 | 32 | SVE(128b) |
+| ARM Neoverse V1 | 16 | 32 | SVE(256b) |
+| Apple Avalanche | 16 | 32 | ASIMD |
+| Apple Firestorm | 16 | 32 | ASIMD |
+| Intel Broadwell | 16 | 32 | FMA |
+| Intel Golden Cove (Client) | 16 | 32 | FMA |
+| Intel Haswell | 16 | 32 | FMA |
+| Loongson LA664 | 16 | 32 | LASX |
+| Loongson LA464 | 16 | 32 | LASX |
+| Qualcomm Oryon | 16 | 32 | ASIMD |
+| AMD Zen 1 | 8 | 16 | FMA |
+| ARM Cortex A78 | 8 | 16 | ASIMD |
+| ARM Cortex X1 | 8 | 16 | ASIMD |
+| ARM Icestorm | 8 | 16 | ASIMD |
+| ARM Neoverse N2 | 8 | 16 | SVE(128b) |
+| ARM Neoverse N1 | 8 | 16 | ASIMD |
+| Intel Gracemont | 8 | 16 | FMA |
+| Hisilicon TSV110 | 4 | 16 | ASIMD |
 
 ## 固定频率方法
 
@@ -74,11 +76,11 @@
 
 此外，还需要注意 cpufreq governor（`cuupower frequency-info`），以及 boost 是否启用（`/sys/devices/system/cpu/cpufreq/boost`）。
 
-对于 AMD CPU，在 Linux 下为了固定 CPU 的频率，需要通过 MSR 进行设置：[jiegec/ZenStates-Linux](https://github.com/jiegec/ZenStates-Linux)：
+对于 AMD CPU，在 Linux 下为了固定 CPU 的频率，需要通过 MSR 进行设置：[jiegec/ZenStates-Linux](<https://github.com/jiegec/ZenStates-Linux>)：
 
 1. 关闭 Core performance boost
-1. 读取当前的 pstate 设置
-1. 修改当前 pstate 的 FID，也就修改了频率
+2. 读取当前的 pstate 设置
+3. 修改当前 pstate 的 FID，也就修改了频率
 
 ## 测试环境
 
@@ -148,6 +150,7 @@
 ## 更新历史
 
 - 2026.09.28:
+
   - 测试 Intel Xeon Platinum 8358P 的性能
   - 测试 Intel Xeon Gold 6430 的性能
   - 测试 AMD EPYC 7742 的性能
@@ -155,49 +158,67 @@
   - 在阿里云 g9a.xlarge 实例上测试 AMD EPYC 9T25 的性能
   - 在 AWS m8g.xlarge 实例上测试 AWS Graviton 4 的性能
 - 2026.06.30:
+
   - 测试 Intel Core i5-1135G7 性能
 - 2025.06.27:
+
   - 测试 Huawei Kirin X90 在虚拟机中的性能
   - 在华为云 kc2.xlarge.4 实例上测试 HuaweiCloud Kunpeng 920 kc2 的性能
 - 2026.06.12:
+
   - 在 AWS m9g.xlarge 实例上测试 AWS Graviton 5 的性能
 - 2026.05.19:
+
   - 添加交互式图表
   - 添加 SPEC CPU 2026 性能数据
 - 2026.05.12:
+
   - 测试 Apple M2 的性能
 - 2026.05.02:
+
   - 测试 IBM POWER9 3.8 GHz (44C176T) 性能
   - 测试 Intel Core i5-1135G7 性能
 - 2026.04.17:
+
   - 测试 Intel Core i7-13700K 性能
 - 2026.02.23:
+
   - 测试 IBM POWER8 和 IBM POWER9 3.2 GHz (4C16T) 性能
 - 2026.01.28:
+
   - 在 GCP n4a-standard-4 实例上测试 Google Axion N4A 的性能
   - 在 GCP c4a-standard-4 实例上测试 Google Axion C4A 的性能
   - 测试 Intel Xeon Platinum 8358P 的性能
 - 2025.11.18:
+
   - 在 Aliyun g9ae.xlarge 实例上测试 AMD EPYC 9T95 的性能
 - 2025.10.20:
+
   - 测试 Intel Xeon Gold 6430 的性能
 - 2025.10.09:
+
   - 在 AWS m8i.xlarge 实例上测试 Intel Xeon 6975P-C 的性能
   - 在 AWS m8a.xlarge 实例上测试 AMD EPYC 9R45 的性能
   - 测试 Intel Core i9-12900KS 的性能
 - 2025.08.10:
+
   - 开始在 Debian Trixie 上重复实验
 - 2025.07.11:
+
   - 测试 Intel Xeon w9-3595X 的性能
 - 2025.06.11:
+
   - 测试 Huawei Kirin X90 在虚拟机中的性能
 - 2025.06.06:
+
   - 测试 Huawei Kirin X90 的性能
 - 2025.05.26:
+
   - 测试 Loongson 3C6000 的性能
   - 在阿里云 g8a.xlarge 实例上测试 AMD EPYC 9T24 的性能
   - 在阿里云 g9i.xlarge 实例上测试 Intel Xeon 6982P-C 的性能
 - 2025.05.16:
+
   - 在华为云 kc2.xlarge.2 实例上测试 HuaweiCloud Kunpeng 920 kc2 的性能
   - 在 AWS c7a.xlarge 实例上测试 AMD EPYC 9R14 的性能
   - 测试 Apple M1 的性能
@@ -206,21 +227,26 @@
   - 在腾讯云 sa9e.large8 实例上测试 AMD EPYC 9K85 的性能
   - 在腾讯云 s9.large8 实例上测试 Intel Xeon 6981E 的性能
 - 2025.05.15:
+
   - 测试 AMD EPYC 9755 的性能
   - 在华为云 kc2.large.2 实例上测试 HuaweiCloud Kunpeng 920 kc2 的性能
   - 在 AWS c7g.large 实例上测试 AWS Graviton 3 的性能
 - 2025.05.07:
+
   - 在 AWS c8g.large 实例上测试 AWS Graviton 4 的性能
   - 测试 Loongson 3C6000 的性能
   - 测试不同编译器在 Intel Core i9-14900K 上的性能
 - 2025.04.22:
+
   - 在 GCP c4-standard-2 实例上测试 Intel Xeon Platinum 8581C 的性能
   - 在阿里云 g7h.large 实例上测试 Hygon C86 7390 的性能
   - 在阿里云 g8a.large 实例上测试 AMD EPYC 9T24 的性能
   - 在阿里云 g9i.large 实例上测试 Intel Xeon 6982P-C 的性能
 - 2025.04.19:
+
   - 测试 Loongson 3C6000 的性能
 - 2025.04.18:
+
   - 测试 AMD EPYC 7551 的性能
   - 测试 AMD Ryzen 7 5700X 的性能
   - 测试 Apple M1 的性能
@@ -228,21 +254,28 @@
   - 测试 Intel Core i9-10980XE 的性能
   - 测试 Loongson 3A6000 的性能
 - 2025.04.11:
+
   - 在华为云 kc2.xlarge.4 实例上测试 HuaweiCloud Kunpeng 920 kc2 的性能
 - 2025.03.26:
+
   - 测试 AMD Ryzen 9 9950X 的性能
   - 测试 Intel Xeon E5-4610 v2 的性能
 - 2025.01.12:
+
   - 测试 Intel Core i9-12900KS E-Core 的性能
   - 测试 Intel Core i9-14900K E-Core 的性能
 - 2024.12.31:
+
   - 测试 Huawei Kirin 9010 的性能
 - 2024.12.16:
+
   - 测试 Huawei Kirin 9010 的性能
 - 2024.12.05:
+
   - 测试 Loongson 3A6000 的性能
   - 测试 IBM POWER8NVL 的性能
 - 2024.11.20:
+
   - 在 AWS c7gn.medium 实例上测试 AWS Graviton 3E 的性能
   - 在 AWS r8g.medium 实例上测试 AWS Graviton 4 的性能
   - 在华为云 kc1.large.2 实例上测试 HuaweiCloud Kunpeng 920 kc1 的性能
@@ -256,21 +289,26 @@
   - 测试 Loongson 3C6000 的性能
   - 测试 Qualcomm X1E80100 的性能
 - 2024.11.18:
+
   - 测试 Intel Core i9-14900K 的性能
   - 测试 Intel Core i9-12900KS 的性能
   - 测试 Qualcomm X1E80100 的性能
   - 测试 AMD Ryzen 9 9950X 的性能
 - 2024.11.07:
+
   - 测试 Qualcomm 8cx Gen3 的性能
 - 2024.11.02:
+
   - 在阿里云 c6r.large 实例上测试 Ampere Altra 的性能
   - 在阿里云 c8y.large 实例上测试 T-Head Yitian 710 的性能
   - 在 AWS r8g.medium 实例上测试 AWS Graviton 4 的性能
   - 在 AWS c7g.medium 实例上测试 AWS Graviton 3 的性能
 - 2024.11.01:
+
   - 测试 Apple M1 的性能
   - 测试 Qualcomm X1E80100 的性能
 - 2024.10.30:
+
   - 在 AWS c7a.medium 实例上测试 AMD EPYC 9R14 的性能
   - 在腾讯云 s8.medium8 实例上测试 Intel Xeon Platinum 8576C 的性能
   - 在腾讯云 sa3.medium4 实例上测试 AMD EPYC 7K83 的性能

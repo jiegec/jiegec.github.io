@@ -39,7 +39,7 @@ name "virtio-rng-device", bus virtio-bus
 
 ## 第一个驱动 `virtio-net` 的实现
 
-首先想到并且实现了的是网卡驱动， `virtio-net` 。最开始的时候，为了简单，只开了一块缓冲区，每次同时只收/发一个包。首先拿了 [device_tree-rs](https://github.com/jiegec/device_tree-rs) 读取 bbl 传过来的 dtb 地址，找到各个 `virtio_mmio` 总线以后按照设备类型找到对应的设备。然后就是对着 virtio 的标准死磕，同时看 Linux 和 QEMU 的源代码辅助理解，最后终于是成功地把收/发的两个 virtqueue 配置好，并且在中断的时候处理收到的包。这个时候，可以成功地输出收到的包的内容，并且发出指定内容的包了。效果就是看到了这样的图片（图中网站是 [Hex Packet Decoder](https://hpd.gasmi.net/)）：
+首先想到并且实现了的是网卡驱动， `virtio-net` 。最开始的时候，为了简单，只开了一块缓冲区，每次同时只收/发一个包。首先拿了 [device\_tree-rs](<https://github.com/jiegec/device_tree-rs>) 读取 bbl 传过来的 dtb 地址，找到各个 `virtio_mmio` 总线以后按照设备类型找到对应的设备。然后就是对着 virtio 的标准死磕，同时看 Linux 和 QEMU 的源代码辅助理解，最后终于是成功地把收/发的两个 virtqueue 配置好，并且在中断的时候处理收到的包。这个时候，可以成功地输出收到的包的内容，并且发出指定内容的包了。效果就是看到了这样的图片（图中网站是 [Hex Packet Decoder](<https://hpd.gasmi.net/>)）：
 
 基于此，写了一个简单的以太网帧的解析，ARP 的回复和 ping 的回复（直接修改 `ECHO_REQUEST` 为 `ECHO_REPLY` 然后更新 CHECKSUM），实现了最基本的 ping：
 
@@ -55,10 +55,10 @@ name "virtio-rng-device", bus virtio-bus
 
 ## HTTP 服务器
 
-在 @wangrunji0408 的提醒和建议下，我开始把一个 Rust 实现的网络栈 [smoltcp](https://github.com/m-labs/smoltcp) 集成到代码中来。这个库中，对底层 Interface 的要求如下：
+在 @wangrunji0408 的提醒和建议下，我开始把一个 Rust 实现的网络栈 [smoltcp](<https://github.com/m-labs/smoltcp>) 集成到代码中来。这个库中，对底层 Interface 的要求如下：
 
 1. 当可以发包并且可以收包的时候，返回一收一发两个 Token，并在使用的时候调用指定的函数。
-1. 当可以发包的时候，返回一个发的 Token，含义同上。
+2. 当可以发包的时候，返回一个发的 Token，含义同上。
 
 这是我第一次看到这种抽象，而且也没有特别明确的文档表示，这个 Token 代表什么，我应该提供什么。我直接按照一些已有的例子，照着实现了一把。过程中遇到了 ownership 的问题，通过 Arc 和 Mutex 解决了，然后又出现了死锁的问题，调了半天才调出来。
 
@@ -83,14 +83,14 @@ if socket.can_send() {
 
 接着自然是往 QEMU 支持的剩下的 virtio 设备里下手。首先下手的是鼠标驱动。这次遇到了新的问题：
 
-1. 由于缓冲的存在，每次只有在 EV_SYN 的时候才会一次性把若干个事件放入队列中。
-1. 一个事件就要一个 desc chain，意味着直接串足够大小的 buffer 到同一个 desc chain 中并不能工作。
+1. 由于缓冲的存在，每次只有在 EV\_SYN 的时候才会一次性把若干个事件放入队列中。
+2. 一个事件就要一个 desc chain，意味着直接串足够大小的 buffer 到同一个 desc chain 中并不能工作。
 
 于是只好痛定思痛照着 Linux 内核的实现把完整的 Virtqueue 的操作实现了，并且顺带把前面的网卡和显卡的驱动也更新了。果然，每次都是三个左右的事件（X，Y，SYN）插入，然后根据这些事件就可以计算出当前的鼠标位置了。
 
-至于块设备，遇到的则是别的坑。看标准的时候，本以为就一个结构体 virtio_blk_req 就搞完了，但仔细读了读，标准似乎没讲清楚，读的时候是怎么传，写的时候又是怎么传。于是在这里卡了很久，从 Tracing 信息可以看出，QEMU 一直认为我提供的 buffer 大小不正确，多次实验之后发现，给 device 写入的 buffer 大小为 block size 的整数倍加一，这个一存放的是状态，其他则是数据，真的太坑了。
+至于块设备，遇到的则是别的坑。看标准的时候，本以为就一个结构体 virtio\_blk\_req 就搞完了，但仔细读了读，标准似乎没讲清楚，读的时候是怎么传，写的时候又是怎么传。于是在这里卡了很久，从 Tracing 信息可以看出，QEMU 一直认为我提供的 buffer 大小不正确，多次实验之后发现，给 device 写入的 buffer 大小为 block size 的整数倍加一，这个一存放的是状态，其他则是数据，真的太坑了。
 
-有了块设备以后，就可以替换掉原来的内嵌 SFS 的方案，转为直接从块设备读 SFS 文件。这里我没想明白 lazy_static 和 ownership 的一些问题，最后也则是@wangrunji0408 的帮助我解决了。
+有了块设备以后，就可以替换掉原来的内嵌 SFS 的方案，转为直接从块设备读 SFS 文件。这里我没想明白 lazy\_static 和 ownership 的一些问题，最后也则是@wangrunji0408 的帮助我解决了。
 
 ## 总结
 
@@ -98,4 +98,4 @@ if socket.can_send() {
 
 ## See also
 
-1. [Virtio Spec](https://github.com/oasis-tcs/virtio-spec)
+1. [Virtio Spec](<https://github.com/oasis-tcs/virtio-spec>)

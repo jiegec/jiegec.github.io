@@ -62,16 +62,17 @@ global_data:
 
 ## TLS 的组织方式
 
-首先 TLS 是 per-thread 的存储，意味着每个新线程，都有一个 buffer 需要保存 TLS 的数据。那么这个数据所在的位置，也需要一些 per-thread 的高效方式来访问，在 amd64 上，它是通过 `%fs` 段寄存器来维护的。那么 TLS 可能有哪些来源呢？首先可执行程序自己可能会用一些，它通过 DT_NEEDED 由动态链接器在启动时加载的动态库也有一些（比如 [glibc 的 tcache](https://jia.je/software/2025/03/30/glibc-allocator/index.md)），此外运行时 dlopen 了一些动态库也会有 TLS 的需求。为了满足这些需求，需要设计一个 TLS 的结构，既能满足这些在启动时已知的可执行程序和动态库的需求，又能满足运行时动态加载的新动态库的需求。
+首先 TLS 是 per-thread 的存储，意味着每个新线程，都有一个 buffer 需要保存 TLS 的数据。那么这个数据所在的位置，也需要一些 per-thread 的高效方式来访问，在 amd64 上，它是通过 `%fs` 段寄存器来维护的。那么 TLS 可能有哪些来源呢？首先可执行程序自己可能会用一些，它通过 DT\_NEEDED 由动态链接器在启动时加载的动态库也有一些（比如 [glibc 的 tcache](<https://jia.je/blog/posts/software/glibc-allocator/index.md>)），此外运行时 dlopen 了一些动态库也会有 TLS 的需求。为了满足这些需求，需要设计一个 TLS 的结构，既能满足这些在启动时已知的可执行程序和动态库的需求，又能满足运行时动态加载的新动态库的需求。
 
 这里面可执行程序和启动时加载的动态库的需求是明确的，不会变的，因此可以由动态链接器在加载的时候，直接给可执行程序和动态库分配 TLS 空间：
 
 1. 比如可执行程序本身需要 0x10 字节的 TLS 空间，它启动时加载两个动态库 libc.so.6 和 libstdc++.so.6，期中 libc.so.6 需要 0x20 字节的 TLS 空间，libstdc++.so.6 需要 0x30 字节的 TLS 空间
-1. 加起来一共需要 0x60 字节的 TLS 空间，那么在创建线程的时候，创建好 0x60 字节的 TLS 空间，按照顺序进行分配：
+2. 加起来一共需要 0x60 字节的 TLS 空间，那么在创建线程的时候，创建好 0x60 字节的 TLS 空间，按照顺序进行分配：
+
    1. 0x00-0x10: 属于可执行程序
-   1. 0x10-0x30: 属于 libc.so.6
-   1. 0x30-0x60: 属于 libstdc++.so.6
-1. 分配好这个空间以后，因为 libc.so.6 无法提前预知它会被分配到哪个位置，所以需要一次重定位，把 libc.so.6 里的 TLS 空间的使用重定位到分配后的位置，例如 libc.so.6 的 0x20 的 TLS 空间内的开头 8 字节，现在在整个 TLS 空间内的偏移就是 `0x20 + 8 = 0x28`
+   2. 0x10-0x30: 属于 libc.so.6
+   3. 0x30-0x60: 属于 libstdc++.so.6
+3. 分配好这个空间以后，因为 libc.so.6 无法提前预知它会被分配到哪个位置，所以需要一次重定位，把 libc.so.6 里的 TLS 空间的使用重定位到分配后的位置，例如 libc.so.6 的 0x20 的 TLS 空间内的开头 8 字节，现在在整个 TLS 空间内的偏移就是 `0x20 + 8 = 0x28`
 
 但是 dlopen 动态加载进来的动态库怎么办呢？这些动态库的数量可以动态变化，可以加载也可以卸载，再这么线性分配就不合适了，这时候就需要给每个 dlopen 得到的动态库分配独立的 TLS 空间。既然是动态分配的空间，那么这些独立的 TLS 空间的地址，不同线程不同，不能通过一个基地址加固定偏移的方式来计算，就需要提供一个机制来找到各个动态库的 TLS 空间的地址。
 
@@ -124,11 +125,11 @@ typedef struct
 
 P.S. stack protector 所使用的 canary 的值就保存在 `pthread.header.stack_guard` 字段中，也就是在 `%fs:40` 位置。
 
-而之前提到的可执行程序本身的 TLS 空间以及程序启动时加载的动态库的 TLS 空间，实际上是保存在 `struct thread` 也就是 TCB 前面的部分，从高地址往低地址分配（图片来源：[ELF Handling For Thread-Local Storage](https://www.akkadia.org/drepper/tls.pdf)）：
+而之前提到的可执行程序本身的 TLS 空间以及程序启动时加载的动态库的 TLS 空间，实际上是保存在 `struct thread` 也就是 TCB 前面的部分，从高地址往低地址分配（图片来源：[ELF Handling For Thread-Local Storage](<https://www.akkadia.org/drepper/tls.pdf>)）：
 
-图中 (tp_t) 在 amd64 下就是 `%fs` 段寄存器，它直接指向的就是 `struct thread` 也就是 TCB；从 `%fs` 开始往低地址，先分配可执行程序本身的 TLS 空间（图中 (tlsoffset_1) 到 (tp_t) 的范围），后分配程序启动时加载的动态库的 TLS 空间（图中 (tlsoffset_1) 到 (tlsoffset_2) 以及 (tlsoffset_3) 到 (tlsoffset_2) 的范围）。注意这些偏移对于每个线程都是相同的，只是不同线程的 `%fs` 寄存器不同。
+图中 \\(tp\_t\\) 在 amd64 下就是 `%fs` 段寄存器，它直接指向的就是 `struct thread` 也就是 TCB；从 `%fs` 开始往低地址，先分配可执行程序本身的 TLS 空间（图中 \\(tlsoffset\_1\\) 到 \\(tp\_t\\) 的范围），后分配程序启动时加载的动态库的 TLS 空间（图中 \\(tlsoffset\_1\\) 到 \\(tlsoffset\_2\\) 以及 \\(tlsoffset\_3\\) 到 \\(tlsoffset\_2\\) 的范围）。注意这些偏移对于每个线程都是相同的，只是不同线程的 `%fs` 寄存器不同。
 
-而对于 dlopen 动态加载的动态库，则 TLS 空间需要动态分配，然后通过 `dtv` 数组来索引（图中 (dtv\_{t,4}) 和 (dtv\_{t,5})），因此无法通过重定位修正，而是要在运行时通过 `__tls_get_addr` 函数获取地址。为了让 `__tls_get_addr` 更具有通用性，`dtv` 数组也记录了分配在 `%fs` 指向的 TCB 更低地址的可执行程序和程序启动时加载的动态库的 TLS 空间，此时 `__tls_get_addr` 可以查到所有 TLS 变量的地址。每个动态库在 `dtv` 数组中都记录了信息，那么这个动态库在 `dtv` 数组中的下标，记为这个动态库的编号（module id），后面会多次出现这个概念。
+而对于 dlopen 动态加载的动态库，则 TLS 空间需要动态分配，然后通过 `dtv` 数组来索引（图中 \\(dtv\_{t,4}\\) 和 \\(dtv\_{t,5}\\)），因此无法通过重定位修正，而是要在运行时通过 `__tls_get_addr` 函数获取地址。为了让 `__tls_get_addr` 更具有通用性，`dtv` 数组也记录了分配在 `%fs` 指向的 TCB 更低地址的可执行程序和程序启动时加载的动态库的 TLS 空间，此时 `__tls_get_addr` 可以查到所有 TLS 变量的地址。每个动态库在 `dtv` 数组中都记录了信息，那么这个动态库在 `dtv` 数组中的下标，记为这个动态库的编号（module id），后面会多次出现这个概念。
 
 知道了 TLS 的组织方式后，接下来观察编译器、链接器和动态链接器是如何配合着让代码可以找到正确的 TLS 变量的地址。
 
@@ -203,7 +204,7 @@ $ objdump -t tls
 接下来观察另一种情况：动态库使用动态库自己的 TLS 变量。按照前面的分析，有两种情况：
 
 1. 第一种情况是，动态库是在程序启动时被动态链接器加载，那么它会被分配在 `%fs` 往低地址的空间。虽然相对 `%fs` 的偏移无法在链接阶段就提前得知，但是动态链接器会给它分配连续的 TLS 空间，从而可以计算出它的 TLS 空间相对 `%fs` 的偏移，于是动态链接器可以帮助完成剩下的重定位。
-1. 第二种情况是，动态库是由 dlopen 被加载，那么它被分配的 TLS 空间的地址就无法从 `%fs` 直接计算得出，此时就需要借助 `__tls_get_addr` 函数的帮助。
+2. 第二种情况是，动态库是由 dlopen 被加载，那么它被分配的 TLS 空间的地址就无法从 `%fs` 直接计算得出，此时就需要借助 `__tls_get_addr` 函数的帮助。
 
 ### initial exec TLS model
 
@@ -235,7 +236,7 @@ read_tls_data2:
 
 可以看到，这次生成的汇编不同了：它首先从 `symbol@gottpoff(%rip)` 读取一个 offset 到 `%rax` 寄存器，再从 `%fs:(%rax)` 地址读取 TLS 变量的值。上面提到，在 initial exec TLS model 下，TLS 空间是可以相对 `%fs` 寻址的，但是 offset 无法提前得知，需要由动态链接器完成重定位。
 
-回忆之前在[《开发一个链接器（4）》](https://jia.je/software/2024/04/07/write-a-linker-4/index.md)一文中，当动态库想要获得某个只有动态链接器才知道的地址，就会把它预留好位置放到 `.got` 表当中，并且输出一个 dynamic relocation，告诉动态链接器如何把地址计算出来并填进去。在这里，原理也是类似的，只不过是在 `.got` 表中预留了一个空间来保存 TLS 变量相对 `%fs` 的偏移。下面观察对象文件内是怎么记录这个信息的：
+回忆之前在[《开发一个链接器（4）》](<https://jia.je/blog/posts/software/write-a-linker-4/index.md>)一文中，当动态库想要获得某个只有动态链接器才知道的地址，就会把它预留好位置放到 `.got` 表当中，并且输出一个 dynamic relocation，告诉动态链接器如何把地址计算出来并填进去。在这里，原理也是类似的，只不过是在 `.got` 表中预留了一个空间来保存 TLS 变量相对 `%fs` 的偏移。下面观察对象文件内是怎么记录这个信息的：
 
 ```shell
 $ as tls.s -o tls.o
@@ -257,7 +258,7 @@ $ objdump -S -r tls.o
 
 可以看到，这时候它在 `mov` 指令的立即数位置创建了一个 `R_X86_64_GOTTPOFF` 类型的重定位，这是告诉链接器：创建一个 `.got` entry，里面由动态链接器填写对应 symbol 在运行时相对 `%fs` 的偏移，然后链接器把 `.got` entry 相对 `mov` 指令的偏移写到 `mov` 指令的立即数内。
 
-至于为啥是 `symbol-0x4` 而不是 `symbol`，原因在之前[《开发一个链接器（2）》](https://jia.je/software/2024/03/30/write-a-linker-2/index.md) 已经出现过：x86 指令的立即数偏移是基于指令结尾的，而 relocation 指向的是立即数的起始地址，也就是指令结尾地址减去 4，那么立即数也要做相应的修正。
+至于为啥是 `symbol-0x4` 而不是 `symbol`，原因在之前[《开发一个链接器（2）》](<https://jia.je/blog/posts/software/write-a-linker-2/index.md>) 已经出现过：x86 指令的立即数偏移是基于指令结尾的，而 relocation 指向的是立即数的起始地址，也就是指令结尾地址减去 4，那么立即数也要做相应的修正。
 
 最后，观察链接器做的事情：
 
@@ -289,10 +290,8 @@ Disassembly of section .got:
 可以看到：
 
 1. 链接器为两个 TLS 变量分别创建了一个 `.got` entry，`tls_data1` 对应 `0x3fd8`，`tls_data2` 对应 `0x3fc0`
-
-1. 链接器在这两个 `.got` entry 处创建了 dynamic relocation `R_X86_64_TPOFF64`，告诉动态链接器：给动态库分配空间后，把 `tls_data1` 和 `tls_data2` 相对 `%fs` 的偏移写入到这两个 `.got` entry 内
-
-1. 链接器计算出了 `mov` 指令和 `.got` entry 的相对偏移，直接写到了 `mov` 指令的立即数当中：
+2. 链接器在这两个 `.got` entry 处创建了 dynamic relocation `R_X86_64_TPOFF64`，告诉动态链接器：给动态库分配空间后，把 `tls_data1` 和 `tls_data2` 相对 `%fs` 的偏移写入到这两个 `.got` entry 内
+3. 链接器计算出了 `mov` 指令和 `.got` entry 的相对偏移，直接写到了 `mov` 指令的立即数当中：
 
    ```shell
    0000000000001100 <read_tls_data1>:
@@ -307,7 +306,7 @@ Disassembly of section .got:
        111a:       c3                      ret
    ```
 
-   4. 那么在运行时，为了读取 TLS 变量，首先从 `.got` 表读取 TLS 变量相对 `%fs` 的偏移写到 `%rax` 寄存器，再通过 `%fs:(%rax)` 访问 TLS 变量即可
+   4\. 那么在运行时，为了读取 TLS 变量，首先从 `.got` 表读取 TLS 变量相对 `%fs` 的偏移写到 `%rax` 寄存器，再通过 `%fs:(%rax)` 访问 TLS 变量即可
 
 那么这就是 initial exec TLS model 的实现方法了：它利用了动态库会在程序启动时加载的性质，保证 TLS 变量都保存在相对 `%fs` 的运行时可知且不变的偏移上，把偏移记录在 `.got` 表中，由动态链接器去计算，那么访问的时候就很简单了，直接读取 offset 从 `%fs` 访问即可。
 
@@ -328,7 +327,7 @@ void *__tls_get_addr (tls_index *ti);
 即它需要两个信息，一个是 TLS 变量所在的动态库的编号（这个编号是动态生成的一个 id，实际上是这个动态库在 `dtv` 数组中的下标），另外是这个 TLS 变量在动态库内的偏移。这时候，又分为两种情况：
 
 1. 第一种情况是，这个 TLS 变量就在这个动态库本身内部定义，此时 TLS 变量在动态库内的偏移在链接期间已知，只是不知道 TLS 空间的起始地址，需要通过 `__tls_get_addr` 函数获取，这种情景叫做 local dynamic TLS model
-1. 第二种情况是，这个 TLS 变量不知道在哪个动态库定义，此时只知道这个 TLS 变量的名字，不知道它属于哪个动态库，也不知道它在动态库内的偏移，这种情况叫做 global dynamic TLS model，是最通用的情况，对 TLS 变量所在的位置没有任何假设
+2. 第二种情况是，这个 TLS 变量不知道在哪个动态库定义，此时只知道这个 TLS 变量的名字，不知道它属于哪个动态库，也不知道它在动态库内的偏移，这种情况叫做 global dynamic TLS model，是最通用的情况，对 TLS 变量所在的位置没有任何假设
 
 ### local dynamic TLS model
 
@@ -591,18 +590,18 @@ Disassembly of section .got:
 接下来进行四种 TLS model 的对比：
 
 1. local exec TLS model: 用于可执行程序访问自身的 TLS 变量，由于可执行程序的 TLS 空间总是紧挨着 `%fs`，所以自身的 TLS 变量相对 `%fs` 的偏移在链接时已知，可以直接计算出来，运行时开销最小
-1. initial exec TLS model: 用于在程序启动时由动态链接器自动加载的动态库访问自身的 TLS 变量，由于它的 TLS 空间相对 `%fs` 的偏移在加载后就是固定的，所以由动态链接器计算出各个 TLS 变量相对 `%fs` 的偏移，写到 `.got` 表中，运行时只需要读取 `.got` 表中记录的 offset，和 `%fs` 做加法就得到了变量的地址
-1. local dynamic TLS model: 用于可能被 dlopen 的动态库访问自身的 TLS 变量，由于它的 TLS 空间相对 `%fs` 的偏移是不确定的，所以需要用 `__tls_get_addr` 调用来获取自身的 TLS 空间的起始地址；为了给 `__tls_get_addr` 传递正确的参数，告诉这个函数自己的动态库编号是多少，在 `.got` 表中预留了一个 entry 让动态链接器把该动态库的编号写进去；那么运行时只需要读取 `.got` 表中记录的动态库编号，调用 `__tls_get_addr`，再和链接时已知的 offset 做加法就得到了变量的地址
-1. global dynamic TLS model: 用于通用情况下，不知道 TLS 变量属于哪个动态库，也不知道 TLS 变量在 TLS 空间内的偏移是多少，所以需要动态链接器去查询 TLS 变量属于哪个动态库，放在哪个偏移上，并且动态链接器要把这两个信息写到 `.got` 表中；那么运行时就要用 `__tls_get_addr` 调用来根据 `.got` 表中记录的动态库编号以及偏移来找到变量的地址
+2. initial exec TLS model: 用于在程序启动时由动态链接器自动加载的动态库访问自身的 TLS 变量，由于它的 TLS 空间相对 `%fs` 的偏移在加载后就是固定的，所以由动态链接器计算出各个 TLS 变量相对 `%fs` 的偏移，写到 `.got` 表中，运行时只需要读取 `.got` 表中记录的 offset，和 `%fs` 做加法就得到了变量的地址
+3. local dynamic TLS model: 用于可能被 dlopen 的动态库访问自身的 TLS 变量，由于它的 TLS 空间相对 `%fs` 的偏移是不确定的，所以需要用 `__tls_get_addr` 调用来获取自身的 TLS 空间的起始地址；为了给 `__tls_get_addr` 传递正确的参数，告诉这个函数自己的动态库编号是多少，在 `.got` 表中预留了一个 entry 让动态链接器把该动态库的编号写进去；那么运行时只需要读取 `.got` 表中记录的动态库编号，调用 `__tls_get_addr`，再和链接时已知的 offset 做加法就得到了变量的地址
+4. global dynamic TLS model: 用于通用情况下，不知道 TLS 变量属于哪个动态库，也不知道 TLS 变量在 TLS 空间内的偏移是多少，所以需要动态链接器去查询 TLS 变量属于哪个动态库，放在哪个偏移上，并且动态链接器要把这两个信息写到 `.got` 表中；那么运行时就要用 `__tls_get_addr` 调用来根据 `.got` 表中记录的动态库编号以及偏移来找到变量的地址
 
 下面是一个对比表格：
 
-|                | Instructions       | GOT                   |
-| -------------- | ------------------ | --------------------- |
-| local exec     | movq               | N/A                   |
-| initial exec   | movq + addq        | offset                |
-| local dynamic  | leaq + call + leaq | self module index     |
-| global dynamic | leaq + call        | module index + offset |
+|  | Instructions | GOT |
+| --- | --- | --- |
+| local exec | movq | N/A |
+| initial exec | movq + addq | offset |
+| local dynamic | leaq + call + leaq | self module index |
+| global dynamic | leaq + call | module index + offset |
 
 特别地，local dynamic TLS model 的 `leaq + call` 是可以复用的，所以整体来说，还是越通用的 TLS model，运行时的开销越大。
 
@@ -615,8 +614,8 @@ Disassembly of section .got:
 首先来看从编译器到汇编的这一个阶段，会采用什么样的 TLS model：
 
 1. 如果在编译源码的时候，没有开 `-fPIC`，那么生成的代码只出现在可执行程序中，这个时候编译器会直接使用 local exec TLS model，即生成 `movl %fs:symbol@tpoff, %rax` 的指令
-1. 如果在编译源码的时候，开了 `-fPIC`，那么生成的代码既可能出现在可执行程序中，也可能出现在动态库中，这时会首先默认为 global dynamic TLS model，即生成 `data16 leaq symbol@tlsgd(%rip), %rdi; .value 0x6666; rex64; call __tls_get_addr@PLT; movl (%rax), %eax` 指令
-1. 但如果 `__thread` 变量设置了 `static`，即使打开了 `-fPIC`，也保证了这个 TLS 变量一定是访问自己 TLS 空间中的，不会访问别人的，那么编译器会自动选择 local dynamic TLS model，即生成 `leaq symbol@tlsld(%rip), %rdi; call__tls_get_addr@PLT; movl %symbol@dtpoff(%rax), %eax` 指令
+2. 如果在编译源码的时候，开了 `-fPIC`，那么生成的代码既可能出现在可执行程序中，也可能出现在动态库中，这时会首先默认为 global dynamic TLS model，即生成 `data16 leaq symbol@tlsgd(%rip), %rdi; .value 0x6666; rex64; call __tls_get_addr@PLT; movl (%rax), %eax` 指令
+3. 但如果 `__thread` 变量设置了 `static`，即使打开了 `-fPIC`，也保证了这个 TLS 变量一定是访问自己 TLS 空间中的，不会访问别人的，那么编译器会自动选择 local dynamic TLS model，即生成 `leaq symbol@tlsld(%rip), %rdi; call__tls_get_addr@PLT; movl %symbol@dtpoff(%rax), %eax` 指令
 
 接下来观察链接的时候，会发生什么事情：
 
@@ -634,8 +633,7 @@ Disassembly of section .got:
    movq %fs:0, %rax
    leaq symbol@tpoff(%rax), %rax
    ```
-
-1. 类似地，如果编译源码的时候，打开了 `-fPIC` 且用了 `static`，如前所述，编译器会使用 local dynamic TLS model；但如果这个对象文件最后被链接到了可执行程序当中，那么链接器知道这个时候用 local exec TLS model 是性能更好的，那么它会对指令进行改写，为了保证改写前后的指令序列的长度不变，这次是在生成的汇编里加入无用的指令前缀：
+2. 类似地，如果编译源码的时候，打开了 `-fPIC` 且用了 `static`，如前所述，编译器会使用 local dynamic TLS model；但如果这个对象文件最后被链接到了可执行程序当中，那么链接器知道这个时候用 local exec TLS model 是性能更好的，那么它会对指令进行改写，为了保证改写前后的指令序列的长度不变，这次是在生成的汇编里加入无用的指令前缀：
 
    ```asm
    # before linker optimizations: local dynamic
@@ -650,8 +648,7 @@ Disassembly of section .got:
    movq %fs:0, %rax
    movl symbol@tpoff(%rax), %eax
    ```
-
-1. 如果编译源码的时候，打开了 `-fPIC` 且用了 `extern` 来标记 TLS 变量，由于编译器不知道这个 TLS 变量属于谁，所以编译器会使用 global dynamic TLS model；但如果这个对象文件最后被链接到了可执行程序当中，并且编译器发现这个 TLS 变量属于一个动态库，这意味着这个 TLS 变量在程序启动时会随着动态库加载而变得可用，适用 initial exec TLS model，于是链接器也会进行改写：
+3. 如果编译源码的时候，打开了 `-fPIC` 且用了 `extern` 来标记 TLS 变量，由于编译器不知道这个 TLS 变量属于谁，所以编译器会使用 global dynamic TLS model；但如果这个对象文件最后被链接到了可执行程序当中，并且编译器发现这个 TLS 变量属于一个动态库，这意味着这个 TLS 变量在程序启动时会随着动态库加载而变得可用，适用 initial exec TLS model，于是链接器也会进行改写：
 
    ```asm
    # before linker optimizations: global dynamic
@@ -664,8 +661,7 @@ Disassembly of section .got:
    movq %fs:0, %rax
    addq symbol@gottpoff(%rip), %rax
    ```
-
-1. 如果编译源码的时候，没有打开 `-fPIC` 且用了 `extern` 来标记 TLS 变量，那么编译器知道，这个对象文件最后只能出现在可执行程序中，那么这个 TLS 变量要么来自于可执行程序自己，要么来自于程序启动时加载的动态库，所以编译器会使用 initial exec TLS model；但如果这个对象文件最后被链接到了可执行程序当中，并且编译器发现这个 TLS 变量属于可执行程序自己，适用 local exec TLS model，于是链接器也会进行改写：
+4. 如果编译源码的时候，没有打开 `-fPIC` 且用了 `extern` 来标记 TLS 变量，那么编译器知道，这个对象文件最后只能出现在可执行程序中，那么这个 TLS 变量要么来自于可执行程序自己，要么来自于程序启动时加载的动态库，所以编译器会使用 initial exec TLS model；但如果这个对象文件最后被链接到了可执行程序当中，并且编译器发现这个 TLS 变量属于可执行程序自己，适用 local exec TLS model，于是链接器也会进行改写：
 
    ```asm
    # before linker optimizations: initial exec
@@ -680,36 +676,32 @@ Disassembly of section .got:
 
 可见通过两阶段的处理，在编译器和链接器的协同下，尝试优化到一个开销更小的 TLS model，转化的几种情况如下：
 
-1. global dynamic -> initial exec：编译的时候开了 -fPIC 和 `extern`，然后链接到可执行程序内，TLS 变量来自动态库
-1. global dynamic -> local exec：编译的时候开了 -fPIC，然后链接到可执行程序内，TLS 变量来自程序自己
-1. local dynamic -> local exec：编译的时候开了 -fPIC 和 `-static`，然后链接到可执行程序内，TLS 变量来自程序自己
-1. initial exec -> local exec：编译的时候没开 -fPIC，然后链接到可执行程序内，TLS 变量来自程序自己
+1. global dynamic -\> initial exec：编译的时候开了 -fPIC 和 `extern`，然后链接到可执行程序内，TLS 变量来自动态库
+2. global dynamic -\> local exec：编译的时候开了 -fPIC，然后链接到可执行程序内，TLS 变量来自程序自己
+3. local dynamic -\> local exec：编译的时候开了 -fPIC 和 `-static`，然后链接到可执行程序内，TLS 变量来自程序自己
+4. initial exec -\> local exec：编译的时候没开 -fPIC，然后链接到可执行程序内，TLS 变量来自程序自己
 
 ## TLSDESC
 
 前面提到，在 global dynamic 和 local dynamic 两种 TLS model 下，要访问 TLS 变量的时候，需要调用 `__tls_get_addr` 函数，这是比较慢的。为了优化它，让人想到了 PLT 机制：
 
 1. 初始情况下，PLT 会生成一个 stub，从 `.got` 读取一个函数指针并跳转，这个函数指针初始情况下是执行了 `stub` 的下一条指令
-1. 对于第一次执行这个 stub，它会把这个函数的编号 push 到栈上，然后调用动态链接器提供的 `_dl_runtime_resolve` 函数来寻找这个函数的实际地址；此时 `_dl_runtime_resolve` 会把找到的函数地址写回到 `.got` 的函数指针
-1. 此后再次执行 stub 的时候，就会从 `.got` 读取计算好的函数指针，直接跳转到实际的函数地址
+2. 对于第一次执行这个 stub，它会把这个函数的编号 push 到栈上，然后调用动态链接器提供的 `_dl_runtime_resolve` 函数来寻找这个函数的实际地址；此时 `_dl_runtime_resolve` 会把找到的函数地址写回到 `.got` 的函数指针
+3. 此后再次执行 stub 的时候，就会从 `.got` 读取计算好的函数指针，直接跳转到实际的函数地址
 
 由此可以类比得到一个针对 TLS 的类似机制，称为 TLSDESC：
 
 1. TLSDESC 占用 16 字节空间，前面 8 字节是一个函数指针，后面 8 字节用来保存 offset，保存在 `.got` 表中
-
-1. 把原来 local/global dynamic TLS model 对 `__tls_get_addr` 的调用，改成调用 TLSDESC 中的函数指针，调用时 `%rax` 寄存器指向了 TLSDESC 的地址，它的返回结果是 TLS 变量相对 `%fs` 的偏移，后续指令根据这个偏移计算出实际的地址
-
-1. 动态链接器在加载的时候，它会去判断目标 TLS 变量相对 `%fs` 的偏移是否是常量：对于可执行程序以及随着程序启动而自动加载的动态库，它们的 TLS 变量相对 `%fs` 的偏移是常量
-
-1. 如果目标 TLS 变量相对 `%fs` 的偏移是常量，则把这个常量写入到 `.got` 表中 TLSDESC 变量的 offset 的位置，然后把函数指针改写成 `_dl_tlsdesc_return`，它是一个很简单的实现，因为在调用这个函数时，`%rax` 寄存器指向了 TLSDESC 的地址，所以直接从 `%rax+8` 地址把 offset 读出来然后返回就可以：
+2. 把原来 local/global dynamic TLS model 对 `__tls_get_addr` 的调用，改成调用 TLSDESC 中的函数指针，调用时 `%rax` 寄存器指向了 TLSDESC 的地址，它的返回结果是 TLS 变量相对 `%fs` 的偏移，后续指令根据这个偏移计算出实际的地址
+3. 动态链接器在加载的时候，它会去判断目标 TLS 变量相对 `%fs` 的偏移是否是常量：对于可执行程序以及随着程序启动而自动加载的动态库，它们的 TLS 变量相对 `%fs` 的偏移是常量
+4. 如果目标 TLS 变量相对 `%fs` 的偏移是常量，则把这个常量写入到 `.got` 表中 TLSDESC 变量的 offset 的位置，然后把函数指针改写成 `_dl_tlsdesc_return`，它是一个很简单的实现，因为在调用这个函数时，`%rax` 寄存器指向了 TLSDESC 的地址，所以直接从 `%rax+8` 地址把 offset 读出来然后返回就可以：
 
    ```asm
    _dl_tlsdesc_return:
        movq    8(%rax), %rax
        ret
    ```
-
-1. 如果目标 TLS 变量相对 `%fs` 的偏移不是常量，则把函数指针改写成 `_dl_tlsdesc_dynamic` 函数，再走和之前的 `__tls_get_addr` 类似的逻辑，完成剩下的查找；由于返回值是 TLS 变量相对 `%fs` 的偏移，所以返回之前还要减去 `%fs` 的地址：
+5. 如果目标 TLS 变量相对 `%fs` 的偏移不是常量，则把函数指针改写成 `_dl_tlsdesc_dynamic` 函数，再走和之前的 `__tls_get_addr` 类似的逻辑，完成剩下的查找；由于返回值是 TLS 变量相对 `%fs` 的偏移，所以返回之前还要减去 `%fs` 的地址：
 
    ```c
    /* %rax points to the TLS descriptor, such that 0(%rax) points to
@@ -764,10 +756,8 @@ typedef struct
 前面提到，在调用 `__tls_get_addr` 时，需要提供一个动态库的 ID 来查询得到这个动态库的 TLS 空间的起始地址，再加上在这个 TLS 空间内的偏移。而这个动态库的 ID，正好就是 dtv 数组的下标，所以 `__tls_get_addr` 做的事情大概是：
 
 1. 找到 `dtv` 的地址：`mov %fs:DTV_OFFSET, %RDX_LP`
-
-1. 从 `__tls_get_addr` 函数的参数里读取 `ti_module` 字段：`mov TI_MODULE_OFFSET(%rdi), %RAX_LP`
-
-1. 读取 `dtv[ti->ti_module].val`，也就是这个模块的 TLS 空间的起始地址：`salq $4, %rax; movq (%rdx, %rax), %rax`，这里左移 4 位是因为 `dtv` 数组的每个元素的类型是 `dtv_t`，其定义如下：
+2. 从 `__tls_get_addr` 函数的参数里读取 `ti_module` 字段：`mov TI_MODULE_OFFSET(%rdi), %RAX_LP`
+3. 读取 `dtv[ti->ti_module].val`，也就是这个模块的 TLS 空间的起始地址：`salq $4, %rax; movq (%rdx, %rax), %rax`，这里左移 4 位是因为 `dtv` 数组的每个元素的类型是 `dtv_t`，其定义如下：
 
    ```c
    struct dtv_pointer
@@ -784,7 +774,7 @@ typedef struct
    } dtv_t;
    ```
 
-   4. 把起始地址加上偏移，然后返回：`add TI_OFFSET_OFFSET(%rdi), %RAX_LP; ret`
+   4\. 把起始地址加上偏移，然后返回：`add TI_OFFSET_OFFSET(%rdi), %RAX_LP; ret`
 
 但实际情况会比这个更复杂：dlopen 可能会动态引入新的动态库，此时 dtv 数组可能需要扩张；此外，如果一个动态库有 TLS 变量但是从来不用，也可以 lazy 分配它的 TLS 空间，只有在第一次访问的时候，才去分配。
 
@@ -814,7 +804,7 @@ typedef struct
        ret
    ```
 
-   2. 在 `__tls_get_addr_slow` 中，如果发现当前 dtv 的版本号和最新的版本号 `dl_tls_generation` 不一致，就调用 `update_get_addr` 来重新分配内存：
+   2\. 在 `__tls_get_addr_slow` 中，如果发现当前 dtv 的版本号和最新的版本号 `dl_tls_generation` 不一致，就调用 `update_get_addr` 来重新分配内存：
 
    ```c
    void *
@@ -896,6 +886,6 @@ allocate_dtv_entry (size_t alignment, size_t size)
 
 ## 参考
 
-- [ELF Handling For Thread-Local Storage](https://www.akkadia.org/drepper/tls.pdf)
-- [All about thread-local storage](https://maskray.me/blog/2021-02-14-all-about-thread-local-storage)
-- [What system data is stored on the stack](https://stackoverflow.com/questions/8482079/what-system-data-is-stored-on-the-stack)
+- [ELF Handling For Thread-Local Storage](<https://www.akkadia.org/drepper/tls.pdf>)
+- [All about thread-local storage](<https://maskray.me/blog/2021-02-14-all-about-thread-local-storage>)
+- [What system data is stored on the stack](<https://stackoverflow.com/questions/8482079/what-system-data-is-stored-on-the-stack>)

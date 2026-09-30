@@ -1,27 +1,27 @@
-# Apple M2 (Avalanche & Blizzard) 微架构评测
+# Apple M2 (Avalanche &amp; Blizzard) 微架构评测
 
 ## 背景
 
-之前分析过 [M1](https://jia.je/hardware/2024/12/26/apple-m1/index.md) 和 [M4](https://jia.je/hardware/2025/05/21/apple-m4/index.md)，趁着机会，也评测一下 M2 的微架构，给出一个从 M1 到 M2 再到 M4 的发展脉络。
+之前分析过 [M1](<https://jia.je/blog/posts/hardware/apple-m1/index.md>) 和 [M4](<https://jia.je/blog/posts/hardware/apple-m4/index.md>)，趁着机会，也评测一下 M2 的微架构，给出一个从 M1 到 M2 再到 M4 的发展脉络。
 
 ## 官方信息
 
-苹果发布了 [Apple Silicon CPU Optimization Guide](https://developer.apple.com/download/apple-silicon-cpu-optimization-guide/)，包括了一些 M2 的微架构信息。
+苹果发布了 [Apple Silicon CPU Optimization Guide](<https://developer.apple.com/download/apple-silicon-cpu-optimization-guide/>)，包括了一些 M2 的微架构信息。
 
 ## 现有评测
 
 网上已经有针对 Apple M2 微架构的评测和分析，建议阅读：
 
-- [我们找到了 Windows 电脑续航差的原因！苹果 M2 深度分析](https://www.bilibili.com/video/BV18B4y1b7gj/)
-- [不为人知的角落，Apple M2 的小小努力（其一）](https://zhuanlan.zhihu.com/p/662561990)
-- [Apple M2 Blizzard 微架构评测 (上)：阳春白雪](https://zhuanlan.zhihu.com/p/675322260)
-- [Apple M2 Blizzard 微架构评测 (中)：阳春白雪](https://zhuanlan.zhihu.com/p/678983061)
+- [我们找到了 Windows 电脑续航差的原因！苹果 M2 深度分析](<https://www.bilibili.com/video/BV18B4y1b7gj/>)
+- [不为人知的角落，Apple M2 的小小努力（其一）](<https://zhuanlan.zhihu.com/p/662561990>)
+- [Apple M2 Blizzard 微架构评测 (上)：阳春白雪](<https://zhuanlan.zhihu.com/p/675322260>)
+- [Apple M2 Blizzard 微架构评测 (中)：阳春白雪](<https://zhuanlan.zhihu.com/p/678983061>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 前端
 
@@ -29,7 +29,7 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/bench
 
 #### Avalanche
 
-为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](https://zhuanlan.zhihu.com/p/720136752) 构造了测试，实验结果如下：
+为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](<https://zhuanlan.zhihu.com/p/720136752>) 构造了测试，实验结果如下：
 
 可以看到每 16 条指令会多一个周期，因此 Avalanche 的前端取指宽度确实是 16 条指令，与 Apple M1 Firestorm 和 Apple M4 P-Core 都相同。
 
@@ -39,7 +39,7 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/bench
 
 可以看到每 8 条指令会多一个周期，意味着 Blizzard 的前端取指宽度为 8 条指令，和 Apple M1 Icestorm 相同，不过表现在图像上不太一样。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/if_width_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/if_width_gen.cpp>)。
 
 ### L1 ICache
 
@@ -59,7 +59,7 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/bench
 
 可以看到 footprint 在 128 KB 之前时可以达到 5 IPC，之后则快速降到 2.32 IPC，这里的 128 KB 就对应了 Blizzard 的 L1 ICache 的容量，和官方信息一致。虽然 Fetch 可以每周期 8 条指令，由于后端的限制，只能观察到 5 的 IPC。相比 Apple M1 Icestorm，IPC 从 4 增加到了 5，与 Apple M4 E-Core 相同。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
 
 ### BTB
 
@@ -89,7 +89,7 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/bench
 
 从 BTB 容量来看，Blizzard 与 Apple M1 Icestorm 以及 Apple M4 E-Core 相同。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/btb_size_basic_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/btb_size_basic_gen.cpp>)。
 
 ### L1 ITLB
 
@@ -109,7 +109,7 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/bench
 
 在 192 个页时，性能从 1 Cycle 下降到 10 Cycle，意味 L1 ITLB 容量是 192 项，和官方信息一致。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp>)。
 
 ### Decode
 
@@ -131,21 +131,21 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](https://jia.je/bench
 
 可以看到调用链深度为 32 时性能突然变差，因此 Blizzard 的 Return Stack 深度为 32。与 Apple M1 Icestorm 相同，比 Apple M4 E-Core 的 40 要小。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp>)。
 
 ### Conditional Branch Predictor
 
-参考 [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](https://arxiv.org/abs/2411.13900) 论文的方法，可以测出 Avalanche 的分支预测器与 Apple M1 Firestorm 相同，采用的历史更新方式为：
+参考 [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](<https://arxiv.org/abs/2411.13900>) 论文的方法，可以测出 Avalanche 的分支预测器与 Apple M1 Firestorm 相同，采用的历史更新方式为：
 
 1. 使用 100 位的 Path History Register for Target(PHRT) 以及 28 位的 Path History Register for Branch(PHRB)，每次执行 taken branch 时更新
-1. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[31:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
+2. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[31:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
 
 Blizzard 的分支预测器与 Apple M1 Icestorm 相同，采用的历史更新方式为：
 
 1. 使用 60 位的 Path History Register for Target(PHRT) 以及 16 位的 Path History Register for Branch(PHRB)，每次执行 taken branch 时更新
-1. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[47:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
+2. 更新方式为：`PHRTnew = (PHRTold << 1) xor T[47:2], PHRBnew = (PHRBold << 1) xor B[5:2]`，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址
 
-各厂商处理器的 PHR 更新规则见 [jiegec/cpu](https://jia.je/cpu/cbp.html)。
+各厂商处理器的 PHR 更新规则见 [jiegec/cpu](<https://jia.je/cpu/cbp.html>)。
 
 ## 后端
 
@@ -173,7 +173,7 @@ Blizzard 测试结果如下：
 
 注意这里测试的都是能够用于预测执行的寄存器数量，实际的物理寄存器堆还需要保存架构寄存器。但具体保存多少个架构寄存器不确定，但至少 32 个整数通用寄存器和浮点寄存器是一定有的，但可能还有一些额外的需要重命名的状态也要算进来。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/register_file_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/register_file_size_gen.cpp>)。
 
 ### Load Store Unit + L1 DCache
 
@@ -193,7 +193,7 @@ Blizzard 上的结果：
 
 可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量，和官方信息一致。L1 DCache 范围内延迟是 3 cycle。由此可见 Blizzard 没有 Load Address Predictor，不能打断依赖链。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
 
 #### L1 DTLB 容量
 
@@ -213,7 +213,7 @@ Blizzard:
 
 从 192 个页开始性能下降，认为 Blizzard 的 L1 DTLB 有 192 项，和官方信息一致。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 #### Load/Store 带宽
 
@@ -240,7 +240,7 @@ Blizzard:
 
 #### Memory Dependency Predictor
 
-为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
+为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
 
 - 数据依赖，地址无依赖：`str x3, [x1]` 和 `ldr x3, [x2]`
 - 地址依赖，数据无依赖：`str x2, [x1]` 和 `ldr x1, [x2]`
@@ -266,11 +266,11 @@ Blizzard:
 经过实际测试，Avalanche 上如下的情况可以成功转发，对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | [-1,0]   | [-3,0]   | [-7,0]   |
-| 16b Store   | [0,1]   | [-1,1]   | [-3,1]   | [-7,1]   |
-| 32b Store   | [0,3]   | [-1,3]   | [-3,3]   | [-7,3]   |
-| 64b Store   | [0,7]   | [-1,7]   | [-3,7]   | [-7,7]   |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | \[-1,0\] | \[-3,0\] | \[-7,0\] |
+| 16b Store | \[0,1\] | \[-1,1\] | \[-3,1\] | \[-7,1\] |
+| 32b Store | \[0,3\] | \[-1,3\] | \[-3,3\] | \[-7,3\] |
+| 64b Store | \[0,7\] | \[-1,7\] | \[-3,7\] | \[-7,7\] |
 
 从上表可以看到，所有 Store 和 Load Overlap 的情况，无论地址偏移，都能成功转发。甚至在 Load 或 Store 跨越 64B 缓存行边界时，也可以成功转发，代价是多一个周期。
 
@@ -335,16 +335,16 @@ Blizzard:
 
 Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试方法，也可以在 Apple M2 上观察到类似的现象，猜想它也用了类似的基于虚拟地址的 UTag/Way Predictor 方案，并测出来它的 UTag 也有 8 bit，Avalanche 和 Blizzard 都是相同的：
 
-- VA[14] xor VA[22] xor VA[30] xor VA[38] xor VA[46]
-- VA[15] xor VA[23] xor VA[31] xor VA[39] xor VA[47]
-- VA[16] xor VA[24] xor VA[32] xor VA[40]
-- VA[17] xor VA[25] xor VA[33] xor VA[41]
-- VA[18] xor VA[26] xor VA[34] xor VA[42]
-- VA[19] xor VA[27] xor VA[35] xor VA[43]
-- VA[20] xor VA[28] xor VA[36] xor VA[44]
-- VA[21] xor VA[29] xor VA[37] xor VA[45]
+- VA\[14\] xor VA\[22\] xor VA\[30\] xor VA\[38\] xor VA\[46\]
+- VA\[15\] xor VA\[23\] xor VA\[31\] xor VA\[39\] xor VA\[47\]
+- VA\[16\] xor VA\[24\] xor VA\[32\] xor VA\[40\]
+- VA\[17\] xor VA\[25\] xor VA\[33\] xor VA\[41\]
+- VA\[18\] xor VA\[26\] xor VA\[34\] xor VA\[42\]
+- VA\[19\] xor VA\[27\] xor VA\[35\] xor VA\[43\]
+- VA\[20\] xor VA\[28\] xor VA\[36\] xor VA\[44\]
+- VA\[21\] xor VA\[29\] xor VA\[37\] xor VA\[45\]
 
-一共有 8 bit，由 VA[47:14] 折叠而来。和 Apple M1/M4 相同。
+一共有 8 bit，由 VA\[47:14\] 折叠而来。和 Apple M1/M4 相同。
 
 ### 执行单元
 
@@ -353,34 +353,36 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 官方信息：根据 Apple Silicon CPU Optimization Guide，M2 Family 的 P-Core Avalanche 包括如下计算单元：
 
 1. ALU/f, BRc/i
-1. ALU/f, BRc
-1. ALU/f
-1. ALU, MUL, MAC, MISC
-1. ALU, MUL, DIV
-1. ALU
-1. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
-1. GENERAL, MOVE2GPR, FCSELf, MUL
-1. GENERAL, MUL
-1. GENERAL, MUL
+2. ALU/f, BRc
+3. ALU/f
+4. ALU, MUL, MAC, MISC
+5. ALU, MUL, DIV
+6. ALU
+7. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
+8. GENERAL, MOVE2GPR, FCSELf, MUL
+9. GENERAL, MUL
+10. GENERAL, MUL
 
 P-Core Avalanche 访存：
 
 - Burst: 3 load uops, 2 store uops (address part), and 2 store uops (data part)
+
   - 即 3 load, 2 sta, 2 std
 - Sustained: 4 uops, 2 write into the cache
 
 M2 Family 的 E-Core Blizzard 包括如下计算单元：
 
 1. ALU/f, MUL, MAC, MISC
-1. ALU/f, BRi, DIV
-1. ALU/f, BRc
-1. ALU/f
-1. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
-1. GENERAL, FCSELf, MUL
+2. ALU/f, BRi, DIV
+3. ALU/f, BRc
+4. ALU/f
+5. GENERAL, MOVE2GPR, FCMPf, FCSELf, FDIV, MUL, SHA
+6. GENERAL, FCSELf, MUL
 
 E-Core Blizzard 访存：
 
 - Burst: 2 load uops, or 2 store uops (address part), or 1 of each, along with 2 store uops (data part)
+
   - 即 2 load，或者 2 sta，或者 1 load + 1 std，或者 1 sta + 1 std
 - Sustained: 2 uops, 1 write into the cache
 
@@ -390,129 +392,129 @@ E-Core Blizzard 访存：
 
 在 Avalanche 上测试如下各类指令的延迟和每周期吞吐：
 
-| 指令               | 延迟 | 吞吐 |
-| ------------------ | ---- | ---- |
-| asimd int add      | 2    | 4    |
-| asimd aesd/aese    | 3    | 4    |
-| asimd aesimc/aesmc | 2    | 4    |
-| asimd fabs         | 2    | 4    |
-| asimd fadd         | 3    | 4    |
-| asimd fdiv 64b     | 10   | 1    |
-| asimd fdiv 32b     | 8    | 1    |
-| asimd fmax         | 2    | 4    |
-| asimd fmin         | 2    | 4    |
-| asimd fmla         | 4    | 4    |
-| asimd fmul         | 4    | 4    |
-| asimd fneg         | 2    | 4    |
-| asimd frecpe       | 3    | 1    |
-| asimd frsqrte      | 3    | 1    |
-| asimd fsqrt 64b    | 13   | 0.5  |
-| asimd fsqrt 32b    | 10   | 0.5  |
-| fp cvtf2i (fcvtzs) | -    | 2    |
-| fp cvti2f (scvtf)  | -    | 3    |
-| fp fabs            | 2    | 4    |
-| fp fadd            | 3    | 4    |
-| fp fdiv 64b        | 10   | 1    |
-| fp fdiv 32b        | 8    | 1    |
-| fp fjcvtzs         | -    | 1    |
-| fp fmax            | 2    | 4    |
-| fp fmin            | 2    | 4    |
-| fp fmov f2i        | -    | 2    |
-| fp fmov i2f        | -    | 3    |
-| fp fmul            | 4    | 4    |
-| fp fneg            | 2    | 4    |
-| fp frecpe          | 3    | 1    |
-| fp frecpx          | 3    | 1    |
-| fp frsqrte         | 3    | 1    |
-| fp fsqrt 64b       | 13   | 0.5  |
-| fp fsqrt 32b       | 10   | 0.5  |
-| int add            | 1    | 4.4  |
-| int addi           | 1    | 6    |
-| int bfm            | 1    | 1    |
-| int crc            | 3    | 1    |
-| int csel           | 1    | 3    |
-| int madd (addend)  | 1    | 1    |
-| int madd (others)  | 3    | 1    |
-| int mrs nzcv       | -    | 2    |
-| int mul            | 3    | 2    |
-| int nop            | -    | 9.5  |
-| int sbfm           | 1    | 4.5  |
-| int sdiv           | 7/8  | 0.5  |
-| int smull          | 3    | 2    |
-| int ubfm           | 1    | 4.6  |
-| int udiv           | 7/8  | 0.5  |
-| not taken branch   | -    | 2    |
-| taken branch       | -    | 1    |
-| mem asimd load     | -    | 3    |
-| mem asimd store    | -    | 2    |
-| mem int load       | -    | 3    |
-| mem int store      | -    | 2    |
+| 指令 | 延迟 | 吞吐 |
+| --- | --- | --- |
+| asimd int add | 2 | 4 |
+| asimd aesd/aese | 3 | 4 |
+| asimd aesimc/aesmc | 2 | 4 |
+| asimd fabs | 2 | 4 |
+| asimd fadd | 3 | 4 |
+| asimd fdiv 64b | 10 | 1 |
+| asimd fdiv 32b | 8 | 1 |
+| asimd fmax | 2 | 4 |
+| asimd fmin | 2 | 4 |
+| asimd fmla | 4 | 4 |
+| asimd fmul | 4 | 4 |
+| asimd fneg | 2 | 4 |
+| asimd frecpe | 3 | 1 |
+| asimd frsqrte | 3 | 1 |
+| asimd fsqrt 64b | 13 | 0.5 |
+| asimd fsqrt 32b | 10 | 0.5 |
+| fp cvtf2i (fcvtzs) | \- | 2 |
+| fp cvti2f (scvtf) | \- | 3 |
+| fp fabs | 2 | 4 |
+| fp fadd | 3 | 4 |
+| fp fdiv 64b | 10 | 1 |
+| fp fdiv 32b | 8 | 1 |
+| fp fjcvtzs | \- | 1 |
+| fp fmax | 2 | 4 |
+| fp fmin | 2 | 4 |
+| fp fmov f2i | \- | 2 |
+| fp fmov i2f | \- | 3 |
+| fp fmul | 4 | 4 |
+| fp fneg | 2 | 4 |
+| fp frecpe | 3 | 1 |
+| fp frecpx | 3 | 1 |
+| fp frsqrte | 3 | 1 |
+| fp fsqrt 64b | 13 | 0.5 |
+| fp fsqrt 32b | 10 | 0.5 |
+| int add | 1 | 4.4 |
+| int addi | 1 | 6 |
+| int bfm | 1 | 1 |
+| int crc | 3 | 1 |
+| int csel | 1 | 3 |
+| int madd (addend) | 1 | 1 |
+| int madd (others) | 3 | 1 |
+| int mrs nzcv | \- | 2 |
+| int mul | 3 | 2 |
+| int nop | \- | 9.5 |
+| int sbfm | 1 | 4.5 |
+| int sdiv | 7/8 | 0.5 |
+| int smull | 3 | 2 |
+| int ubfm | 1 | 4.6 |
+| int udiv | 7/8 | 0.5 |
+| not taken branch | \- | 2 |
+| taken branch | \- | 1 |
+| mem asimd load | \- | 3 |
+| mem asimd store | \- | 2 |
+| mem int load | \- | 3 |
+| mem int store | \- | 2 |
 
-测试结果与 [M1 Firestorm](https://jia.je/hardware/2024/12/26/apple-m1/index.md) 基本一样，这里就不再进行深入分析。
+测试结果与 [M1 Firestorm](<https://jia.je/blog/posts/hardware/apple-m1/index.md>) 基本一样，这里就不再进行深入分析。
 
 #### Blizzard
 
 接下来用类似的方法测试 Blizzard：
 
-| 指令               | 延迟 | 吞吐      |
-| ------------------ | ---- | --------- |
-| asimd int add      | 2    | 2         |
-| asimd aesd/aese    | 3    | 2         |
-| asimd aesimc/aesmc | 2    | 2         |
-| asimd fabs         | 2    | 2         |
-| asimd fadd         | 3    | 2         |
-| asimd fdiv 64b     | 11   | 0.5       |
-| asimd fdiv 32b     | 9    | 0.5       |
-| asimd fmax         | 2    | 2         |
-| asimd fmin         | 2    | 2         |
-| asimd fmla         | 4    | 2         |
-| asimd fmul         | 4    | 2         |
-| asimd fneg         | 2    | 2         |
-| asimd frecpe       | 4    | 0.5       |
-| asimd frsqrte      | 4    | 0.5       |
-| asimd fsqrt 64b    | 15   | 0.5       |
-| asimd fsqrt 32b    | 12   | 0.5       |
-| fp cvtf2i (fcvtzs) | -    | 1         |
-| fp cvti2f (scvtf)  | -    | 2         |
-| fp fabs            | 2    | 2         |
-| fp fadd            | 3    | 2         |
-| fp fdiv 64b        | 10   | 1         |
-| fp fdiv 32b        | 8    | 1         |
-| fp fjcvtzs         | -    | 0.5       |
-| fp fmax            | 2    | 2         |
-| fp fmin            | 2    | 2         |
-| fp fmov f2i        | -    | 1         |
-| fp fmov i2f        | -    | 2         |
-| fp fmul            | 4    | 2         |
-| fp fneg            | 2    | 2         |
-| fp frecpe          | 3    | 1         |
-| fp frecpx          | 3    | 1         |
-| fp frsqrte         | 3    | 1         |
-| fp fsqrt 64b       | 13   | 0.5       |
-| fp fsqrt 32b       | 10   | 0.5       |
-| int add            | 1    | 4         |
-| int addi           | 1    | 4         |
-| int bfm            | 1    | 1         |
-| int crc            | 3    | 1         |
-| int csel           | 1    | 4         |
-| int madd (addend)  | 1    | 1         |
-| int madd (others)  | 3    | 1         |
-| int mrs nzcv       | -    | 4         |
-| int mul            | 3    | 1         |
-| int nop            | -    | 5         |
-| int sbfm           | 1    | 4         |
-| int sdiv           | 7    | 0.125=1/8 |
-| int smull          | 3    | 1         |
-| int ubfm           | 1    | 4         |
-| int udiv           | 7    | 0.125=1/8 |
-| not taken branch   | -    | 2         |
-| taken branch       | -    | 1         |
-| mem asimd load     | -    | 2         |
-| mem asimd store    | -    | 1         |
-| mem int load       | -    | 2         |
-| mem int store      | -    | 1         |
+| 指令 | 延迟 | 吞吐 |
+| --- | --- | --- |
+| asimd int add | 2 | 2 |
+| asimd aesd/aese | 3 | 2 |
+| asimd aesimc/aesmc | 2 | 2 |
+| asimd fabs | 2 | 2 |
+| asimd fadd | 3 | 2 |
+| asimd fdiv 64b | 11 | 0.5 |
+| asimd fdiv 32b | 9 | 0.5 |
+| asimd fmax | 2 | 2 |
+| asimd fmin | 2 | 2 |
+| asimd fmla | 4 | 2 |
+| asimd fmul | 4 | 2 |
+| asimd fneg | 2 | 2 |
+| asimd frecpe | 4 | 0.5 |
+| asimd frsqrte | 4 | 0.5 |
+| asimd fsqrt 64b | 15 | 0.5 |
+| asimd fsqrt 32b | 12 | 0.5 |
+| fp cvtf2i (fcvtzs) | \- | 1 |
+| fp cvti2f (scvtf) | \- | 2 |
+| fp fabs | 2 | 2 |
+| fp fadd | 3 | 2 |
+| fp fdiv 64b | 10 | 1 |
+| fp fdiv 32b | 8 | 1 |
+| fp fjcvtzs | \- | 0.5 |
+| fp fmax | 2 | 2 |
+| fp fmin | 2 | 2 |
+| fp fmov f2i | \- | 1 |
+| fp fmov i2f | \- | 2 |
+| fp fmul | 4 | 2 |
+| fp fneg | 2 | 2 |
+| fp frecpe | 3 | 1 |
+| fp frecpx | 3 | 1 |
+| fp frsqrte | 3 | 1 |
+| fp fsqrt 64b | 13 | 0.5 |
+| fp fsqrt 32b | 10 | 0.5 |
+| int add | 1 | 4 |
+| int addi | 1 | 4 |
+| int bfm | 1 | 1 |
+| int crc | 3 | 1 |
+| int csel | 1 | 4 |
+| int madd (addend) | 1 | 1 |
+| int madd (others) | 3 | 1 |
+| int mrs nzcv | \- | 4 |
+| int mul | 3 | 1 |
+| int nop | \- | 5 |
+| int sbfm | 1 | 4 |
+| int sdiv | 7 | 0.125=1/8 |
+| int smull | 3 | 1 |
+| int ubfm | 1 | 4 |
+| int udiv | 7 | 0.125=1/8 |
+| not taken branch | \- | 2 |
+| taken branch | \- | 1 |
+| mem asimd load | \- | 2 |
+| mem asimd store | \- | 1 |
+| mem int load | \- | 2 |
+| mem int store | \- | 1 |
 
-测试结果与 [M1 Icestorm](https://jia.je/hardware/2024/12/26/apple-m1/index.md) 基本一样，只是多了一个 ALU，所以部分整数指令的 IPC 加一，其他则基本一样，这里就不再进行深入分析。
+测试结果与 [M1 Icestorm](<https://jia.je/blog/posts/hardware/apple-m1/index.md>) 基本一样，只是多了一个 ALU，所以部分整数指令的 IPC 加一，其他则基本一样，这里就不再进行深入分析。
 
 ### Reorder Buffer
 
@@ -565,8 +567,8 @@ E-Core Blizzard 访存：
 M2 相比 M1，在很多方面做了迭代：
 
 1. P-Core 的前端改进了 BTB，多加了一级 BTB
-1. E-Core 的宽度从 4 提升到 5，整数执行单元增加
-1. 引入了 Load Address Predictor（P-Core）
-1. 缓存和 TLB 容量增加
+2. E-Core 的宽度从 4 提升到 5，整数执行单元增加
+3. 引入了 Load Address Predictor（P-Core）
+4. 缓存和 TLB 容量增加
 
 指令集扩展方面，M2 增加了 i8mm bf16 bti ecv 的 feature。在 SPEC CPU 2017 Rate-1 上，M2 P-Core 相比 M1 P-Core 有 16% 的整数性能提升和 9% 的浮点性能提升，而 M2 E-Core 相比 M1 E-Core 有 33% 的整数性能提升和 31% 的浮点性能提升。

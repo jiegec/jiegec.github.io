@@ -15,7 +15,7 @@ Sun Apr 13 00:00:00 UTC 1919
 
 ## 时区
 
-实际上，对于某一个时区来说，有的时间是不存在的，最常见的就是夏令时。在 [Timezone DB](https://timezonedb.com/time-zones/Asia/Shanghai) 里可以看到，恰好在 1919 年 4 月 13 日发生了一次 UTC+8 到 UTC+9 的变化，因此零点变成了一点，就变成了不合法的日期。
+实际上，对于某一个时区来说，有的时间是不存在的，最常见的就是夏令时。在 [Timezone DB](<https://timezonedb.com/time-zones/Asia/Shanghai>) 里可以看到，恰好在 1919 年 4 月 13 日发生了一次 UTC+8 到 UTC+9 的变化，因此零点变成了一点，就变成了不合法的日期。
 
 这个数据，实际上保存在 tzdata 中，可以用 zdump 工具查看：
 
@@ -83,6 +83,6 @@ Asia/Shanghai  Mon Jan 18 03:14:07 2038 UTC = Mon Jan 18 11:14:07 2038 CST isdst
 Asia/Shanghai  Tue Jan 19 03:14:07 2038 UTC = Tue Jan 19 11:14:07 2038 CST isdst=0
 ```
 
-可以看到，它列出来了历史上 Asia/Shanghai 时区的变化历史。具体的历史，可以查看 [中国时区](https://zh.wikipedia.org/zh-cn/%E4%B8%AD%E5%9C%8B%E6%99%82%E5%8D%80)。
+可以看到，它列出来了历史上 Asia/Shanghai 时区的变化历史。具体的历史，可以查看 [中国时区](<https://zh.wikipedia.org/zh-cn/中國時區>)。
 
-此外，历史上，从儒略历到格里高利历的演变过程，也出现了一段“不存在”的日期，如 [Setting October 14 ,1582 fails in java.sql.Date](https://stackoverflow.com/questions/35194544/setting-october-14-1582-fails-in-java-sql-date)。
+此外，历史上，从儒略历到格里高利历的演变过程，也出现了一段“不存在”的日期，如 [Setting October 14 ,1582 fails in java.sql.Date](<https://stackoverflow.com/questions/35194544/setting-october-14-1582-fails-in-java-sql-date>)。

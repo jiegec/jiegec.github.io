@@ -2,20 +2,20 @@
 
 ## 背景
 
-继 [IBM POWER8](https://jia.je/hardware/2026/01/15/ibm-power8/index.md) 之后，也来评测一下后续的 IBM POWER9 微架构。IBM POWER9 有 SMT4 和 SMT8 两种版本，我只有 SMT4 版本的测试环境，下列所有评测都是针对 SMT4 版本进行测试。
+继 [IBM POWER8](<https://jia.je/blog/posts/hardware/ibm-power8/index.md>) 之后，也来评测一下后续的 IBM POWER9 微架构。IBM POWER9 有 SMT4 和 SMT8 两种版本，我只有 SMT4 版本的测试环境，下列所有评测都是针对 SMT4 版本进行测试。
 
 ## 官方信息
 
 IBM 关于 POWER9 微架构有如下公开信息：
 
-- [IBM POWER9 processor core](https://ieeexplore.ieee.org/document/8409955)
-- [IBM Power9 Processor Architecture](https://ieeexplore.ieee.org/document/7924241)
+- [IBM POWER9 processor core](<https://ieeexplore.ieee.org/document/8409955>)
+- [IBM Power9 Processor Architecture](<https://ieeexplore.ieee.org/document/7924241>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 前端
 
@@ -27,13 +27,13 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 测试环境是 SMT4 Core，所以只有 32KB 的容量。超出 L1 ICache 容量后，IPC 从 6 降低到了 4.7。相比 POWER8，容量不变，超出 ICache 容量后的 IPC 提高了。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
 
 ### 取指带宽
 
 官方信息：32 bytes/cycle
 
-为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](https://zhuanlan.zhihu.com/p/720136752) 构造了测试。
+为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](<https://zhuanlan.zhihu.com/p/720136752>) 构造了测试。
 
 其原理是当 Fetch 要跨页的时候，由于两个相邻页可能映射到不同的物理地址，如果要支持单周期跨页取指，需要查询两次 ITLB，或者 ITLB 需要把相邻两个页的映射存在一起。这个场景一般比较少，处理器很少会针对这种特殊情况做优化，但也不是没有。经过测试，把循环放在两个页的边界上，发现 IBM POWER9 微架构遇到跨页的取指时确实会拆成两个周期来进行。
 
@@ -45,7 +45,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 随着指令数进一步增加，最终瓶颈在每周期执行的 NOP 指令数，因此两条线重合。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/if_width_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/if_width_gen.cpp>)。
 
 ### L1 ITLB
 
@@ -53,7 +53,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 可以看到明显的 256 pages 的拐点，对应了 256 entry 的 L1 ITLB。CPI 从 3 升高到了 28。相比 POWER8 的 64-entry L1 ITLB 容量有所提升。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp>)。
 
 ### BTB (aka Branch Target Address Calculator, BTAC)
 
@@ -65,7 +65,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 可以看到 64 的拐点，对应的就是 RAS 的大小。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp>)。
 
 ### CBP (Conditional Branch Predictor)
 
@@ -85,7 +85,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 拐点在 256 附近。相比 POWER8 的 `28*6=168` 有所提升
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp>)。
 
 ### Issue Queue
 
@@ -101,7 +101,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 可以看到 256 Page 出现了明显的拐点，对应的就是 256 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 4 cycle。L1 DTLB 容量相比 POWER8 的 48(ST)/96(SMT) 有所提升，和 POWER8 的 256-entry L2 DTLB 容量相同。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 ### L2 Cache
 
@@ -113,7 +113,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 ### Prefetcher
 
-参考 [Battling the Prefetcher: Exploring Coffee Lake (Part 1)](https://abertschi.ch/blog/2022/prefetching/) 的方式，研究预取器的行为：分配一片内存，把数据从缓存中 flush 掉，再按照特定的访存模式访问，触发预取器，最后测量访问每个缓存行的时间，从而得到预取器预取了哪些缓存行的信息。
+参考 [Battling the Prefetcher: Exploring Coffee Lake (Part 1)](<https://abertschi.ch/blog/2022/prefetching/>) 的方式，研究预取器的行为：分配一片内存，把数据从缓存中 flush 掉，再按照特定的访存模式访问，触发预取器，最后测量访问每个缓存行的时间，从而得到预取器预取了哪些缓存行的信息。
 
 首先是连续访问若干个 128B cacheline，观察哪些被预取了进来：
 
@@ -121,7 +121,7 @@ IBM POWER9 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 如果是访问了几个分立的缓存行，有时会表现出 Next 3 Line 的行为，但都是到 L3：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp>)。
 
 ## 总结
 

@@ -2,7 +2,7 @@
 
 ## 背景
 
-最近看到一个 [issue: irssi 1.4.1 fails to build on darwin arm64](https://github.com/NixOS/nixpkgs/issues/180308)，它的现象是，链接的时候会报错：
+最近看到一个 [issue: irssi 1.4.1 fails to build on darwin arm64](<https://github.com/NixOS/nixpkgs/issues/180308>)，它的现象是，链接的时候会报错：
 
 ```text
 Undefined symbols for architecture arm64:
@@ -52,7 +52,7 @@ $ objdump -t src/fe-common/core/libfe_common_core.a.p/themes.c.o | grep COM
 
 ## COMMON 符号
 
-COMMON 符号的原因和原理，详细可以见 [MaskRay 的博客 All about COMMON symbols](https://maskray.me/blog/2022-02-06-all-about-common-symbols)，里面从链接器的角度很详细地讲述了这个问题。
+COMMON 符号的原因和原理，详细可以见 [MaskRay 的博客 All about COMMON symbols](<https://maskray.me/blog/2022-02-06-all-about-common-symbols>)，里面从链接器的角度很详细地讲述了这个问题。
 
 简单来说，COMMON 符号的引入是为了和 Fortran 进行互操作。它在 C 中对应了没有初始化语句的全局变量。实际上到最后，还是会保存到 .bss 段中，默认清零。所以：
 
@@ -119,17 +119,17 @@ a.o:
 
 用 `nm --print-armap` 命令尝试，发现上面的 `_default_formats` 和 `_current_theme` 只在对应的 `.o` 中有定义，在 Archive index 部分是没有的。
 
-网友 @ailin-nemui 指出了这个问题，并且提供了一个链接：[OS X linker unable to find symbols from a C file which only contains variables](https://stackoverflow.com/questions/19398742/os-x-linker-unable-to-find-symbols-from-a-c-file-which-only-contains-variables/26581710#26581710)。它讲了很重要的一点，是 macOS 的 ar/ranlib/libtool 版本默认情况下不会为 COMMON 符号创建索引。所以，解决方案也很明确了：
+网友 @ailin-nemui 指出了这个问题，并且提供了一个链接：[OS X linker unable to find symbols from a C file which only contains variables](<https://stackoverflow.com/questions/19398742/os-x-linker-unable-to-find-symbols-from-a-c-file-which-only-contains-variables/26581710#26581710>)。它讲了很重要的一点，是 macOS 的 ar/ranlib/libtool 版本默认情况下不会为 COMMON 符号创建索引。所以，解决方案也很明确了：
 
 1. 第一种 不要创建 COMMON 符号：添加编译选项 `-fno-common`，这个选项在比较新的编译器里都是默认了
-1. 第二种 为 COMMON 符号创建索引：用 `libtool -static -c` 命令，其中 `-c` 选项就是打开为 COMMON 符号创建索引
-1. 第三种 修改代码：给全局变量设置一个初始化值
+2. 第二种 为 COMMON 符号创建索引：用 `libtool -static -c` 命令，其中 `-c` 选项就是打开为 COMMON 符号创建索引
+3. 第三种 修改代码：给全局变量设置一个初始化值
 
 这样，这个问题就得到了妥善的解决。
 
 ## 附录
 
-下面是 [macOS libtool manpage](https://www.unix.com/man-page/osx/1/LIBTOOL/) 中写的相关文档：
+下面是 [macOS libtool manpage](<https://www.unix.com/man-page/osx/1/LIBTOOL/>) 中写的相关文档：
 
 ```text
 -c     Include common symbols as definitions with respect to the table of contents.  This is seldom the intended behavior for linking  from

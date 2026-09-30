@@ -11,11 +11,11 @@
 首先复制 `/etc/rsyslog.conf` 到 `/etc/rsyslog-remote.conf`，然后修改：
 
 1. 注释掉 `imuxsock` 和 `imklog` 相关的 module 加载
-1. 去掉 `imudp` 和 `imtcp` 相关的注释，这样就会监听在相应的端口上
-1. 修改 `$WorkDirectory`，例如 `$WorkDirectory /var/spool/rsyslog-remote`，防止与已有的 rsyslog 冲突
-1. 注释 `$IncludeConfig`，防止引入了不必要的配置
-1. 注释所有已有的 `RULES` 下面的配置
-1. 添加如下配置：
+2. 去掉 `imudp` 和 `imtcp` 相关的注释，这样就会监听在相应的端口上
+3. 修改 `$WorkDirectory`，例如 `$WorkDirectory /var/spool/rsyslog-remote`，防止与已有的 rsyslog 冲突
+4. 注释 `$IncludeConfig`，防止引入了不必要的配置
+5. 注释所有已有的 `RULES` 下面的配置
+6. 添加如下配置：
 
 ```text
 $template FromIp,"/var/log/rsyslog-remote/%FROMHOST-IP%.log"
@@ -177,13 +177,10 @@ chmod +x /usr/lib/rsyslog/rsyslog-remote-rotate
 
 配好服务端以后，很多服务都支持远程 syslog 功能：
 
-- iBMC: 维护诊断->告警上报->Syslog 报文通知
-
-- Supermicro BMC: Configuration->Syslog
-
-- 交换机：见 [常用交换机命令](https://jia.je/devops/2021/03/12/switch-config/index.md)
-
-- ESXi: 见 [Configuring syslog on ESXi](https://knowledge.broadcom.com/external/article/318939/configuring-syslog-on-esxi.html)：
+- iBMC: 维护诊断-\>告警上报-\>Syslog 报文通知
+- Supermicro BMC: Configuration-\>Syslog
+- 交换机：见 [常用交换机命令](<https://jia.je/blog/posts/devops/switch-config/index.md>)
+- ESXi: 见 [Configuring syslog on ESXi](<https://knowledge.broadcom.com/external/article/318939/configuring-syslog-on-esxi.html>)：
 
   ```shell
   esxcli system syslog config set --loghost=udp://1.2.3.4
@@ -194,7 +191,7 @@ chmod +x /usr/lib/rsyslog/rsyslog-remote-rotate
 
 ## 参考文档
 
-- [How to Set Up Remote Logging on Linux Using rsyslog](https://www.makeuseof.com/set-up-linux-remote-logging-using-rsyslog/)
-- [Configuring Remote Logging using rsyslog in CentOS/RHEL](https://www.thegeekdiary.com/configuring-remote-logging-using-rsyslog-in-centos-rhel/)
-- [How to Setup Central Logging Server with Rsyslog in Linux](https://www.tecmint.com/install-rsyslog-centralized-logging-in-centos-ubuntu/)
-- [How to Setup Rsyslog Client to Send Logs to Rsyslog Server in CentOS 7](https://www.tecmint.com/setup-rsyslog-client-to-send-logs-to-rsyslog-server-in-centos-7/)
+- [How to Set Up Remote Logging on Linux Using rsyslog](<https://www.makeuseof.com/set-up-linux-remote-logging-using-rsyslog/>)
+- [Configuring Remote Logging using rsyslog in CentOS/RHEL](<https://www.thegeekdiary.com/configuring-remote-logging-using-rsyslog-in-centos-rhel/>)
+- [How to Setup Central Logging Server with Rsyslog in Linux](<https://www.tecmint.com/install-rsyslog-centralized-logging-in-centos-ubuntu/>)
+- [How to Setup Rsyslog Client to Send Logs to Rsyslog Server in CentOS 7](<https://www.tecmint.com/setup-rsyslog-client-to-send-logs-to-rsyslog-server-in-centos-7/>)

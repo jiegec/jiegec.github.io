@@ -11,6 +11,7 @@
 但很多时候，B 指令并不依赖 A 指令，可能访问的是不同的内存地址，可能 B 要访问的数据就在缓存中，如果能够在 A 等待缓存回填的时间同时执行 B，性能可以得到提升。但并非所有的 B 都可以提前执行的，比如
 
 - 从核内的视角来看，A 和 B 访问的内存范围有重合，那么它们的执行顺序就很重要：
+
   - 如果 A 是 Store 指令，B 是 Load 指令，B 在 A 之前执行，B 提早从 Cache 读取数据，得到的是 A 写入之前的结果，数据就错了。不过好在这可以通过 Store to Load Forwarding 解决，把 A 要写入的数据以及 Cache 中的数据拼接出，可以得到正确的 B 要读取的数据。
   - 如果 A 是 Load 指令，B 是 Store 指令，B 在 A 之前执行，提早向 Cache 写入数据，那么 A 读出来的就是 B 写入之后的结果，数据就错了。
   - 如果 A 和 B 都是 Store 指令，B 在 A 之前执行，那么最终内存中的值是 A 覆盖了 B，而不是预期的 B 覆盖了 A
@@ -50,19 +51,19 @@ A 核心上的程序要进行 Read a（表示读取 a 地址的数据，下面�
 
 可以看到，可能是先完成所有 A 核心上的访存，再完成 B 核心上的访存（Ra Wa Rb Wb），也可能反过来，先完成 B 核心上的访存，再完成 A 核心上的访存（Rb Wb Ra Wa），也可能两个核心的访存交错进行（例如 Ra Rb Wa Wb）。它们都满足一个条件：Ra 一定在 Wa 之前，Rb 一定在 Wb 之前，也就是说，Ra 一定在 Wa 之前的这种 program order 在内存子系统上的执行顺序 memory order 里也一定会保证。
 
-这种内存模型就是 Sequential Consistency (简称 SC)，它的性质就是遵循 program order，从每个核心来看，代码怎么写的就怎么跑，不做重排，而来自不同核心的访存之间的顺序不做要求。下面是 SC 模型的图示（图源 [A Tutorial Introduction to the ARM and POWER Relaxed Memory Model](https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf)）：
+这种内存模型就是 Sequential Consistency (简称 SC)，它的性质就是遵循 program order，从每个核心来看，代码怎么写的就怎么跑，不做重排，而来自不同核心的访存之间的顺序不做要求。下面是 SC 模型的图示（图源 [A Tutorial Introduction to the ARM and POWER Relaxed Memory Model](<https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf>)）：
 
 根据这个性质，我们就可以分析软件的行为，判断它是否可能出现特定的结果。下面举一个例子：
 
 假如有两个线程，A 线程要给 B 线程传输数据，两个线程分别跑在两个核心上。为了传输数据，A 把数据放在内存地址 x 里，为了标记数据准备完成，另外在内存地址 y 放了一个标记，0 表示数据还没准备好，1 表示数据准备好了。那么 A 要传输数据的时候，要做的事情就是：
 
 1. 初始化的时候，往 y 地址写入 0
-1. 要传输数据时，先往 x 地址写入要传输的数据，再往 y 地址写入 1
+2. 要传输数据时，先往 x 地址写入要传输的数据，再往 y 地址写入 1
 
 另一边，B 线程要等待 A 线程发送的数据，那么它应该：
 
 1. 读取 y 地址的内容，检查是否为 1
-1. 如果是 1，说明传输的数据已经在 x 地址中了，再从 x 地址读取要传输的数据
+2. 如果是 1，说明传输的数据已经在 x 地址中了，再从 x 地址读取要传输的数据
 
 现在问题来了：以上的写法，它可以正常工作吗？我当然可以去各个硬件平台上都测试测试，看看到底能不能工作。但是既然我们已经知道了硬件是按照一定的内存模型实现的，那我们可以尝试，是否可以从内存模型的角度来判断它到底是否可行。
 
@@ -71,33 +72,33 @@ A 核心上的程序要进行 Read a（表示读取 a 地址的数据，下面�
 首先简化一下 A 线程做的操作：
 
 1. 向 x 地址写入数据，不妨设这个数据是 1，也就是 `*x = 1`，记为 Wx1（W 表示 write，后面跟随地址以及写入的数据）
-1. 向 y 地址写入 1，表示数据准备完成，也就是 `*y = 1`，记为 Wy1
+2. 向 y 地址写入 1，表示数据准备完成，也就是 `*y = 1`，记为 Wy1
 
 接着是 B 线程做的操作，假设出现了错误情况，也就是在 `y = 1` 的时候，从 x 读取了错误的数据：
 
 1. 从 y 地址读取数据，得到了 1，表示数据准备完成，也就是 `r1 = *y`，r1 等于 1，记为 Ry1（R 表示 read，后面跟随地址以及读取到的数据）
-1. 从 x 地址读取数据，因为前面假设了读取了错误的数据，正确的数据是 1，不妨设错误的数据是 0，也就是 `r2 = *x`，r2 等于 0，记为 Rx0
+2. 从 x 地址读取数据，因为前面假设了读取了错误的数据，正确的数据是 1，不妨设错误的数据是 0，也就是 `r2 = *x`，r2 等于 0，记为 Rx0
 
 接下来证明：在 SC 内存模型下，这种可能性不存在：
 
-1. 在 SC 内存模型下，program order 得到保持，也就是 A 和 B 线程各自的执行顺序是保证的，可知 Wx1 必须出现在 Wy1 之前，Ry1 必须出现在 Rx0 之前，记作 Wx1 -> Wy1，Ry1 -> Rx0
-1. 对于 x 地址来说，Wx1 写入了 1，Rx0 读出了 0，说明 Rx0 必须在 Wx1 之前执行，才可能读到 0，即 Rx0 -> Wx1；对于 y 地址来说，Wy1 写入了 1，Ry1 读出了 1，由于 y 地址的初始值是 0，说明 Ry1 必须在 Wy1 之后执行，才可能读到 0，即 Wy1 -> Ry1
+1. 在 SC 内存模型下，program order 得到保持，也就是 A 和 B 线程各自的执行顺序是保证的，可知 Wx1 必须出现在 Wy1 之前，Ry1 必须出现在 Rx0 之前，记作 Wx1 -\> Wy1，Ry1 -\> Rx0
+2. 对于 x 地址来说，Wx1 写入了 1，Rx0 读出了 0，说明 Rx0 必须在 Wx1 之前执行，才可能读到 0，即 Rx0 -\> Wx1；对于 y 地址来说，Wy1 写入了 1，Ry1 读出了 1，由于 y 地址的初始值是 0，说明 Ry1 必须在 Wy1 之后执行，才可能读到 0，即 Wy1 -\> Ry1
 
 这样我们就得到了四组顺序关系：
 
-1. Wx1 -> Wy1
-1. Wy1 -> Ry1
-1. Ry1 -> Rx0
-1. Rx0 -> Wx1
+1. Wx1 -\> Wy1
+2. Wy1 -\> Ry1
+3. Ry1 -\> Rx0
+4. Rx0 -\> Wx1
 
 你会发现这四个操作的顺序关系出现了环，说明不存在一个执行序列，可以同时满足这四组顺序关系。也就说明 SC 内存模型下，不可能得到这个执行结果。通过内存模型，我可以从理论上证明这段代码在 SC 内存模型下是没有问题的，那么这段代码在所有实现了 SC 内存模型的处理器上可以正常工作。
 
 ### Litmus
 
-像上面这种来自多线程编程的一个小片段，我们可以从内存模型的角度分析它可能的执行结果，也可以在实际的处理器上运行，这种小片段就叫做 Litmus test，上面看到的这个例子，其实是 Litmus test 当中的 Message Passing 测试（MP）。利用 [herd/herdtools7 on GitHub](https://github.com/herd/herdtools7) 工具，我们可以在电脑上实际去运行 Litmus test，观察它的实际运行结果。herdtools7 的安装流程：
+像上面这种来自多线程编程的一个小片段，我们可以从内存模型的角度分析它可能的执行结果，也可以在实际的处理器上运行，这种小片段就叫做 Litmus test，上面看到的这个例子，其实是 Litmus test 当中的 Message Passing 测试（MP）。利用 [herd/herdtools7 on GitHub](<https://github.com/herd/herdtools7>) 工具，我们可以在电脑上实际去运行 Litmus test，观察它的实际运行结果。herdtools7 的安装流程：
 
 1. 安装 OCaml 工具链（包括 opam），配置 opam
-1. 用 opam 安装 herdtools7: `opam install herdtools7`
+2. 用 opam 安装 herdtools7: `opam install herdtools7`
 
 有了 herdtools7 以后，如果要执行上面的 Message Passing 测试，只需要按照运行如下的命令（以 x86 为例）：
 
@@ -127,11 +128,13 @@ exists (1:EAX=1 /\ 1:EBX=0)
 忽略开头的部分，直接从 P0 P1 这一行开始看：P0 和 P1 对应两个处理器核心，下面是在这两个核心上要运行的汇编指令：
 
 - P0 上运行：
-  - MOV [x], $1：往 x 地址写入 1，也就是前面说的 `*x = 1`, Wx1
-  - MOV [y], $1：往 y 地址写入 1，也就是前面说的 `*y = 1`, Wy1
+
+  - MOV \[x\], $1：往 x 地址写入 1，也就是前面说的 `*x = 1`, Wx1
+  - MOV \[y\], $1：往 y 地址写入 1，也就是前面说的 `*y = 1`, Wy1
 - P1 上运行：
-  - MOV EAX, [y]：从 y 地址读取数据，保存在 EAX 寄存器，也就是前面说的 `r1 = *y`
-  - MOV EBX, [x]：从 x 地址读取数据，保存在 EAX 寄存器，也就是前面说的 `r2 = *x`
+
+  - MOV EAX, \[y\]：从 y 地址读取数据，保存在 EAX 寄存器，也就是前面说的 `r1 = *y`
+  - MOV EBX, \[x\]：从 x 地址读取数据，保存在 EAX 寄存器，也就是前面说的 `r2 = *x`
 
 正好就是 Message Passing 测试的内容，只不过用汇编完成了实现。最后，它提问：`exists (1:EAX=1 /\ 1:EBX=0)`，即是否存在一种可能，P1 的 EAX 寄存器（`1:EAX`）等于 1，同时（`/\` 表示逻辑与）P1 的 EBX 寄存器（`1:EBX`）等于 0？这就是上面提到的错误情况，y 等于 1 但是 x 等于 0。
 
@@ -144,21 +147,21 @@ Histogram (3 states)
 498632:>1:EAX=1; 1:EBX=1;
 ```
 
-运行了 1000000 次，观察到 500087 次 y=1, x=0；1281 次 y=0, x=1；498632 次 y=1, x=1；没有观察到 y=1 && x=0。也就是没有找到反例。
+运行了 1000000 次，观察到 500087 次 y=1, x=0；1281 次 y=0, x=1；498632 次 y=1, x=1；没有观察到 y=1 &amp;&amp; x=0。也就是没有找到反例。
 
 那么 diycross7 命令是怎么生成这段汇编的呢？答案就在 `PodWW Rfe PodRR Fre` 参数当中。它描述的就是我们前面提到的四组顺序关系：
 
-1. Wx1 -> Wy1: P0 上的 program order
-1. Wy1 -> Ry1: memory 上的写后读
-1. Ry1 -> Rx0: P1 上的 program order
-1. Rx0 -> Wx1: memory 上的读后写
+1. Wx1 -\> Wy1: P0 上的 program order
+2. Wy1 -\> Ry1: memory 上的写后读
+3. Ry1 -\> Rx0: P1 上的 program order
+4. Rx0 -\> Wx1: memory 上的读后写
 
 如果这四组顺序关系都得到保证，那么就不存在一个执行序列可以同时满足这四组顺序关系。在 diycross7 的语言里面，我们把这四组顺序关系描述出来：
 
-1. Wx1 -> Wy1: P0 上的 program order，并且是两个 Write 之间的 program order，所以是 PodWW（Pod = program order，WW = write to write）
-1. Wy1 -> Ry1: memory 上的写后读，并且分别在 P0 和 P1 上执行，所以是 Rfe（Rf = read from，后面的 read 的数据来自前面的 write，箭头从 W 指向 R，e = external，表示读和写在两个核上）
-1. Ry1 -> Rx0: P1 上的 program order，并且是两个 Read 之间的 program order，所以是 PodRR（Pod = program order，RR = read to read）
-1. Rx0 -> Wx1: memory 上的读后写，并且分别在 P1 和 P0 上执行，所以是 Fre（Fr = from read，读在前，写在后，箭头从 R 指向 W，e = external，表示读和写在两个核上）
+1. Wx1 -\> Wy1: P0 上的 program order，并且是两个 Write 之间的 program order，所以是 PodWW（Pod = program order，WW = write to write）
+2. Wy1 -\> Ry1: memory 上的写后读，并且分别在 P0 和 P1 上执行，所以是 Rfe（Rf = read from，后面的 read 的数据来自前面的 write，箭头从 W 指向 R，e = external，表示读和写在两个核上）
+3. Ry1 -\> Rx0: P1 上的 program order，并且是两个 Read 之间的 program order，所以是 PodRR（Pod = program order，RR = read to read）
+4. Rx0 -\> Wx1: memory 上的读后写，并且分别在 P1 和 P0 上执行，所以是 Fre（Fr = from read，读在前，写在后，箭头从 R 指向 W，e = external，表示读和写在两个核上）
 
 于是我们就用 `PodWW Rfe PodRR Fre` 描述了这四组顺序关系，diycross7 工具就根据这四组顺序关系，生成了汇编程序，这个汇编程序会用到这些顺序关系，那么在处理器上执行，就可以判断在处理器的内存模型下，这个环是否可能打破，反例是否可能存在。通过这种描述方法，我们可以设计出各种各样的 Litmus test，测试和分析不同的代码在各种处理器的内存模型下，会有怎样的表现。
 
@@ -201,10 +204,10 @@ B 核心：
 
 你可能会想，这怎么可能？明明两边都是先写后读，怎么结果却好像是先读后写？如果我们继续按照 SC 模型的规定来寻找顺序关系：
 
-- program order: Wx1 -> Ry0, Wy1 -> Rx0
-- coherence：Ry0 -> Wy1，Rx0 -> Wx1
+- program order: Wx1 -\> Ry0, Wy1 -\> Rx0
+- coherence：Ry0 -\> Wy1，Rx0 -\> Wx1
 
-出现了环：Wx1 -> Ry0 -> Wy1 -> Rx0 -> Wx1，说明这个结果在 SC 模型下不可能成立。但如果我们在 x86 机器上真的跑一下这个测试：
+出现了环：Wx1 -\> Ry0 -\> Wy1 -\> Rx0 -\> Wx1，说明这个结果在 SC 模型下不可能成立。但如果我们在 x86 机器上真的跑一下这个测试：
 
 ```shell
 diycross7 -arch X86 -name SB-X86 PodWR Fre PodWR Fre
@@ -213,10 +216,10 @@ litmus7 SB-X86.litmus
 
 这里的 `PodWR Fre PodWR Fre` 是这么来的：
 
-- Wx1 -> Ry0: PodWR, program order, write to read
-- Ry0 -> Wy1: Fre, from-read, external
-- Wy1 -> Rx0: PodWR, program order, write to read
-- Rx0 -> Wx1: Fre, from-read, external
+- Wx1 -\> Ry0: PodWR, program order, write to read
+- Ry0 -\> Wy1: Fre, from-read, external
+- Wy1 -\> Rx0: PodWR, program order, write to read
+- Rx0 -\> Wx1: Fre, from-read, external
 
 diycross7 命令生成了下面的汇编：
 
@@ -244,9 +247,9 @@ Ok
 
 ### X86-TSO
 
-依托 Store Buffer，我们可以构建出一个新的内存模型：在每个核心和内存子系统之间，多了一个 Store Buffer，Store 指令会先进入 Store Buffer，再进入内存子系统。当 Load 指令和 Store Buffer 中的 Store 指令有数据相关时，会从 Store Buffer 中取数据，如果不相关，或者不完全相关（例如只有一部分重合），则会从内存子系统中取数据，此时从内存子系统的角度来看，就发生了 Load 提前于 Store 执行的重排。这个模型被称为 [X86-TSO](https://dl.acm.org/doi/10.1145/1785414.1785443)（图源 [A Primer on Memory Consistency and Cache Coherence, Second Edition](https://link.springer.com/book/10.1007/978-3-031-01764-3)）：
+依托 Store Buffer，我们可以构建出一个新的内存模型：在每个核心和内存子系统之间，多了一个 Store Buffer，Store 指令会先进入 Store Buffer，再进入内存子系统。当 Load 指令和 Store Buffer 中的 Store 指令有数据相关时，会从 Store Buffer 中取数据，如果不相关，或者不完全相关（例如只有一部分重合），则会从内存子系统中取数据，此时从内存子系统的角度来看，就发生了 Load 提前于 Store 执行的重排。这个模型被称为 [X86-TSO](<https://dl.acm.org/doi/10.1145/1785414.1785443>)（图源 [A Primer on Memory Consistency and Cache Coherence, Second Edition](<https://link.springer.com/book/10.1007/978-3-031-01764-3>)）：
 
-需要注意的是，X86-TSO 模型是在 [2010 年的论文 x86-TSO: a rigorous and usable programmer's model for x86 multiprocessors](https://dl.acm.org/doi/10.1145/1785414.1785443)中由学术界对现有 x86 处理器的内存模型的总结，但 Intel 和 AMD 在他们的文档中没有直接采用这个模型，而是给出了各种各样的规则。但实践中，可以认为 x86 处理器用的就是这个模型，从各自 litmus 测试中，也没有发现理论和实际不一致的地方。
+需要注意的是，X86-TSO 模型是在 [2010 年的论文 x86-TSO: a rigorous and usable programmer's model for x86 multiprocessors](<https://dl.acm.org/doi/10.1145/1785414.1785443>)中由学术界对现有 x86 处理器的内存模型的总结，但 Intel 和 AMD 在他们的文档中没有直接采用这个模型，而是给出了各种各样的规则。但实践中，可以认为 x86 处理器用的就是这个模型，从各自 litmus 测试中，也没有发现理论和实际不一致的地方。
 
 这里的 TSO 的全称是 Total Store Order，意思是针对 Store 指令（只有离开 Store Buffer 进入缓存的才算），有一个全局的顺序。内存子系统会处理来自不同核心的 Store，但会保证 Store 有一个先后顺序，并且所有核心会看到同一个顺序。这个概念有些时候还会被称为 Multi-copy Atomic，字面意思是当一个 Store 被其他核心看到时，所有核心都会“同时”看到，不会说一部分核先看到，另一部分核后看到。
 
@@ -273,7 +276,7 @@ Ok
 - 先 Store 后 Load：SC 不允许重排，X86-TSO 允许重排
 - 先 Store 后 Store：SC 和 X86-TSO 不允许重排
 
-既然 Weak 了，那就自由到底：全都允许重排。如果用户不想重排，那再加合适的 fence 或 barrier 指令，阻止不想要的重排。在这个内存模型下，每个核心可以在向内存子系统读写前，对自己的读写进行重排（图源 [A Primer on Memory Consistency and Cache Coherence, Second Edition](https://link.springer.com/book/10.1007/978-3-031-01764-3)）：
+既然 Weak 了，那就自由到底：全都允许重排。如果用户不想重排，那再加合适的 fence 或 barrier 指令，阻止不想要的重排。在这个内存模型下，每个核心可以在向内存子系统读写前，对自己的读写进行重排（图源 [A Primer on Memory Consistency and Cache Coherence, Second Edition](<https://link.springer.com/book/10.1007/978-3-031-01764-3>)）：
 
 这意味着什么呢？前面出现过 Message Passing 的例子，结论是 MP 测试的情况在 SC 和 X86-TSO 场景下都被禁止。但如果我们在一个具有 Weak Memory Model 的机器上运行：
 
@@ -305,7 +308,7 @@ Histogram (4 states)
 
 既然在实际的 ARM 机器上测出来这种情况，说明 PodWW 或者 PodRR 至少有一个出现了重排，打破了环。
 
-更进一步，SC 和 X86-TSO 都要求有 Total Store Order（Multi-copy Atomic）：所有核心会看到统一的 Store 顺序。有要求，就可以舍弃，部分 Weak Memory Model 也不要求这一点，这个时候，内存模型就好像每个核心都有自己的一份内存，这些内存之间会互相传播 Store 以保证缓存一致性，但是有的核心可能先看到，有的核心可能后看到（图源 [A Tutorial Introduction to the ARM and POWER Relaxed Memory Model](https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf)）：
+更进一步，SC 和 X86-TSO 都要求有 Total Store Order（Multi-copy Atomic）：所有核心会看到统一的 Store 顺序。有要求，就可以舍弃，部分 Weak Memory Model 也不要求这一点，这个时候，内存模型就好像每个核心都有自己的一份内存，这些内存之间会互相传播 Store 以保证缓存一致性，但是有的核心可能先看到，有的核心可能后看到（图源 [A Tutorial Introduction to the ARM and POWER Relaxed Memory Model](<https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf>)）：
 
 这一点可以在 IRIW（全称 Independent Read of Independent Write；准确地说，为了排除 PodRR 重排的情况，要用 IRIW+addrs 或者加 barrier）Litmus 测试中看到。简单来说，IRIW 测试中，有两个核心负责写入，另外两个核心负责读，如果这两个负责读的核心观察到了不同的写入顺序，说明没有 Total Store Order（Multi-copy Atomic）：写入传播到不同核心的顺序可能打乱。
 
@@ -322,8 +325,8 @@ Histogram (4 states)
 这其中常用的其实就是 mfence：前面提到 X86-TSO 允许 Load 被重排到 Store 之前，为了阻止这一点，lfence 和 sfence 都不够，因为 lfence 管的是 Load 被重排到 Load 之前，sfence 管的是 Store 被重排到 Store 之前。mfence 则可以：在 Store 后面紧挨着一条 mfence 指令，那么 mfence 之后的 Load 指令就无法被重排到 Store 之前：
 
 1. store
-1. mfence
-1. load
+2. mfence
+3. load
 
 所以如果要在 x86 上运行按照 SC 内存模型编写的程序，为了保证正确性，需要在每个 Store 后面加一条 mfence 指令。
 
@@ -348,24 +351,24 @@ unlock(); // Store Release
 P0:
 
 1. \*x = 1
-1. \*y = 1
+2. \*y = 1
 
 P1:
 
 1. r1 = \*y
-1. r2 = \*x
+2. r2 = \*x
 
 这里会有 Store-Store 重排以及 Load-Load 重排的风险，加上 Load Acquire 和 Store Release 以后：
 
 P0:
 
 1. \*x = 1
-1. \*y = 1 (Store Release)
+2. \*y = 1 (Store Release)
 
 P1:
 
 1. r1 = \*y (Load Acquire)
-1. r2 = \*x
+2. r2 = \*x
 
 这样就避免了重排，P1 可以观察到正确的结果。
 
@@ -375,24 +378,24 @@ P1:
 
 从上面的分析可见，不同的处理器和指令集使用了不同的内存模型，提供了不同的指令来控制乱序重排，但是对于软件开发者来说，会希望尽量用一套通用的 API 来控制乱序重排，可以兼容各种指令集，不用去记忆每个处理器用的是什么内存模型，不用去知道哪些指令可以用来解决哪些重排。
 
-这个 API 在很多编程语言中都有，C 的 stdatomic.h，C++ 的 std::memory_order，Rust 的 std::sync::atomic::Ordering 等等。它们对各种处理器的内存序进行了进一步的抽象，并且在编译的时候，由编译器或标准库把这些抽象的内存序翻译成实际的指令。以 C++ 的抽象为例，有如下几种内存序（图源 [cppreference](https://en.cppreference.com/w/cpp/atomic/memory_order)）：
+这个 API 在很多编程语言中都有，C 的 stdatomic.h，C++ 的 std::memory\_order，Rust 的 std::sync::atomic::Ordering 等等。它们对各种处理器的内存序进行了进一步的抽象，并且在编译的时候，由编译器或标准库把这些抽象的内存序翻译成实际的指令。以 C++ 的抽象为例，有如下几种内存序（图源 [cppreference](<https://en.cppreference.com/w/cpp/atomic/memory_order>)）：
 
-其中比较重要的 acquire 和 release，其实就是上面提到的 Load Acquire 和 Store Release。最后的 seq_cst，就对应了 Sequential Consistency（SC）模型，要模拟 SC 模型的行为。
+其中比较重要的 acquire 和 release，其实就是上面提到的 Load Acquire 和 Store Release。最后的 seq\_cst，就对应了 Sequential Consistency（SC）模型，要模拟 SC 模型的行为。
 
 由于 C++ 可以被编译到不同的指令集架构，所以这些 memory order 在编译的时候，会变成对应的指令，也可能由于内存模型保证了不出现对应的乱序，不需要生成额外的指令。以 X86 为例子：
 
 - Load Acquire：防止 Load 之后的 Load/Store 指令被重排到 Load 之前，因为 X86-TSO 阻止了 Load-Load 和 Load-Store（先 Load 后 Store）重排，所以不需要额外的指令
 - Store Release：防止 Store 之前的 Load/Store 指令被重排到 Store 之后，因为 X86-TSO 阻止了 Load-Store 和 Store-Store 重排，所以不需要额外的指令
 
-完整的对应关系，建议阅读 [C/C++11 mappings to processors](https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html)。
+完整的对应关系，建议阅读 [C/C++11 mappings to processors](<https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html>)。
 
-编译器的优化可能会对内存序产生一些意料之外的影响，推荐阅读 Linux 内核的 [LINUX KERNEL MEMORY BARRIERS](https://www.kernel.org/doc/Documentation/memory-barriers.txt) 文档。
+编译器的优化可能会对内存序产生一些意料之外的影响，推荐阅读 Linux 内核的 [LINUX KERNEL MEMORY BARRIERS](<https://www.kernel.org/doc/Documentation/memory-barriers.txt>) 文档。
 
 ## 参考文献
 
-- [A Tutorial Introduction to the ARM and POWER Relaxed Memory Model](https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf)
-- [A Better x86 Memory Model: x86-TSO](https://www.cl.cam.ac.uk/~pes20/weakmemory/x86tso-paper.tphols.pdf)
-- [Hardware Memory Models - Russ Cox](https://research.swtch.com/hwmm)
-- [herd/herdtools7 on GitHub](https://github.com/herd/herdtools7)
-- [A Primer on Memory Consistency and Cache Coherence, Second Edition](https://link.springer.com/book/10.1007/978-3-031-01764-3)
-- [How to generate litmus tests automatically with the diy7 tool](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/generate-litmus-tests-automatically-diy7-tool)
+- [A Tutorial Introduction to the ARM and POWER Relaxed Memory Model](<https://www.cl.cam.ac.uk/~pes20/ppc-supplemental/test7.pdf>)
+- [A Better x86 Memory Model: x86-TSO](<https://www.cl.cam.ac.uk/~pes20/weakmemory/x86tso-paper.tphols.pdf>)
+- [Hardware Memory Models - Russ Cox](<https://research.swtch.com/hwmm>)
+- [herd/herdtools7 on GitHub](<https://github.com/herd/herdtools7>)
+- [A Primer on Memory Consistency and Cache Coherence, Second Edition](<https://link.springer.com/book/10.1007/978-3-031-01764-3>)
+- [How to generate litmus tests automatically with the diy7 tool](<https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/generate-litmus-tests-automatically-diy7-tool>)

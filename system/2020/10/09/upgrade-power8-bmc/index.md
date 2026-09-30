@@ -15,7 +15,7 @@ $ sudo ipmitool fru print 3
  Chassis Serial        : REDACTED
 ```
 
-可以看到，这台机器是 8335-GTB 型号，按照这个型号在 [Fix Central](https://www.ibm.com/support/fixcentral) 上搜索，可以找到若干个版本的 firmware，其中最老的版本是 `OP8_v1.11_2.1`，对比了一下，和原来的版本一致：
+可以看到，这台机器是 8335-GTB 型号，按照这个型号在 [Fix Central](<https://www.ibm.com/support/fixcentral>) 上搜索，可以找到若干个版本的 firmware，其中最老的版本是 `OP8_v1.11_2.1`，对比了一下，和原来的版本一致：
 
 ```shell
 $ sudo ipmitool fru print 47
@@ -49,7 +49,7 @@ Product Name          : OpenPOWER Firmware
  Product Extra         :        hostb
 ```
 
-这次升级比较顺利，没有遇到什么障碍。但是我发现，BMC 里面显示的 BIOS 版本和 hpm 对不上，它总是认为 BIOS 版本是落后的，需要更新，而 Firmware 部分（BOOT 和 APP）是更新后的版本。但 BIOS 版本和原来的版本也不一样。于是我重新升级了几次，都没有效果，怀疑是升级出了问题。后来仔细读文档才发现，确实是 BMC 软件的问题（[文档](https://ak-delivery04-mul.dhe.ibm.com/sar/CMA/SFA/08cu1/0/8335GTB_820.1923.20190613n.xhtml)）：
+这次升级比较顺利，没有遇到什么障碍。但是我发现，BMC 里面显示的 BIOS 版本和 hpm 对不上，它总是认为 BIOS 版本是落后的，需要更新，而 Firmware 部分（BOOT 和 APP）是更新后的版本。但 BIOS 版本和原来的版本也不一样。于是我重新升级了几次，都没有效果，怀疑是升级出了问题。后来仔细读文档才发现，确实是 BMC 软件的问题（[文档](<https://ak-delivery04-mul.dhe.ibm.com/sar/CMA/SFA/08cu1/0/8335GTB_820.1923.20190613n.xhtml>)）：
 
 ```text
 Note: BMC Dashboard shows an incorrect level for the BIOS caused by improper translation of the level subfields. The Bios number should reflect the PNOR level for the system of "IBM-garrison-ibm-OP8_v1.11_2.19". In this case, the BIOS version should be 1.11_2.19 but shows as 1.17.19 instead with the "11_2" converted into the "17".

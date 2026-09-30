@@ -2,7 +2,7 @@
 
 ## 背景
 
-最近看到 [xonly status](https://marc.info/?l=openbsd-tech&m=167501519712725&w=2)，看到 OpenBSD 最近在实现 xonly，也就是让一些页只能执行，不能读不能写。以往类似的做法是 `W^X`，也就是可以执行的时候不能写，可以写的时候不能执行。显然，xonly 是更加严格的，连读都不可以。查了一下历史，`W^X` 最早也是在 OpenBSD 中实现的，说不定以后 xonly 也会被各个操作系统实现。
+最近看到 [xonly status](<https://marc.info/?l=openbsd-tech&amp;m=167501519712725&amp;w=2>)，看到 OpenBSD 最近在实现 xonly，也就是让一些页只能执行，不能读不能写。以往类似的做法是 `W^X`，也就是可以执行的时候不能写，可以写的时候不能执行。显然，xonly 是更加严格的，连读都不可以。查了一下历史，`W^X` 最早也是在 OpenBSD 中实现的，说不定以后 xonly 也会被各个操作系统实现。
 
 ## amd64 上的实现
 
@@ -13,14 +13,14 @@
 
 可以看到，在这个定义下，可能出现的权限组合：
 
-|                    | R   | W   | X   |
-| ------------------ | --- | --- | --- |
-| R/W=0, NXE=0       | Y   | N   | Y   |
-| R/W=1, NXE=0       | Y   | Y   | Y   |
-| R/W=0, NXE=1, XD=0 | Y   | N   | Y   |
-| R/W=1, NXE=1, XD=0 | Y   | Y   | Y   |
-| R/W=0, NXE=1, XD=1 | Y   | N   | N   |
-| R/W=1, NXE=1, XD=1 | Y   | Y   | N   |
+|  | R | W | X |
+| --- | --- | --- | --- |
+| R/W=0, NXE=0 | Y | N | Y |
+| R/W=1, NXE=0 | Y | Y | Y |
+| R/W=0, NXE=1, XD=0 | Y | N | Y |
+| R/W=1, NXE=1, XD=0 | Y | Y | Y |
+| R/W=0, NXE=1, XD=1 | Y | N | N |
+| R/W=1, NXE=1, XD=1 | Y | Y | N |
 
 需要注意的是，`IA32_EFER.NXE` 是全局的，而 `R/W` 和 `XD` 的粒度是页。可以看到，上面的所有组合中，都是可以读的。
 
@@ -44,7 +44,7 @@ same format (bits 63:32 of the MSR are reserved and must be zero).
 - NXE=1, XD=0：允许执行
 - 设置 62:59 位为一个 Key 编号，将对应的 PKRU 的两个位设为 1：不允许读，不允许写
 
-接下来看 OpenBSD 的[代码](https://github.com/openbsd/src/commit/e9e0c464329db9b56e1f2db65b0f536e53aa7e5f#diff-ab04285d8fd81f41887d9c9de2eb231be5e44c2d465f5c479943a1e21cf977ce)：
+接下来看 OpenBSD 的[代码](<https://github.com/openbsd/src/commit/e9e0c464329db9b56e1f2db65b0f536e53aa7e5f#diff-ab04285d8fd81f41887d9c9de2eb231be5e44c2d465f5c479943a1e21cf977ce>)：
 
 首先，检测 CPU 是否支持 PKU 机制：
 
@@ -65,13 +65,13 @@ if (cpuid_level >= 0x7) {
 }
 ```
 
-其中 `PG_XO` 的值是 `0x0800000000000000UL`，也就是只有 bit 59 位 1，对应 Protection Key #1。OpenBSD 内核设置 PKRU 寄存器为 `0xfffffffc`，即只有 Protection Key #0 不修改权限，其他 Protection Key 都是禁止读写。剩下的代码就是维护 PKRU 寄存器的取值，然后把 xonly 的页的 Protection Key 都设为 1，否则设为 0。
+其中 `PG_XO` 的值是 `0x0800000000000000UL`，也就是只有 bit 59 位 1，对应 Protection Key \#1。OpenBSD 内核设置 PKRU 寄存器为 `0xfffffffc`，即只有 Protection Key \#0 不修改权限，其他 Protection Key 都是禁止读写。剩下的代码就是维护 PKRU 寄存器的取值，然后把 xonly 的页的 Protection Key 都设为 1，否则设为 0。
 
-但需要注意的是，PKRU 寄存器用户态也可以读写。Linux 把 PKRU 暴露给了[用户态](https://www.kernel.org/doc/html/latest/core-api/protection-keys.html)，允许用户态来自己设置页表的 Protection Key。OpenBSD 的实现方法则是进内核以后，检查 PKRU 寄存器，如果值修改了，就 SIGABRT。这有一定的风险，如果攻击代码修改了 PKRU 寄存器的内容，是有可能读取本来 xonly 的页的内容的。
+但需要注意的是，PKRU 寄存器用户态也可以读写。Linux 把 PKRU 暴露给了[用户态](<https://www.kernel.org/doc/html/latest/core-api/protection-keys.html>)，允许用户态来自己设置页表的 Protection Key。OpenBSD 的实现方法则是进内核以后，检查 PKRU 寄存器，如果值修改了，就 SIGABRT。这有一定的风险，如果攻击代码修改了 PKRU 寄存器的内容，是有可能读取本来 xonly 的页的内容的。
 
 ## powerpc64 上的实现
 
-powerpc64 的实现方法和 amd64 类似，见 [commit](https://github.com/openbsd/src/commit/6bd9427e6879f79e0e2c1e03d8411439da5bb69)。机制和 AMD64 很像，下面引用一段 PowerISA 文档：
+powerpc64 的实现方法和 amd64 类似，见 [commit](<https://github.com/openbsd/src/commit/6bd9427e6879f79e0e2c1e03d8411439da5bb69>)。机制和 AMD64 很像，下面引用一段 PowerISA 文档：
 
 ```text
 The Virtual Page Class Key Protection mechanism provides the means to

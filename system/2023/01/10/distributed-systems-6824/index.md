@@ -2,13 +2,13 @@
 
 ## 背景
 
-本来打算去年上分布式系统课的，但是由于时间冲突没有选，今年想上的时候课程又没有开，因此利用寒假时间自学 [MIT 6.824 Distributed Systems 课程 Spring 2022](http://nil.csail.mit.edu/6.824/2022/)（[Archive](https://web.archive.org/web/20220713034553/https://pdos.csail.mit.edu/6.824/index.html)），跟着看视频，Lecture Notes 还有论文，同时也完成课程的实验。在这里分享一下我在学习过程中的一些笔记和感悟。有趣的是，MIT 6.824 Spring 2023 年把课号改成了 6.5840，类似地 6.828 OS 也改成了 6.1810。
+本来打算去年上分布式系统课的，但是由于时间冲突没有选，今年想上的时候课程又没有开，因此利用寒假时间自学 [MIT 6.824 Distributed Systems 课程 Spring 2022](<http://nil.csail.mit.edu/6.824/2022/>)（[Archive](<https://web.archive.org/web/20220713034553/https://pdos.csail.mit.edu/6.824/index.html>)），跟着看视频，Lecture Notes 还有论文，同时也完成课程的实验。在这里分享一下我在学习过程中的一些笔记和感悟。有趣的是，MIT 6.824 Spring 2023 年把课号改成了 6.5840，类似地 6.828 OS 也改成了 6.1810。
 
 ## MapReduce
 
 ### 背景
 
-第一篇论文是 2004 年发表的 [MapReduce: Simplified Data Processing on Large Clusters](http://nil.csail.mit.edu/6.824/2022/papers/mapreduce.pdf)，论文的作者是耳熟能详的 Jeffrey Dean 和 Sanjay Ghemawat，这个思想到现在依然在广泛使用，目前比较常见的开源 MapReduce 实现是 Apache Hadoop。
+第一篇论文是 2004 年发表的 [MapReduce: Simplified Data Processing on Large Clusters](<http://nil.csail.mit.edu/6.824/2022/papers/mapreduce.pdf>)，论文的作者是耳熟能详的 Jeffrey Dean 和 Sanjay Ghemawat，这个思想到现在依然在广泛使用，目前比较常见的开源 MapReduce 实现是 Apache Hadoop。
 
 论文要解决的问题是，随着数据量增大，需要在集群上并行完成任务，那么如何在集群上并行计算，分发数据，并且在机器出问题的时候继续工作，就成了很大的问题。所以如果有一个框架，负责完成并行、容错和复杂均衡这些底层细节，向上层应用提供一个简单的抽象，这样就可以减轻开发者的负担。MapReduce 就是这样的一个框架。
 
@@ -62,8 +62,8 @@ are too large to fit in memory.
 所以 MapReduce 从逻辑上可以分为三个步骤：
 
 1. Map 阶段：节点并行执行 Map 函数，每个节点处理一部分的 `(k1, v1)` 输入
-1. Shuffle 阶段：收集 Map 阶段的计算结果，根据 k2 分发到不同的节点
-1. Reduce 阶段：节点并行执行 Reduce 函数，每个节点处理一部分的 `(k2, list(k2))` 中间结果
+2. Shuffle 阶段：收集 Map 阶段的计算结果，根据 k2 分发到不同的节点
+3. Reduce 阶段：节点并行执行 Reduce 函数，每个节点处理一部分的 `(k2, list(k2))` 中间结果
 
 实际运行的时候，这三个阶段可以流水线式地同时进行。
 
@@ -85,7 +85,7 @@ are too large to fit in memory.
 
 ### Hadoop
 
-看一个实际的 MapReduce 例子，从 [Hadoop MapReduce Tutorial](https://hadoop.apache.org/docs/stable/hadoop-mapreduce-client/hadoop-mapreduce-client-core/MapReduceTutorial.html) 可以找到实现单词出现次数统计的代码：
+看一个实际的 MapReduce 例子，从 [Hadoop MapReduce Tutorial](<https://hadoop.apache.org/docs/stable/hadoop-mapreduce-client/hadoop-mapreduce-client-core/MapReduceTutorial.html>) 可以找到实现单词出现次数统计的代码：
 
 ```java
 private final static IntWritable one = new IntWritable(1);
@@ -167,7 +167,7 @@ MIT 6.824 的 Lab 1 就是用 Go 语言在模板仓库中实现一个 MapReduce�
 
 ### 背景
 
-第二篇论文是 2003 年的 [The Google File System](http://nil.csail.mit.edu/6.824/2022/papers/gfs.pdf)，讲述的是 GFS 分布式文件系统，也是上面的 MapReduce 所使用的分布式文件系统。Hadoop 使用的分布式文件系统 HDFS 和 GFS 很类似。
+第二篇论文是 2003 年的 [The Google File System](<http://nil.csail.mit.edu/6.824/2022/papers/gfs.pdf>)，讲述的是 GFS 分布式文件系统，也是上面的 MapReduce 所使用的分布式文件系统。Hadoop 使用的分布式文件系统 HDFS 和 GFS 很类似。
 
 为了存大量的数据，需要使用集群，但是集群节点数量一多，就会经常出现节点宕机或者硬盘故障等问题，需要一个系统来保证 Fault Tolerance。并且为了让应用程序更容易迁移到集群上，提供文件系统的接口，从上层应用的角度来看，就是一个巨大的文件系统，可以同时从很多个节点访问，这样就减少了应用开发者的负担。设计时还需要考虑扩展性，如果存储节点越多，性能就越好。
 
@@ -212,10 +212,10 @@ GFS 的解决办法是 lease，也就是说 primary 不是永久的，而是有�
 接下来描述一下，一次写入要经过的过程：
 
 1. 客户端要写入文件的某个 chunk，询问服务端，哪个 chunkserver 持有 lease，以及其他的 replica 所在的 chunkserver；如果服务器还没有分配 lease，则分配给某一个 replica 所在的 chunkserver。
-1. 客户端缓存下 lease 和 replica 信息，之后的写入不需要联系 master，直接联系 primary 即可
-1. 客户端把要写入的数据发送给所有的 replica，当所有的 replica 都收到数据的时候，向 primary 发起写入请求；primary 按请求顺序给每个请求分配一个唯一的编号，然后按照编号顺序来写入数据
-1. primary 把写入请求转发到其他 replica（secondary replica），其他 replica 也按照编号顺序来学日数据
-1. secondary replica 完成写入后，通知 primary replica；所有 replica 完成写入后，primary 通知客户端写入完成
+2. 客户端缓存下 lease 和 replica 信息，之后的写入不需要联系 master，直接联系 primary 即可
+3. 客户端把要写入的数据发送给所有的 replica，当所有的 replica 都收到数据的时候，向 primary 发起写入请求；primary 按请求顺序给每个请求分配一个唯一的编号，然后按照编号顺序来写入数据
+4. primary 把写入请求转发到其他 replica（secondary replica），其他 replica 也按照编号顺序来学日数据
+5. secondary replica 完成写入后，通知 primary replica；所有 replica 完成写入后，primary 通知客户端写入完成
 
 可以看到，primary 节点给并发请求分配了串行的编号，这样在所有的 replica 上都会按照同样的顺序进行写入，保证了数据的一致性。只有在所有 replica 完成写入以后才会通知客户端，所以客户端后续从任何一个 replica 读取，都会得到新的数据。
 
@@ -233,7 +233,7 @@ GFS 是一个分布式的文件系统，使用单 master 和多 chunkserver 的�
 
 ### HDFS
 
-Hadoop 的 [HDFS](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-common/filesystem/introduction.html) 很多设计上参考了 GFS，它的 master 叫做 namenode，chunkserver 叫做 datanode。不过，HDFS 的一致性模型 `one-copy-update-semantics` 比 GFS 更加严格，与传统的本地 POSIX 文件系统一致。HDFS 甚至使用了 write-once-read-many 访问模型，也就是文件一旦写入，已经写过的部分就不能再修改，只能 append 或者 truncate。
+Hadoop 的 [HDFS](<https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-common/filesystem/introduction.html>) 很多设计上参考了 GFS，它的 master 叫做 namenode，chunkserver 叫做 datanode。不过，HDFS 的一致性模型 `one-copy-update-semantics` 比 GFS 更加严格，与传统的本地 POSIX 文件系统一致。HDFS 甚至使用了 write-once-read-many 访问模型，也就是文件一旦写入，已经写过的部分就不能再修改，只能 append 或者 truncate。
 
 按照教程启动一个单节点的 HDFS 集群，需要写两个配置文件：
 
@@ -284,7 +284,7 @@ hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.4.j
 
 接下来要讨论的是 Primary/Backup Replication。实际上在 GFS 的时候，就提到了一个问题，如果 master 宕机了怎么办？GFS 的办法是 Primary/Backup Replication，即在 master 运行的同时，同时运行一份 master 的 backup，随时保持 master 和 backup 的一致性。如果 master 宕机了，backup 就可以成为新的 master 继续工作。
 
-MIT 6.824 课程在讨论 Primary/Backup Replication 的时候，引用了 2010 年的论文 [The Design of a Practical System for Fault-Tolerant Virtual Machine](http://nil.csail.mit.edu/6.824/2022/papers/vm-ft.pdf) 的例子。下面按照 [Lecture Notes](http://nil.csail.mit.edu/6.824/2022/notes/l-vm-ft.txt) 的思路，先讨论 Replication 的方法，再讨论 Fault Tolerant Virtual Machine。
+MIT 6.824 课程在讨论 Primary/Backup Replication 的时候，引用了 2010 年的论文 [The Design of a Practical System for Fault-Tolerant Virtual Machine](<http://nil.csail.mit.edu/6.824/2022/papers/vm-ft.pdf>) 的例子。下面按照 [Lecture Notes](<http://nil.csail.mit.edu/6.824/2022/notes/l-vm-ft.txt>) 的思路，先讨论 Replication 的方法，再讨论 Fault Tolerant Virtual Machine。
 
 ### Replication
 
@@ -301,10 +301,10 @@ GFS 的论文中采用的是第一种方法：`The master state is replicated fo
 有了这个基础以后，就可以构建 Fault Tolerant Virtual Machine 了。具体方法：
 
 1. 启动 Primary 和 Backup 虚拟机，寄存器和内存初始化成一样的内容
-1. 开始执行 Primary，等待外部影响的到来，或者执行了会带来不确定性的指令，trap 到虚拟机管理程序
-1. 记录下 Primary 已经执行的指令条数 n，记录下外部影响或不确定性的内容和结果，发送给 Backup，然后继续执行
-1. Backup 收到 Primary 发送过来的信息，开始执行 CPU，并且指定运行 n 条指令后 trap，然后施加外部影响
-1. 循环这个过程，如果 Primary 宕机了，则从 Backup 继续开始执行
+2. 开始执行 Primary，等待外部影响的到来，或者执行了会带来不确定性的指令，trap 到虚拟机管理程序
+3. 记录下 Primary 已经执行的指令条数 n，记录下外部影响或不确定性的内容和结果，发送给 Backup，然后继续执行
+4. Backup 收到 Primary 发送过来的信息，开始执行 CPU，并且指定运行 n 条指令后 trap，然后施加外部影响
+5. 循环这个过程，如果 Primary 宕机了，则从 Backup 继续开始执行
 
 可以看到，这个过程中 Primary 始终领先 Backup 至少一步：Primary 走一步，Backup 走一步，Primary 再走一步，Backup 再走一步。
 
@@ -316,18 +316,18 @@ GFS 的论文中采用的是第一种方法：`The master state is replicated fo
 
 ### 介绍
 
-[Raft](http://nil.csail.mit.edu/6.824/2022/papers/raft-extended.pdf)（[Lecture Notes](http://nil.csail.mit.edu/6.824/2022/notes/l-raft.txt)）是一个分布式共识算法，对于一个 n 节点的系统，需要超过 n/2 个节点在线才可以工作。超过 n/2 的目的是防止网络分区，保证只有最多一个网络分区可以有进展。Raft 实现了一个 Replicated State Machine，也就是说维护一个分布式的状态机，只要保证初始状态一致，状态转移一致，那么状态机的当前状态也会一致。所以 Raft 的目标就是保证状态转移的历史一致。
+[Raft](<http://nil.csail.mit.edu/6.824/2022/papers/raft-extended.pdf>)（[Lecture Notes](<http://nil.csail.mit.edu/6.824/2022/notes/l-raft.txt>)）是一个分布式共识算法，对于一个 n 节点的系统，需要超过 n/2 个节点在线才可以工作。超过 n/2 的目的是防止网络分区，保证只有最多一个网络分区可以有进展。Raft 实现了一个 Replicated State Machine，也就是说维护一个分布式的状态机，只要保证初始状态一致，状态转移一致，那么状态机的当前状态也会一致。所以 Raft 的目标就是保证状态转移的历史一致。
 
 Raft 围绕着 leader 进行，需要首先选举出一个 leader，所有的请求都由 leader 处理。leader 接收到请求后，把请求发送给其他的节点，当有过半的节点记录了这个请求，就可以提交请求的内容到状态中。具体来说，请求过程如下：
 
 1. 客户端发送请求给 leader
-1. leader 把请求加入到日志中，但不应用到状态机
-1. leader 发送日志给其他节点（follower）
-1. follower 把 leader 发送的日志加入到日志中
-1. leader 等到有超过半数的节点（leader+follower）的日志有上述请求，就把请求应用到状态机
-1. leader 发送响应，告诉客户端请求已经完成
-1. leader 告诉 follower 可以应用上述请求
-1. follower 把请求应用到状态机
+2. leader 把请求加入到日志中，但不应用到状态机
+3. leader 发送日志给其他节点（follower）
+4. follower 把 leader 发送的日志加入到日志中
+5. leader 等到有超过半数的节点（leader+follower）的日志有上述请求，就把请求应用到状态机
+6. leader 发送响应，告诉客户端请求已经完成
+7. leader 告诉 follower 可以应用上述请求
+8. follower 把请求应用到状态机
 
 下面仔细讨论 Raft 的一些细节。
 
@@ -349,7 +349,7 @@ leader 会定期发送心跳给其他节点，当节点发现当前的 leader �
 
 实际在 Lab 2B 实现的时候，会发现有很多细节上的问题：怎么判断 Log 的前 n 项是一致的呢？直接把整个 Log 传输一遍不现实。Raft 的做法是 Leader 保存 Follower 的 prevLogIndex 和 prevLogTerm，根据 prevLogIndex 和 prevLogTerm 查询自己的历史。如果能匹配上，就继续发送新的 Log 给 Follower。如果匹配不上，就继续往回找，一直找到匹配的 Index 和 Term 为止。这个过程会涉及到一些边界情况，例如一直退到开头等等，需要小心地处理。
 
-### Persistence & Snapshot
+### Persistence &amp; Snapshot
 
 到目前为止，讨论的 Raft 的实现还没有考虑异常退出，虽然在异常退出的时候，可以重头传一遍 Log 再启动，但是这样需要比较久的时间，因此需要做持久化（Persistence）。具体地，需要保存一些状态到硬盘上，那么之后重启的时候，可以从硬盘保存的数据进行恢复。Raft 论文中讨论了需要持久化的一些状态，剩下的则是不需要持久化的。这样做是为了提高性能：持久化把硬盘引入到了处理请求之中，可能会使得硬盘读写变成瓶颈。
 
@@ -359,7 +359,7 @@ leader 会定期发送心跳给其他节点，当节点发现当前的 leader �
 
 ## ZooKeeper
 
-[ZooKeeper](http://nil.csail.mit.edu/6.824/2022/papers/zookeeper.pdf) 要解决的问题是，实现一个 Paxos/Raft，太过复杂，为了分布式，需要把应用改造成适合 Paxos/Raft 的样子。但很多时候，只是希望有一个现成分布式的系统来方便实现一个功能。
+[ZooKeeper](<http://nil.csail.mit.edu/6.824/2022/papers/zookeeper.pdf>) 要解决的问题是，实现一个 Paxos/Raft，太过复杂，为了分布式，需要把应用改造成适合 Paxos/Raft 的样子。但很多时候，只是希望有一个现成分布式的系统来方便实现一个功能。
 
 因此 ZooKeeper 实现了一个高可用的状态存储，有点类似与用 Raft 实现的 KV 存储，只不过它的 api 被设计用来实现上层的分布式系统。它是一个树形的组织结构，类似文件系统，每个文件是多版本的，可以说是 hierarchical kv 存储。每个写操作，是一个原子操作，输入文件名，版本号和新内容，如果版本号一致，才更新内容和版本号。除了轮询以外，ZooKeeper 还提供了 watcher api，可以在服务端更新的时候通知客户端。ZooKeeper 使用了 Zab 一致性协议，具体内容没有细看。
 
@@ -376,27 +376,27 @@ ZooKeeper 用途很多，可以用来保存配置，可以维护一个组的成�
 首先来看 Primary/Backup 方法，就是指定一个节点为 Primary，其余节点为 Backup。客户端的所有的请求（读 + 写）都会发送到 Primary。当 Primary 宕机的时候，则把其中一个 Backup 升级为 Primary。回忆一下 GFS，会发现 GFS 采用了 Primary/Backup 方法。当客户端要写入数据的时候，需要四个阶段：
 
 1. 客户端发送给 Primary
-1. Primary 并行发送给所有的 Backup
-1. 所有的 Backup 告诉 Primary 写入完成
-1. Primary 告诉客户端写入完成
+2. Primary 并行发送给所有的 Backup
+3. 所有的 Backup 告诉 Primary 写入完成
+4. Primary 告诉客户端写入完成
 
 这样设计是为了保证强一致性：所有请求都在 Primary 处理，自然就给请求确定了一个顺序，接下来就可以很方便地满足强一致性的要求了。需要注意的是，在第 3 步之前，Primary 还不能确认这次写入已经完成，所以如果此时又来了一个读取请求，要么提供旧的数据，要么等到第 3 步完成才返回新的数据，这样才能满足强一致性的要求。
 
 和 Raft/Zookeeper 等 quorum 一致性算法进行对比的话，Primary/Backup 方法可以容忍 N-1 个节点的宕机，而 quorum 可以容忍 N/2 个节点的宕机。当然了，代价就是需要把数据存储更多份。但实际上，即使采用了 Primary/Backup 方法，还需要考虑怎么维护这些存储节点的状态，这需要一个单独的配置节点来管理。那怎么保证配置节点的高可用性？这时候就可以用 Raft 或者上面提到的 ZooKeeper 了。这就是在不同的层次上，用不同的一致性协议，达到不同的目的。
 
-但是 Primary/Backup 方法的所有请求压力都在 Primary 节点上，并且 Primary 节点需要消耗很多的网络带宽，因为要给每个 Backup 发送一份数据，这样 Primary 节点的 CPU 和网络都可能成为瓶颈。为了解决这个问题，[Chain Replication](https://pdos.csail.mit.edu/6.824/papers/cr-osdi04.pdf) 论文提供了另一个解决方案。
+但是 Primary/Backup 方法的所有请求压力都在 Primary 节点上，并且 Primary 节点需要消耗很多的网络带宽，因为要给每个 Backup 发送一份数据，这样 Primary 节点的 CPU 和网络都可能成为瓶颈。为了解决这个问题，[Chain Replication](<https://pdos.csail.mit.edu/6.824/papers/cr-osdi04.pdf>) 论文提供了另一个解决方案。
 
 它的思路是，既然不希望 Primary 成为瓶颈，那就把 Primary 的任务分担到多个节点上。具体来讲，Primary/Backup 方法中，读请求，读响应，写请求，写响应都发生在 Primary 节点上。而 Chain Replication 方法中，读请求，读响应，写响应发生在 Tail 节点上，写请求发生在 Head 节点上。这是怎么做的呢？
 
 Chain Replication 把节点串成一个链表，既然是链表，就有头节点 Head 和尾节点 Tail，写请求从 Head 流向 Tail，所以链表中的节点，越接近 Head 数据越新，越接近 Tail 数据越旧，这样只有到达 Tail 的数据是保存了 N 份，可以认为是写入完成的，所以由 Tail 来发送写响应。假如有三个节点，那么一次写请求的流程就是：
 
 1. 客户端发送写请求给节点 1（Head）
-1. 节点 1（Head）更新自己的数据，然后发送给节点 2
-1. 节点 2 更新自己的数据，然后发送给节点 3（Tail）
-1. 节点 3（Tail）更新自己的数据，发送写响应给客户端
+2. 节点 1（Head）更新自己的数据，然后发送给节点 2
+3. 节点 2 更新自己的数据，然后发送给节点 3（Tail）
+4. 节点 3（Tail）更新自己的数据，发送写响应给客户端
 
 和 Primary/Backup 方法进行对比的话，同样是一次写入，Primary/Backup 需要四步，Chain Replication 需要 N+1 步，所以如果 N 比较大了，那么 Chain Replication 的延迟也会比较大。但 Chain Replication 的好处在于解决了瓶颈，原来 Primary 的工作分散到了 Head 和 Tail，并且数据通过网络按照链表顺序一路往下传，可以很好地利用网络带宽。
 
-Ceph 的论文 [RADOS: A Scalable, Reliable Storage Service for Petabyte-scale Storage Clusters](https://ceph.com/assets/pdfs/weil-rados-pdsw07.pdf) 里画了一个图，对比了上面两种方法和 Splay Replication：
+Ceph 的论文 [RADOS: A Scalable, Reliable Storage Service for Petabyte-scale Storage Clusters](<https://ceph.com/assets/pdfs/weil-rados-pdsw07.pdf>) 里画了一个图，对比了上面两种方法和 Splay Replication：
 
 第一种 Primary-copy 也就是 Primary/Backup 方法，写请求需要四个 RTT，等到 Backup 都写入完成告知 Primary 以后，Primary 就可以响应读请求了。第二种 Chain 也就是 Chain Replication 方法，写请求需要 N+1 个 RTT，由于写请求到达 Tail 的时候已经保证了写入的一致性，所以随时可以读，不需要等到写入完成。第三种 Splay 结合了以上两种办法。

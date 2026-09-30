@@ -12,11 +12,11 @@
 
 倒腾了一下升级工具，发现需要离线安装，比较麻烦，我就干脆换 CentOS 了。
 
-### RHEL 6 -> CentOS 6
+### RHEL 6 -\> CentOS 6
 
 首先，把软件源都切换到 CentOS，这一步很简单，因为包都是一样的。只不过，因为 CentOS 6 在 centos-vault 里面，所以用起来比较麻烦。
 
-### CentOS 6 -> CentOS 7
+### CentOS 6 -\> CentOS 7
 
 由于 CentOS 6 到 CentOS 7 升级涉及的改动比较多，官方提供了一个升级工具。一开始，我想直接升级到 CentOS 7 最新版本，但是报错，看到网上说可以升级到 CentOS 7 的早期版本，试了一下，确实没问题。
 

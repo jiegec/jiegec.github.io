@@ -10,7 +10,7 @@
 
 环境：Debian Bookworm
 
-QEMU 启动流程，参考[官方文档](https://mirrors.wsyu.edu.cn/loongarch/archlinux/images/README.html)：
+QEMU 启动流程，参考[官方文档](<https://mirrors.wsyu.edu.cn/loongarch/archlinux/images/README.html>)：
 
 ```shell
 wget https://mirrors.wsyu.edu.cn/loongarch/archlinux/images/archlinux-xfce4-2023.05.10-loong64.qcow2.zst
@@ -70,25 +70,25 @@ Linux archlinux 6.3.0-12 #1 SMP Thu, 27 Apr 2023 12:24:56 +0000 loongarch64 GNU/
 LoongArch 分为三个版本：
 
 1. LoongArch 32 Reduced：精简版本，系统和用户态都是 32 位
-1. LoongArch 32：系统和用户态都是 32 位
-1. LoongArch 64：系统是 64 位，用户态可以是 32 位，也可以是 64 位
+2. LoongArch 32：系统和用户态都是 32 位
+3. LoongArch 64：系统是 64 位，用户态可以是 32 位，也可以是 64 位
 
 目前上游工具链支持的是 LoongArch 64。
 
 龙芯杯采用的是 LoongArch 32 Reduced 版本，相比 LoongArch 32 的区别有：
 
 1. 删掉了部分算术指令
-1. 删掉了位操作指令
-1. 删除了边界检查访存指令
-1. 删除了 Atomic 原子指令，只保留了 LL+SC
-1. 删除了部分浮点运算指令
-1. 删除了 IOCSR 访问指令
-1. 删除了软件页表遍历指令
-1. TLB Refill 异常的相关 CSR（ERA/BADV/PRMD/EHI/ELO0/ELO1/SAVE）不再单独提供一份，而是和其他异常共用
-1. 去掉了 STLB，只保留了 MTLB
-1. 去掉了部分 CSR
-1. 直接映射配置窗口数量砍到了两个
-1. 删除了 RAS，PMU，Watchpoint 和硬件调试功能
+2. 删掉了位操作指令
+3. 删除了边界检查访存指令
+4. 删除了 Atomic 原子指令，只保留了 LL+SC
+5. 删除了部分浮点运算指令
+6. 删除了 IOCSR 访问指令
+7. 删除了软件页表遍历指令
+8. TLB Refill 异常的相关 CSR（ERA/BADV/PRMD/EHI/ELO0/ELO1/SAVE）不再单独提供一份，而是和其他异常共用
+9. 去掉了 STLB，只保留了 MTLB
+10. 去掉了部分 CSR
+11. 直接映射配置窗口数量砍到了两个
+12. 删除了 RAS，PMU，Watchpoint 和硬件调试功能
 
 从用户态来看，主要是差了一些运算指令，需要编译器注意生成的指令范围。内核态上删减的比较多。
 
@@ -96,11 +96,11 @@ LoongArch 分为三个版本：
 
 龙芯提供了一些 LoongArch 32 Reduced 的工具链：
 
-1. GCC + Binutils：[loongarch32r-linux-gnusf-2022-05-20-x86.tar.gz](https://gitee.com/loongson-edu/la32r-toolchains/releases/download/v0.0.2/loongarch32r-linux-gnusf-2022-05-20-x86.tar.gz)，有源码。
-1. GDB：[loongarch32r-linux-gnusf-gdb-x86](https://gitee.com/loongson-edu/la32r-toolchains/releases/download/v0.0.2/loongarch32r-linux-gnusf-gdb-x86)，依赖的动态库较多，建议起一个 CentOS Docker。没有找到源码。
-1. QEMU：[qemu-system-loongarch32_centos_x86_64](https://gitee.com/loongson-edu/la32r-QEMU/releases/download/v0.0.1-alpha/qemu-system-loongarch32_centos_x86_64)，依赖的动态库较多，建议克隆下来自己编译：`mkdir build; cd build; ../configure --target-list=loongarch32-softmmu --disable-werror --enable-debug`
+1. GCC + Binutils：[loongarch32r-linux-gnusf-2022-05-20-x86.tar.gz](<https://gitee.com/loongson-edu/la32r-toolchains/releases/download/v0.0.2/loongarch32r-linux-gnusf-2022-05-20-x86.tar.gz>) ，有源码。
+2. GDB：[loongarch32r-linux-gnusf-gdb-x86](<https://gitee.com/loongson-edu/la32r-toolchains/releases/download/v0.0.2/loongarch32r-linux-gnusf-gdb-x86>)，依赖的动态库较多，建议起一个 CentOS Docker。没有找到源码。
+3. QEMU：[qemu-system-loongarch32\_centos\_x86\_64](<https://gitee.com/loongson-edu/la32r-QEMU/releases/download/v0.0.1-alpha/qemu-system-loongarch32_centos_x86_64>)，依赖的动态库较多，建议克隆下来自己编译：`mkdir build; cd build; ../configure --target-list=loongarch32-softmmu --disable-werror --enable-debug`
 
-在 [la32r-QEMU](https://gitee.com/loongson-edu/la32r-QEMU) 中运行 [la32r-Linux](https://gitee.com/loongson-edu/la32r-Linux/)：
+在 [la32r-QEMU](<https://gitee.com/loongson-edu/la32r-QEMU>) 中运行 [la32r-Linux](<https://gitee.com/loongson-edu/la32r-Linux/>)：
 
 ```shell
 wget https://gitee.com/loongson-edu/la32r-Linux/releases/download/v0.2/vmlinux
@@ -258,11 +258,11 @@ Processing /etc/profile... Done
 / #
 ```
 
-我在 la32r-QEMU 的基础上，把 LoongArch 32 Reduced 的支持部分移植到了 QEMU 8.0.0 上：<https://github.com/jiegec/qemu/commits/la32r-8.0.0>。
+我在 la32r-QEMU 的基础上，把 LoongArch 32 Reduced 的支持部分移植到了 QEMU 8.0.0 上：[https://github.com/jiegec/qemu/commits/la32r-8.0.0](<https://github.com/jiegec/qemu/commits/la32r-8.0.0>)。
 
 ### 用 crosstool-ng 自己编译一个 LoongArch 32 Reduced 工具链
 
-虽然龙芯给了编译好的交叉编译工具链，但还是想自己用 crosstool-ng 编译一个。完成的 crosstool-ng 配置见 [jiegec/crosstool-ng loongarch32r](https://github.com/jiegec/crosstool-ng/tree/loongarch32r)，这里记录一下折腾的过程。
+虽然龙芯给了编译好的交叉编译工具链，但还是想自己用 crosstool-ng 编译一个。完成的 crosstool-ng 配置见 [jiegec/crosstool-ng loongarch32r](<https://github.com/jiegec/crosstool-ng/tree/loongarch32r>)，这里记录一下折腾的过程。
 
 第一步是设置龙芯提供的源码，然后把 target 设置为 loongarch32r-unknown-linux-gnu：
 
@@ -366,7 +366,7 @@ int rtld_errno attribute_hidden;
 
 ```shell
 [ALL  ]      LC_ALL=C sed -n 's@^/home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/([^(]*)(([^)]*.os)) *.*$@1 2@p'     /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/elf/librtld.map | while read lib file; do   case $lib in   libc_pic.a)     LC_ALL=C fgrep -l /$file    /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/stamp.os /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/*/stamp.os |     LC_ALL=C     sed 's@^/home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/([^/]*)/stamp.os$@rtld-1'" +=$file@"    ;;   */*.a)     echo rtld-${lib%%/*} += $file ;;   *) echo "Wasn't expecting $lib($file)" >&2; exit 1 ;;   esac; done > /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/elf/librtld.mkT                  [ALL  ]      echo rtld-subdirs = `LC_ALL=C sed 's/^rtld-([^ ]*).*$/1/' /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/bu
-ild/build-libc/multilib/elf/librtld.mkT                    | LC_ALL=C sort -u` >> /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/elf/librtld.mkT
+ild/build-libc/multilib/elf/librtld.mkT                    | LC_ALL=C sort -u` >> /home/jiegec/ct-ng/.build/loongarch32r-unknown-linux-gnu/build/build-libc/multilib/elf/librtld.mkT 
 ```
 
 可以看到它是从 `librtld.map` 中解析依赖关系，然后生成 `rtld-modules`。查看 `librtld.map`：
@@ -415,7 +415,7 @@ extern __thread int __libc_errno __attribute__ ((alias ("errno")))
   attribute_hidden;
 ```
 
-可以看到，按理说应该是两个符号，后者是一个 alias。但实际生成符号的时候，没有了后者。此时对比一下另一个交叉编译工具链的源码，发现它没有 \_\_emutls_v 的前缀，符号也是正确的，因此在 crosstool-ng 中打开 TLS：
+可以看到，按理说应该是两个符号，后者是一个 alias。但实际生成符号的时候，没有了后者。此时对比一下另一个交叉编译工具链的源码，发现它没有 \_\_emutls\_v 的前缀，符号也是正确的，因此在 crosstool-ng 中打开 TLS：
 
 ```ini
 # target supports tls
@@ -432,7 +432,7 @@ CT_CC_GCC_CONFIG_TLS=y
 [ERROR]    collect2: error: ld returned 1 exit status                                                                             [E
 ```
 
-把命令抄下来，添加 --verbose 参数，会发现是因为 LIBRARY_ROOT 缺少 sysroot 下面的 usr/lib 路径，而它期望的路径是 sysrooot 下面的 lib32/sf 路径，所以出现这个问题。解决方法是，打开 MULTILIB 模式：
+把命令抄下来，添加 --verbose 参数，会发现是因为 LIBRARY\_ROOT 缺少 sysroot 下面的 usr/lib 路径，而它期望的路径是 sysrooot 下面的 lib32/sf 路径，所以出现这个问题。解决方法是，打开 MULTILIB 模式：
 
 ```ini
 # fix gcc crt1.o not found
@@ -446,15 +446,16 @@ CT_MULTILIB=y
 LoongArch 有两种虚实地址映射方法：
 
 1. 直接地址翻译模式（CSR.CRMD.DA=1，CSR.CRMD.PG=0），此时物理地址等于虚拟地址，如果虚拟地址位数更多，则截断高位。
-1. 映射地址翻译模式（CSR.CRMD.DA=0，CSR.CRMD.PG=1），此时按照顺序进行下面的翻译：
+2. 映射地址翻译模式（CSR.CRMD.DA=0，CSR.CRMD.PG=1），此时按照顺序进行下面的翻译：
+
    1. 直接映射模式：CSR.DMW 定义了四个（LA32R 只有两个）窗口，这些窗口内的虚拟地址与物理地址是平移的关系。
-   1. 页表映射模式：如果没有匹配上直接映射模式，则会查询 TLB。虽说是页表映射模式，但依然是 MIPS 传统的 TLB 做法。
+   2. 页表映射模式：如果没有匹配上直接映射模式，则会查询 TLB。虽说是页表映射模式，但依然是 MIPS 传统的 TLB 做法。
 
 相比 MIPS 来讲，LoongArch 的地址映射还是容易理解一些。
 
 从复位中出来的时候，CSR.CRMD.DA=1，CSR.CRMD.PG=0，意味着是直接地址翻译模式。PC 是 0x1C000000，由于是直接地址翻译模式，所以物理地址也是 0x1C000000。
 
-在遇到 TLB Refill 异常的时候，处理器会跳到 CSR.TLBRENTRY 的地址，同时进入直接地址翻译模式（CSR.CRMD.DA=1，CSR.CRMD.PG=0），意味着虚拟地址直接对应物理地址，所以此时需要做好相应的准备。LoongArch 提供了 lddir 和 ldpte 指令来加快页表到 TLB 项目的查询性能，例如下面是 [EDK2 的 TLB Refill 异常处理函数](https://github.com/tianocore/edk2-platforms/blob/4c3e742e931538a1ee6cb3b571b1281e7fba2564/Platform/Loongson/LoongArchQemuPkg/Library/MmuLib/Mmu.S#L37)：
+在遇到 TLB Refill 异常的时候，处理器会跳到 CSR.TLBRENTRY 的地址，同时进入直接地址翻译模式（CSR.CRMD.DA=1，CSR.CRMD.PG=0），意味着虚拟地址直接对应物理地址，所以此时需要做好相应的准备。LoongArch 提供了 lddir 和 ldpte 指令来加快页表到 TLB 项目的查询性能，例如下面是 [EDK2 的 TLB Refill 异常处理函数](<https://github.com/tianocore/edk2-platforms/blob/4c3e742e931538a1ee6cb3b571b1281e7fba2564/Platform/Loongson/LoongArchQemuPkg/Library/MmuLib/Mmu.S#L37>)：
 
 ```asm
 ASM_PFX(HandleTlbRefill):
@@ -476,61 +477,61 @@ ASM_PFX(HandleTlbRefill):
 
 CPU：
 
-- SMT: [6.5](https://github.com/torvalds/linux/commit/f6f0c9a74a48448583c3cb0f3f067bc3fe0f13c6)
-- LSX/LASX: [6.5](https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30)
-- CRC32 加速：[6.4](https://github.com/torvalds/linux/commit/2f1648220214d18168e55920c21014e71c2d5bbc)
+- SMT: [6.5](<https://github.com/torvalds/linux/commit/f6f0c9a74a48448583c3cb0f3f067bc3fe0f13c6>)
+- LSX/LASX: [6.5](<https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30>)
+- CRC32 加速：[6.4](<https://github.com/torvalds/linux/commit/2f1648220214d18168e55920c21014e71c2d5bbc>)
 
-| 功能     | 3A5000                                                                                         | 3A6000                                                                                         |
-| -------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| SMT      | N/A                                                                                            | [6.5](https://github.com/torvalds/linux/commit/f6f0c9a74a48448583c3cb0f3f067bc3fe0f13c6)       |
-| LSX/LASX | [6.5](https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30)       | [6.5](https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30)       |
-| LBT      | [WIP](https://github.com/loongarchlinux/linux/commit/833b4e93b2f9a86522e7ae1f92ba05812cb3a382) | [WIP](https://github.com/loongarchlinux/linux/commit/833b4e93b2f9a86522e7ae1f92ba05812cb3a382) |
+| 功能 | 3A5000 | 3A6000 |
+| --- | --- | --- |
+| SMT | N/A | [6.5](<https://github.com/torvalds/linux/commit/f6f0c9a74a48448583c3cb0f3f067bc3fe0f13c6>) |
+| LSX/LASX | [6.5](<https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30>) | [6.5](<https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30>) |
+| LBT | [WIP](<https://github.com/loongarchlinux/linux/commit/833b4e93b2f9a86522e7ae1f92ba05812cb3a382>) | [WIP](<https://github.com/loongarchlinux/linux/commit/833b4e93b2f9a86522e7ae1f92ba05812cb3a382>) |
 
 桥片：
 
-- RTC(LOON0001): RTC_DRV_LOONGSON [6.5](https://github.com/torvalds/linux/commit/1b733a9ebc3d8011ca66ec6ff17f55a440358794)
-- GPIO(LOON0002): GPIO_LOONGSON_64BIT [6.4](https://github.com/torvalds/linux/commit/7944d3b7fe86067509751473aa917fdfd662d92c)
-- I2C(LOON0004): I2C_LS2X [6.3](https://github.com/torvalds/linux/commit/015e61f0bffd46600496e50d3b2298f51f6b11a8)
-- GMAC(0014:7a03): [5.14](https://github.com/torvalds/linux/commit/30bba69d7db40e732d6c0aa6d4890c60d717e314)
-- GNET(0014:7a13): [WIP](https://github.com/loongarchlinux/linux/commit/2a948c4b7bc5cc2689e2d0edfe83b4980b81b9ad)
+- RTC(LOON0001): RTC\_DRV\_LOONGSON [6.5](<https://github.com/torvalds/linux/commit/1b733a9ebc3d8011ca66ec6ff17f55a440358794>)
+- GPIO(LOON0002): GPIO\_LOONGSON\_64BIT [6.4](<https://github.com/torvalds/linux/commit/7944d3b7fe86067509751473aa917fdfd662d92c>)
+- I2C(LOON0004): I2C\_LS2X [6.3](<https://github.com/torvalds/linux/commit/015e61f0bffd46600496e50d3b2298f51f6b11a8>)
+- GMAC(0014:7a03): [5.14](<https://github.com/torvalds/linux/commit/30bba69d7db40e732d6c0aa6d4890c60d717e314>)
+- GNET(0014:7a13): [WIP](<https://github.com/loongarchlinux/linux/commit/2a948c4b7bc5cc2689e2d0edfe83b4980b81b9ad>)
 - EHCI(0014:7a14): ok
 - OHCI(0014:7a24): ok
 - XHCI(0014:7a34): ok
 - GPU1(0014:7a15): ?
 - GPU2(0014:7a25): ?
-- Display Controller 1(0014:7a06): [WIP](https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634)
-- Display Controller 2(0014:7a36): [WIP](https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634)
-- HD-Audio(0014:7a07): [6.5](https://github.com/torvalds/linux/commit/28bd137a3c8e105587ba8c55b68ef43b519b270f)
+- Display Controller 1(0014:7a06): [WIP](<https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634>)
+- Display Controller 2(0014:7a36): [WIP](<https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634>)
+- HD-Audio(0014:7a07): [6.5](<https://github.com/torvalds/linux/commit/28bd137a3c8e105587ba8c55b68ef43b519b270f>)
 - AC97(0014:7a17): ?
 - I2S(0014:7a27): ?
-- SATA(0014:7a[01]8): ok
-- PCIE(0014:7a[0-6]9): ok
-- SPI1(0014:7a0b): [WIP](https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec)
-- SPI2(0014:7a1b): [WIP](https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec)
+- SATA(0014:7a\[01\]8): ok
+- PCIE(0014:7a\[0-6\]9): ok
+- SPI1(0014:7a0b): [WIP](<https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec>)
+- SPI2(0014:7a1b): [WIP](<https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec>)
 - LPC(0014:7a0c): ?
 
-| 功能                | 7A1000                                                                                         | 7A2000                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| RTC(LOON0001)       | [6.5](https://github.com/torvalds/linux/commit/1b733a9ebc3d8011ca66ec6ff17f55a440358794)       | [6.5](https://github.com/torvalds/linux/commit/1b733a9ebc3d8011ca66ec6ff17f55a440358794)       |
-| GPIO(LOON0002)      | [6.4](https://github.com/torvalds/linux/commit/7944d3b7fe86067509751473aa917fdfd662d92c)       | [6.4](https://github.com/torvalds/linux/commit/7944d3b7fe86067509751473aa917fdfd662d92c)       |
-| I2C(LOON0004)       | [6.3](https://github.com/torvalds/linux/commit/015e61f0bffd46600496e50d3b2298f51f6b11a8)       | [6.3](https://github.com/torvalds/linux/commit/015e61f0bffd46600496e50d3b2298f51f6b11a8)       |
-| GMAC(0014:7a03)     | [5.14](https://github.com/torvalds/linux/commit/30bba69d7db40e732d6c0aa6d4890c60d717e314)      | N/A                                                                                            |
-| GNET(0014:7a13)     | N/A                                                                                            | [WIP](https://github.com/loongarchlinux/linux/commit/2a948c4b7bc5cc2689e2d0edfe83b4980b81b9ad) |
-| EHCI(0014:7a14)     | OK                                                                                             | OK                                                                                             |
-| OHCI(0014:7a24)     | OK                                                                                             | OK                                                                                             |
-| XHCI(0014:7a34)     | N/A                                                                                            | OK                                                                                             |
-| GPU1(0014:7a15)     | ?                                                                                              | N/A                                                                                            |
-| GPU2(0014:7a25)     | N/A                                                                                            | ?                                                                                              |
-| DC1(0014:7a06)      | [WIP](https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634) | N/A                                                                                            |
-| DC2(0014:7a36)      | N/A                                                                                            | [WIP](https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634) |
-| HDA(0014:7a07)      | [6.5](https://github.com/torvalds/linux/commit/28bd137a3c8e105587ba8c55b68ef43b519b270f)       | [6.5](https://github.com/torvalds/linux/commit/28bd137a3c8e105587ba8c55b68ef43b519b270f)       |
-| AC97(0014:7a17)     | ?                                                                                              | N/A                                                                                            |
-| I2S(0014:7a27)      | N/A                                                                                            | ?                                                                                              |
-| SATA(0014:7a[01]8)  | OK                                                                                             | OK                                                                                             |
-| PCIE(0014:7a[0-6]9) | OK                                                                                             | OK                                                                                             |
-| SPI1(0014:7a0b)     | [WIP](https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec) | N/A                                                                                            |
-| SPI2(0014:7a1b)     | N/A                                                                                            | [WIP](https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec) |
-| LPC(0014:7a0c)      | ?                                                                                              | ?                                                                                              |
+| 功能 | 7A1000 | 7A2000 |
+| --- | --- | --- |
+| RTC(LOON0001) | [6.5](<https://github.com/torvalds/linux/commit/1b733a9ebc3d8011ca66ec6ff17f55a440358794>) | [6.5](<https://github.com/torvalds/linux/commit/1b733a9ebc3d8011ca66ec6ff17f55a440358794>) |
+| GPIO(LOON0002) | [6.4](<https://github.com/torvalds/linux/commit/7944d3b7fe86067509751473aa917fdfd662d92c>) | [6.4](<https://github.com/torvalds/linux/commit/7944d3b7fe86067509751473aa917fdfd662d92c>) |
+| I2C(LOON0004) | [6.3](<https://github.com/torvalds/linux/commit/015e61f0bffd46600496e50d3b2298f51f6b11a8>) | [6.3](<https://github.com/torvalds/linux/commit/015e61f0bffd46600496e50d3b2298f51f6b11a8>) |
+| GMAC(0014:7a03) | [5.14](<https://github.com/torvalds/linux/commit/30bba69d7db40e732d6c0aa6d4890c60d717e314>) | N/A |
+| GNET(0014:7a13) | N/A | [WIP](<https://github.com/loongarchlinux/linux/commit/2a948c4b7bc5cc2689e2d0edfe83b4980b81b9ad>) |
+| EHCI(0014:7a14) | OK | OK |
+| OHCI(0014:7a24) | OK | OK |
+| XHCI(0014:7a34) | N/A | OK |
+| GPU1(0014:7a15) | ? | N/A |
+| GPU2(0014:7a25) | N/A | ? |
+| DC1(0014:7a06) | [WIP](<https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634>) | N/A |
+| DC2(0014:7a36) | N/A | [WIP](<https://github.com/loongarchlinux/linux/commit/80451b416383082c715d60c6689fda71b5159634>) |
+| HDA(0014:7a07) | [6.5](<https://github.com/torvalds/linux/commit/28bd137a3c8e105587ba8c55b68ef43b519b270f>) | [6.5](<https://github.com/torvalds/linux/commit/28bd137a3c8e105587ba8c55b68ef43b519b270f>) |
+| AC97(0014:7a17) | ? | N/A |
+| I2S(0014:7a27) | N/A | ? |
+| SATA(0014:7a\[01\]8) | OK | OK |
+| PCIE(0014:7a\[0-6\]9) | OK | OK |
+| SPI1(0014:7a0b) | [WIP](<https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec>) | N/A |
+| SPI2(0014:7a1b) | N/A | [WIP](<https://github.com/loongarchlinux/linux/commit/be0359f602ec7d5c99c4c65ce1ee6ee0f7d1a7ec>) |
+| LPC(0014:7a0c) | ? | ? |
 
 PCIe device id:
 
@@ -550,8 +551,8 @@ PCIe device id:
 - AC97: 7a17
 - I2S: 7a27, `linux/sound/soc/loongson/loongson_i2s_pci.c`
 - HDMI: 7a37, `linux/include/linux/pci_ids.h`, `linux/drivers/pci/controller/pci-loongson.c`
-- AHCI: 7a[01]8, `linux/drivers/pci/controller/pci-loongson.c`
-- SPI: 7a[01]b, `linux/drivers/spi/spi-loongson-pci.c`
+- AHCI: 7a\[01\]8, `linux/drivers/pci/controller/pci-loongson.c`
+- SPI: 7a\[01\]b, `linux/drivers/spi/spi-loongson-pci.c`
 - LPC: 7a0c, `linux/drivers/pci/controller/pci-loongson.c`
 - RIO: 7a1d
 - DMA: 7a0f
@@ -559,38 +560,49 @@ PCIe device id:
 
 ## LSX/LASX 相关进展
 
-- GCC：WIP [Add Loongson SX/ASX instruction support to LoongArch target.](https://patchwork.ozlabs.org/project/gcc/list/?series=370124&state=%2A&archive=both)
+- GCC：WIP [Add Loongson SX/ASX instruction support to LoongArch target.](<https://patchwork.ozlabs.org/project/gcc/list/?series=370124&amp;state=%2A&amp;archive=both>)
 - LLVM:
-  - 18 [[LoongArch] Add LASX intrinsic support](https://github.com/llvm/llvm-project/commit/691f0d00b84f6ecaf8e341ef38256e939cca6b1e)
-  - 18 [[LoongArch] Add LSX intrinsic support](https://github.com/llvm/llvm-project/commit/53141b2fcfa20616970833e6513537d211116c05)
-  - 17 [[LoongArch] Support InlineAsm for LSX and LASX](https://github.com/llvm/llvm-project/commit/d25c79dc70008b835312e5cc7ef48b199fda3165)
-  - 17 [[LoongArch] Add definition for LASX instructions](https://github.com/llvm/llvm-project/commit/f3d18b9dc6f73755b58df5f06fcae992322aeaed)
-  - 17 [[LoongArch] Add definition for LSX instructions](https://github.com/llvm/llvm-project/commit/1aa3b64ed2781f064a40b0f9bd196a1265f50b3c)
+
+  - 18 [\[LoongArch\] Add LASX intrinsic support](<https://github.com/llvm/llvm-project/commit/691f0d00b84f6ecaf8e341ef38256e939cca6b1e>)
+  - 18 [\[LoongArch\] Add LSX intrinsic support](<https://github.com/llvm/llvm-project/commit/53141b2fcfa20616970833e6513537d211116c05>)
+  - 17 [\[LoongArch\] Support InlineAsm for LSX and LASX](<https://github.com/llvm/llvm-project/commit/d25c79dc70008b835312e5cc7ef48b199fda3165>)
+  - 17 [\[LoongArch\] Add definition for LASX instructions](<https://github.com/llvm/llvm-project/commit/f3d18b9dc6f73755b58df5f06fcae992322aeaed>)
+  - 17 [\[LoongArch\] Add definition for LSX instructions](<https://github.com/llvm/llvm-project/commit/1aa3b64ed2781f064a40b0f9bd196a1265f50b3c>)
 - Binutils:
-  - 2.41 [LoongArch: Add LSX and LASX instructions support](https://sourceware.org/pipermail/binutils/2023-June/127990.html)
+
+  - 2.41 [LoongArch: Add LSX and LASX instructions support](<https://sourceware.org/pipermail/binutils/2023-June/127990.html>)
 - Glibc:
-  - 2.39 [String acceleration](https://sourceware.org/pipermail/libc-alpha/2023-August/150671.html)
+
+  - 2.39 [String acceleration](<https://sourceware.org/pipermail/libc-alpha/2023-August/150671.html>)
 - Linux:
-  - 6.5 [LoongArch: Add vector extensions support](https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30)
-  - 6.6 [LoongArch: Add SIMD-optimized XOR routines](https://lore.kernel.org/linux-raid/20230801081335.523097-1-kernel@xen0n.name/)
+
+  - 6.5 [LoongArch: Add vector extensions support](<https://github.com/torvalds/linux/commit/616500232e632dba8b03981eeccadacf2fbf1c30>)
+  - 6.6 [LoongArch: Add SIMD-optimized XOR routines](<https://lore.kernel.org/linux-raid/20230801081335.523097-1-kernel@xen0n.name/>)
 - OpenBLAS:
-  - 0.3.24 [LoongArch64: Add sgemm_kernel](https://github.com/xianyi/OpenBLAS/pull/4200)
-  - 0.3.24 [LoongArch64: Update dgemm kernel](https://github.com/xianyi/OpenBLAS/pull/4158)
-  - 0.3.24 [LoongArch64: Add dgemv_t_8_lasx.S and dgemv_n_8_lasx.S](https://github.com/xianyi/OpenBLAS/pull/4153)
-  - 0.3.20 [loongarch64: Optimize dgemm_kernel](https://github.com/xianyi/OpenBLAS/pull/3491)
+
+  - 0.3.24 [LoongArch64: Add sgemm\_kernel](<https://github.com/xianyi/OpenBLAS/pull/4200>)
+  - 0.3.24 [LoongArch64: Update dgemm kernel](<https://github.com/xianyi/OpenBLAS/pull/4158>)
+  - 0.3.24 [LoongArch64: Add dgemv\_t\_8\_lasx.S and dgemv\_n\_8\_lasx.S](<https://github.com/xianyi/OpenBLAS/pull/4153>)
+  - 0.3.20 [loongarch64: Optimize dgemm\_kernel](<https://github.com/xianyi/OpenBLAS/pull/3491>)
 - OpenJPEG:
-  - WIP [Add loongarch 256-bit LASX SIMD optimization](https://github.com/uclouvain/openjpeg/pull/1458)
+
+  - WIP [Add loongarch 256-bit LASX SIMD optimization](<https://github.com/uclouvain/openjpeg/pull/1458>)
 - x264:
-  - WIP [loongarch: support LoongArch LSX and LASX optimization](https://code.videolan.org/videolan/x264/-/merge_requests/124)
+
+  - WIP [loongarch: support LoongArch LSX and LASX optimization](<https://code.videolan.org/videolan/x264/-/merge_requests/124>)
 - OpenH264:
-  - [add simd optimizations and fix for loongarch](https://github.com/cisco/openh264/pull/3649)
-  - [Add LoongArch SIMD.](https://github.com/cisco/openh264/pull/3587)
+
+  - [add simd optimizations and fix for loongarch](<https://github.com/cisco/openh264/pull/3649>)
+  - [Add LoongArch SIMD.](<https://github.com/cisco/openh264/pull/3587>)
 - OpenSSL:
-  - 3.1.0 [Add vpaes-loongarch64.pl module.](https://github.com/openssl/openssl/commit/ef917549f5867d269d359155ff67b8ccb5e66a76)
+
+  - 3.1.0 [Add vpaes-loongarch64.pl module.](<https://github.com/openssl/openssl/commit/ef917549f5867d269d359155ff67b8ccb5e66a76>)
 - PCRE2:
-  - WIP [jit: Add LoongArch SX 128 bit SIMD Support.](https://github.com/PCRE2Project/pcre2/pull/290)
+
+  - WIP [jit: Add LoongArch SX 128 bit SIMD Support.](<https://github.com/PCRE2Project/pcre2/pull/290>)
 - libjpeg-turbo:
-  - WIP [LoongArch64 LSX and LASX SIMD implementation.](https://github.com/libjpeg-turbo/libjpeg-turbo/pull/689)
+
+  - WIP [LoongArch64 LSX and LASX SIMD implementation.](<https://github.com/libjpeg-turbo/libjpeg-turbo/pull/689>)
 
 ## 未来产品
 

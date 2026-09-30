@@ -2,7 +2,7 @@
 
 ## 背景
 
-之前用的 newifi 路由器（Lenovo y1s）无线网总是出问题，于是换了一个新的支持 802.11ax 的路由器 Linksys E8450，目前在 openwrt snapshot 支持。Openwrt 的支持页面：[Linksys E8450](https://openwrt.org/toh/linksys/linksys_e8450)。
+之前用的 newifi 路由器（Lenovo y1s）无线网总是出问题，于是换了一个新的支持 802.11ax 的路由器 Linksys E8450，目前在 openwrt snapshot 支持。Openwrt 的支持页面：[Linksys E8450](<https://openwrt.org/toh/linksys/linksys_e8450>)。
 
 ## 过程
 
@@ -12,9 +12,9 @@
 $ wget https://downloads.openwrt.org/snapshots/targets/mediatek/mt7622/openwrt-mediatek-mt7622-linksys_e8450-squashfs-sysupgrade.bin
 ```
 
-更新（2023-02-27）：固件已经从 snapshot 进入正式版，下载链接为 <https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-squashfs-sysupgrade.bin>。如果已经替换为 UBI，则使用 <https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-ubi-squashfs-sysupgrade.itb> 固件。
+更新（2023-02-27）：固件已经从 snapshot 进入正式版，下载链接为 [https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys\_e8450-squashfs-sysupgrade.bin](<https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-squashfs-sysupgrade.bin>)。如果已经替换为 UBI，则使用 [https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys\_e8450-ubi-squashfs-sysupgrade.itb](<https://downloads.openwrt.org/releases/22.03.3/targets/mediatek/mt7622/openwrt-22.03.3-mediatek-mt7622-linksys_e8450-ubi-squashfs-sysupgrade.itb>) 固件。
 
-然后访问固件升级页面：http://192.168.1.1/config-admin-firmware.html#firmware，选择下载的 bin 文件。点击“开始升级”，然后等待。一段时间后，ssh 到路由器：
+然后访问固件升级页面：http://192.168.1.1/config-admin-firmware.html\#firmware，选择下载的 bin 文件。点击“开始升级”，然后等待。一段时间后，ssh 到路由器：
 
 ```shell
 $ ssh root@192.168.1.1
@@ -63,8 +63,8 @@ root@OpenWrt:/# /etc/init.d/network restart
 'radio0' is disabled
 ```
 
-注：实际上设置为 HE 开头的字符串即可，见 [mac80211.sh](https://github.com/openwrt/openwrt/blob/8019c54d8a191cfb90c3bf06ff367f601f872fd1/package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh#L334)。
+注：实际上设置为 HE 开头的字符串即可，见 [mac80211.sh](<https://github.com/openwrt/openwrt/blob/8019c54d8a191cfb90c3bf06ff367f601f872fd1/package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh#L334>)。
 
-再连接上 Wi-Fi 的时候就可以看到是 802.11ax 模式了。也在 [OpenWRT 论坛](https://forum.openwrt.org/t/got-802-11ax-working-in-linksys-e8450/91533) 上分享了一下这个方案。
+再连接上 Wi-Fi 的时候就可以看到是 802.11ax 模式了。也在 [OpenWRT 论坛](<https://forum.openwrt.org/t/got-802-11ax-working-in-linksys-e8450/91533>) 上分享了一下这个方案。
 
 更新（2021-07-31）：目前最新的 luci 版本已经可以在网页上配置 802.11ax 模式了。

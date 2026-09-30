@@ -20,4 +20,4 @@ $ LANG="en_US.UTF-8" sort poc.txt | tr '\\n' ' '
 网上也有关于这个问题的讨论：
 
 1. https://unix.stackexchange.com/questions/75341/specify-the-sort-order-with-lc-collate-so-lowercase-is-before-uppercase
-1. https://stackoverflow.com/questions/43448655/weird-behavior-of-bash-glob-regex-ranges
+2. https://stackoverflow.com/questions/43448655/weird-behavior-of-bash-glob-regex-ranges

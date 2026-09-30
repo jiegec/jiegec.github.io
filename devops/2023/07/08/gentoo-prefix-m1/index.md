@@ -2,11 +2,11 @@
 
 ## 背景
 
-上一次折腾 Gentoo/Prefix 是[五年多以前](https://jia.je/devops/2017/12/27/try-gentoo-prefix-on-macOS/index.md)，当时还是用的 Intel Mac，最近需要探索一下在现在的 macOS 系统上用 Gentoo/Prefix 会遇到哪些问题，因此今天在 Apple M1 上重新尝试一次。
+上一次折腾 Gentoo/Prefix 是[五年多以前](<https://jia.je/blog/posts/devops/try-gentoo-prefix-on-macOS/index.md>)，当时还是用的 Intel Mac，最近需要探索一下在现在的 macOS 系统上用 Gentoo/Prefix 会遇到哪些问题，因此今天在 Apple M1 上重新尝试一次。
 
 ## 安装
 
-按照[官网](https://wiki.gentoo.org/wiki/Project:Prefix/Bootstrap)的文档，下载脚本并运行：
+按照[官网](<https://wiki.gentoo.org/wiki/Project:Prefix/Bootstrap>)的文档，下载脚本并运行：
 
 ```shell
 wget https://gitweb.gentoo.org/repo/proj/prefix.git/plain/scripts/bootstrap-prefix.sh
@@ -44,7 +44,7 @@ Undefined symbols for architecture arm64:
 ld: symbol(s) not found for architecture arm64
 ```
 
-是在编译 python3.11.3 的时候遇到的问题，经过一番搜索，发现有一个错误信息比较相关：[dev-lang/python-3.11.3: bootstrap-prefix.sh stage3 fails (on MacOS/Darwin)](https://bugs.gentoo.org/906507)，也是在编译 python3.11.3 的时候出错，只不过错误信息不太一样。
+是在编译 python3.11.3 的时候遇到的问题，经过一番搜索，发现有一个错误信息比较相关：[dev-lang/python-3.11.3: bootstrap-prefix.sh stage3 fails (on MacOS/Darwin)](<https://bugs.gentoo.org/906507>)，也是在编译 python3.11.3 的时候出错，只不过错误信息不太一样。
 
 我看到这个 bug report 时，里面说问题在新的 commit 已经修复了，但是我仔细看了一下，修复的时间正好在我跑 bootstrap 脚本后几个小时，也就是说我跑的版本是修复前的版本。于是我重新下载了最新版，重新 bootstrap，又等了两个小时，还是出现了同样的问题，说明问题并没有被解决。
 

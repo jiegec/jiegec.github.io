@@ -11,9 +11,9 @@
 实现主要参考官方的仓库：https://github.com/fluent/fluentd-kubernetes-daemonset。它把一些常用的插件打包到 docker 镜像中，然后提供了一些默认的设置，比如获取 k8s 日志和 pod 日志等等。为了达到我的需求，我希望：
 
 1. 每个结点上有一个 fluentd 收集日志，forward 到单独的 log server 上的 fluentd
-1. log server 上的 fluentd 把收到的日志保存到文件
+2. log server 上的 fluentd 把收到的日志保存到文件
 
-由于 log server 不由 k8s 管理，所以按照[官网](https://docs.fluentd.org/installation/install-by-deb)的方式手动安装：
+由于 log server 不由 k8s 管理，所以按照[官网](<https://docs.fluentd.org/installation/install-by-deb>)的方式手动安装：
 
 ```shell
 curl -fsSL https://toolbelt.treasuredata.com/sh/install-debian-bookworm-fluent-package5.sh | sh
@@ -161,7 +161,7 @@ data:
 和原版有几点细节上的不同：
 
 1. k8s 启用了 rbac，所以需要对应的配置；照着仓库里其他带 rbac 配置的文件抄一下即可。
-1. 禁用了 SYSTEMD 日志的抓取，因为我用的是 k3s，而不是 kubeadm，自然找不到 kubelet 的 systemd service。
-1. 覆盖了 container 日志的读取，因为使用的 container runtime 日志格式和默认的不同，这部分设置在仓库的 README 中也有提到。
+2. 禁用了 SYSTEMD 日志的抓取，因为我用的是 k3s，而不是 kubeadm，自然找不到 kubelet 的 systemd service。
+3. 覆盖了 container 日志的读取，因为使用的 container runtime 日志格式和默认的不同，这部分设置在仓库的 README 中也有提到。
 
 部署到 k8s 中即可。为了保证日志的准确性，建议各个结点都保持 NTP 的同步。

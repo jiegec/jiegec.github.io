@@ -1,4 +1,4 @@
-# "@微信 SDK 开发者，发现一个 BUG~"
+# "@微信 SDK 开发者，发现一个 BUG\~"
 
 迁移自本人在 CSDN 上的博客：https://blog.csdn.net/build7601/article/details/39826065
 

@@ -6,23 +6,23 @@
 
 ## 基本概念
 
-SPEC CPU 2006 分 int 和 fp 两种，又分不同的模式（见 [Q15. What is the difference between a "rate" and a "speed" metric?](https://www.spec.org/cpu2006/Docs/readme1st.html#Q15)）：
+SPEC CPU 2006 分 int 和 fp 两种，又分不同的模式（见 [Q15. What is the difference between a "rate" and a "speed" metric?](<https://www.spec.org/cpu2006/Docs/readme1st.html#Q15>)）：
 
 1. speed：跑单进程，看看单进程多少时间能完成，测试完成单个任务的时间；不开 OpenMP，但是编译器可以自动并行化（ICC）
-1. rate：跑多进程，看看单位时间内能跑多少个任务，测试完成多个任务的吞吐量
+2. rate：跑多进程，看看单位时间内能跑多少个任务，测试完成多个任务的吞吐量
 
 注：SPEC CPU 2017 稍有不同，speed 允许开 OpenMP，rate 除了 xz 以外不允许开 OpenMP。比单核性能，要么用单线程的 speed（speed 要求单进程），要么用单 copy 的 rate（rate 要求单线程）。
 
-根据编译选项的不同，分为（见 [Q14. What is the difference between a "base" metric and a "peak" metric?](https://www.spec.org/cpu2006/Docs/readme1st.html#Q14)）：
+根据编译选项的不同，分为（见 [Q14. What is the difference between a "base" metric and a "peak" metric?](<https://www.spec.org/cpu2006/Docs/readme1st.html#Q14>)）：
 
 1. base：所有测例都用同样的优化选项
-1. peak：不同测例可以用不同的优化选项
+2. peak：不同测例可以用不同的优化选项
 
 spec cpu int 2006 有 12 个 benchmark，spec cpu fp 2006 有 17 个 benchmark。
 
 ## 安装
 
-首先需要获取一份 cpu2006-1.2.iso 文件，md5 可以在 [官网](https://www.spec.org/md5sums.html) 上查到。在 Linux 环境下，mount 这个 iso 并运行里面的 install.sh：
+首先需要获取一份 cpu2006-1.2.iso 文件，md5 可以在 [官网](<https://www.spec.org/md5sums.html>) 上查到。在 Linux 环境下，mount 这个 iso 并运行里面的 install.sh：
 
 ```shell
 mount cpu2006-1.2.iso /mnt
@@ -39,7 +39,7 @@ source ./shrc
 
 ## 配置和运行
 
-接着，需要按照 [SPEC CPU2006 Config Files](https://www.spec.org/cpu2006/Docs/config.html) 的文档编写配置文件。编辑 `config/default.cfg`，写一个基本的配置：
+接着，需要按照 [SPEC CPU2006 Config Files](<https://www.spec.org/cpu2006/Docs/config.html>) 的文档编写配置文件。编辑 `config/default.cfg`，写一个基本的配置：
 
 ```text
 # run one iteration
@@ -62,7 +62,7 @@ FOPTIMIZE = -O2
 runspec bzip2
 ```
 
-运行几分钟后，就可以在 result 目录下看到结果，可以看到 bzip2 单项的结果。接下来，尝试运行完整的 SPECint_base2006，修改 `config/default.cfg`：
+运行几分钟后，就可以在 result 目录下看到结果，可以看到 bzip2 单项的结果。接下来，尝试运行完整的 SPECint\_base2006，修改 `config/default.cfg`：
 
 ```text
 # match spec result standard
@@ -101,7 +101,7 @@ pp_sys.c:4489:42: error: invalid use of undefined type 'struct tm'
       |                                          ^~
 ```
 
-这是因为没有 include time.h，阅读 perlbench 下面的 spec_config.h，可知需要给 perlbench 传单独的编译参数。修改 `config/default.cfg`，添加如下部分：
+这是因为没有 include time.h，阅读 perlbench 下面的 spec\_config.h，可知需要给 perlbench 传单独的编译参数。修改 `config/default.cfg`，添加如下部分：
 
 ```text
 # fix compilation
@@ -119,7 +119,7 @@ Opcode.c:(.text+0x1b60): multiple definition of `ferror_unlocked'; av.o:av.c:(.t
 collect2: error: ld returned 1 exit status
 ```
 
-在网上查找，发现在 [SPEC 2017 FAQ](https://www.spec.org/cpu2017/Docs/faq.html) 里有解决方案，虽然用的是 CPU 2006，但是也一样适用，修改 `config/default.cfg`：
+在网上查找，发现在 [SPEC 2017 FAQ](<https://www.spec.org/cpu2017/Docs/faq.html>) 里有解决方案，虽然用的是 CPU 2006，但是也一样适用，修改 `config/default.cfg`：
 
 ```text
 # optimization flags for base
@@ -198,7 +198,7 @@ aldeci.fppized.f:1674:72:
 Error: Type mismatch in argument 'ifa' at (1); passed REAL(8) to INTEGER(4)
 ```
 
-参考 [Disable argument-mismatch errors for SPEC CPU2006 416.gamess for GCC >= 8](https://github.com/advancetoolchain/advance-toolchain/issues/549)，添加编译选项 `-std=legacy` 来解决：
+参考 [Disable argument-mismatch errors for SPEC CPU2006 416.gamess for GCC \>= 8](<https://github.com/advancetoolchain/advance-toolchain/issues/549>)，添加编译选项 `-std=legacy` 来解决：
 
 ```text
 # optimization flags for base
@@ -301,7 +301,7 @@ CPORTABILITY = -DSPEC_CPU_CASE_FLAG -DSPEC_CPU_LINUX
 
 ## 其他 ISA
 
-如果想在 AArch64 上跑，那么安装的时候会发现缺少 prebuilt 的 tools 二进制，此时就要手动按照 [Building the SPEC CPU2006 Tool Suite](https://www.spec.org/cpu2006/Docs/tools-build.html) 进行编译：
+如果想在 AArch64 上跑，那么安装的时候会发现缺少 prebuilt 的 tools 二进制，此时就要手动按照 [Building the SPEC CPU2006 Tool Suite](<https://www.spec.org/cpu2006/Docs/tools-build.html>) 进行编译：
 
 ```shell
 cd tools/src
@@ -310,7 +310,7 @@ cd tools/src
 
 需要注意，这一步需要修改文件系统，所以如果之前是直接 mount ISO，要先复制一份，此外还要把权限改成可写（`chmod -R u+w`）。
 
-运行的时候会遇到错误，可以参考 [Build SPEC CPU2006 in riscv64 linux](https://github.com/GQBBBB/GQBBBB.github.io/issues/10) 解决，riscv64 和 aarch64 的解决方法是类似的：
+运行的时候会遇到错误，可以参考 [Build SPEC CPU2006 in riscv64 linux](<https://github.com/GQBBBB/GQBBBB.github.io/issues/10>) 解决，riscv64 和 aarch64 的解决方法是类似的：
 
 1. 替换源代码下的几个 config.guess 和 config.sub（在 expat-2.0.1/conftools，make-3.82/config，rxp-1.5.0，specinvoke，specsum/build-aux，tar-1.25/build-aux，xz-5.0.0/build-aux 目录下），解决不认识 aarch64 target triple 的问题
 
@@ -325,8 +325,7 @@ cd tools/src
    cp config.* tar-1.25/build-aux/
    cp config.* xz-5.0.0/build-aux/
    ```
-
-1. 修改 `make-3.82/glob/glob.c`，把 `# if _GNU_GLOB_INTERFACE_VERSION == GLOB_INTERFACE_VERSION` 改成 `# if _GNU_GLOB_INTERFACE_VERSION >= GLOB_INTERFACE_VERSION`，禁用 make 自带的 glob 实现，解决 alloca 和 stat 的问题
+2. 修改 `make-3.82/glob/glob.c`，把 `# if _GNU_GLOB_INTERFACE_VERSION == GLOB_INTERFACE_VERSION` 改成 `# if _GNU_GLOB_INTERFACE_VERSION >= GLOB_INTERFACE_VERSION`，禁用 make 自带的 glob 实现，解决 alloca 和 stat 的问题
 
    ```diff
    @@ -52,7 +52,7 @@
@@ -339,8 +338,7 @@ cd tools/src
     # endif
     #endif
    ```
-
-1. 修改 `make-3.82/make.h`，在 `struct rlimit stack_limit;` 前面添加 `extern`，解决 -fno-common 的问题
+3. 修改 `make-3.82/make.h`，在 `struct rlimit stack_limit;` 前面添加 `extern`，解决 -fno-common 的问题
 
    ```diff
    @@ -344,7 +344,7 @@
@@ -353,8 +351,7 @@ cd tools/src
 
     struct floc
    ```
-
-1. 修改 `make-3.82/dir.c`，在 `dir_setup_glob` 函数里添加一句 `gl->gl_lstat = lstat;`，解决 `make: ./file.c:158: enter_file: Assertion strcache_iscached (name) failed.` 的问题（参考了 [[PATCH v2] make: 4.2.1 -> 4.3](https://lore.kernel.org/all/20200122223655.2569-1-sno@netbsd.org/T/)）
+4. 修改 `make-3.82/dir.c`，在 `dir_setup_glob` 函数里添加一句 `gl->gl_lstat = lstat;`，解决 `make: ./file.c:158: enter_file: Assertion strcache_iscached (name) failed.` 的问题（参考了 [\[PATCH v2\] make: 4.2.1 -\> 4.3](<https://lore.kernel.org/all/20200122223655.2569-1-sno@netbsd.org/T/>)）
 
    ```diff
    @@ -1213,6 +1213,7 @@
@@ -366,8 +363,7 @@ cd tools/src
          The slot is only there for compatibility with 4.4 BSD.  */
     }
    ```
-
-1. 修改 `tar-1.25/gnu/stdio.in.h` 和 `specsum/gnulib/stdio.in.h`，找到 `_GL_WARN_ON_USE (gets, "gets is a security hole - use fgets instead");` 一句，注释掉，解决 gets undefined 的问题（参考了 [CentOS 下 Git 升级](https://blog.csdn.net/turbock/article/details/108851022)）
+5. 修改 `tar-1.25/gnu/stdio.in.h` 和 `specsum/gnulib/stdio.in.h`，找到 `_GL_WARN_ON_USE (gets, "gets is a security hole - use fgets instead");` 一句，注释掉，解决 gets undefined 的问题（参考了 [CentOS 下 Git 升级](<https://blog.csdn.net/turbock/article/details/108851022>)）
 
    ```diff
    @@ -159,7 +159,7 @@
@@ -380,8 +376,7 @@ cd tools/src
     #if @GNULIB_FOPEN@
     # if @REPLACE_FOPEN@
    ```
-
-1. 修改 `buildtools`，在 perl 的 configure 命令中的 `-A ldflags` 附近，把 `-A libs=-lm -A ccflags=-fwrapv` 添加到命令中，解决找不到 math 函数的问题和 numconvert.t 测试失败的问题（参考 [https://serverfault.com/a/801997/323597](https://serverfault.com/questions/761966/building-old-perl-from-source-how-to-add-math-library) 和 [如何在 Hifive Unmatched 开发板上安装 SPEC CPU 2006](https://zhuanlan.zhihu.com/p/441856175)）：
+6. 修改 `buildtools`，在 perl 的 configure 命令中的 `-A ldflags` 附近，把 `-A libs=-lm -A ccflags=-fwrapv` 添加到命令中，解决找不到 math 函数的问题和 numconvert.t 测试失败的问题（参考 [https://serverfault.com/a/801997/323597](<https://serverfault.com/questions/761966/building-old-perl-from-source-how-to-add-math-library>) 和 [如何在 Hifive Unmatched 开发板上安装 SPEC CPU 2006](<https://zhuanlan.zhihu.com/p/441856175>)）：
 
    ```diff
    @@ -355,7 +355,7 @@
@@ -394,8 +389,7 @@ cd tools/src
         ./perl installperl; testordie "error installing Perl"
         setspecperllib
    ```
-
-1. 修改 `perl-5.12.3/Configure`，把判断 GCC 版本的 `1*` 都改成 `1.*`，解决 miniperl Segmentation fault 的问题（参考 [unmatched(riscv64) 上编译，安装和移植 SPEC CPU 2006](https://zhuanlan.zhihu.com/p/429399630)）
+7. 修改 `perl-5.12.3/Configure`，把判断 GCC 版本的 `1*` 都改成 `1.*`，解决 miniperl Segmentation fault 的问题（参考 [unmatched(riscv64) 上编译，安装和移植 SPEC CPU 2006](<https://zhuanlan.zhihu.com/p/429399630>)）
 
    ```diff
    @@ -4536,7 +4536,7 @@
@@ -435,8 +429,7 @@ cd tools/src
     case "$mips_type" in
     '');;
    ```
-
-1. 修改 `perl-5.12.3/Configure`，在 `if $ok; then` 后面加上如下代码，解决 magic.t 测试失败的问题（参考 [如何在 Hifive Unmatched 开发板上安装 SPEC CPU 2006](https://zhuanlan.zhihu.com/p/441856175) 和 [Tests fail with GCC 5.0 because Errno cannot obtain errno constants](https://github.com/Perl/perl5/issues/14491)）：
+8. 修改 `perl-5.12.3/Configure`，在 `if $ok; then` 后面加上如下代码，解决 magic.t 测试失败的问题（参考 [如何在 Hifive Unmatched 开发板上安装 SPEC CPU 2006](<https://zhuanlan.zhihu.com/p/441856175>) 和 [Tests fail with GCC 5.0 because Errno cannot obtain errno constants](<https://github.com/Perl/perl5/issues/14491>)）：
 
    ```text
    elif echo 'Maybe "'"$cc"' -E -ftrack-macro-expansion=0" will work...'; \
@@ -474,8 +467,7 @@ cd tools/src
            $cc -E <testcpp.c >testcpp.out 2>&1; \
            $contains 'abc.*xyz' testcpp.out >/dev/null 2>&1 ; then
    ```
-
-1. 修改 `TimeDate-1.20/t/getdate.t` 的 `my $offset = Time::Local::timegm(0,0,0,1,0,70);` 为 `my $offset = Time::Local::timegm(0,0,0,1,0,1970);`，解决 `error running TimeDate-1.20 test suite` 报错（参考 [unmatched(riscv64) 上编译，安装和移植 SPEC CPU 2006](https://zhuanlan.zhihu.com/p/429399630)）：
+9. 修改 `TimeDate-1.20/t/getdate.t` 的 `my $offset = Time::Local::timegm(0,0,0,1,0,70);` 为 `my $offset = Time::Local::timegm(0,0,0,1,0,1970);`，解决 `error running TimeDate-1.20 test suite` 报错（参考 [unmatched(riscv64) 上编译，安装和移植 SPEC CPU 2006](<https://zhuanlan.zhihu.com/p/429399630>)）：
 
    ```diff
    @@ -156,7 +156,7 @@
@@ -503,7 +495,7 @@ export SPEC_INSTALL_NOCHECK=1
 
 实测上述步骤在 POWER8 ppc64le 和 LoongArch64 上也可以成功。
 
-在 AArch64 或者 PPC64LE 上跑 SPEC 的时候，可能会遇到 [Miscompare #7](https://www.spec.org/cpu2006/Docs/faq.html#Miscompare.07)，在编译选项里加上 `-fsigned-char` 即可：
+在 AArch64 或者 PPC64LE 上跑 SPEC 的时候，可能会遇到 [Miscompare \#7](<https://www.spec.org/cpu2006/Docs/faq.html#Miscompare.07>)，在编译选项里加上 `-fsigned-char` 即可：
 
 ```text
 # fix compilation and miscompare

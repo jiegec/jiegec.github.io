@@ -1,6 +1,6 @@
 # 近来做 Stanford CS140e 的一些进展和思考
 
-最近，受各路安利，剁手买下了 [这个淘宝商家的树莓派的套餐 C](https://item.taobao.com/item.htm?id=537501616420) ，还买了许多 LED 灯泡、杜邦线和电阻，开始按照 [CS 140e](http://web.stanford.edu/class/cs140e/) 学习 Rust 并且用 Rust 编译写一个简易的操作系统。Assignment 0 的目标就是编写一个向 GPIO 16 连接的 LED 灯闪烁。首先当然就是愉快地按照教程下载 bootloader，下载交叉编译工具链，顺带装一个 Raspbian 到机器上，随时可以当成一个低性能的 ARM/ARM64（实际上，Raspbian 只用了 armv7l，没有用 64bit）机器来用，以后如果配上 [@scateu](https://scateu.me) 团购的 Motorola Laptop Dock 的话就是一个几百块的笔记本了。把课程上的文件丢上去，可以看到绿色的活动指示灯闪烁，后面又把 CP2102 模块连上去，又能看到 Blink on, Blink off 的输出。然后按照要求，自己先码一段 C 语言，实现 blinky:
+最近，受各路安利，剁手买下了 [这个淘宝商家的树莓派的套餐 C](<https://item.taobao.com/item.htm?id=537501616420>) ，还买了许多 LED 灯泡、杜邦线和电阻，开始按照 [CS 140e](<http://web.stanford.edu/class/cs140e/>) 学习 Rust 并且用 Rust 编译写一个简易的操作系统。Assignment 0 的目标就是编写一个向 GPIO 16 连接的 LED 灯闪烁。首先当然就是愉快地按照教程下载 bootloader，下载交叉编译工具链，顺带装一个 Raspbian 到机器上，随时可以当成一个低性能的 ARM/ARM64（实际上，Raspbian 只用了 armv7l，没有用 64bit）机器来用，以后如果配上 [@scateu](<https://scateu.me>) 团购的 Motorola Laptop Dock 的话就是一个几百块的笔记本了。把课程上的文件丢上去，可以看到绿色的活动指示灯闪烁，后面又把 CP2102 模块连上去，又能看到 Blink on, Blink off 的输出。然后按照要求，自己先码一段 C 语言，实现 blinky:
 
 ```c++
 #define GPIO_BASE (0x3F000000 + 0x200000)
@@ -94,6 +94,6 @@ pub extern "C" fn kmain() {
 }
 ```
 
-目前只做到这里。后面还有大把的坑要踩，难写的 Rust 还得继续啃下去。我的代码都以 diff 的形式放在了 [jiegec/cs140e](https://github.com/jiegec/cs140e) ，写得并不美观。接下来就是实现 `UART` 了，终于要实现串口通信了。
+目前只做到这里。后面还有大把的坑要踩，难写的 Rust 还得继续啃下去。我的代码都以 diff 的形式放在了 [jiegec/cs140e](<https://github.com/jiegec/cs140e>) ，写得并不美观。接下来就是实现 `UART` 了，终于要实现串口通信了。
 
-2018-01-06 更新： [下一篇文章已经更新](https://jia.je/programming/2018/02/06/thoughts-on-stanford-cs140e-2/index.md) 。
+2018-01-06 更新： [下一篇文章已经更新](<https://jia.je/blog/posts/programming/thoughts-on-stanford-cs140e-2/index.md>) 。

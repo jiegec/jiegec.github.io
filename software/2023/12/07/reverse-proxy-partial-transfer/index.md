@@ -10,9 +10,9 @@
 
 这个问题困扰了用户和管理员很久，一直没有找到原因。做一些简单的测试，会发现下载是否完全和 HTTP 响应的内容大小有关，例如浏览一些大的 HTML，就容易被截断，并且截断以后的长度比较稳定地出现在几个数字之间：130304 和 130269，大概 130 KB。
 
-在网上搜索关键词，可以找到这么一篇 [StackOverflow 回答](https://stackoverflow.com/questions/37908967/express-and-nginx-neterr-content-length-mismatch/46694782#46694782)：`Express and nginx net::ERR_CONTENT_LENGTH_MISMATCH`，看起来和我们遇到的现象很类似。回答中提到，Nginx 有内建的 buffering 机制，关掉它就可以解决问题。但是这看起来太暴力了，不像是合理的解决办法，毕竟 buffering 机制是有用的。
+在网上搜索关键词，可以找到这么一篇 [StackOverflow 回答](<https://stackoverflow.com/questions/37908967/express-and-nginx-neterr-content-length-mismatch/46694782#46694782>)：`Express and nginx net::ERR_CONTENT_LENGTH_MISMATCH`，看起来和我们遇到的现象很类似。回答中提到，Nginx 有内建的 buffering 机制，关掉它就可以解决问题。但是这看起来太暴力了，不像是合理的解决办法，毕竟 buffering 机制是有用的。
 
-从 [Nginx 官网](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)可以找到 buffering 机制的说明：
+从 [Nginx 官网](<http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering>)可以找到 buffering 机制的说明：
 
 ```text
 When buffering is enabled, nginx receives a response from the proxied server as
@@ -108,7 +108,7 @@ Failed requests:        9999
 
 这印证了之前的猜想：`proxy_temp` 目录写不进去，就有概率出现 Partial Transfer 的情况。但是，此时下载的文件大小比较随机，不像之前那样集中在 130 KB。这时候就要思考 Partial Transfer 的原理了：客户端发起 HTTP 请求，proxy 容器收到请求，转发给 backend；backend 收到 HTTP 请求后，就给 proxy 发送 HTTP 响应。然后 proxy 容器一边从 backend 接收 HTTP 响应，另一边还要发给客户端。什么情况下会断开呢？就是内存里的 buffer 都用完了，backend 给 proxy 发送得快，proxy 给客户端发送得慢，速度的差，决定了内存里的 buffer 可以撑多久。
 
-为了验证这个理论，手动给客户端到 proxy 容器的链路上添加一个延迟，这样就拖慢了 proxy 给客户端发送的速录。在 Linux 上，可以用 [tc 给网络接口人为地添加延迟](https://medium.com/@kazushi/simulate-high-latency-network-using-docker-containerand-tc-commands-a3e503ea4307)：
+为了验证这个理论，手动给客户端到 proxy 容器的链路上添加一个延迟，这样就拖慢了 proxy 给客户端发送的速录。在 Linux 上，可以用 [tc 给网络接口人为地添加延迟](<https://medium.com/@kazushi/simulate-high-latency-network-using-docker-containerand-tc-commands-a3e503ea4307>)：
 
 ```shell
 tc qdisc add dev [bridge_name] root netem delay 100ms
@@ -118,13 +118,13 @@ tc qdisc add dev [bridge_name] root netem delay 100ms
 
 小结：
 
-1. 因 nginx 容器上 proxy_temp 路径下无法写入文件（例如权限不正确、盘满了），nginx 的 buffering 机制在遇到内存中 buffer 用完的情况下，会截断 HTTP 响应；
-1. 根据客户端到 nginx，nginx 到后端的带宽和延迟情况，可能会截断到不同的位置。
+1. 因 nginx 容器上 proxy\_temp 路径下无法写入文件（例如权限不正确、盘满了），nginx 的 buffering 机制在遇到内存中 buffer 用完的情况下，会截断 HTTP 响应；
+2. 根据客户端到 nginx，nginx 到后端的带宽和延迟情况，可能会截断到不同的位置。
 
 ## 权限问题
 
-有意思的是，管理员表示之前并没有改过目录的权限。在网上查了一下，有网友反馈遇到了类似的问题：[Changing ownership of proxy_temp and other temp directories](https://forum.nginx.org/read.php?2,296793,296793#msg-296793)。网友表示，他升级 nginx 之前，proxy_temp 路径的权限是归 nobody 所有，nginx 也是用 nobody 用户运行的，所以没有问题。升级 nginx 以后，nginx 用单独的 nginx 用户去执行，此时它没有办法访问 nobody 用户创建的文件夹，因为权限是 `rwx------`。
+有意思的是，管理员表示之前并没有改过目录的权限。在网上查了一下，有网友反馈遇到了类似的问题：[Changing ownership of proxy\_temp and other temp directories](<https://forum.nginx.org/read.php?2,296793,296793#msg-296793>)。网友表示，他升级 nginx 之前，proxy\_temp 路径的权限是归 nobody 所有，nginx 也是用 nobody 用户运行的，所以没有问题。升级 nginx 以后，nginx 用单独的 nginx 用户去执行，此时它没有办法访问 nobody 用户创建的文件夹，因为权限是 `rwx------`。
 
-如果深入观察邮件回复，会发现最终引到了一个 [GitHub commit](https://github.com/vmware/photon/commit/abbfedfda7dfd7905d2953745cf1332fde80689c#diff-9a5cc4e7b91577cbccbb6aacc4bc2ee46672ccbe984b89581fc600b2877729f5)，它在给 nginx 添加新功能的同时，修改了默认的 nginx 用户设置，使得默认用户变成了 nginx。从维护者的角度来看，把 nobody 换成 nginx 用户，应该不会有什么影响。却不知道 nginx 会用 nobody 用户创建 proxy_temp 等目录，并且设置了严格的权限。一升级，用户一变，nginx 自己就用不了了。于是就出现了问题。
+如果深入观察邮件回复，会发现最终引到了一个 [GitHub commit](<https://github.com/vmware/photon/commit/abbfedfda7dfd7905d2953745cf1332fde80689c#diff-9a5cc4e7b91577cbccbb6aacc4bc2ee46672ccbe984b89581fc600b2877729f5>)，它在给 nginx 添加新功能的同时，修改了默认的 nginx 用户设置，使得默认用户变成了 nginx。从维护者的角度来看，把 nobody 换成 nginx 用户，应该不会有什么影响。却不知道 nginx 会用 nobody 用户创建 proxy\_temp 等目录，并且设置了严格的权限。一升级，用户一变，nginx 自己就用不了了。于是就出现了问题。
 
 在某 GitLab 实例的问题上，最后发现确实是权限问题。但是细节和上面的也不完全一样，具体权限怎么坏的，目前还是一个谜。

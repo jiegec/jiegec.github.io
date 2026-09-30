@@ -8,26 +8,26 @@ ARM Neoverse V2 是目前（2024 年）在服务器上能用到的最新的 ARM 
 
 ARM 关于 Neoverse V2 微架构有如下公开信息：
 
-- [Arm Neoverse V2 platform: Leadership Performance and Power Efficiency for Next-Generation Cloud Computing, ML and HPC Workloads](https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf)
-- [Arm® Neoverse™ V2 Core Technical Reference Manual](https://developer.arm.com/documentation/102375/latest/)
-- [Arm Neoverse V2 Software Optimization Guide](https://developer.arm.com/documentation/109898/latest/)
+- [Arm Neoverse V2 platform: Leadership Performance and Power Efficiency for Next-Generation Cloud Computing, ML and HPC Workloads](<https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf>)
+- [Arm® Neoverse™ V2 Core Technical Reference Manual](<https://developer.arm.com/documentation/102375/latest/>)
+- [Arm Neoverse V2 Software Optimization Guide](<https://developer.arm.com/documentation/109898/latest/>)
 
 考虑到 Neoverse V2 与 Cortex X3 的高度相似性，这里也列出 Cortex X3 的相关信息：
 
-- [Arm Unveils Next-Gen Flagship Core: Cortex-X3](https://fuse.wikichip.org/news/6855/arm-unveils-next-gen-flagship-core-cortex-x3/)
-- [Arm® Cortex‑X3 Core Technical Reference Manual](https://developer.arm.com/documentation/101593/latest/)
+- [Arm Unveils Next-Gen Flagship Core: Cortex-X3](<https://fuse.wikichip.org/news/6855/arm-unveils-next-gen-flagship-core-cortex-x3/>)
+- [Arm® Cortex‑X3 Core Technical Reference Manual](<https://developer.arm.com/documentation/101593/latest/>)
 
 ## 现有评测
 
 网上已经有 Neoverse V2 微架构的评测和分析，建议阅读：
 
-- [Hot Chips 2023: Arm’s Neoverse V2](https://chipsandcheese.com/p/hot-chips-2023-arms-neoverse-v2)
+- [Hot Chips 2023: Arm’s Neoverse V2](<https://chipsandcheese.com/p/hot-chips-2023-arms-neoverse-v2>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Neoverse V2 (AWS Graviton 4) 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Neoverse V2 (AWS Graviton 4) 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## MOP vs uOP
 
@@ -117,17 +117,17 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | {}       | {}       | {}       |
-| 16b Store   | {0,1}   | {0}      | {}       | {}       |
-| 32b Store   | {0,2}   | {0,2}    | {0}      | {-4,0}   |
-| 64b Store   | {0,4}   | {0,4}    | {0,4}    | {-4,0,4} |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | {} | {} | {} |
+| 16b Store | {0,1} | {0} | {} | {} |
+| 32b Store | {0,2} | {0,2} | {0} | {-4,0} |
+| 64b Store | {0,4} | {0,4} | {0,4} | {-4,0,4} |
 
 一个 Load 需要转发两个 Store 的数据的情况：对地址 x 的 32b Store 和对地址 x+4 的 32b Store 转发到对地址 y 的 64b Load，在 Overlap 的情况下，要求 y=x，也就是恰好前半来自第一个 Store，后半来自第二个 Store。
 
 和官方的描述是比较符合的，只考虑了全部转发、转发前半和转发后半的三种场景。特别地，针对常见的 64b Load，支持 y-x=-4。同时也支持前半和后半来自两个不同的 Store。对地址本身的对齐没有要求，甚至在跨缓存行边界时也可以转发，只是对 Load 和 Store 的相对位置有要求。
 
-和 [Zen 5](https://jia.je/hardware/2024/11/11/amd-zen5/index.md) 相比，Neoverse V2 对 Store 和 Load 的相对位置有额外的要求（开头或正中央），但支持了 Store 和 Load 只有一部分覆盖的情况，也允许一个 Load 从两个 Store 中取得数据。
+和 [Zen 5](<https://jia.je/blog/posts/hardware/amd-zen5/index.md>) 相比，Neoverse V2 对 Store 和 Load 的相对位置有额外的要求（开头或正中央），但支持了 Store 和 Load 只有一部分覆盖的情况，也允许一个 Load 从两个 Store 中取得数据。
 
 从性能上，可以转发时 5 Cycle，有 Overlap 但无法转发时 10.5 Cycle。
 
@@ -153,8 +153,8 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 官方信息：**2 Load/Store Pipe + 1 Load Pipe**, Reduce bandwidth or **incur additional latency** for:
 
 1. Load operations that cross a cache-line (64-byte) boundary.
-1. Quad-word load operations that are not 4B aligned.
-1. Store operations that cross a 32B boundary.
+2. Quad-word load operations that are not 4B aligned.
+3. Store operations that cross a 32B boundary.
 
 经过测试，一个周期内可以最多完成如下的 Load/Store 指令：
 
@@ -169,7 +169,7 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 
 ### Memory Dependency Predictor
 
-为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
+为了预测执行 Load，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之前在内存上的依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的方法，构造两个指令模式，分别在地址和数据上有依赖：
 
 - 数据依赖，地址无依赖：`str x3, [x1]` 和 `ldr x3, [x2]`
 - 地址依赖，数据无依赖：`str x2, [x1]` 和 `ldr x1, [x2]`
@@ -207,7 +207,7 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：
 
-可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量。之后延迟先上升后下降，与 ARM 采用的 Correlated Miss Caching(CMC) 预取器记住了 pointer chasing 的历史有关，详细可以阅读 [Arm Neoverse N2: Arm’s 2nd generation high performance infrastructure CPUs and system IPs](https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf)。
+可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量。之后延迟先上升后下降，与 ARM 采用的 Correlated Miss Caching(CMC) 预取器记住了 pointer chasing 的历史有关，详细可以阅读 [Arm Neoverse N2: Arm’s 2nd generation high performance infrastructure CPUs and system IPs](<https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf>)。
 
 #### 延迟
 
@@ -219,7 +219,7 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 
 #### VIPT
 
-在 4KB page 的情况下，64KB 4-way 的 L1 DCache 不满足 VIPT 的 Index 全在页内偏移的条件（详见 [VIPT 与缓存大小和页表大小的关系](https://jia.je/hardware/2023/12/08/vipt-l1-cache-page-size/index.md)），此时要么改用 PIPT，要么在 VIPT 的基础上处理 alias 的问题。为了测试这一点，参考 [浅谈现代处理器实现超大 L1 Cache 的方式](https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/) 的测试方法，用 shm 构造出两个 4KB 虚拟页映射到同一个物理页的情况，然后在两个虚拟页之间 copy，发现相比在同一个虚拟页内 copy 有显著的性能下降，并且产生了大量的 L1 DCache Refill：
+在 4KB page 的情况下，64KB 4-way 的 L1 DCache 不满足 VIPT 的 Index 全在页内偏移的条件（详见 [VIPT 与缓存大小和页表大小的关系](<https://jia.je/blog/posts/hardware/vipt-l1-cache-page-size/index.md>)），此时要么改用 PIPT，要么在 VIPT 的基础上处理 alias 的问题。为了测试这一点，参考 [浅谈现代处理器实现超大 L1 Cache 的方式](<https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/>) 的测试方法，用 shm 构造出两个 4KB 虚拟页映射到同一个物理页的情况，然后在两个虚拟页之间 copy，发现相比在同一个虚拟页内 copy 有显著的性能下降，并且产生了大量的 L1 DCache Refill：
 
 ```text
 copy from aliased page = 3261121467 cycles, 285103870 refills
@@ -239,7 +239,7 @@ slowdown = 2.14x
 
 Stride=64B 时出现性能下降，说明此时出现了 Bank Conflict，进一步到 Stride=128B 时，只能达到 1 的 IPC，说明此时所有的 Load 都命中了同一个 Bank，并且是串行读取。根据这个现象，认为 Neoverse V2 的 L1 DCache 组织方式和限制是：
 
-- 一共有两个 Bank，Bank Index 是 VA[6]
+- 一共有两个 Bank，Bank Index 是 VA\[6\]
 - 每个 Bank 每周期可以从一个缓存行读取数据
 - 支持多个 Load 访问同一个缓存行
 - 如果多个 Load 访问同一个 Bank 的不同缓存行，只能一个周期完成一个 Load

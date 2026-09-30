@@ -42,7 +42,7 @@ rtmp {
         }
 ```
 
-这时候，如果你用 rtmp 推一个流（比如用 OBS，路径填 rtmp://SERVER_IP/live，Stream Key 填 SOMETHING）到 rtmp://SERVER_IP/live/SOMETHING，那么在对应的目录下会看到 SOMETHING 开头的一系列文件；用播放器打开 http://SERVER_IP/hls/SOMETHING.m3u8 就可以看到直播的视频流了。
+这时候，如果你用 rtmp 推一个流（比如用 OBS，路径填 rtmp://SERVER\_IP/live，Stream Key 填 SOMETHING）到 rtmp://SERVER\_IP/live/SOMETHING，那么在对应的目录下会看到 SOMETHING 开头的一系列文件；用播放器打开 http://SERVER\_IP/hls/SOMETHING.m3u8 就可以看到直播的视频流了。
 
 如果要直接在浏览器里播放 HLS，需要用 Flowplayer，直接参考官方的例子即可：
 

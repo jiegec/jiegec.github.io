@@ -2,11 +2,11 @@
 
 ## 背景
 
-最近在研究如何实现一个远程 JTAG 的功能，目前实现在 [jiegec/jtag-remote-server](https://github.com/jiegec/jtag-remote-server)，实现了简单的 XVC 协议，底层用的是 libftdi 的 MPSSE 协议来操作 JTAG。但是，在用 Vivado 尝试的时候，SysMon 可以正常使用，但是下载 Bitstream 会失败，所以要研究一下 Vivado 都做了什么（目前已经修好，是最后一个字节的部分位读取的处理问题）。
+最近在研究如何实现一个远程 JTAG 的功能，目前实现在 [jiegec/jtag-remote-server](<https://github.com/jiegec/jtag-remote-server>)，实现了简单的 XVC 协议，底层用的是 libftdi 的 MPSSE 协议来操作 JTAG。但是，在用 Vivado 尝试的时候，SysMon 可以正常使用，但是下载 Bitstream 会失败，所以要研究一下 Vivado 都做了什么（目前已经修好，是最后一个字节的部分位读取的处理问题）。
 
 ## SVF
 
-SVF 格式其实是一系列的 JTAG 上的操作。想到这个，也是因为在网上搜到了一个 [dcfeb_v45.svf](https://www.asc.ohio-state.edu/physics/cms/firmwares/dcfeb_v45.svf)，里面描述的就是一段 JTAG 操作：
+SVF 格式其实是一系列的 JTAG 上的操作。想到这个，也是因为在网上搜到了一个 [dcfeb\_v45.svf](<https://www.asc.ohio-state.edu/physics/cms/firmwares/dcfeb_v45.svf>)，里面描述的就是一段 JTAG 操作：
 
 ```text
 // Created using Xilinx Cse Software [ISE - 12.4]
@@ -111,7 +111,7 @@ exit
 
 ### 从 Vivado 中导出 SVF
 
-从文件头可以推测，这个功能是 Xilinx 官方提供的，一番搜索，果然找到了命令：[Creating SVF files using Xilinx Vivado](https://blog.xjtag.com/2016/07/creating-svf-files-using-xilinx-vivado/)
+从文件头可以推测，这个功能是 Xilinx 官方提供的，一番搜索，果然找到了命令：[Creating SVF files using Xilinx Vivado](<https://blog.xjtag.com/2016/07/creating-svf-files-using-xilinx-vivado/>)
 
 ```tcl
 program_hw_devices -force -svf_file {program.svf} [get_hw_devices xxx]
@@ -169,7 +169,7 @@ SIR 18 TDI (014514) ;
 RUNTEST 0.100000 SEC;
 ```
 
-这一段发送了 JPROGRAM 和 ISC_NOOP 的 IR，然后进入 RUNTEST 状态一段时间。
+这一段发送了 JPROGRAM 和 ISC\_NOOP 的 IR，然后进入 RUNTEST 状态一段时间。
 
 ```text
 // config/jprog/poll
@@ -179,7 +179,7 @@ SIR 18 TDI (014514) TDO (011000) MASK (031000) ;
 "ISC_NOOP         (010100010100010100)," & --   PRIVATE, ISC_DEFAULT
 ```
 
-这里再次设置 ISC_NOOP，检查了 TDO 中的数据，意义不明。
+这里再次设置 ISC\_NOOP，检查了 TDO 中的数据，意义不明。
 
 ```text
 // config/slr
@@ -205,12 +205,12 @@ Xilinx UG570 的 Table 6-5 也印证了上面的过程：
 
 - Start loading the JPROGRAM instruction, LSB first:
 - Load the MSB of the JPROGRAM instruction when exiting SHIFT-IR, as defined in the IEEE standard.
-- Start loading the CFG_IN instruction, LSB first:
-- Load the MSB of the CFG_IN instruction when exiting SHIFT-IR.
+- Start loading the CFG\_IN instruction, LSB first:
+- Load the MSB of the CFG\_IN instruction when exiting SHIFT-IR.
 - Shift in the FPGA bitstream. Bit n (MSB) is the first bit in the bitstream.(3)(4)
 - Shift in the last bit of the bitstream. Bit 0 (LSB) shifts on the transition to EXIT1-DR.
 
-完成 CFG_IN 之后，再进行 JSTART:
+完成 CFG\_IN 之后，再进行 JSTART:
 
 ```text
 // config/start
@@ -233,7 +233,7 @@ TDR 0 ;
 "IDCODE           (001001001001001001)," & --   DEVICE_ID reg
 ```
 
-然后再次进行 CFG_IN_SLR0, CFG_OUT_SLR0，验证是否真的写进去了：
+然后再次进行 CFG\_IN\_SLR0, CFG\_OUT\_SLR0，验证是否真的写进去了：
 
 ```text
 // config/status
@@ -259,11 +259,11 @@ STATE RESET;
 RUNTEST 5 TCK;
 ```
 
-这段操作是进行 Status Register Readback，见 UG570 的 Table 10-4。MASK 设为 `08000000` 应该是判断它的第 4 位：END_OF_STARTUP_STATUS（Table 9-25）。
+这段操作是进行 Status Register Readback，见 UG570 的 Table 10-4。MASK 设为 `08000000` 应该是判断它的第 4 位：END\_OF\_STARTUP\_STATUS（Table 9-25）。
 
-如果是 Quartus 用户，也可以 [生成 SVF](https://www.intel.com/content/www/us/en/support/programmable/articles/000085709.html)，具体操作是：在 Programmer 中，点击 `File->Create JAM, JBC, SVF or ISC file`，然后在弹出的窗口中选择 svf 格式，导出即可。得到的 svf 文件一样可以用 openocd 来下载。
+如果是 Quartus 用户，也可以 [生成 SVF](<https://www.intel.com/content/www/us/en/support/programmable/articles/000085709.html>)，具体操作是：在 Programmer 中，点击 `File->Create JAM, JBC, SVF or ISC file`，然后在弹出的窗口中选择 svf 格式，导出即可。得到的 svf 文件一样可以用 openocd 来下载。
 
-也可以[用 `quartus_cpf` 在命令行](https://www.intel.com/content/www/us/en/support/programmable/articles/000074062.html)中进行转换：
+也可以[用 `quartus_cpf` 在命令行](<https://www.intel.com/content/www/us/en/support/programmable/articles/000074062.html>)中进行转换：
 
 ```shell
 quartus_cpf -q 18MHz -g 3.3 -c -n p input.sof/pof output.svf

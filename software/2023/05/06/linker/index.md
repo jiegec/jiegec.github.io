@@ -80,17 +80,19 @@ __attribute__ ((visibility ("hidden"))) int hidden_function() {}
 总结一下，每个符号有如下属性：
 
 1. Bind：Local（static）、Global（extern 或者非 static）、Weak（标记 `__attribute__ ((weak))`）
-1. Vis(Visibility): Default、Hidden（标记 `__attribute__ ((visibility ("hidden")))`）
-1. Ndx：
-   1. COMMON：如果打开了 -fcommon，那么没有初始化的全局变量（上面的 `uninitialized`）会生成 COMMON 符号；如果打开了 -fno-common，则不会有 COMMON 符号
-   1. UNDEFINED：extern 符号
-1. Section:
-   1. const 变量放在 .rodata section
-   1. 非 const 变量，如果没有初始化，如果开了 -fcommon，则生成 COMMON 符号；如果开了 -fno-common，则放在 .bss section
-   1. 非 const 变量，如果初始化了，放在 .data section
-   1. 函数放在 .text section
+2. Vis(Visibility): Default、Hidden（标记 `__attribute__ ((visibility ("hidden")))`）
+3. Ndx：
 
-关于 COMMON 符号的详细内容，建议阅读 [All about COMMON symbols - MaskRay](https://maskray.me/blog/2022-02-06-all-about-common-symbols) 和 [COMMON 符号](https://jia.je/software/2022/07/11/archive-common-linking/index.md)。
+   1. COMMON：如果打开了 -fcommon，那么没有初始化的全局变量（上面的 `uninitialized`）会生成 COMMON 符号；如果打开了 -fno-common，则不会有 COMMON 符号
+   2. UNDEFINED：extern 符号
+4. Section:
+
+   1. const 变量放在 .rodata section
+   2. 非 const 变量，如果没有初始化，如果开了 -fcommon，则生成 COMMON 符号；如果开了 -fno-common，则放在 .bss section
+   3. 非 const 变量，如果初始化了，放在 .data section
+   4. 函数放在 .text section
+
+关于 COMMON 符号的详细内容，建议阅读 [All about COMMON symbols - MaskRay](<https://maskray.me/blog/2022-02-06-all-about-common-symbols>) 和 [COMMON 符号](<https://jia.je/blog/posts/software/archive-common-linking/index.md>)。
 
 ## 链接
 
@@ -99,11 +101,12 @@ __attribute__ ((visibility ("hidden"))) int hidden_function() {}
 链接器运行时，传入若干个 obj 文件，然后按照下面的流程进行：
 
 1. 维护一个全局的符号表
-1. 循环每个 obj 文件，循环其中的符号，找到其中的 GLOBAL/WEAK 符号
-1. 把 GLOBAL/WEAK 符号插入到符号表中，处理各种情况，例如：
+2. 循环每个 obj 文件，循环其中的符号，找到其中的 GLOBAL/WEAK 符号
+3. 把 GLOBAL/WEAK 符号插入到符号表中，处理各种情况，例如：
+
    1. 如果出现两个 defined 符号冲突，报告 multiple definition 错误
-   1. 如果出现重名的 weak 符号和 strong 符号，选择保留 strong 的符号
-1. 如果存在没有找到匹配的 defined 符号的 undefined 符号，报告 undefined reference 错误
+   2. 如果出现重名的 weak 符号和 strong 符号，选择保留 strong 的符号
+4. 如果存在没有找到匹配的 defined 符号的 undefined 符号，报告 undefined reference 错误
 
 符号表是在解析 obj 文件的同时动态更新的，因此，如果 A 使用了 B 的符号，那么应该把 A 放在前面，这样链接器解析 A 的时候会在符号表中创建 undefined 符号，然后 B 在后面，当链接器解析 B 的时候，就可以把 B 的 defined 符号与 A 的 undefined 符号进行匹配。
 
@@ -181,7 +184,7 @@ DYNAMIC SYMBOL TABLE:
 
 ### 符号版本
 
-中间出现的 Base 或者 GLIBC_2.2.5 是符号的版本号，这样做的目的是为了兼容性：假如某天 glibc 想要给一个函数添加一个新的参数，但是现有的程序编译的时候动态链接了旧版本的 glibc，新旧两个版本的函数名字一样，但是功能却不一样，如果直接让旧程序用新 glibc 的函数，就会出现问题。即使参数不变，如果函数的语义变了，也可能带来不兼容的问题。
+中间出现的 Base 或者 GLIBC\_2.2.5 是符号的版本号，这样做的目的是为了兼容性：假如某天 glibc 想要给一个函数添加一个新的参数，但是现有的程序编译的时候动态链接了旧版本的 glibc，新旧两个版本的函数名字一样，但是功能却不一样，如果直接让旧程序用新 glibc 的函数，就会出现问题。即使参数不变，如果函数的语义变了，也可能带来不兼容的问题。
 
 解决办法是给符号添加版本号，这样旧版本的程序会继续找到旧版本的符号，解决了兼容性的问题。例如 memcpy 在 glibc 中就有两个版本：
 
@@ -191,13 +194,13 @@ $ objdump -T /lib/x86_64-linux-gnu/libc.so.6 | grep memcpy
 000000000009bc50 g   iD  .text  0000000000000109  GLIBC_2.14  memcpy
 ```
 
-在 [glibc 代码](https://github.com/bminor/glibc/blob/a363f7075125fa654342c69331e6c075518ec28c/sysdeps/x86_64/multiarch/memcpy.c#LL38C11-L38C11)中，通过 `versioned_symbol` 宏来实现：
+在 [glibc 代码](<https://github.com/bminor/glibc/blob/a363f7075125fa654342c69331e6c075518ec28c/sysdeps/x86_64/multiarch/memcpy.c#LL38C11-L38C11>)中，通过 `versioned_symbol` 宏来实现：
 
 ```c
 versioned_symbol (libc, __new_memcpy, memcpy, GLIBC_2_14);
 ```
 
-更多关于符号版本的内容，可以阅读 [All about symbol versioning](https://maskray.me/blog/2020-11-26-all-about-symbol-versioning)。
+更多关于符号版本的内容，可以阅读 [All about symbol versioning](<https://maskray.me/blog/2020-11-26-all-about-symbol-versioning>)。
 
 ### 动态链接
 
@@ -340,10 +343,10 @@ lrwxrwxrwx 1 root root 21 May 13  2022 /usr/lib/x86_64-linux-gnu/libcuda.so.1 ->
 
 `ldconfig` 会从 `/etc/ld.so.conf` 中配置的路径中扫描动态链接库，常见的路径包括：
 
-- /lib/x86_64-linux-gnu
-- /usr/lib/x86_64-linux-gnu
+- /lib/x86\_64-linux-gnu
+- /usr/lib/x86\_64-linux-gnu
 - /usr/local/lib
-- /usr/local/lib/x86_64-linux-gnu
+- /usr/local/lib/x86\_64-linux-gnu
 
 包管理器安装的动态库基本都在这些目录中。可以用 `ldconfig -p` 来查看缓存 `ld.so.cache` 的内容：
 
@@ -363,7 +366,7 @@ $ /sbin/ldconfig -p
 
 ### rpath
 
-除了 LD_LIBRARY_PATH 和 `/etc/ld.so.cache`，ld.so 还可以通过 rpath 来寻找动态库。设想要打包一个 Qt 程序，希望在别人的机器上可以直接跑，但是别人的机器上不一定有 Qt，因此需要把程序和 Qt 的各种动态库打包在一起。但是，这时候 Qt 的动态库不会在系统路径中，不会被 `ldconfig` 索引。一种办法就是写一个脚本，设置一下 `LD_LIBRARY_PATH`，再启动 Qt 程序。另一种办法，就是利用 rpath：在程序中就告诉 ld.so 去哪里找它依赖（NEEDED）的动态库。这个路径可以是相对于可执行文件的路径。
+除了 LD\_LIBRARY\_PATH 和 `/etc/ld.so.cache`，ld.so 还可以通过 rpath 来寻找动态库。设想要打包一个 Qt 程序，希望在别人的机器上可以直接跑，但是别人的机器上不一定有 Qt，因此需要把程序和 Qt 的各种动态库打包在一起。但是，这时候 Qt 的动态库不会在系统路径中，不会被 `ldconfig` 索引。一种办法就是写一个脚本，设置一下 `LD_LIBRARY_PATH`，再启动 Qt 程序。另一种办法，就是利用 rpath：在程序中就告诉 ld.so 去哪里找它依赖（NEEDED）的动态库。这个路径可以是相对于可执行文件的路径。
 
 设置 `rpath` 的方法是，编译的时候添加 `-Wl,-rpath,RPATH` 选项，例如：
 
@@ -389,7 +392,7 @@ $ readelf -d main
  0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN]
 ```
 
-第一个编译命令不带 `rpath`，因此 ld.so 会找不到动态库，可以添加 LD_LIBRARY_PATH 的办法来解决。第二个和第三个编译命令带 `rpath`，其中第二个使用了绝对路径，第三个使用了相对路径（`$ORIGIN` 表示可执行文件所在的目录）。那么，ld.so 在寻找 libtest.so.0 的时候，会在 RUNPATH 中进行寻找。
+第一个编译命令不带 `rpath`，因此 ld.so 会找不到动态库，可以添加 LD\_LIBRARY\_PATH 的办法来解决。第二个和第三个编译命令带 `rpath`，其中第二个使用了绝对路径，第三个使用了相对路径（`$ORIGIN` 表示可执行文件所在的目录）。那么，ld.so 在寻找 libtest.so.0 的时候，会在 RUNPATH 中进行寻找。
 
 ### 调试
 
@@ -410,7 +413,7 @@ $ ldd $(which vim)
         libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f0504d89000)
 ```
 
-当然了，`ldd` 有一定的风险，不建议在不信任的程序上运行 `ldd`，详情见 [ldd.1](https://man7.org/linux/man-pages/man1/ldd.1.html)。更稳妥的方法是用 `objdump -p` 或者 `readelf -d`：
+当然了，`ldd` 有一定的风险，不建议在不信任的程序上运行 `ldd`，详情见 [ldd.1](<https://man7.org/linux/man-pages/man1/ldd.1.html>)。更稳妥的方法是用 `objdump -p` 或者 `readelf -d`：
 
 ```shell
 $ objdump -p $(which vim) | grep NEEDED
@@ -578,7 +581,7 @@ dyld[17486]: <54E8FBE1-DF0D-33A2-B8FA-356565C12929> /usr/lib/libc++.1.dylib
 Simple function
 ```
 
-与 Linux 上的 `/etc/ld.so.cache` 类似，macOS 也针对动态库的加载做了优化，但是 macOS 做的更彻底：由于 macOS 的系统库是只读的，于是直接把所有系统库打包成一个文件，这个文件就是 dyld shared cache。可以用 [keith/dyld-shared-cache-extractor](https://github.com/keith/dyld-shared-cache-extractor) 来还原出内部的 dylib。在 macOS Ventura 13.4 中，可以解出 2499 个动态库。
+与 Linux 上的 `/etc/ld.so.cache` 类似，macOS 也针对动态库的加载做了优化，但是 macOS 做的更彻底：由于 macOS 的系统库是只读的，于是直接把所有系统库打包成一个文件，这个文件就是 dyld shared cache。可以用 [keith/dyld-shared-cache-extractor](<https://github.com/keith/dyld-shared-cache-extractor>) 来还原出内部的 dylib。在 macOS Ventura 13.4 中，可以解出 2499 个动态库。
 
 ## relocation
 
@@ -591,12 +594,12 @@ Simple function
 如果动态链接库调用了其他动态链接库的函数，也可以用类似的方法，但是实践起来稍有不同。函数也在 GOT 表的 PLT 表里有实际的地址，但动态链接库不会自动替换，而是让编译器生成一个 PLT stub。PLT stub 做的事情是：
 
 1. 如果初始化过，那么直接跳转到实际的函数
-1. 如果没有初始化过，调用 ld.so 提供的函数，函数会找到实际的函数，并且把地址保存到 GOT 表中相应的表项
+2. 如果没有初始化过，调用 ld.so 提供的函数，函数会找到实际的函数，并且把地址保存到 GOT 表中相应的表项
 
-这一系列的做法都是为了让动态库的大部分内容保持不变，只修改少部分数据使得 relocation 可以工作。完整的内容建议阅读[PLT and GOT - the key to code sharing and dynamic libraries](https://www.technovelty.org/linux/plt-and-got-the-key-to-code-sharing-and-dynamic-libraries.html)。
+这一系列的做法都是为了让动态库的大部分内容保持不变，只修改少部分数据使得 relocation 可以工作。完整的内容建议阅读[PLT and GOT - the key to code sharing and dynamic libraries](<https://www.technovelty.org/linux/plt-and-got-the-key-to-code-sharing-and-dynamic-libraries.html>)。
 
 ### relocation truncated to fit
 
 常见的 `relocation truncated to fit` 错误的意思是，链接器在进行 relocation 的时候，无法把想要的值填入到编译器预留的立即数里面。这是因为，编译器在编译的时候，其实不知道偏移具体是多少，那么这时候就可以选择用不同的指令序列，有的指令序列比较短，但是立即数位数也比较少；有的指令序列比较长，但是可以访问更大范围的偏移。如果编译器选择了比较小的范围，但是链接器链接的时候，发现放不下，就会出现 `relocation truncated to fit` 的错误。
 
-解决方法，一是查看是否真的有那么大的偏移，例如是否不小心分配了一个超级大的全局数组，是的话是否砍掉一些大小；二是修改 Code Model，也就是让编译器选择更大的 Code Model，以更长的指令的代价，支持更大范围的 relocation。完整内容推荐阅读 [Relocation overflow and code models by MaskRay](https://maskray.me/blog/2023-05-14-relocation-overflow-and-code-models)。
+解决方法，一是查看是否真的有那么大的偏移，例如是否不小心分配了一个超级大的全局数组，是的话是否砍掉一些大小；二是修改 Code Model，也就是让编译器选择更大的 Code Model，以更长的指令的代价，支持更大范围的 relocation。完整内容推荐阅读 [Relocation overflow and code models by MaskRay](<https://maskray.me/blog/2023-05-14-relocation-overflow-and-code-models>)。

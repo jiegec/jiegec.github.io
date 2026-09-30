@@ -4,7 +4,7 @@ Arty A7 是一款 Digilent 出品的 FPGA 开发板，为了在它上面跑 Linu
 
 ## litex 安装
 
-litex 安装过程按照 <https://github.com/enjoy-digital/litex/wiki/Installation> 进行，由于需要 pip install，建议用 venv 来开一个干净的环境：
+litex 安装过程按照 [https://github.com/enjoy-digital/litex/wiki/Installation](<https://github.com/enjoy-digital/litex/wiki/Installation>) 进行，由于需要 pip install，建议用 venv 来开一个干净的环境：
 
 ```shell
 python3 -m venv venv
@@ -21,9 +21,9 @@ litex-boards 已经内建了 Arty A7 的支持，直接运行下列命令，就�
 python3 -m litex_boards.targets.digilent_arty --build --with-ethernet
 ```
 
-这样就可以在 build/digilent_arty/gateware 目录下找到 bitstream。可以通过命令行参数来自定义需要的功能，详见 <https://github.com/litex-hub/litex-boards/blob/f5e51d72bca6ed0325c1213791a78362326002f8/litex_boards/targets/digilent_arty.py#L162-L180>。
+这样就可以在 build/digilent\_arty/gateware 目录下找到 bitstream。可以通过命令行参数来自定义需要的功能，详见 [https://github.com/litex-hub/litex-boards/blob/f5e51d72bca6ed0325c1213791a78362326002f8/litex\_boards/targets/digilent\_arty.py\#L162-L180](<https://github.com/litex-hub/litex-boards/blob/f5e51d72bca6ed0325c1213791a78362326002f8/litex_boards/targets/digilent_arty.py#L162-L180>)。
 
-如果想切换 CPU 为 Rocket Chip 的话，克隆并安装 <https://github.com/litex-hub/pythondata-cpu-rocket>，添加 `--cpu-type rocket --cpu-variant small` 参数即可。
+如果想切换 CPU 为 Rocket Chip 的话，克隆并安装 [https://github.com/litex-hub/pythondata-cpu-rocket](<https://github.com/litex-hub/pythondata-cpu-rocket>)，添加 `--cpu-type rocket --cpu-variant small` 参数即可。
 
 ## 下载 bitstream
 
@@ -95,14 +95,14 @@ No boot medium found
 
 --============= Console ================--
 
-litex>
+litex> 
 ```
 
-可见是非常方便的。之后可以用 litex_term 来往里面传程序，也可以直接通过 TFTP 来传。
+可见是非常方便的。之后可以用 litex\_term 来往里面传程序，也可以直接通过 TFTP 来传。
 
 ## 启动 Linux
 
-接下来，可以使用项目 <https://github.com/litex-hub/linux-on-litex-vexriscv> 来启动 Linux。参考项目 README，编译 Linux 并启动。不想折腾的话，可以从 <https://github.com/litex-hub/linux-on-litex-vexriscv/issues/164> 下载编译好的结果。
+接下来，可以使用项目 [https://github.com/litex-hub/linux-on-litex-vexriscv](<https://github.com/litex-hub/linux-on-litex-vexriscv>) 来启动 Linux。参考项目 README，编译 Linux 并启动。不想折腾的话，可以从 [https://github.com/litex-hub/linux-on-litex-vexriscv/issues/164](<https://github.com/litex-hub/linux-on-litex-vexriscv/issues/164>) 下载编译好的结果。
 
 首先克隆项目到本地，然后运行：
 
@@ -302,7 +302,7 @@ buildroot login: root
   32-bit RISC-V Linux running on LiteX / VexRiscv-SMP.
 
 login[70]: root login on 'console'
-root@buildroot:~#
+root@buildroot:~# 
 ```
 
 Linux 中也可以访问网络（通过主线内的 liteeth 驱动）：
@@ -319,7 +319,7 @@ $ ping 192.168.1.100
 
 除了 Digilent Arty A7，我还做了以下开发板的 LiteX 支持：
 
-- [VCU128](https://github.com/jiegec/litex-boards/tree/vcu128)，支持 UART，SDRAM 和 HBM；以太网因为是 SGMII 暂时无法解决
-- [MA703FA-35T](https://github.com/jiegec/litex-boards/tree/ma703fa-35t)，支持 UART，SDRAM，ETH、SD 卡和 HDMI；MA703FA-35T 的文档中 TF_DAT3 引脚绑定有误，AB12 应该改为 AB20
-- [Alinx AX7021](https://github.com/jiegec/litex-boards/tree/alinx_ax7021)，支持 UART over JTAG 和 HDMI
-- [THU Digital Design](https://lab.cs.tsinghua.edu.cn/digital-design/doc/hardware/board/)，基于 @gaoyichuan 的实现，支持 UART，SDRAM，ETH，SD 卡和 VGA
+- [VCU128](<https://github.com/jiegec/litex-boards/tree/vcu128>)，支持 UART，SDRAM 和 HBM；以太网因为是 SGMII 暂时无法解决
+- [MA703FA-35T](<https://github.com/jiegec/litex-boards/tree/ma703fa-35t>)，支持 UART，SDRAM，ETH、SD 卡和 HDMI；MA703FA-35T 的文档中 TF\_DAT3 引脚绑定有误，AB12 应该改为 AB20
+- [Alinx AX7021](<https://github.com/jiegec/litex-boards/tree/alinx_ax7021>)，支持 UART over JTAG 和 HDMI
+- [THU Digital Design](<https://lab.cs.tsinghua.edu.cn/digital-design/doc/hardware/board/>)，基于 @gaoyichuan 的实现，支持 UART，SDRAM，ETH，SD 卡和 VGA

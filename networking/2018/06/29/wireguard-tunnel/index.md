@@ -57,6 +57,6 @@ UPDATE 2018-07-11:
 
 成功在 Android 上跑通 WireGuard。在 Google Play 上下载官方的 App 即可。麻烦在于，将 Android 上生成的 Public Key 和服务器的 Public Key 进行交换。
 
-然后又看到[WireGuard 在 systemd-networkd](https://wiki.debian.org/Wireguard#Step_2_-_Alternative_C_-_systemd)上的配置方案，自己也实践了一下。首先，如果用的是 stretch，请首先打开 stretch-backports 源并把 systemd 升级到 237 版本。
+然后又看到[WireGuard 在 systemd-networkd](<https://wiki.debian.org/Wireguard#Step_2_-_Alternative_C_-_systemd>)上的配置方案，自己也实践了一下。首先，如果用的是 stretch，请首先打开 stretch-backports 源并把 systemd 升级到 237 版本。
 
 然后，根据上面这个连接进行配置，由于都是 ini 格式，基本就是复制粘贴就可以配置了。有一点要注意，就是，要保护 PrivateKey 的安全，注意配置 .netdev 文件的权限。

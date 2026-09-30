@@ -2,20 +2,20 @@
 
 ## 背景
 
-使用 ARM Neoverse V3 核心的 AWS Graviton 5 最近[上线](https://aws.amazon.com/cn/blogs/aws/now-available-amazon-ec2-m9g-and-m9gd-instances-powered-by-new-aws-graviton5-processors/)了，相比之前的 [Neoverse V2](https://jia.je/hardware/2024/11/07/arm-neoverse-v2/index.md) 应该有一些改进，所以测试一下这个微架构在各个方面的表现。
+使用 ARM Neoverse V3 核心的 AWS Graviton 5 最近[上线](<https://aws.amazon.com/cn/blogs/aws/now-available-amazon-ec2-m9g-and-m9gd-instances-powered-by-new-aws-graviton5-processors/>)了，相比之前的 [Neoverse V2](<https://jia.je/blog/posts/hardware/arm-neoverse-v2/index.md>) 应该有一些改进，所以测试一下这个微架构在各个方面的表现。
 
 ## 官方信息
 
 ARM 关于 Neoverse V3 微架构有如下公开信息：
 
-- [Arm® Neoverse V3 Core Technical Reference Manual](https://developer.arm.com/documentation/107734/0002/)
-- [Arm Neoverse V3 Software Optimization Guide](https://developer.arm.com/documentation/109678/300/)
+- [Arm® Neoverse V3 Core Technical Reference Manual](<https://developer.arm.com/documentation/107734/0002/>)
+- [Arm Neoverse V3 Software Optimization Guide](<https://developer.arm.com/documentation/109678/300/>)
 
 Neoverse V3 与 Cortex X4 高度相似，这里也列出 Cortex X4 的相关信息：
 
-- [Arm Unveils 2023 Mobile CPU Core Designs: Cortex-X4, A720, and A520 - the Armv9.2 Family](https://web.archive.org/web/20250530071135/https://www.anandtech.com/show/18871/arm-unveils-armv92-mobile-architecture-cortex-x4-a720-and-a520-64bit-exclusive/2)
-- [Arm Cortex-X4 advances frontiers of CPU performance](https://developer.arm.com/community/arm-community-blogs/b/announcements/posts/cortex-x4-cpu-performance)
-- [Arm® Cortex‑X4 Core Technical Reference Manual](https://developer.arm.com/documentation/102484/0003/)
+- [Arm Unveils 2023 Mobile CPU Core Designs: Cortex-X4, A720, and A520 - the Armv9.2 Family](<https://web.archive.org/web/20250530071135/https://www.anandtech.com/show/18871/arm-unveils-armv92-mobile-architecture-cortex-x4-a720-and-a520-64bit-exclusive/2>)
+- [Arm Cortex-X4 advances frontiers of CPU performance](<https://developer.arm.com/community/arm-community-blogs/b/announcements/posts/cortex-x4-cpu-performance>)
+- [Arm® Cortex‑X4 Core Technical Reference Manual](<https://developer.arm.com/documentation/102484/0003/>)
 
 下面分模块记录官方信息和实测结果。官方信息与实测结果一致的数据会加粗。
 
@@ -23,14 +23,14 @@ Neoverse V3 与 Cortex X4 高度相似，这里也列出 Cortex X4 的相关信�
 
 网上已经有 Neoverse V3 微架构的评测和分析，建议阅读：
 
-- [最强 Arm 处理器 AWS Graviton5 架构剖析](https://mp.weixin.qq.com/s/pd6j1PwtUW9pgTNvCEzJwg)
-- [Neoverse V3 微架构](https://mp.weixin.qq.com/s/W6gWoe9OTP4DX_9dfBMgHA)
+- [最强 Arm 处理器 AWS Graviton5 架构剖析](<https://mp.weixin.qq.com/s/pd6j1PwtUW9pgTNvCEzJwg>)
+- [Neoverse V3 微架构](<https://mp.weixin.qq.com/s/W6gWoe9OTP4DX_9dfBMgHA>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Neoverse V3 (AWS Graviton 5) 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Neoverse V3 (AWS Graviton 5) 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 前端
 
@@ -78,7 +78,7 @@ Return Stack 记录最近的函数调用链，call 时压栈，return 时弹栈�
 
 1024 条分支之前 CPI 约 0.5，说明 Neoverse V3 继承了 Neoverse V2 的 two taken 能力。之后到 8192 条分支之前 CPI 约 1，到 16384 条分支时 CPI 为 2，到 32768 条分支时 CPI 为 6。
 
-性能曲线和 Neoverse V2 相同。Neoverse V2 的 [BTB 官方描述](https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf)是：
+性能曲线和 Neoverse V2 相同。Neoverse V2 的 [BTB 官方描述](<https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf>)是：
 
 - 10x larger nanoBTB（注：Neoverse V1 的 nanoBTB 是 96 entry）
 - Split main BTB into two levels with 50% more entries（注：Neoverse V1 的 main BTB 是 8K entry）
@@ -93,7 +93,7 @@ Return Stack 记录最近的函数调用链，call 时压栈，return 时弹栈�
 
 ### Conditional Branch Prediction
 
-利用我们的[逆向方法](https://arxiv.org/abs/2411.13900)，观察分支地址对 PHR 的贡献：
+利用我们的[逆向方法](<https://arxiv.org/abs/2411.13900>)，观察分支地址对 PHR 的贡献：
 
 - B\[2-3\]: shift 263 次
 - B\[4-5\]: shift 262 次
@@ -111,18 +111,18 @@ Return Stack 记录最近的函数调用链，call 时压栈，return 时弹栈�
 
 找到对应位的异或关系后，推断出 PHR 共有 264\*2=528 位，每个 taken branch 左移 2 位，footprint 从低位到高位如下：
 
-- B[2] xor T[7]
-- B[3] xor T[8]
-- B[4] xor T[9]
-- B[5] xor T[10]
-- B[6] xor B[12] xor T[11]
-- B[7] xor B[13] xor T[2]
-- B[8] xor B[14] xor T[3]
-- B[9] xor B[15] xor T[4]
-- B[10] xor B[16]
-- B[11] xor B[17] xor T[6]
+- B\[2\] xor T\[7\]
+- B\[3\] xor T\[8\]
+- B\[4\] xor T\[9\]
+- B\[5\] xor T\[10\]
+- B\[6\] xor B\[12\] xor T\[11\]
+- B\[7\] xor B\[13\] xor T\[2\]
+- B\[8\] xor B\[14\] xor T\[3\]
+- B\[9\] xor B\[15\] xor T\[4\]
+- B\[10\] xor B\[16\]
+- B\[11\] xor B\[17\] xor T\[6\]
 
-其中 T[5] 没有找到异或关系。和 Neoverse V2 的 PHR 构造只有很小的区别：Neoverse V2 中，T[5] shift 次数是 259。
+其中 T\[5\] 没有找到异或关系。和 Neoverse V2 的 PHR 构造只有很小的区别：Neoverse V2 中，T\[5\] shift 次数是 259。
 
 ## 后端
 
@@ -163,11 +163,11 @@ The Neoverse V3 core allows data to be forwarded from store instructions to a lo
 对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | {}       | {}       | {}       |
-| 16b Store   | {0,1}   | {0}      | {}       | {}       |
-| 32b Store   | {0,2}   | {0,2}    | {0}      | {-4,0}   |
-| 64b Store   | {0,4}   | {0,4}    | {0,4}    | {-4,0,4} |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | {} | {} | {} |
+| 16b Store | {0,1} | {0} | {} | {} |
+| 32b Store | {0,2} | {0,2} | {0} | {-4,0} |
+| 64b Store | {0,4} | {0,4} | {0,4} | {-4,0,4} |
 
 一个 Load 需要转发两个 Store 的数据的情况：对地址 x 的 32b Store 和对地址 x+4 的 32b Store 转发到对地址 y 的 64b Load，在 Overlap 的情况下，要求 y=x，前半来自第一个 Store，后半来自第二个 Store。
 
@@ -216,7 +216,7 @@ Load 没有跨越缓存行时，load to use 延迟 4 cycle；跨过 64B 缓存�
 
 ### Memory Dependency Predictor
 
-为了预测执行 Load，需要确保它和之前的 Store 访问的内存没有 Overlap，所以需要一个预测器来预测这种依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/) 的方法，构造两种指令模式，分别测试数据和地址上的依赖：
+为了预测执行 Load，需要确保它和之前的 Store 访问的内存没有 Overlap，所以需要一个预测器来预测这种依赖。参考 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的方法，构造两种指令模式，分别测试数据和地址上的依赖：
 
 - 数据依赖，地址无依赖：`str x3, [x1]` 和 `ldr x3, [x2]`
 - 地址依赖，数据无依赖：`str x2, [x1]` 和 `ldr x1, [x2]`
@@ -241,7 +241,7 @@ Load 没有跨越缓存行时，load to use 延迟 4 cycle；跨过 64B 缓存�
 
 构造不同大小 footprint 的 pointer chasing 链，测试每条 load 指令的耗时：
 
-64KB 处出现拐点，对应 L1 DCache 容量。之后延迟先上升后下降，与 ARM 采用的 Correlated Miss Caching (CMC) 预取器记住了 pointer chasing 的历史有关，详见 [Arm Neoverse N2: Arm's 2nd generation high performance infrastructure CPUs and system IPs](https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf)。
+64KB 处出现拐点，对应 L1 DCache 容量。之后延迟先上升后下降，与 ARM 采用的 Correlated Miss Caching (CMC) 预取器记住了 pointer chasing 的历史有关，详见 [Arm Neoverse N2: Arm's 2nd generation high performance infrastructure CPUs and system IPs](<https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf>)。
 
 #### 延迟
 
@@ -253,7 +253,7 @@ L1 DCache 的 load to use latency 是 4 cycle，没有针对 pointer chasing 做
 
 #### VIPT
 
-4KB page 下，64KB 4-way 的 L1 DCache 不满足 VIPT 的 Index 全在页内偏移的条件（详见 [VIPT 与缓存大小和页表大小的关系](https://jia.je/hardware/2023/12/08/vipt-l1-cache-page-size/index.md)）。此时要么用 PIPT，要么在 VIPT 基础上处理 alias 问题。参考 [浅谈现代处理器实现超大 L1 Cache 的方式](https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/) 的测试方法，用 shm 构造两个 4KB 虚拟页映射到同一个物理页，然后在两个虚拟页之间 copy，发现相比同一个虚拟页内 copy 有显著的性能下降，并产生了大量 L1 DCache Refill：
+4KB page 下，64KB 4-way 的 L1 DCache 不满足 VIPT 的 Index 全在页内偏移的条件（详见 [VIPT 与缓存大小和页表大小的关系](<https://jia.je/blog/posts/hardware/vipt-l1-cache-page-size/index.md>)）。此时要么用 PIPT，要么在 VIPT 基础上处理 alias 问题。参考 [浅谈现代处理器实现超大 L1 Cache 的方式](<https://blog.cyyself.name/why-the-big-l1-cache-is-so-hard/>) 的测试方法，用 shm 构造两个 4KB 虚拟页映射到同一个物理页，然后在两个虚拟页之间 copy，发现相比同一个虚拟页内 copy 有显著的性能下降，并产生了大量 L1 DCache Refill：
 
 ```text
 copy from aliased page = 8778731053 cycles, 55305 refills
@@ -273,7 +273,7 @@ slowdown = 1.66x
 
 Stride=64B 时出现 Bank Conflict，Stride=128B 时所有 Load 命中同一个 Bank，只能串行读取。根据这个现象，认为 Neoverse V3 的 L1 DCache 组织方式是：
 
-- 一共有两个 Bank，Bank Index 是 VA[6]
+- 一共有两个 Bank，Bank Index 是 VA\[6\]
 - 每个 Bank 每周期可以从一个缓存行读取数据
 - 支持多个 Load 访问同一个缓存行
 - 多个 Load 访问同一个 Bank 的不同缓存行，只能一个周期完成一个 Load

@@ -4,32 +4,32 @@
 
 最近需要在 VCU128 上搭建一个 SOC，然后想到可以把 OpenSBI、U-Boot 和 Linux 移植到这个平台上方便测试，于是又开始折腾这些东西。代码仓库都已经开源：
 
-- [rocket-chip-vcu128](https://github.com/jiegec/rocket-chip-vcu128)
-- [opensbi](https://github.com/jiegec/opensbi/tree/rocket-chip-vcu128)
-- [u-boot](https://github.com/jiegec/u-boot/tree/rocket-chip-vcu128)
-- [linux](https://github.com/jiegec/linux/tree/rocket-chip-vcu128)
+- [rocket-chip-vcu128](<https://github.com/jiegec/rocket-chip-vcu128>)
+- [opensbi](<https://github.com/jiegec/opensbi/tree/rocket-chip-vcu128>)
+- [u-boot](<https://github.com/jiegec/u-boot/tree/rocket-chip-vcu128>)
+- [linux](<https://github.com/jiegec/linux/tree/rocket-chip-vcu128>)
 
 ## Rocket Chip on VCU128
 
-第一部分是基于之前 [rocket2thinpad](https://github.com/jiegec/rocket2thinpad) 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
+第一部分是基于之前 [rocket2thinpad](<https://github.com/jiegec/rocket2thinpad>) 在 Thinpad 上移植 Rocket Chip 的经验，做了一些更新，主要是因为 VCU128 的外设不大一样，同时我也要运行更复杂的程序，主要做了这些事情：
 
 1. 添加了 VCU128 的内存和外设：HBM、SPI、I2C、UART、ETH
-1. 打开了更多核心选项：S-mode 和 U-mode
+2. 打开了更多核心选项：S-mode 和 U-mode
 
 主要踩过的坑：
 
 1. BSCAN 不工作，估计是因为一些参数不对，@jsteward 之前在 zcu 平台上做了一些测试，估计要用类似的办法进行修改；我最后直接去掉了这部分逻辑
-1. 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset
-1. SPI Startup Flash 的时序配置，见我之前的[博客](https://jia.je/hardware/2021/09/27/xilinx-axi-quad-spi-timing/index.md)
-1. Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus 上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突
+2. 这个板子的 PHY RESET 信号要通过 I2C 接口访问 TI 的 Port Expander，所以没法直接连，要通过 gpio 输出来手动 reset
+3. SPI Startup Flash 的时序配置，见我之前的[博客](<https://jia.je/blog/posts/hardware/xilinx-axi-quad-spi-timing/index.md>)
+4. Xilinx PCS/PMA IP 也会自己挂一个设备到 MDIO bus 上，应该有自己的 PHY 地址，而不要和物理的 PHY 冲突
 
 ## U-Boot
 
 在 U-Boot 上花了比较多的时间，用它的目的主要是：
 
 1. BootROM 中的代码只支持从串口加载程序，如果后续要加载 Linux 内核等软件，性能太差。
-1. U-Boot 驱动比较完善，而且 dts 也可以很容易地迁移到 Linux 中
-1. 有一些可以参考的资料
+2. U-Boot 驱动比较完善，而且 dts 也可以很容易地迁移到 Linux 中
+3. 有一些可以参考的资料
 
 移植的时候，首先新建一个自定义的 board，然后自己写 defconfig 和 dts，其中 dts 可以参考 rocket chip 生成的 dts 文件。然后，按照各个外设的 device tree binding 去写，然后打开/关闭各个 CONFIG 开关。
 
@@ -39,7 +39,7 @@
 
 此外还花了很多努力来缩小 binary 大小，首先可以用 `nm --size -r u-boot | head -20` 来找到比较大的一些符号，不考虑其中 BSS 的部分（type=b），主要看哪些代码/数据比较占空间。
 
-UPDATE: U-Boot 在 v2022.01 版本[修复了一个 BUG](https://github.com/u-boot/u-boot/commit/eeaa3fe65270758ab0bdb1515e14f9bf936d3a25)，之前的版本在 riscv 架构下没有 reserve lmb region，使得加载 initrd 的时候，会覆盖掉自己的栈空间，这解释了之前的诸多玄学内存问题，升级到 v2022.01 后就好了。
+UPDATE: U-Boot 在 v2022.01 版本[修复了一个 BUG](<https://github.com/u-boot/u-boot/commit/eeaa3fe65270758ab0bdb1515e14f9bf936d3a25>)，之前的版本在 riscv 架构下没有 reserve lmb region，使得加载 initrd 的时候，会覆盖掉自己的栈空间，这解释了之前的诸多玄学内存问题，升级到 v2022.01 后就好了。
 
 ## OpenSBI
 

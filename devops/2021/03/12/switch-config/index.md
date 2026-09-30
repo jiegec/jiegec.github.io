@@ -355,7 +355,7 @@ switch (config) # show interfaces port-channel summary
 ### 把拆分的四个 SFP 口恢复成一个
 
 ```text
-switch (config interface ethernet 1/1/1) # module-type qsfp
+switch (config interface ethernet 1/1/1) # module-type qsfp 
 ```
 
 ### 把一个 QSFP 口拆分成四个

@@ -1,6 +1,6 @@
 # 在 Rocket Chip 上挂接 TLRAM
 
-最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM，这样每次修改内容不需要重新跑一次 Chisel -> Verilog 的流程。然后到处研究了一下，找到了解决的方案：
+最近遇到一个需求，需要在 Rocket Chip 里面开辟一块空间，通过 verilog 的 $readmemh 来进行初始化而不是用 BootROM，这样每次修改内容不需要重新跑一次 Chisel -\> Verilog 的流程。然后到处研究了一下，找到了解决的方案：
 
 首先是新建一个 TLRAM 然后挂接到 cbus 上：
 
@@ -36,7 +36,7 @@ class TestTop(implicit p:Parameters)
 
 首先是用 `chisel3.util.experimental.loadMemoryFromFile` 函数（文档在 https://github.com/freechipsproject/chisel3/wiki/Chisel-Memories）：
 
-UPDATE：现在的文档在 [Loading Memories for simulation or FPGA initialization](https://www.chisel-lang.org/chisel3/docs/appendix/experimental-features#loading-memories-for-simulation-or-fpga-initialization-) 处，并且可以用 loadMemoryFromFileInline。
+UPDATE：现在的文档在 [Loading Memories for simulation or FPGA initialization](<https://www.chisel-lang.org/chisel3/docs/appendix/experimental-features#loading-memories-for-simulation-or-fpga-initialization->) 处，并且可以用 loadMemoryFromFileInline。
 
 ```scala
 class TestTopImp(outer: TestTop)

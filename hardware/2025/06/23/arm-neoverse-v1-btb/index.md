@@ -2,18 +2,20 @@
 
 ## 背景
 
-ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发布。此前我们分析过 [Neoverse N1 的 BTB 设计](https://jia.je/hardware/2025/06/05/arm-neoverse-n1-btb/index.md)。而 ARM Neoverse V1 在很多地方都和 Cortex-X1 类似，相比 Neoverse N1/Cortex-A76 有了一些改进，在这里对它的 BTB 做一些分析。
+ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发布。此前我们分析过 [Neoverse N1 的 BTB 设计](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb/index.md>)。而 ARM Neoverse V1 在很多地方都和 Cortex-X1 类似，相比 Neoverse N1/Cortex-A76 有了一些改进，在这里对它的 BTB 做一些分析。
 
 ## 官方信息
 
 首先收集了一些 ARM Neoverse V1 的 BTB 结构的官方信息：
 
-- [SW defined cars: HPC, from the cloud to the dashboard for an amazing driver experience](https://teratec.eu/library/pdf/forum/2021/A05-03.pdf)
+- [SW defined cars: HPC, from the cloud to the dashboard for an amazing driver experience](<https://teratec.eu/library/pdf/forum/2021/A05-03.pdf>)
+
   - 64KB L1 ICache, 2x32B bandwidth
   - 8K-entry main BTB
   - 96-entry nano BTB, 0 cycle bubble
-  - 2 stage prediction pipeline: P1 & P2，大概率 nano BTB 在 P1，main BTB 在 P2
-- [Arm Neoverse V2 platform: Leadership Performance and Power Efficiency for Next-Generation Cloud Computing, ML and HPC Workloads](https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf)
+  - 2 stage prediction pipeline: P1 &amp; P2，大概率 nano BTB 在 P1，main BTB 在 P2
+- [Arm Neoverse V2 platform: Leadership Performance and Power Efficiency for Next-Generation Cloud Computing, ML and HPC Workloads](<https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf>)
+
   - 2 predicted branches per cycle，每周期最多预测两条分支
 
 简单整理一下官方信息，大概有两级 BTB：
@@ -26,7 +28,7 @@ ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发�
 
 ## 微架构测试
 
-在之前的博客里，我们已经测试了各种处理器的 BTB，在这里也是一样的：按照一定的 stride 分布无条件（uncond）或总是跳转的有条件（cond）直接分支，构成一个链条，然后测量 CPI。在先前的 [Neoverse N1 测试](https://jia.je/hardware/2025/06/05/arm-neoverse-n1-btb/index.md) 里，我们只测试了无条件分支，但实际上，在 Neoverse N1 上用条件分支测出来的结果也是一样的，但在 Neoverse V1 上就不同了，所以在这里要分开讨论。
+在之前的博客里，我们已经测试了各种处理器的 BTB，在这里也是一样的：按照一定的 stride 分布无条件（uncond）或总是跳转的有条件（cond）直接分支，构成一个链条，然后测量 CPI。在先前的 [Neoverse N1 测试](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb/index.md>) 里，我们只测试了无条件分支，但实际上，在 Neoverse N1 上用条件分支测出来的结果也是一样的，但在 Neoverse V1 上就不同了，所以在这里要分开讨论。
 
 ### stride=4B uncond
 
@@ -40,8 +42,8 @@ ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发�
 那么 stride=4B uncond 的情况下就遗留了如下问题：
 
 1. nano BTB 没表现出 96 的容量，只表现出接近 64 的容量
-1. 没有观察到 2 predicted branches per cycle
-1. 没有命中 main BTB
+2. 没有观察到 2 predicted branches per cycle
+3. 没有命中 main BTB
 
 ### stride=4B cond
 
@@ -126,7 +128,7 @@ stride=32B uncond 的情况：
 那么 stride=32B uncond 的情况下就遗留了如下问题：
 
 1. 从 1024 条分支开始性能有略微的下降
-1. 性能明显下降的点在 8192 右侧，而不是 8192
+2. 性能明显下降的点在 8192 右侧，而不是 8192
 
 ### stride=32B cond
 
@@ -188,14 +190,14 @@ nano BTB 的容量减半，意味着 nano BTB 的 96 的容量，实际上是 48
 
 main BTB 的容量不变，意味着它在 cond + cond 的情况下，会退化为普通的 BTB，此时所有容量都可以用来保存 cond 分支，并且都能匹配到。
 
-那么，具体是怎么做到 2 predicted branches per cycle 呢？猜测在执行的时候，检测这种一个分支的目的地址后，跟着一条 uncond 分支的情况：如果有的话，就把第二条分支的信息，放在第一条分支的信息后面（这在 [Branch Target Buffer Organizations](https://dl.acm.org/doi/pdf/10.1145/3613424.3623774) 中被称为 MB-BTB 结构），单个周期直接从 SRAM 读取出来，然后组成两个 fetch bundle：
+那么，具体是怎么做到 2 predicted branches per cycle 呢？猜测在执行的时候，检测这种一个分支的目的地址后，跟着一条 uncond 分支的情况：如果有的话，就把第二条分支的信息，放在第一条分支的信息后面（这在 [Branch Target Buffer Organizations](<https://dl.acm.org/doi/pdf/10.1145/3613424.3623774>) 中被称为 MB-BTB 结构），单个周期直接从 SRAM 读取出来，然后组成两个 fetch bundle：
 
 - prediction pc -- first branch pc
 - first branch target -- second branch pc
 
 然后下一个周期从 second branch target 开始继续预测。根据官方信息，Neoverse V1 的 L1 ICache 支持 2x32B 的带宽，这个 2x 代表了可以从两个不同的地方读取指令，也就是 L1 ICache 至少是双 bank 甚至双端口的 SRAM。考虑到前面的测试中，CPI=0.5 的范围跨越了各种 stride，认为 L1 ICache 是双 bank 的可能写比较小，不然应该会观测到 bank conflict，大概率就是双端口了。
 
-此外，考虑到 fetch bundle 的长度限制，first branch target 到 second branch pc 不能太远。在上面的测试中，这个距离总是 0；读者如果感兴趣，可以尝试把距离拉长，看看超过 32B 以后，是不是会让 2 predicted branches per cycle 失效。类似的表述，在 [AMD Zen 4 Software Optimization Guide](https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/57647.zip) 中也有出现：
+此外，考虑到 fetch bundle 的长度限制，first branch target 到 second branch pc 不能太远。在上面的测试中，这个距离总是 0；读者如果感兴趣，可以尝试把距离拉长，看看超过 32B 以后，是不是会让 2 predicted branches per cycle 失效。类似的表述，在 [AMD Zen 4 Software Optimization Guide](<https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/57647.zip>) 中也有出现：
 
 ```text
 The branch target buffer (BTB) is a two-level structure accessed using the fetch address of the previous fetch block.
@@ -215,29 +217,29 @@ Predicting with BTB pairs allows two fetches to be predicted in one prediction c
 
 ### stride=4B uncond/cond 的情况下，main BTB 没有像预期那样工作
 
-类似的情况，我们在分析 [Neoverse N1](https://jia.je/hardware/2025/06/05/arm-neoverse-n1-btb/index.md) 的时候就遇到了。Neoverse N1 的情况是，每对齐的 32B 块内，由于 6 路组相连，最多记录 6 条分支，而 stride=4B 时，有 8 条分支，所以出现了性能问题。
+类似的情况，我们在分析 [Neoverse N1](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb/index.md>) 的时候就遇到了。Neoverse N1 的情况是，每对齐的 32B 块内，由于 6 路组相连，最多记录 6 条分支，而 stride=4B 时，有 8 条分支，所以出现了性能问题。
 
-那么 Neoverse V1 是不是还是类似的情况呢？查阅 [Neoverse V1 TRM](https://developer.arm.com/documentation/101427/latest/)，可以看到它的 L1 (main) BTB 的描述是：
+那么 Neoverse V1 是不是还是类似的情况呢？查阅 [Neoverse V1 TRM](<https://developer.arm.com/documentation/101427/latest/>)，可以看到它的 L1 (main) BTB 的描述是：
 
-- Index: [15:4]
-- Data: [91:0]
+- Index: \[15:4\]
+- Data: \[91:0\]
 
-回想之前 Neoverse N1 的 main BTB 容量：Index 是 [14:5]，意味着有 1024 个 set；3 个 Way，每个 Way 里面是 82 bit 的数据，每个分支占用 41 bit，所以一共可以存 `1024*3*2=6K` 条分支。
+回想之前 Neoverse N1 的 main BTB 容量：Index 是 \[14:5\]，意味着有 1024 个 set；3 个 Way，每个 Way 里面是 82 bit 的数据，每个分支占用 41 bit，所以一共可以存 `1024*3*2=6K` 条分支。
 
-类比一下，Neoverse V1 的 main BTB 容量也就可以计算得出：Index 是 [15:4]，意味着有 4096 个 set；没有 Way，说明就是直接映射；92 bit 的数据，大概率也是每个分支占用一半也就是 46 bit，所以一共可以存 `4096*2=8K` 条分支，和官方数据吻合。在需要 2 predicted branches 的时候，就把这两个分支放到同一个 92-bit entry 内即可。一共占用 `4096*92=376832` bit 也就是 46 KB 的空间。
+类比一下，Neoverse V1 的 main BTB 容量也就可以计算得出：Index 是 \[15:4\]，意味着有 4096 个 set；没有 Way，说明就是直接映射；92 bit 的数据，大概率也是每个分支占用一半也就是 46 bit，所以一共可以存 `4096*2=8K` 条分支，和官方数据吻合。在需要 2 predicted branches 的时候，就把这两个分支放到同一个 92-bit entry 内即可。一共占用 `4096*92=376832` bit 也就是 46 KB 的空间。
 
 那么，在 stride=4B 的情况下，对齐的 16B 块内的分支会被放到同一个 set 内，而每个 set 只能放两条分支，而 stride=4B 时需要放四条分支，这就导致了 main BTB 出现性能问题。
 
-但比较奇怪的是，main BTB 的容量，在 stride=32B 时是 8192，而 stride=64B 时是 4096，这和 Index 是 PC[15:4] 不符，这成为了新的遗留问题。有一种可能，就是 TRM 写的不准确，Index 并非 PC[15:4]。另外还有一个佐证：Neoverse N2 的 BTB 设计和 Neoverse V1 基本相同，但是它的 TRM 写的 Index 就是 [11:0]，这就肯定不是 PC[11:0] 了。
+但比较奇怪的是，main BTB 的容量，在 stride=32B 时是 8192，而 stride=64B 时是 4096，这和 Index 是 PC\[15:4\] 不符，这成为了新的遗留问题。有一种可能，就是 TRM 写的不准确，Index 并非 PC\[15:4\]。另外还有一个佐证：Neoverse N2 的 BTB 设计和 Neoverse V1 基本相同，但是它的 TRM 写的 Index 就是 \[11:0\]，这就肯定不是 PC\[11:0\] 了。
 
-抛开 TRM，根据 JamesAslan 在 [偷懒的 BTB？ARM Cortex X1 初探](https://zhuanlan.zhihu.com/p/595585895) 中的测试，Main BTB 是四路组相连。如果按照四路组相连来考虑，那么 8K 条分支，实际上应该是 2048 个 set，2 个 way，一共是 4K 个 entry，每个 entry 最多保存两条分支。此时 Index 应该有 11 个 bit。在 2 way 每 way 两条分支等效为 4 way 的情况下，stride=4B 出现分支数比 way 数量更多的情况，stride=8B 则不会，意味着参与到 Index 的最低的 PC 应该是 PC[5]，即每个对齐的 32B 块内，最多放四条分支（Neoverse N1 上是每个对齐的 32B 块内最多放六条分支）。这样的话，Index 可能实际上是 PC[15:5]。
+抛开 TRM，根据 JamesAslan 在 [偷懒的 BTB？ARM Cortex X1 初探](<https://zhuanlan.zhihu.com/p/595585895>) 中的测试，Main BTB 是四路组相连。如果按照四路组相连来考虑，那么 8K 条分支，实际上应该是 2048 个 set，2 个 way，一共是 4K 个 entry，每个 entry 最多保存两条分支。此时 Index 应该有 11 个 bit。在 2 way 每 way 两条分支等效为 4 way 的情况下，stride=4B 出现分支数比 way 数量更多的情况，stride=8B 则不会，意味着参与到 Index 的最低的 PC 应该是 PC\[5\]，即每个对齐的 32B 块内，最多放四条分支（Neoverse N1 上是每个对齐的 32B 块内最多放六条分支）。这样的话，Index 可能实际上是 PC\[15:5\]。
 
 ## 总结
 
 最后总结一下 Neoverse V1 的 BTB：
 
 - 48-entry(96 branches) nano BTB, at most 2 branches per entry, 1 cycle latency, at most 2 predicted branches every 1 cycle, fully associative
-- 4K-entry(8K branches) main BTB, at most 2 branches per entry, 2 cycle latency, at most 2 predicted branches every 2 cycles, 2-way(4-branch-way) set-associative, index PC[15:5]
+- 4K-entry(8K branches) main BTB, at most 2 branches per entry, 2 cycle latency, at most 2 predicted branches every 2 cycles, 2-way(4-branch-way) set-associative, index PC\[15:5\]
 
 当 uncond + uncond 或者 cond + uncond 时，可以实现每次预测两条分支；对于 cond + cond，每次只能预测一条分支。
 
@@ -260,39 +262,43 @@ Predicting with BTB pairs allows two fetches to be predicted in one prediction c
 
 Neoverse V1 相比 Neoverse N1，在容量和延迟上都有比较明显的提升，还额外给两级 BTB 都引入了 2 taken 的支持，进一步提升了吞吐。
 
-Neoverse N1 是基于 Cortex A76 设计的，Neoverse V1 是基于 Cortex X1 设计的，中间还隔了一代 Cortex A77，根据[官方信息](https://www.smartprix.com/bytes/cortex-a77-vs-cortex-a76-cores/)，它的 1-cycle latency L1 BTB（即 Nano BTB）容量从 Cortex A76 的 16 变成了 64，main BTB 从 6K 扩到了 8K，而没有提 Micro BTB。同时也没有提到 two taken 的事情。由此推断，Cortex A77 扩大了 Nano BTB 和 Main BTB 的容量，去掉了 Micro BTB，因为 Nano BTB 的容量已经和原来 Neoverse N1 的 Micro BTB 一样大了，其他应该没有变化。再结合 [Arm® Cortex®‑A77 Core Technical Reference Manual](https://developer.arm.com/documentation/101111/0101) 可知它的 BTB index 是 `[15:4]`，每个 entry 是 82 bits，位宽和 Neoverse N1 一致，所以应该只是扩了容量。
+Neoverse N1 是基于 Cortex A76 设计的，Neoverse V1 是基于 Cortex X1 设计的，中间还隔了一代 Cortex A77，根据[官方信息](<https://www.smartprix.com/bytes/cortex-a77-vs-cortex-a76-cores/>)，它的 1-cycle latency L1 BTB（即 Nano BTB）容量从 Cortex A76 的 16 变成了 64，main BTB 从 6K 扩到了 8K，而没有提 Micro BTB。同时也没有提到 two taken 的事情。由此推断，Cortex A77 扩大了 Nano BTB 和 Main BTB 的容量，去掉了 Micro BTB，因为 Nano BTB 的容量已经和原来 Neoverse N1 的 Micro BTB 一样大了，其他应该没有变化。再结合 [Arm® Cortex®‑A77 Core Technical Reference Manual](<https://developer.arm.com/documentation/101111/0101>) 可知它的 BTB index 是 `[15:4]`，每个 entry 是 82 bits，位宽和 Neoverse N1 一致，所以应该只是扩了容量。
 
-再往前找 Cortex A73 和 Cortex A75，根据 [Chips and Cheese](https://chipsandcheese.com/p/arms-cortex-a73-resource-limits-what-are-those) 的实验数据，Cortex A73 有两级 BTB，第一级 BTB 是 48-entry 2-cycle latency（奇怪的是，[官方信息](https://www.theregister.com/2016/06/01/arm_cortex_a73/) 中声称是 64 entry Micro BTAC，容量对不上，但还是更加相信实验数据），第二级 BTB 是 3K-entry 3-cycle latency。根据 [Chips and Cheese](https://chipsandcheese.com/p/inside-sifives-p550-microarchitecture) 的实验数据，Cortex A75 有两级 BTB，第一级 BTB 是 32-entry 1-cycle latency，第二级 BTB 是 3K-entry 3-cycle latency。
+再往前找 Cortex A73 和 Cortex A75，根据 [Chips and Cheese](<https://chipsandcheese.com/p/arms-cortex-a73-resource-limits-what-are-those>) 的实验数据，Cortex A73 有两级 BTB，第一级 BTB 是 48-entry 2-cycle latency（奇怪的是，[官方信息](<https://www.theregister.com/2016/06/01/arm_cortex_a73/>) 中声称是 64 entry Micro BTAC，容量对不上，但还是更加相信实验数据），第二级 BTB 是 3K-entry 3-cycle latency。根据 [Chips and Cheese](<https://chipsandcheese.com/p/inside-sifives-p550-microarchitecture>) 的实验数据，Cortex A75 有两级 BTB，第一级 BTB 是 32-entry 1-cycle latency，第二级 BTB 是 3K-entry 3-cycle latency。
 
 下面是一个对比表格：
 
-| uArch                | Cortex A73  | Cortex A75  | Neoverse N1    | Cortex A77     | Neoverse V1    | Neoverse N2    |
-| -------------------- | ----------- | ----------- | -------------- | -------------- | -------------- | -------------- |
-| Nano BTB size        | N/A         | 32 branches | 16 branches    | 64 branches    | 48\*2 branches | 32\*2 branches |
-| Nano BTB latency     | N/A         | 1 cycle     | 1 cycle        | 1 cycle        | 1 cycle        | 1 cycle        |
-| Nano BTB throughput  | N/A         | 1 branch    | 1 branch       | 1 branch       | 1-2 branches   | 1-2 branches   |
-| Micro BTB size       | 48 branches | N/A         | 64 branches    | N/A            | N/A            | N/A            |
-| Micro BTB latency    | 2 cycles    | N/A         | 2 cycles       | N/A            | N/A            | N/A            |
-| Micro BTB throughput | 1 branch    | N/A         | 1 branch       | N/A            | N/A            | N/A            |
-| Main BTB size        | 3K branches | 3K branches | 3K\*2 branches | 4K\*2 branches | 4K\*2 branches | 4K\*2 branches |
-| Main BTB latency     | 3 cycles    | 3 cycles    | 2-3 cycles     | 2-3 cycles     | 2 cycle        | 2 cycle        |
-| Main BTB throughput  | 1 branch    | 1 branch    | 1 branch       | 1 branch       | 1-2 branches   | 1-2 branches   |
-| Main BTB area (bits) | ?           | ?           | 3K\*82=251904  | 4K\*82=335872  | 4K\*92=376832  | 4K\*92=376832  |
-| Main BTB area (KiB)  | ?           | ?           | 30.75          | 41             | 46             | 46             |
-| Technology Node      | 10nm        | 10nm        | 7nm            | 7nm            | 5nm            | 5nm            |
+| uArch | Cortex A73 | Cortex A75 | Neoverse N1 | Cortex A77 | Neoverse V1 | Neoverse N2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Nano BTB size | N/A | 32 branches | 16 branches | 64 branches | 48\*2 branches | 32\*2 branches |
+| Nano BTB latency | N/A | 1 cycle | 1 cycle | 1 cycle | 1 cycle | 1 cycle |
+| Nano BTB throughput | N/A | 1 branch | 1 branch | 1 branch | 1-2 branches | 1-2 branches |
+| Micro BTB size | 48 branches | N/A | 64 branches | N/A | N/A | N/A |
+| Micro BTB latency | 2 cycles | N/A | 2 cycles | N/A | N/A | N/A |
+| Micro BTB throughput | 1 branch | N/A | 1 branch | N/A | N/A | N/A |
+| Main BTB size | 3K branches | 3K branches | 3K\*2 branches | 4K\*2 branches | 4K\*2 branches | 4K\*2 branches |
+| Main BTB latency | 3 cycles | 3 cycles | 2-3 cycles | 2-3 cycles | 2 cycle | 2 cycle |
+| Main BTB throughput | 1 branch | 1 branch | 1 branch | 1 branch | 1-2 branches | 1-2 branches |
+| Main BTB area (bits) | ? | ? | 3K\*82=251904 | 4K\*82=335872 | 4K\*92=376832 | 4K\*92=376832 |
+| Main BTB area (KiB) | ? | ? | 30.75 | 41 | 46 | 46 |
+| Technology Node | 10nm | 10nm | 7nm | 7nm | 5nm | 5nm |
 
 由此可以看出 ARM 在 BTB 上的优化脉络：
 
 - Cortex A75 相比 Cortex A73：
+
   - 降低第一级 BTB 的延迟，从 2 周期的 Micro BTB 变成 1 周期的 Nano BTB，从而降低无条件分支的延迟，代价是容量变小了一些
 - Neoverse N1 相比 Cortex A75：
+
   - 把 Nano BTB 拆分成 Nano 和 Micro 两级，从而增加容量
   - 通过引入 BTB 压缩优化（即一个 Entry 可以保存 1-2 条分支），使得 Main BTB 能容纳更多的分支
   - 针对 Main BTB 引入 fast path，当只有一个 way 匹配时，只需要 2 周期即可提供预测
 - Cortex A77 相比 Neoverse N1：
+
   - 通过扩大 Nano BTB，去掉了 Micro BTB，让更多分支可以享受 1 周期的延迟
   - 继续扩大 Main BTB
 - Neoverse V1 相比 Cortex A77：
+
   - 在 Nano 和 Main BTB 上引入 two taken 预测，增加吞吐
   - 减少 Main BTB 延迟，从 2-3 周期变成固定 2 周期
 

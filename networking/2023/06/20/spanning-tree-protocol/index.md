@@ -1,10 +1,10 @@
 # 生成树协议
 
-本文的内容已经整合到[知识库](/kb/networking/spanning_tree_protocol.html)中。
+本文的内容已经整合到[知识库](</kb/networking/spanning_tree_protocol.html>)中。
 
 ## Spanning Tree Protocol
 
-STP（Spanning Tree Protocol）可以在 [802.1D-1998](https://ieeexplore.ieee.org/document/1389253) 第 8 章中找到。STP 协议工作在交换机上，需要根据交换机连接的拓扑，自动计算出一个生成树，并且把不在生成树上的边禁用，这样即使连接的拓扑有环路，禁用以后就没有环了。有了 STP 以后，连接交换机的时候就可以刻意连成环，从而提供冗余。
+STP（Spanning Tree Protocol）可以在 [802.1D-1998](<https://ieeexplore.ieee.org/document/1389253>) 第 8 章中找到。STP 协议工作在交换机上，需要根据交换机连接的拓扑，自动计算出一个生成树，并且把不在生成树上的边禁用，这样即使连接的拓扑有环路，禁用以后就没有环了。有了 STP 以后，连接交换机的时候就可以刻意连成环，从而提供冗余。
 
 在 STP 协议提出的时候，网络还不像现在这样以点对点为主，因此需要考虑共享介质的场景，也就是多个交换机连到同一个局域网，并且这个局域网通过 Hub 来共享介质。因此，实际上局域网也属于拓扑的一部分，对应生成树的一个结点。为了统一点对点和共享介质，不妨认为点对点连接中，也连接了一个共享介质的局域网，只不过这个局域网没有其他网络设备。这样设定以后，从网络拓扑上来看，就是很多个独立的局域网，用交换机连接起来。
 
@@ -40,12 +40,12 @@ State 指的是端口的状态，可以认为是 STP 的输出，把端口设置
 小结一下 STP 的工作流程：
 
 1. 选举出 Root Bridge
-1. 对于每个 LAN Segment，选举出 Designated Switch
-1. 把不在生成树上的端口设置为 Blocking
+2. 对于每个 LAN Segment，选举出 Designated Switch
+3. 把不在生成树上的端口设置为 Blocking
 
 ## Rapid Spanning Tree Protocol
 
-RSTP（Rapid Spanning Tree Protocol）是 STP 协议的升级，在 [802.1D-2004](https://ieeexplore.ieee.org/document/1309630) 标准中定义。
+RSTP（Rapid Spanning Tree Protocol）是 STP 协议的升级，在 [802.1D-2004](<https://ieeexplore.ieee.org/document/1309630>) 标准中定义。
 
 和 STP 不同，RSTP 定义了五个 Role：
 
@@ -115,7 +115,7 @@ STP 解决了环路的问题，使得网络管理员在设计拓扑的时候，�
 
 针对这个场景，厂商提供了不同的解决方案，这里以 Cisco 的 vPC 作为一个例子来介绍。vPC 就是虚拟的 Port Channel 的意思，Port Channel 就是链路聚合，把两个交换机之间的多条链路当成一个用；Virtual Port Channel(vPC) 则是把 Port Channel 扩展到了跨交换机，二对一，一部分链路连到 Switch 1，剩下的链路连到 Switch 2，但是从外面看过来，等价于只有一个交换机：
 
-来源：[Port Channels and vPCs](https://www.ciscopress.com/articles/article.asp?p=3150966&seqNum=2)
+来源：[Port Channels and vPCs](<https://www.ciscopress.com/articles/article.asp?p=3150966&amp;seqNum=2>)
 
 这样就实现了对冗余链路的利用。
 

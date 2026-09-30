@@ -1,6 +1,6 @@
 # 在 k8s 中部署 code-server
 
-实验了一下在 k8s 中部署 [code-server](https://github.com/cdr/code-server)，并不复杂，和之前几篇博客的配置是类似的：
+实验了一下在 k8s 中部署 [code-server](<https://github.com/cdr/code-server>)，并不复杂，和之前几篇博客的配置是类似的：
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -100,5 +100,5 @@ spec:
 需要注意的几个点：
 
 1. 用了一个 pvc 用于 /home/coder 的持久化，所以你的集群里得有相应的 pv/storage class
-1. 我用的是 Nginx Inc. 的 ingress controller，它的 websocket 支持需要一句 nginx.org/websocket-services 设置
-1. 额外添加了一个 init container，为了处理 home 目录的权限
+2. 我用的是 Nginx Inc. 的 ingress controller，它的 websocket 支持需要一句 nginx.org/websocket-services 设置
+3. 额外添加了一个 init container，为了处理 home 目录的权限

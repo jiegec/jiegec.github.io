@@ -58,11 +58,11 @@ mknodat(AT_FDCWD, "test", S_IFCHR|0622, makedev(0x5, 0x1)) = -1 EPERM (Operation
         PATH=$$(BR_PATH) FAKEROOTDONTTRYCHOWN=1 /usr/bin/fakeroot -- $$(FAKEROOT_SCRIPT)
 ```
 
-我还尝试重新编译 fakeroot 1.20.2，会出现编译错误，采用类似 [bug 69572 fakeroot failes to build: \_STAT_VER undeclared](https://bugs.archlinux.org/task/69572) 的方法可以解决编译的问题，但是还是出现 EPERM。[Buildroot](https://github.com/buildroot/buildroot/commit/f45925a951318e9e53bead80b363e004301adc6f) 后来也引入了类似的修复。
+我还尝试重新编译 fakeroot 1.20.2，会出现编译错误，采用类似 [bug 69572 fakeroot failes to build: \_STAT\_VER undeclared](<https://bugs.archlinux.org/task/69572>) 的方法可以解决编译的问题，但是还是出现 EPERM。[Buildroot](<https://github.com/buildroot/buildroot/commit/f45925a951318e9e53bead80b363e004301adc6f>) 后来也引入了类似的修复。
 
-于是在[源代码](https://salsa.debian.org/clint/fakeroot)历史中搜寻了一番，发现了一个疑似的修复 commit：[configure.ac: fix \_\_xmknod{,at} pointer argument](https://salsa.debian.org/clint/fakeroot/-/commit/c3eebec293e35b997bb46c22fb5a4e114afb5e7f)，不过我并不能确定是不是这个问题。
+于是在[源代码](<https://salsa.debian.org/clint/fakeroot>)历史中搜寻了一番，发现了一个疑似的修复 commit：[configure.ac: fix \_\_xmknod{,at} pointer argument](<https://salsa.debian.org/clint/fakeroot/-/commit/c3eebec293e35b997bb46c22fb5a4e114afb5e7f>)，不过我并不能确定是不是这个问题。
 
-进一步，我在 Docker 镜像中手动下载并编译 fakeroot 1.20.2、1.21 和 1.25.3，都可以复现这个问题，编译 1.29 版本则没有问题。用 git 克隆[仓库](https://salsa.debian.org/clint/fakeroot)，进一步定位到 upstream/1.26 和 upstream/1.27 版本都是正常的。而 upstream/1.25.2 会出错。进一步二分，找到修复的 commit 是 [libfakeroot.c: add wrappers for new glibc 2.33+ symbols](https://salsa.debian.org/clint/fakeroot/-/commit/feda578ca3608b7fc9a28a3a91293611c0ef47b7)，相关的代码如下：
+进一步，我在 Docker 镜像中手动下载并编译 fakeroot 1.20.2、1.21 和 1.25.3，都可以复现这个问题，编译 1.29 版本则没有问题。用 git 克隆[仓库](<https://salsa.debian.org/clint/fakeroot>)，进一步定位到 upstream/1.26 和 upstream/1.27 版本都是正常的。而 upstream/1.25.2 会出错。进一步二分，找到修复的 commit 是 [libfakeroot.c: add wrappers for new glibc 2.33+ symbols](<https://salsa.debian.org/clint/fakeroot/-/commit/feda578ca3608b7fc9a28a3a91293611c0ef47b7>)，相关的代码如下：
 
 ```diff
 +  int mknod(const char *pathname, mode_t mode, dev_t dev) {

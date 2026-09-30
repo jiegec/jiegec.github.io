@@ -2,13 +2,13 @@
 
 ## 标准
 
-ACPI 标准可以从[官网](https://uefi.org/specifications)下载。
+ACPI 标准可以从[官网](<https://uefi.org/specifications>)下载。
 
 ACPI 的表现形式为一颗树加若干个表，表的结构比较规整，里面每个字段都有固定的含义。树的结点可能是属性，或者是一些函数。操作系统可以操作上面的属性，调用 ACPI 中的函数，来进行一些硬件相关的操作。ACPI 一般与主板密切相关，主板厂家配置好 ACPI 后，操作系统就不需要给每个主板都写一遍代码了。
 
 ## ASL
 
-为了开发 ACPI，需要使用 ACPI Source Language(ASL) 来进行编程，使用 iasl 编译成 ACPI 表以后，由操作系统进行解释执行。推荐阅读一个比较好的 ASL 教程：[ACPI Source Language (ASL) Tutorial](https://acpica.org/sites/acpica/files/asl_tutorial_v20190625.pdf)。
+为了开发 ACPI，需要使用 ACPI Source Language(ASL) 来进行编程，使用 iasl 编译成 ACPI 表以后，由操作系统进行解释执行。推荐阅读一个比较好的 ASL 教程：[ACPI Source Language (ASL) Tutorial](<https://acpica.org/sites/acpica/files/asl_tutorial_v20190625.pdf>)。
 
 简单来说，ASL 中的变量类型：
 
@@ -21,7 +21,7 @@ ACPI 的表现形式为一颗树加若干个表，表的结构比较规整，里
 
 ACPI 需要访问硬件，一般是通过 MMIO 或者 IO Port 来进行访问。在内核开发的时候，MMIO 一般是用一系列 volatile 指针来对应硬件的寄存器定义。ASL 中也可以做类似的事情，分为两步：`OperationRegion` 和 `Field`。
 
-`OperationRegion` 就是声明了一片地址空间，以及对应的类型，常见的类型有 SystemMemory、SystemIO、PCI_Config、SMBus 等等。当 ACPI 中的代码要访问 `OperationRegion` 中的数据的时候，内核按照类型去进行实际的访问。
+`OperationRegion` 就是声明了一片地址空间，以及对应的类型，常见的类型有 SystemMemory、SystemIO、PCI\_Config、SMBus 等等。当 ACPI 中的代码要访问 `OperationRegion` 中的数据的时候，内核按照类型去进行实际的访问。
 
 有了地址空间以后，还需要根据寄存器的定义，给各个字段起个名字，这就是 `Field`。`Field` 给 `OperationRegion` 中的字段起名，与硬件的定义想对应，这就像在内核中定义一个结构体，保证结构体的成员的偏移和硬件是一致的。这样就可以通过成员来访问，而不是每次都去计算一次偏移。
 
@@ -37,7 +37,7 @@ iasl -d *.dat
 
 ## 串口
 
-### x86_64
+### x86\_64
 
 下面来看一个具体的例子，主板 `WS X299 PRO/SE` 的 ACPI 表中记录的串口信息：
 
@@ -160,7 +160,7 @@ IO (Decode16,
     )
 ```
 
-这里表达的正是 `0x3F8-0x3FF` 这一段 IO Port。这个地址和 [OSDev](https://wiki.osdev.org/Serial_Ports#Port_Addresses) 上看到的也是吻合的。
+这里表达的正是 `0x3F8-0x3FF` 这一段 IO Port。这个地址和 [OSDev](<https://wiki.osdev.org/Serial_Ports#Port_Addresses>) 上看到的也是吻合的。
 
 进一步分析代码，`_STA` 函数返回设备当前的状态。可以在 Linux 的 ACPI 结点路径下看 `status` 文件，其内容是 `15`，表示工作正常。实现中，它调用了 `^^SIO1.DSTA(0x00)`，这里的 `^` 表示上一级命名空间。进一步找到 `DSTA` 的实现：
 
@@ -238,7 +238,7 @@ IndexField (INDX, DATA, ByteAcc, NoLock, Preserve)
 nct6775: Found NCT6796D or compatible chip at 0x2e:0x290
 ```
 
-查询 [NCT6796D Datasheet](https://www.nuvoton.com/resource-files/NCT6796D_Datasheet_V0_6.pdf)，可以发现：
+查询 [NCT6796D Datasheet](<https://www.nuvoton.com/resource-files/NCT6796D_Datasheet_V0_6.pdf>)，可以发现：
 
 - 芯片通过 LPC 总线与 CPU 连接，支持多种外设接口，包括 UART，PS/2，红外，GPIO，SMBus 等等
 - 偏移 0x30 的寄存器 `ACTR` 的最低位表示了 logical device 的当前状态。
@@ -248,7 +248,7 @@ nct6775: Found NCT6796D or compatible chip at 0x2e:0x290
 
 ### ARM64
 
-前面看过了 x86_64 平台的串口，是需要通过 IO Port 进行访问的。在 ARM 平台上，则一般是通过 MMIO 访问。搜索内核日志，可以发现内核从 SPCR(Serial Port Console Redirection table) 表获取得到串口的信息：
+前面看过了 x86\_64 平台的串口，是需要通过 IO Port 进行访问的。在 ARM 平台上，则一般是通过 MMIO 访问。搜索内核日志，可以发现内核从 SPCR(Serial Port Console Redirection table) 表获取得到串口的信息：
 
 ```dmesg
 ACPI: SPCR: console: uart,mmio,0x3f00002f8,115200
@@ -277,7 +277,7 @@ SPCR 表的内容：
 [03Eh 0062   1]                Terminal Type : 03
 ```
 
-SPCR 表的定义可以在 [Serial Port Console Redirection Table (SPCR)](https://learn.microsoft.com/en-us/windows-hardware/drivers/serports/serial-port-console-redirection-table) 处看到：
+SPCR 表的定义可以在 [Serial Port Console Redirection Table (SPCR)](<https://learn.microsoft.com/en-us/windows-hardware/drivers/serports/serial-port-console-redirection-table>) 处看到：
 
 - Interface Type(00): Full 16550 interface
 - Interrupt Type(08): ARMH GIC interrupt (Global System Interrupt)
@@ -328,7 +328,7 @@ int __init acpi_parse_spcr(bool enable_earlycon, bool enable_console)
 
 ## IPMI
 
-### x86_64
+### x86\_64
 
 接下来，再来看 ACPI 中是如何声明 IPMI 的。主板依然是 `WS X299 PRO/SE`，主板自带了 BMC，可以在 DSDT 中搜到相关的部分：
 
@@ -621,7 +621,7 @@ Device (DMAC)
 - 0x81, 0x87, 0x89, 0x8F
 - `0xC0-0xDE`
 
-寄存器定义可以在 [ISA DMA - OSDev](https://wiki.osdev.org/ISA_DMA) 处找到。
+寄存器定义可以在 [ISA DMA - OSDev](<https://wiki.osdev.org/ISA_DMA>) 处找到。
 
 ## CMOS/RTC
 
@@ -662,7 +662,7 @@ Device (RTC)
 }
 ```
 
-可以看到，它的 IO Port 是 0x70-0x71 和 0x74-0x78，中断号 8，和 [CMOS - OSDev](https://wiki.osdev.org/CMOS) 是一致的。
+可以看到，它的 IO Port 是 0x70-0x71 和 0x74-0x78，中断号 8，和 [CMOS - OSDev](<https://wiki.osdev.org/CMOS>) 是一致的。
 
 ## 启动图片
 
@@ -823,7 +823,7 @@ PCI: MMCONFIG at [mem 0x60000000-0x6fffffff] reserved in E820
 
 ### 相关文档
 
-Linux 的文档 [ACPI considerations for PCI host bridges](https://docs.kernel.org/PCI/acpi-info.html) 对 ACPI PCIe 描述的比较详细，摘录如下：
+Linux 的文档 [ACPI considerations for PCI host bridges](<https://docs.kernel.org/PCI/acpi-info.html>) 对 ACPI PCIe 描述的比较详细，摘录如下：
 
 ```text
 The general rule is that the ACPI namespace should describe everything the
@@ -1078,10 +1078,10 @@ Scope (_SB)
 
 想要修改 ACPI 表内容，最根本的办法是修改固件，但是修改起来比较麻烦。Linux 提供了一些方法来运行时打补丁：
 
-- [Upgrading ACPI tables via initrd](https://www.kernel.org/doc/html/latest/admin-guide/acpi/initrd_table_override.html)：覆盖 ACPI 表
-- [SSDT Overlays](https://www.kernel.org/doc/html/latest/admin-guide/acpi/ssdt-overlays.html)：添加额外的 SSDT 表，类似 DT Overlay
+- [Upgrading ACPI tables via initrd](<https://www.kernel.org/doc/html/latest/admin-guide/acpi/initrd_table_override.html>)：覆盖 ACPI 表
+- [SSDT Overlays](<https://www.kernel.org/doc/html/latest/admin-guide/acpi/ssdt-overlays.html>)：添加额外的 SSDT 表，类似 DT Overlay
 
-在黑苹果中，一般则是在 Bootloader(Clover/OpenCore) 一步把 ACPI 表修改了，如 [How to Patch Laptop DSDT and SSDTs](https://elitemacx86.com/threads/how-to-patch-laptop-dsdt-and-ssdts.178/)。
+在黑苹果中，一般则是在 Bootloader(Clover/OpenCore) 一步把 ACPI 表修改了，如 [How to Patch Laptop DSDT and SSDTs](<https://elitemacx86.com/threads/how-to-patch-laptop-dsdt-and-ssdts.178/>)。
 
 ## ACPI 硬件规范
 
@@ -1158,7 +1158,7 @@ static void acpi_pm1_cnt_write(ACPIREGS *ar, uint16_t val)
 
 ### PM Timer
 
-ACPI 还提供了一个 3.579545 MHz 的时钟 PM_TMR。QEMU 相关代码：
+ACPI 还提供了一个 3.579545 MHz 的时钟 PM\_TMR。QEMU 相关代码：
 
 ```c
 /* PM Timer ticks per second (HZ) */
@@ -1231,7 +1231,7 @@ static int __init init_acpi_pm_clocksource(void)
 
 ## PCIe Hot Plug
 
-在 QEMU 中，如果虚拟机要进行 PCIe Hot Plug 的时候，例如要增加 PCIe 设备，或者删除已有的 PCIe 设备，需要设法通知操作系统，告知操作系统哪个地方有新的设备，或者哪个已有的设备被弹出。QEMU 的实现文档是[QEMU\<->ACPI BIOS PCI hotplug interface](https://www.qemu.org/docs/master/specs/acpi_pci_hotplug.html)，这里结合代码来解释一下。
+在 QEMU 中，如果虚拟机要进行 PCIe Hot Plug 的时候，例如要增加 PCIe 设备，或者删除已有的 PCIe 设备，需要设法通知操作系统，告知操作系统哪个地方有新的设备，或者哪个已有的设备被弹出。QEMU 的实现文档是[QEMU\<-\>ACPI BIOS PCI hotplug interface](<https://www.qemu.org/docs/master/specs/acpi_pci_hotplug.html>)，这里结合代码来解释一下。
 
 在 QEMU 中，要插入一个新的 PCIe 设备的时候，按照设备的 bus 和 slot 设置位为 1，并且发送 GPE：
 

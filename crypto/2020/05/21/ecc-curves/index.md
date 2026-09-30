@@ -6,15 +6,15 @@
 
 第一种：
 
-[E: y^2 \\equiv x^3 + ax + b \\mod{p}]
+\\\[E: y^2 \\equiv x^3 + ax + b \\mod{p}\\\]
 
-曲线的参数共有 ((p, a, b, G, n, h))。(G) 是一个点 ((G_x, G_y))，(n) 是 (G) 的阶。
+曲线的参数共有 \\((p, a, b, G, n, h)\\)。\\(G\\) 是一个点 \\((G\_x, G\_y)\\)，\\(n\\) 是 \\(G\\) 的阶。
 
 第二种：
 
-[E: y^2+xy=x^3+ax^2+1]
+\\\[E: y^2+xy=x^3+ax^2+1\\\]
 
-称为 Kbolitz curve。不同的曲线有不同的参数 ((m,f(x),a,b,G,n,h))，对应不同的 (GF(2^m)) 域。
+称为 Kbolitz curve。不同的曲线有不同的参数 \\((m,f(x),a,b,G,n,h)\\)，对应不同的 \\(GF(2^m)\\) 域。
 
 ## OpenSSL
 
@@ -113,91 +113,91 @@
 
 这个列表很长，主要有几个参数：
 
-1. 什么域：素数域还是 (GF(2^m)) 域
-1. 位数：域有多少位
-1. 标准：NIST/SECG/WTLS/X9.62/RFC 5639/SM2/Oakley 表示的是不同的标准
+1. 什么域：素数域还是 \\(GF(2^m)\\) 域
+2. 位数：域有多少位
+3. 标准：NIST/SECG/WTLS/X9.62/RFC 5639/SM2/Oakley 表示的是不同的标准
 
 ## NIST
 
-NIST 在 [FIPS 186-4](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.186-4.pdf) 中定义了基于素数域的 Curve P-192, Curve P-224, Curve P-256, Curve P-384 和 Curve P-521。在 [RFC5656](https://tools.ietf.org/html/rfc5656) 中，这几条曲线又名 nistp192 nistp224 nistp256 nistp384 和 nistp521。
+NIST 在 [FIPS 186-4](<https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.186-4.pdf>) 中定义了基于素数域的 Curve P-192, Curve P-224, Curve P-256, Curve P-384 和 Curve P-521。在 [RFC5656](<https://tools.ietf.org/html/rfc5656>) 中，这几条曲线又名 nistp192 nistp224 nistp256 nistp384 和 nistp521。
 
 Curve P-192:
 
-[p = 2^{192}-2^{64}-1]
+\\\[p = 2^{192}-2^{64}-1\\\]
 
 Curve P-224:
 
-[p=2^{224}-2^{96}-1]
+\\\[p=2^{224}-2^{96}-1\\\]
 
 Curve P-256:
 
-[p=2^{256}-2^{224}+2^{192}+2^{96}-1]
+\\\[p=2^{256}-2^{224}+2^{192}+2^{96}-1\\\]
 
 Curve P-384:
 
-[p=2^{384}-2^{128}-2^{96}+2^{32}-1]
+\\\[p=2^{384}-2^{128}-2^{96}+2^{32}-1\\\]
 
 Curve P-521:
 
-[p=2^{521}-1]
+\\\[p=2^{521}-1\\\]
 
-另一类是基于 Binary Field（(GF(2^m))）的曲线，有 Curve K-163，Curve B-163，Curve K-233，Curve B-233，Curve K-283，Curve B-283，Curve K-409，Curve B-409，Curve K-571，Curve B-571。相应地，RFC 5656 里又名 nistk163，nistk233，nistb233，nistk283，nistk409，nistb409，nistt571（我觉得是 nistb571/nistk571，不知道是不是写错了）
+另一类是基于 Binary Field（\\(GF(2^m)\\)）的曲线，有 Curve K-163，Curve B-163，Curve K-233，Curve B-233，Curve K-283，Curve B-283，Curve K-409，Curve B-409，Curve K-571，Curve B-571。相应地，RFC 5656 里又名 nistk163，nistk233，nistb233，nistk283，nistk409，nistb409，nistt571（我觉得是 nistb571/nistk571，不知道是不是写错了）
 
 Degree 163 (K-163/B-163) :
 
-[p(t)=t^{163}+t^7+t^6+t^3+1]
+\\\[p(t)=t^{163}+t^7+t^6+t^3+1\\\]
 
 Degree 233 (K-233/B-233) :
 
-[p(t)=t^{233}+t^{74}+1]
+\\\[p(t)=t^{233}+t^{74}+1\\\]
 
 Degree 283 (K-283/B-283) :
 
-[p(t)=t^{283}+t^{12}+t^7+t^5+1]
+\\\[p(t)=t^{283}+t^{12}+t^7+t^5+1\\\]
 
 Degree 409 (K-409/B-409) :
 
-[p(t)=t^{409}+t^{87}+1]
+\\\[p(t)=t^{409}+t^{87}+1\\\]
 
 Degree 571 (K-571/B-571) :
 
-[p(t)=t^{571}+t^{10}+t^5+t^2+1]
+\\\[p(t)=t^{571}+t^{10}+t^5+t^2+1\\\]
 
 ## SECG
 
-SECG 在 [SEC2](https://www.secg.org/sec2-v2.pdf) 中定义了若干的曲线，其中一部分和上面的 NIST 是同一个曲线。首先是基于素数域的：
+SECG 在 [SEC2](<https://www.secg.org/sec2-v2.pdf>) 中定义了若干的曲线，其中一部分和上面的 NIST 是同一个曲线。首先是基于素数域的：
 
-| NIST     | SEC       | OID                 | ANSI       |
-| -------- | --------- | ------------------- | ---------- |
+| NIST | SEC | OID | ANSI |
+| --- | --- | --- | --- |
 | nistp192 | secp192r1 | 1.2.840.10045.3.1.1 | prime192v1 |
-|          | secp192k1 | 1.3.132.0.31        |            |
-| nistp224 | secp224r1 | 1.3.132.0.33        |            |
-|          | secp224k1 | 1.3.132.0.32        |            |
+|  | secp192k1 | 1.3.132.0.31 |  |
+| nistp224 | secp224r1 | 1.3.132.0.33 |  |
+|  | secp224k1 | 1.3.132.0.32 |  |
 | nistp256 | secp256r1 | 1.2.840.10045.3.1.7 | prime256v1 |
-|          | secp256k1 | 1.3.132.0.10        |            |
-| nistp384 | secp384r1 | 1.3.132.0.34        |            |
-|          | secp384k1 |                     |            |
-| nistp521 | secp521r1 | 1.3.132.0.35        |            |
-|          | secp521k1 |                     |            |
+|  | secp256k1 | 1.3.132.0.10 |  |
+| nistp384 | secp384r1 | 1.3.132.0.34 |  |
+|  | secp384k1 |  |  |
+| nistp521 | secp521r1 | 1.3.132.0.35 |  |
+|  | secp521k1 |  |  |
 
-然后是基于 (GF(2^m)) 域的：
+然后是基于 \\(GF(2^m)\\) 域的：
 
-| NIST                                | SEC       | OID          |
-| ----------------------------------- | --------- | ------------ |
-| nistk163                            | sect163k1 | 1.3.132.0.1  |
-|                                     | sect163r1 | 1.3.132.0.2  |
-| nistb163                            | sect163r2 | 1.3.132.0.15 |
-| nistk233                            | sect233k1 | 1.3.132.0.26 |
-| nistb233                            | sect233r1 | 1.3.132.0.27 |
-|                                     | sect239k1 | 1.3.132.0.3  |
-| nistk283                            | sect283k1 | 1.3.132.0.16 |
-| nistb283                            | sect283r1 | 1.3.132.0.17 |
-| nistk409                            | sect409k1 | 1.3.132.0.36 |
-| nistb409                            | sect409r1 | 1.3.132.0.37 |
+| NIST | SEC | OID |
+| --- | --- | --- |
+| nistk163 | sect163k1 | 1.3.132.0.1 |
+|  | sect163r1 | 1.3.132.0.2 |
+| nistb163 | sect163r2 | 1.3.132.0.15 |
+| nistk233 | sect233k1 | 1.3.132.0.26 |
+| nistb233 | sect233r1 | 1.3.132.0.27 |
+|  | sect239k1 | 1.3.132.0.3 |
+| nistk283 | sect283k1 | 1.3.132.0.16 |
+| nistb283 | sect283r1 | 1.3.132.0.17 |
+| nistk409 | sect409k1 | 1.3.132.0.36 |
+| nistb409 | sect409r1 | 1.3.132.0.37 |
 | nistk571 (RFC 5656 写的是 nistt571) | sect571k1 | 1.3.132.0.38 |
-| nistb571                            | sect571r1 | 1.3.132.0.39 |
+| nistb571 | sect571r1 | 1.3.132.0.39 |
 
-sec 命名里，第四个字符里 (p) 表示是素数域，(t) 表示是 (GF(2^m)) 域。后面的字母表示的 (k) 表示 Koblitz，(r) 表示 random，是参数的选取方式。
+sec 命名里，第四个字符里 \\(p\\) 表示是素数域，\\(t\\) 表示是 \\(GF(2^m)\\) 域。后面的字母表示的 \\(k\\) 表示 Koblitz，\\(r\\) 表示 random，是参数的选取方式。
 
 OID 有两种前缀：
 
@@ -208,42 +208,42 @@ iso(1) identified-organization(3) certicom(132) curve(0)
 iso(1) member-body(2) us(840) 10045 curves(3) prime(1)
 ```
 
-完整列表见 [OID 1.3.132.0](https://oidref.com/1.3.132.0) 和 [OID 1.2.840.10045.3.1](https://oidref.com/1.2.840.10045.3.1)
+完整列表见 [OID 1.3.132.0](<https://oidref.com/1.3.132.0>) 和 [OID 1.2.840.10045.3.1](<https://oidref.com/1.2.840.10045.3.1>)
 
 ## ANSI
 
-ANSI 也有 [X9.62 标准](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.202.2977&rep=rep1&type=pdf)，在附录里面也定义了若干个曲线。附录 `J.5.1` 里面有三个例子，就是 prime192v1 prime192v2 和 prime192v3，之后则是 prime239v1 prime239v2 prime239v3 和 prime256v1。
+ANSI 也有 [X9.62 标准](<http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.202.2977&amp;rep=rep1&amp;type=pdf>)，在附录里面也定义了若干个曲线。附录 `J.5.1` 里面有三个例子，就是 prime192v1 prime192v2 和 prime192v3，之后则是 prime239v1 prime239v2 prime239v3 和 prime256v1。
 
-| ANSI       | 别名               | OID                 |
-| ---------- | ------------------ | ------------------- |
+| ANSI | 别名 | OID |
+| --- | --- | --- |
 | prime192v1 | nistp192/secp192r1 | 1.2.840.10045.3.1.1 |
-| prime192v2 |                    | 1.2.840.10045.3.1.2 |
-| prime192v3 |                    | 1.2.840.10045.3.1.3 |
-| prime239v1 |                    | 1.2.840.10045.3.1.4 |
-| prime239v2 |                    | 1.2.840.10045.3.1.5 |
-| prime239v3 |                    | 1.2.840.10045.3.1.6 |
+| prime192v2 |  | 1.2.840.10045.3.1.2 |
+| prime192v3 |  | 1.2.840.10045.3.1.3 |
+| prime239v1 |  | 1.2.840.10045.3.1.4 |
+| prime239v2 |  | 1.2.840.10045.3.1.5 |
+| prime239v3 |  | 1.2.840.10045.3.1.6 |
 | prime256v1 | nistp256/secp256r1 | 1.2.840.10045.3.1.7 |
 
 ## 总结
 
 对于同一个曲线，不同的组织给出了不同的名字，见下表：
 
-| OpenSSL    | NIST     | SECG      | ANSI       |
-| ---------- | -------- | --------- | ---------- |
+| OpenSSL | NIST | SECG | ANSI |
+| --- | --- | --- | --- |
 | prime192v1 | nistp192 | secp192r1 | prime192v1 |
-| secp224r1  | nistp224 | secp224r1 |            |
+| secp224r1 | nistp224 | secp224r1 |  |
 | prime256v1 | nistp256 | secp256r1 | prime256v1 |
-| secp384r1  | nistp384 | secp384r1 |            |
-| secp521r1  | nistp521 | secp521r1 |            |
-| sect163k1  | nistk163 | sect163k1 |            |
-| sect163r2  | nistb163 | sect163r2 |            |
-| sect233k1  | nistk233 | sect233k1 |            |
-| sect233r1  | nistb233 | sect233r1 |            |
-| sect283k1  | nistk233 | sect283k1 |            |
-| sect283r1  | nistb283 | sect283r1 |            |
-| sect409k1  | nistk409 | sect409k1 |            |
-| sect409r1  | nistb409 | sect409r1 |            |
-| sect571k1  | nistk571 | sect571k1 |            |
-| sect571r1  | nistb571 | sect571r1 |            |
+| secp384r1 | nistp384 | secp384r1 |  |
+| secp521r1 | nistp521 | secp521r1 |  |
+| sect163k1 | nistk163 | sect163k1 |  |
+| sect163r2 | nistb163 | sect163r2 |  |
+| sect233k1 | nistk233 | sect233k1 |  |
+| sect233r1 | nistb233 | sect233r1 |  |
+| sect283k1 | nistk233 | sect283k1 |  |
+| sect283r1 | nistb283 | sect283r1 |  |
+| sect409k1 | nistk409 | sect409k1 |  |
+| sect409r1 | nistb409 | sect409r1 |  |
+| sect571k1 | nistk571 | sect571k1 |  |
+| sect571r1 | nistb571 | sect571r1 |  |
 
 在 RFC4492 里也可以看到一个类似的表。

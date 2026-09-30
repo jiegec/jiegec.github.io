@@ -8,29 +8,29 @@
 
 Intel 关于 Golden Cove 微架构有这些官方的信息：
 
-- [Intel Alder Lake CPU Architectures](https://ieeexplore.ieee.org/document/9747991)
-- [Alder Lake Architecture on Hot Chips 33](https://hc33.hotchips.org/assets/program/conference/day1/HC2021.C1.1%20Intel%20Efraim%20Rotem.pdf)
-- [Sapphire Rapids on Hot Chips 33](https://hc33.hotchips.org/assets/program/conference/day1/HC2021.C1.4%20Intel%20Arijit.pdf)
-- [Intel 64 and IA-32 Architectures Optimization Reference Manual Volume 1](https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html)
+- [Intel Alder Lake CPU Architectures](<https://ieeexplore.ieee.org/document/9747991>)
+- [Alder Lake Architecture on Hot Chips 33](<https://hc33.hotchips.org/assets/program/conference/day1/HC2021.C1.1 Intel Efraim Rotem.pdf>)
+- [Sapphire Rapids on Hot Chips 33](<https://hc33.hotchips.org/assets/program/conference/day1/HC2021.C1.4 Intel Arijit.pdf>)
+- [Intel 64 and IA-32 Architectures Optimization Reference Manual Volume 1](<https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html>)
 
 ## 现有评测
 
 网上已经有较多针对 Golden Cove 微架构的评测和分析，建议阅读：
 
-- [Popping the Hood on Golden Cove](https://chipsandcheese.com/2021/12/02/popping-the-hood-on-golden-cove/)
-- [Golden Cove](https://en.wikipedia.org/wiki/Golden_Cove)
-- [Golden Cove’s Vector Register File: Checking with Official (SPR) Data](https://chipsandcheese.com/2023/01/15/golden-coves-vector-register-file-checking-with-official-spr-data/)
-- [4th Gen Intel Xeon Scalable Sapphire Rapids Leaps Forward](https://www.servethehome.com/4th-gen-intel-xeon-scalable-sapphire-rapids-leaps-forward/7/)
-- [Intel Details Golden Cove: Next-Generation Big Core For Client and Server SoCs](https://fuse.wikichip.org/news/6111/intel-details-golden-cove-next-generation-big-core-for-client-and-server-socs/)
-- [Sapphire Rapids: Golden Cove Hits Servers](https://chipsandcheese.com/2023/03/12/a-peek-at-sapphire-rapids/)
-- [Golden Cove’s Lopsided Vector Register File](https://chipsandcheese.com/2022/12/25/golden-coves-lopsided-vector-register-file/)
-- [Indirector: High-Precision Branch Target Injection Attacks Exploiting the Indirect Branch Predictor](https://indirector.cpusec.org/)
+- [Popping the Hood on Golden Cove](<https://chipsandcheese.com/2021/12/02/popping-the-hood-on-golden-cove/>)
+- [Golden Cove](<https://en.wikipedia.org/wiki/Golden_Cove>)
+- [Golden Cove’s Vector Register File: Checking with Official (SPR) Data](<https://chipsandcheese.com/2023/01/15/golden-coves-vector-register-file-checking-with-official-spr-data/>)
+- [4th Gen Intel Xeon Scalable Sapphire Rapids Leaps Forward](<https://www.servethehome.com/4th-gen-intel-xeon-scalable-sapphire-rapids-leaps-forward/7/>)
+- [Intel Details Golden Cove: Next-Generation Big Core For Client and Server SoCs](<https://fuse.wikichip.org/news/6111/intel-details-golden-cove-next-generation-big-core-for-client-and-server-socs/>)
+- [Sapphire Rapids: Golden Cove Hits Servers](<https://chipsandcheese.com/2023/03/12/a-peek-at-sapphire-rapids/>)
+- [Golden Cove’s Lopsided Vector Register File](<https://chipsandcheese.com/2022/12/25/golden-coves-lopsided-vector-register-file/>)
+- [Indirector: High-Precision Branch Target Injection Attacks Exploiting the Indirect Branch Predictor](<https://indirector.cpusec.org/>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。读者可以对照已有的第三方评测理解。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-Intel Golden Cove 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+Intel Golden Cove 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 前端
 
@@ -57,39 +57,39 @@ Intel 的 uOP(Micro-OP) Cache 称为 Decode Stream Buffer (DSB): `Decode Stream 
 
 uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP，这些 uOP 对应了原来指令流中连续的几条指令。
 
-为了测试 uOP Cache 的大小，构造不同大小的循环，循环体是复制若干份的 `add %%rsi, %%rdx` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [IDQ.DSB_UOPS](https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&evnt=IDQ.DSB_UOPS) 性能计数器统计每次循环有多少个 uOP 来自于 DSB 也就是 uOP Cache，发现其最大值为 2800 左右，距离 4K 还有一定的距离。目前还没有找到一个可以稳定跑出 4K uOP 的指令模式，不知道遇到了什么瓶颈。
+为了测试 uOP Cache 的大小，构造不同大小的循环，循环体是复制若干份的 `add %%rsi, %%rdx` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [IDQ.DSB\_UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=IDQ.DSB_UOPS>) 性能计数器统计每次循环有多少个 uOP 来自于 DSB 也就是 uOP Cache，发现其最大值为 2800 左右，距离 4K 还有一定的距离。目前还没有找到一个可以稳定跑出 4K uOP 的指令模式，不知道遇到了什么瓶颈。
 
-考虑到 taken branch 在典型的 uOP Cache 设计中会结束一个 entry，把循环体改成若干条 `jmp` 指令，并且每个 64B 缓存行只有一条 `jmp` 指令，此时每个 uOP entry 只记录一条 `jmp` 指令。观察到每次循环最多 512 个 uOP 来自 uOP Cache，那么 Golden Cove 的 uOP Cache 大概就是 512 个 entry。如果改成每 128B 缓存行只有一条 `jmp` 指令，uOP Cache 容量减少到 256 个 entry；继续增加间距，256B 间距对应 128 个 entry，512B 间距对应 64 个 entry，1024B 间距对应 32 个 entry，2048B 间距对应 16 个 entry，4096B 间距对应 8 个 entry，继续增大间距后，entry 数维持中 8 不再减少，意味着 Golden Cove 的 uOP Cache 是 8 Way 64 Set 一共 512 Entry，Index 是 PC[11:6]。
+考虑到 taken branch 在典型的 uOP Cache 设计中会结束一个 entry，把循环体改成若干条 `jmp` 指令，并且每个 64B 缓存行只有一条 `jmp` 指令，此时每个 uOP entry 只记录一条 `jmp` 指令。观察到每次循环最多 512 个 uOP 来自 uOP Cache，那么 Golden Cove 的 uOP Cache 大概就是 512 个 entry。如果改成每 128B 缓存行只有一条 `jmp` 指令，uOP Cache 容量减少到 256 个 entry；继续增加间距，256B 间距对应 128 个 entry，512B 间距对应 64 个 entry，1024B 间距对应 32 个 entry，2048B 间距对应 16 个 entry，4096B 间距对应 8 个 entry，继续增大间距后，entry 数维持中 8 不再减少，意味着 Golden Cove 的 uOP Cache 是 8 Way 64 Set 一共 512 Entry，Index 是 PC\[11:6\]。
 
 那么按照官方信息所说的 4K 容量，一共 512 个 Entry，那么每个 Entry 应该能够记录最多 8 个 uOP，这正好也对应上了 8 uOP 的吞吐。
 
-根据前人在 Intel 比较老的微架构上的测试结果（见 [The microarchitecture of Intel, AMD, and VIA CPUs](https://agner.org/optimize/microarchitecture.pdf)）以及 Intel 的官方文档 Software Optimization Manual（这个文档把 uOP Cache 叫做 Decoded ICache），Intel 之前很多代微架构的 uOP Cache Entry 的构造条件是：
+根据前人在 Intel 比较老的微架构上的测试结果（见 [The microarchitecture of Intel, AMD, and VIA CPUs](<https://agner.org/optimize/microarchitecture.pdf>)）以及 Intel 的官方文档 Software Optimization Manual（这个文档把 uOP Cache 叫做 Decoded ICache），Intel 之前很多代微架构的 uOP Cache Entry 的构造条件是：
 
 1. 每个 Entry 能记录的 uOP 个数有上限，最多 6 uOP/Entry
-1. Entry 不能跨越 32B 边界，反过来，一个对齐的 32B 区间只能对应最多 3 个 Entry，结合第一条，就是对齐的 32B 块中不能超过 `3*6=18` 个 uOP（`The Decoded ICache can hold only up to 18 micro-ops per each 32 byte aligned memory chunk`）；如果指令跨了 32B 边界，它被算在后面那个 32B 里面
-1. 指令需要完整地出现在一个 Entry 中：如果一条指令需要的空间太多，在当前 Entry 的剩余空间内放不下，就需要另起一个 Entry
-1. 无条件跳转（或者被预测为要跳转）的指令会结束一个 Entry（`each unconditional branch is the last micro-op occupying a Decoded ICache Way`）
-1. 比较大的立即数也会占用 uOP 空间，减少了实际能存放的 uOP 数量
-1. 比较复杂的需要微码（Microcoded uops）的指令会占用一整个 Entry
+2. Entry 不能跨越 32B 边界，反过来，一个对齐的 32B 区间只能对应最多 3 个 Entry，结合第一条，就是对齐的 32B 块中不能超过 `3*6=18` 个 uOP（`The Decoded ICache can hold only up to 18 micro-ops per each 32 byte aligned memory chunk`）；如果指令跨了 32B 边界，它被算在后面那个 32B 里面
+3. 指令需要完整地出现在一个 Entry 中：如果一条指令需要的空间太多，在当前 Entry 的剩余空间内放不下，就需要另起一个 Entry
+4. 无条件跳转（或者被预测为要跳转）的指令会结束一个 Entry（`each unconditional branch is the last micro-op occupying a Decoded ICache Way`）
+5. 比较大的立即数也会占用 uOP 空间，减少了实际能存放的 uOP 数量
+6. 比较复杂的需要微码（Microcoded uops）的指令会占用一整个 Entry
 
-下面来分析 Golden Cove 上这些构造条件是否有变化。参考 [I See Dead µops: Leaking Secrets via Intel/AMD Micro-Op Caches](https://ieeexplore.ieee.org/document/9499837) 的方法，构造了一个循环，循环体由 `4x 15-byte-nop + 1x 4-byte-nop` 组成，这样的 5 条指令填满了对齐的 64B。在 Golden Cove 上测试，发现依然可以用满 512 个 Entry，假如 Entry 不能跨越 32B 边界，那么这 5 条指令至少就要 2 个 Entry，但实际上只用了 1 个 Entry。这说明 Golden Cove 上 uOP Cache Entry 的第一条限制中，Entry 不能跨越的边界，从 32B 扩大到了 64B，毕竟每个 Entry 能存的 uOP 数量也增多了，如果继续限制 32B，每个 Entry 就很难存满 8 个 uOP 了。接下来测试对齐的 64B 内可以最多有多少个 entry。
+下面来分析 Golden Cove 上这些构造条件是否有变化。参考 [I See Dead µops: Leaking Secrets via Intel/AMD Micro-Op Caches](<https://ieeexplore.ieee.org/document/9499837>) 的方法，构造了一个循环，循环体由 `4x 15-byte-nop + 1x 4-byte-nop` 组成，这样的 5 条指令填满了对齐的 64B。在 Golden Cove 上测试，发现依然可以用满 512 个 Entry，假如 Entry 不能跨越 32B 边界，那么这 5 条指令至少就要 2 个 Entry，但实际上只用了 1 个 Entry。这说明 Golden Cove 上 uOP Cache Entry 的第一条限制中，Entry 不能跨越的边界，从 32B 扩大到了 64B，毕竟每个 Entry 能存的 uOP 数量也增多了，如果继续限制 32B，每个 Entry 就很难存满 8 个 uOP 了。接下来测试对齐的 64B 内可以最多有多少个 entry。
 
 把循环体改成每对齐的 64B 就有四条 jmp 指令，前一条 jmp 指令跳转到后一条 jmp 指令，模拟每 64B 有四个 Entry 的情况：
 
 1. 第 1 个 jmp 放在 64B 内的 0B 偏移处，跳转到 64B 内 16B 偏移处
-1. 第 2 个 jmp 放在 64B 内的 16B 偏移处，跳转到 64B 内 32B 偏移处
-1. 第 3 个 jmp 放在 64B 内的 32B 偏移处，跳转到 64B 内 48B 偏移处
-1. 第 4 个 jmp 放在 64B 内的 48B 偏移处，跳转到下一个 64B 的开头
+2. 第 2 个 jmp 放在 64B 内的 16B 偏移处，跳转到 64B 内 32B 偏移处
+3. 第 3 个 jmp 放在 64B 内的 32B 偏移处，跳转到 64B 内 48B 偏移处
+4. 第 4 个 jmp 放在 64B 内的 48B 偏移处，跳转到下一个 64B 的开头
 
 测试发现这个情况下能达到 512 个 Entry。说明对齐的 64B 内至少可以存 4 个 Entry。
 
 进一步测试，如果每对齐的 64B 有五条 jmp 指令，模拟每 64B 有五个 Entry 的情况：
 
 1. 第 1 个 jmp 放在 64B 内的 0B 偏移处，跳转到 64B 内 8B 偏移处
-1. 第 2 个 jmp 放在 64B 内的 8B 偏移处，跳转到 64B 内 16B 偏移处
-1. 第 3 个 jmp 放在 64B 内的 16B 偏移处，跳转到 64B 内 24B 偏移处
-1. 第 4 个 jmp 放在 64B 内的 24B 偏移处，跳转到 64B 内 32B 偏移处
-1. 第 5 个 jmp 放在 64B 内的 32B 偏移处，跳转到下一个 64B 的开头
+2. 第 2 个 jmp 放在 64B 内的 8B 偏移处，跳转到 64B 内 16B 偏移处
+3. 第 3 个 jmp 放在 64B 内的 16B 偏移处，跳转到 64B 内 24B 偏移处
+4. 第 4 个 jmp 放在 64B 内的 24B 偏移处，跳转到 64B 内 32B 偏移处
+5. 第 5 个 jmp 放在 64B 内的 32B 偏移处，跳转到下一个 64B 的开头
 
 发现最高的 Entry 数只有 480 左右，不确定是遇到了什么限制，如果对齐的 64B 内不能存 5 个 Entry，也不应该得到 480 这个结果。
 
@@ -105,7 +105,7 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 可以看到 256 个 Page 出现了明显的拐点，对应的就是 256 的 L1 ITLB 容量。注意要避免 ICache 和 BTB 的容量成为瓶颈，把 jmp 指令分布在不同的 Cache Line 和 BTB entry 上。
 
-超过 256 个 Page 以后，如图有周期数突然下降后缓慢上升的情况（例如横坐标 288->289、320->321、352->353、384->385 等，以 32 为周期），背后的原理需要进一步分析，猜测和 Linux 的 Huge Page 机制相关。
+超过 256 个 Page 以后，如图有周期数突然下降后缓慢上升的情况（例如横坐标 288-\>289、320-\>321、352-\>353、384-\>385 等，以 32 为周期），背后的原理需要进一步分析，猜测和 Linux 的 Huge Page 机制相关。
 
 扩大 jmp 指令的距离再测试：
 
@@ -116,7 +116,7 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 从这个结果来看，L1 ITLB 对于 4K 页应该是 32 Set 8 Way。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp>)。
 
 ### L1 ICache
 
@@ -128,7 +128,7 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 可以看到 footprint 在 32 KB 之前时可以达到 6 IPC，之后则降到 4 IPC，这里的 32 KB 就对应了 L1 ICache 的容量。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
 
 ### Return Stack
 
@@ -136,7 +136,7 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 可以看到调用链深度为 20 时性能突然变差，因此 Return Stack 深度为 20。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp>)。
 
 ### Instruction Decode Queue (IDQ) + Loop Stream Detector (LSD)
 
@@ -146,35 +146,36 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD）会检测当前指令流是否在一个循环当中，并且循环的 uop 不超出 Instruction Decode Queue(IDQ) 的容量，那么 LSD 会把 Legacy decode pipeline(MITE) 和 Decode stream buffer(DSB) 关掉，不再让 IDQ 的指令出队，而是直接在 IDQ 的内部循环提供指令，这个时候就节省了很多处理器前端的功耗。
 
-为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 `inc %rsi` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [LSD.UOPS](https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&evnt=LSD.UOPS) 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 144，说明 Golden Cove 的 Loop Stream Detector 可以识别最多 144 个 uop 的循环。此时每个循环要执行 145 条指令，最后的 `dec + jnz` 被融合成了一个 uop。
+为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 `inc %rsi` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [LSD.UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS>) 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 144，说明 Golden Cove 的 Loop Stream Detector 可以识别最多 144 个 uop 的循环。此时每个循环要执行 145 条指令，最后的 `dec + jnz` 被融合成了一个 uop。
 
 循环体中，如果用 `nop` 指令来填充，会得到 40 左右的比 144 小得多的容量，猜测是进入了低功耗模式。
 
 ### Conditional Branch Predictor
 
-参考 [Half&Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution](https://cseweb.ucsd.edu/~dstefan/pubs/yavarzadeh:2023:half.pdf) 论文的方法，可以测出 Golden Cove 的分支预测器采用的历史更新方式为：
+参考 [Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~dstefan/pubs/yavarzadeh:2023:half.pdf>) 论文的方法，可以测出 Golden Cove 的分支预测器采用的历史更新方式为：
 
 1. 使用 388 位的 Path History Register，每次执行 taken branch 时更新
-1. 更新方式为：`PHRnew = (PHRold << 2) xor footprint`
-1. footprint 共有 16 位，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址：
-   - footprint[0] = B[3] xor T[0]
-   - footprint[1] = B[4] xor T[1]
-   - footprint[2] = B[5]
-   - footprint[3] = B[6]
-   - footprint[4] = B[7]
-   - footprint[5] = B[8]
-   - footprint[6] = B[9]
-   - footprint[7] = B[10]
-   - footprint[8] = B[0] xor T[2]
-   - footprint[9] = B[1] xor T[3]
-   - footprint[10] = B[2] xor T[4]
-   - footprint[11] = B[11] xor T[5]
-   - footprint[12] = B[12]
-   - footprint[13] = B[13]
-   - footprint[14] = B[14]
-   - footprint[15] = B[15]
+2. 更新方式为：`PHRnew = (PHRold << 2) xor footprint`
+3. footprint 共有 16 位，其中 B 代表分支指令的地址，T 代表分支跳转的目的地址：
 
-这个结果和论文是一致的。各厂商处理器的 PHR 更新规则见 [jiegec/cpu](https://jia.je/cpu/cbp.html)。
+   - footprint\[0\] = B\[3\] xor T\[0\]
+   - footprint\[1\] = B\[4\] xor T\[1\]
+   - footprint\[2\] = B\[5\]
+   - footprint\[3\] = B\[6\]
+   - footprint\[4\] = B\[7\]
+   - footprint\[5\] = B\[8\]
+   - footprint\[6\] = B\[9\]
+   - footprint\[7\] = B\[10\]
+   - footprint\[8\] = B\[0\] xor T\[2\]
+   - footprint\[9\] = B\[1\] xor T\[3\]
+   - footprint\[10\] = B\[2\] xor T\[4\]
+   - footprint\[11\] = B\[11\] xor T\[5\]
+   - footprint\[12\] = B\[12\]
+   - footprint\[13\] = B\[13\]
+   - footprint\[14\] = B\[14\]
+   - footprint\[15\] = B\[15\]
+
+这个结果和论文是一致的。各厂商处理器的 PHR 更新规则见 [jiegec/cpu](<https://jia.je/cpu/cbp.html>)。
 
 ## 后端
 
@@ -192,6 +193,7 @@ Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD�
 - five LEA units as well as five integer ALUs
 - three-cycle fast adders, with two cycles bypass between back-to-back floating-point ADD operations
 - five alu/simd ports: 0/1/5/6/10
+
   - P0: ALU/LEA/Shift/JMP/FMA/ALU/Shift/fpDIV
   - P1: ALU/LEA/Mul/iDIV/FMA/ALU/Shift/Shuffle/FADD
   - P5: ALU/LEA/MulHi/FMA512/ALU/AMX/Shuffle/FADD
@@ -230,22 +232,22 @@ Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD�
 经过实际测试，Golden Cove 上如下的情况可以成功转发，对地址 x 的 Store 转发到对地址 y 的 Load 成功时 y-x 的取值范围：
 
 | Store\\Load | 8b Load | 16b Load | 32b Load | 64b Load |
-| ----------- | ------- | -------- | -------- | -------- |
-| 8b Store    | {0}     | {}       | {}       | {}       |
-| 16b Store   | [0,1]   | {0}      | {}       | {}       |
-| 32b Store   | [0,3]   | [0,2]    | {0}      | {}       |
-| 64b Store   | [0,7]   | [0,6]    | [0,4]    | {0}      |
+| --- | --- | --- | --- | --- |
+| 8b Store | {0} | {} | {} | {} |
+| 16b Store | \[0,1\] | {0} | {} | {} |
+| 32b Store | \[0,3\] | \[0,2\] | {0} | {} |
+| 64b Store | \[0,7\] | \[0,6\] | \[0,4\] | {0} |
 
 可以看到，Golden Cove 在 Store 完全包含 Load 的情况下都可以转发，没有额外的对齐要求。但当 Load 和 Store 只有部分重合时，就无法转发，这和官方信息有所冲突。两个连续的 32 位的 Store 和一个 64 位的 Load 重合也不能转发。
 
 比较有意思的是，在 y=x 且不跨越缓存行边界且满足下列要求的情况下，Store Forwarding 不会或只带来很小的性能损失：
 
-- 8b Store -> 8b Load
-- 32b Store -> 8b Load
-- 64b Store -> 8b Load
-- 32b Store -> 32b Load
-- 64b Store -> 32b Load
-- 64b Store -> 64b Load
+- 8b Store -\> 8b Load
+- 32b Store -\> 8b Load
+- 64b Store -\> 8b Load
+- 32b Store -\> 32b Load
+- 64b Store -\> 32b Load
+- 64b Store -\> 64b Load
 
 考虑到 y 必须等于 x，也就是地址要一样，猜测 Golden Cove 使用了类似 Memory Renaming 的技术来实现这个效果。如果是连续两个对同一个地址的 Store 对一个 Load 的转发，效果和只有一个 Store 是一样的。
 
@@ -260,7 +262,7 @@ Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD�
 
 为了让 Load 预测执行，需要保证 Load 和之前的 Store 访问的内存没有 Overlap，那么就需要有一个预测器来预测 Load 和 Store 之间在内存上的依赖。这个预测器就是 Memory Dependency Predictor，负责预测是否有依赖。如果没有依赖，Load 就可以提前执行，但如果实际上有依赖，就需要回滚。
 
-参考 [Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks](https://www.usenix.org/conference/usenixsecurity21/presentation/ragab) 和 [Memory Disambiguation on Skylake](https://github.com/travisdowns/uarch-bench/wiki/Memory-Disambiguation-on-Skylake) 的方法，构造一对 Store-Load，通过延迟 Store 地址的计算，从周期数可以区分出硬件是否进行了预测，以及预测正确与否：
+参考 [Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks](<https://www.usenix.org/conference/usenixsecurity21/presentation/ragab>) 和 [Memory Disambiguation on Skylake](<https://github.com/travisdowns/uarch-bench/wiki/Memory-Disambiguation-on-Skylake>) 的方法，构造一对 Store-Load，通过延迟 Store 地址的计算，从周期数可以区分出硬件是否进行了预测，以及预测正确与否：
 
 ```asm
 ; Listing 4 of Rage Against the Machine Clear: A Systematic Analysis of Machine Clears and Their Implications for Transient Execution Attacks
@@ -280,17 +282,17 @@ ret
 
 测试时，让这对 Store-Load 采用相同/不同的地址进行访存，具体地，首先是 100 次相同地址（有依赖），然后 20 次不同地址（无依赖），最后 10 次相同地址（有依赖），每次执行的周期数如下：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_lib.cpp>)。
 
 可见当预测器被训练为 Store-Load 有依赖之后，经过 15 次 Store-Load 无依赖（横坐标 100 到 114）的训练以后，从第 16 次（横坐标 115）开始成功预测了无依赖的情况，使得 Load 可以提前执行，表现为周期数的明显减少。而当 Store-Load 再次出现依赖（横坐标 120）时，因为错误预测，出现了周期数的明显增加，并且下一次执行 Store-Load（横坐标 121）就能正确预测出有依赖。这与论文中的逆向结果一致：从初始状态开始（通过大量的有依赖来重置状态），连续无依赖 15 次以后，才会被预测为无依赖，且只要有一次有依赖，就会被预测为有依赖。对应的内部实现是，硬件对这个 Load 维护一个 4-bit 的饱和计数器，有依赖时清零，无依赖时加一，当累加到最大值 15 时，预测为无依赖，否则就是有依赖。
 
 上面的测试只证明了有 4-bit 的计数器，且无依赖时加一，累加到 15 时才预测为无依赖，但并没有证明它在有依赖时清零，也可能是减一，或其他不会减到零的情况。下面修改一下访存模式来证明，即累加到 15 后，先来一次有依赖，再来多次无依赖，就可以观察到下面的结果：
 
-可见，一次有依赖过后，又需要 15 次无依赖，才能预测为无依赖。这证明了前面的表述，即 4-bit 饱和计数器，无依赖时加一，有依赖时置零，当计数器等于 15 时，预测为无依赖。根据 [SSBleed: Non-speculative Side-channel Attacks via Speculative Store Bypass on Armv9 CPUs](https://ieeexplore.ieee.org/document/11408465/)，ARM Neoverse N2 的设计类似但有所不同，它虽然也是 4-bit 饱和计数器，但用法不同。如果没有命中表项，它会预测为无依赖。在第一次检测到有依赖时，会插入新表项，把计数器初始化为 1，此后无依赖时加一，有依赖时减一，当计数器等于 15 时，表项会从预测器中删去，从而预测为无依赖（为了和 Intel 对齐以便于理解，这里对论文的表述做了改动，功能不变）。从表现上来看，它是一次有依赖后，需要 14 次无依赖，才能预测出无依赖，同时中途有依赖和无依赖可以互相抵消。
+可见，一次有依赖过后，又需要 15 次无依赖，才能预测为无依赖。这证明了前面的表述，即 4-bit 饱和计数器，无依赖时加一，有依赖时置零，当计数器等于 15 时，预测为无依赖。根据 [SSBleed: Non-speculative Side-channel Attacks via Speculative Store Bypass on Armv9 CPUs](<https://ieeexplore.ieee.org/document/11408465/>)，ARM Neoverse N2 的设计类似但有所不同，它虽然也是 4-bit 饱和计数器，但用法不同。如果没有命中表项，它会预测为无依赖。在第一次检测到有依赖时，会插入新表项，把计数器初始化为 1，此后无依赖时加一，有依赖时减一，当计数器等于 15 时，表项会从预测器中删去，从而预测为无依赖（为了和 Intel 对齐以便于理解，这里对论文的表述做了改动，功能不变）。从表现上来看，它是一次有依赖后，需要 14 次无依赖，才能预测出无依赖，同时中途有依赖和无依赖可以互相抵消。
 
 接下来，尝试逆向分析硬件维护了多少个这样的 4-bit 饱和计数器，以及 Load 是如何被映射的。方法是，设置两个 Store-Load 对，其中第一对总是有依赖，第二对总是没有依赖，调整两个 Load 指令的地址，看看什么时候会出现性能下降。出现性能下降就意味着这两个 Load 指令被映射到了同一个 4-bit 饱和计数器上，那么根据上面的规律，它们总是会被预测为有依赖。测试结果如下：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_hash_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_hash_lib.cpp>)。
 
 可见地址每增加 512 就出现一次冲突，意味着有 512 个这样的计数器，通过 Load 地址的低 9 位来选择。经过测试，在 Intel(R) Xeon(R) CPU E5-2680 v4（Broadwell 架构）和 Intel(R) Core(TM) i9-10980XE（Cascade Lake 架构）以及 Intel(R) Xeon(R) Platinum 8358P（Ice Lake 架构）下，有 256 个这样的计数器。直到 Golden Cove 才扩充到了 512。
 
@@ -300,7 +302,7 @@ ret
 
 最后，测试一下什么情况下可以从全局预测器覆盖预测，回到由局部预测器提供预测。思路是，首先用上面的方法，让全局预测器介入，然后再让局部预测器正确预测若干次无依赖，看看什么时候能恢复到由局部预测器提供预测。具体地，通过大量的无依赖训练，让 10 个局部预测器都预测为无依赖，然后用前四个局部预测器触发 4 次错误预测的回滚，接着用第 5 个局部预测器反复正确预测出无依赖，最后让第 5 个局部预测器预测错误，如果此时触发回滚，意味着已经由局部预测器提供预测（预测无依赖，实际有依赖，导致回滚）。期间的无依赖访问次数和 `MACHINE_CLEARS.COUNT` 性能计数器的关系如下：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_global_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_global_lib.cpp>)。
 
 因此经过 64 次正确预测为无依赖的 Load 后，恢复到由局部预测器提供预测。结合上述测试结果与论文，可知 Golden Cove 的 Memory Dependency Predictor 整体设计不变，在前代的基础上把容量扩大到了 512，完整逻辑如下：
 
@@ -317,7 +319,7 @@ ret
 
 可以看到 48KB 出现了明显的拐点，对应的就是 48KB 的 L1 DCache 容量。第二个拐点在 384KB，对应的是 L1 DTLB 的容量。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
 
 ### L1 DTLB
 
@@ -332,7 +334,7 @@ ret
 
 可以看到 96 Page 出现了明显的拐点，对应的就是 96 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 5 cycle；超出 L1 DTLB 容量后，Load to use latency 是 12 cycle，说明 L1 DTLB miss 带来了 7 cycle 的损失。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 ### L2 TLB
 
@@ -345,7 +347,7 @@ ret
 
 第一个拐点是 96 个 Page，对应 L1 DTLB，此时 CPI 从 5 提升到 12；第二个拐点是 768，对应 L1 DCache，此时 CPI 从 12 提升到 23；第三个拐点是 1600 左右，而没有到 2048，猜测有 QoS 限制了数据对 L2 TLB 的占用。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 ### L2 Cache
 
@@ -361,7 +363,7 @@ ret
 - 第二个拐点在 384KB，对应 L1 DTLB 的容量，CPI 从 16 提升到 23
 - 第三个拐点在 1280KB，对应 L2 Cache 的容量
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
 
 ### Prefetcher
 
@@ -369,15 +371,15 @@ ret
 
 Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来源：Software Developers Manual，MSRs Supported by 12th and 13th Generation Intel® Core™ Processor P-core）：
 
-- MSR_1A4H\[0\]: the L2 hardware prefetcher, which fetches additional lines of code or data into the L2 cache.
-- MSR_1A4H\[1\]: the L2 adjacent cache line prefetcher, which fetches the cache line that comprises a cache line pair (128 bytes). 这和 AMD 的 Up/Down Prefetcher 应该是一个意思
-- MSR_1A4H\[5\]: the L2 Adaptive Multipath Probability (AMP) prefetcher. 这个应该属于 Spatial Prefetcher
-- MSR_1A4H\[2\]: the L1 data cache prefetcher, which fetches the next cache line into L1 data cache. 这个应该属于 Next Line Prefetcher
-- MSR_1A4H\[3\]: the L1 data cache IP prefetcher, which uses sequential load history (based on instruction pointer of previous loads) to determine whether to prefetch additional lines.
+- MSR\_1A4H\[0\]: the L2 hardware prefetcher, which fetches additional lines of code or data into the L2 cache.
+- MSR\_1A4H\[1\]: the L2 adjacent cache line prefetcher, which fetches the cache line that comprises a cache line pair (128 bytes). 这和 AMD 的 Up/Down Prefetcher 应该是一个意思
+- MSR\_1A4H\[5\]: the L2 Adaptive Multipath Probability (AMP) prefetcher. 这个应该属于 Spatial Prefetcher
+- MSR\_1A4H\[2\]: the L1 data cache prefetcher, which fetches the next cache line into L1 data cache. 这个应该属于 Next Line Prefetcher
+- MSR\_1A4H\[3\]: the L1 data cache IP prefetcher, which uses sequential load history (based on instruction pointer of previous loads) to determine whether to prefetch additional lines.
 
-此外，在 MSR_48H Speculation Control 中可以配置是否开启 Data Dependent Prefetcher:
+此外，在 MSR\_48H Speculation Control 中可以配置是否开启 Data Dependent Prefetcher:
 
-- MSR_48H[8] (DDPD_U): If 1, disables the Data Dependent Prefetcher that examines data values in memory while CPL = 3. Note that setting bit 2 (SSBD) also disables this.
+- MSR\_48H\[8\] (DDPD\_U): If 1, disables the Data Dependent Prefetcher that examines data values in memory while CPL = 3. Note that setting bit 2 (SSBD) also disables this.
 
 #### 预取延迟
 
@@ -391,7 +393,7 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 
 #### 预取距离
 
-更进一步，参考 [Battling the Prefetcher: Exploring Coffee Lake (Part 1)](https://abertschi.ch/blog/2022/prefetching/) 的方式，研究 Stride 预取器的行为：分配一片内存，把数据从缓存中 flush 掉，再按照特定的访存模式访问，触发预取器，最后测量访问每个缓存行的时间，从而得到预取器预取了哪些缓存行的信息。
+更进一步，参考 [Battling the Prefetcher: Exploring Coffee Lake (Part 1)](<https://abertschi.ch/blog/2022/prefetching/>) 的方式，研究 Stride 预取器的行为：分配一片内存，把数据从缓存中 flush 掉，再按照特定的访存模式访问，触发预取器，最后测量访问每个缓存行的时间，从而得到预取器预取了哪些缓存行的信息。
 
 首先是只访问一个 cache line 的时候，可以看到，除了已经访问过的 cache line，其他 cache line 都出现了缓存缺失，说明此时预取器没有在工作：
 
@@ -413,7 +415,7 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 
 类似的跨页预取行为在 Gracemont 上也可以观察到：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp>)。
 
 ### ReOrder Buffer
 
@@ -426,4 +428,4 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 
 当 NOP 数量达到 512 时，性能开始急剧下滑，说明 Golden Cove 的 ROB 大小是 512。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp>)。

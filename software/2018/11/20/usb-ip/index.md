@@ -14,7 +14,7 @@ usbip: error: open vhci_driver
 - `pacman -S usbip` 安装用户态软件
 - `systemctl enable --now usbipd` 启动 USB/IP 的端口监听 daemon
 - `usbip list -l` 查看本地有哪些 USB 设备可以共享
-- `usbip bind -b [BUS_ID]` 把指定的 USB 设备共享出去，其中 BUS_ID 从上个命令中查看
+- `usbip bind -b [BUS_ID]` 把指定的 USB 设备共享出去，其中 BUS\_ID 从上个命令中查看
 - `usbip list -r [IP]` 在另一个设备上查看这个设备共享的 USB 设备，可以看到许多信息
 - `usbip attach -r [IP] -b [BUS_ID]` 把对方共享的 USB 设备 attach 到本地
 

@@ -6,7 +6,7 @@
 
 内存认证计算的背景是可信计算，比如要做一些涉及重要数据的处理，从软件上，希望即使系统被攻击非法进入了，也可以保证重要信息不会泄漏；从硬件上，希望即使系统可以被攻击者进行一些物理的操作（比如导出或者修改内存等等），也可以保证攻击者无法读取或者篡改数据。
 
-下面的内容主要参考了 [Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines](https://link.springer.com/chapter/10.1007/978-3-642-01004-0_1) 这篇 2009 年的文章。
+下面的内容主要参考了 [Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines](<https://link.springer.com/chapter/10.1007/978-3-642-01004-0_1>) 这篇 2009 年的文章。
 
 ## 威胁模型
 
@@ -60,11 +60,11 @@
 
 ## Mountable Merkle Tree
 
-再来看一下 [Scalable Memory Protection in the Penglai Enclave](https://www.usenix.org/system/files/osdi21-feng.pdf) 中提到的 Mountable Merkle Tree 设计。它主要考虑的是动态可变的保护内存区域，比如提到的微服务场景，并且被保护内存区域的访问有时间局部性，因此它的思路是，不去构造一个对应完整内存的 Merkle Tree，而是允许一些子树不存在。具体来说，它设计了一个 Sub-root nodes 的概念，对应了 Merkle Tree 中间的一层。这一层往上是预先分配好的，并且大部分保存在内存中，根结点保存在片内，这一层往下是动态分配的。比如应用创建了一个新的 enclave，需要新的一个被保护的内存区域，再动态分配若干个 Merkle Tree，接到 Sub-root nodes 层，成为新的子树。
+再来看一下 [Scalable Memory Protection in the Penglai Enclave](<https://www.usenix.org/system/files/osdi21-feng.pdf>) 中提到的 Mountable Merkle Tree 设计。它主要考虑的是动态可变的保护内存区域，比如提到的微服务场景，并且被保护内存区域的访问有时间局部性，因此它的思路是，不去构造一个对应完整内存的 Merkle Tree，而是允许一些子树不存在。具体来说，它设计了一个 Sub-root nodes 的概念，对应了 Merkle Tree 中间的一层。这一层往上是预先分配好的，并且大部分保存在内存中，根结点保存在片内，这一层往下是动态分配的。比如应用创建了一个新的 enclave，需要新的一个被保护的内存区域，再动态分配若干个 Merkle Tree，接到 Sub-root nodes 层，成为新的子树。
 
 由于片内空间是有限的，所以这里采取了缓存的方式，只把一部分常用的树结点保存在片内；如果某一个子树一直没有被访问，就可以换出到内存里。如果删除了一个已有的 enclave，那么相应的子树就可以删掉，减少内存空间的占用。
 
 ## 参考文献
 
-- [Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines](https://link.springer.com/chapter/10.1007/978-3-642-01004-0_1)
-- [Scalable Memory Protection in the Penglai Enclave](https://www.usenix.org/system/files/osdi21-feng.pdf)
+- [Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines](<https://link.springer.com/chapter/10.1007/978-3-642-01004-0_1>)
+- [Scalable Memory Protection in the Penglai Enclave](<https://www.usenix.org/system/files/osdi21-feng.pdf>)

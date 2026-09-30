@@ -4,13 +4,13 @@
 
 malloc 和 free 日常用的很多，但它内部是怎么实现的呢？本文对 glibc 2.31 版本的内存分配器的实现进行探究。
 
-本文的完整版内容已经整合到[知识库](/kb/software/glibc_allocator.html)中。
+本文的完整版内容已经整合到[知识库](</kb/software/glibc_allocator.html>)中。
 
 ## malloc
 
-glibc 2.31 是 ubuntu 20.04 所使用的 libc 版本，首先来分析它的实现，源码可以从 [glibc-2.31 tag](https://github.com/bminor/glibc/tree/glibc-2.31) 中找到。
+glibc 2.31 是 ubuntu 20.04 所使用的 libc 版本，首先来分析它的实现，源码可以从 [glibc-2.31 tag](<https://github.com/bminor/glibc/tree/glibc-2.31>) 中找到。
 
-首先来看 malloc 函数，它实现在 `malloc/malloc.c` 的 [`__libc_malloc`](https://github.com/bminor/glibc/blob/glibc-2.31/malloc/malloc.c#L3022) 函数当中，忽略 `__malloc_hook` 和一些检查，首先可以看到它有一段代码，使用了一个叫做 tcache 的数据结构：
+首先来看 malloc 函数，它实现在 `malloc/malloc.c` 的 [`__libc_malloc`](<https://github.com/bminor/glibc/blob/glibc-2.31/malloc/malloc.c#L3022>) 函数当中，忽略 `__malloc_hook` 和一些检查，首先可以看到它有一段代码，使用了一个叫做 tcache 的数据结构：
 
 ```c
 /* int_free also calls request2size, be careful to not pad twice.  */
@@ -97,21 +97,21 @@ tcache_get (size_t tc_idx)
 可以看到它有两个成员，把 tcache 分为 `TCACHE_MAX_BINS` 这么多个 bin，每个 bin 分别有一个：
 
 1. `counts[bin]`：记录了这个 bin 中空闲块的数量，`tcache_put` 的时候加一，`tcache_get` 的时候减一
-1. `entries[bin]`: 每个 bin 用一个链表保存了空闲块，链表的节点类型是 `tcache_entry`，那么 `entries[bin]` 保存了链表头的指针
+2. `entries[bin]`: 每个 bin 用一个链表保存了空闲块，链表的节点类型是 `tcache_entry`，那么 `entries[bin]` 保存了链表头的指针
 
 bin 是内存分配器的一个常见做法，把要分配的块的大小分 bin，从而保证拿到的空闲块足够大。接下来看 `tcache_put` 是如何把空闲块放到 tcache 中的：
 
 1. 把空闲块强制转换为 `tcache_entry` 结构体类型
-1. 把它的 `key` 字段指向 tcache，用来表示这个空闲块当前在 `tcache` 当中，后续用它来检测 double free
-1. 以新的 `tcache_entry` 作为链表头，插入到 tcache 的对应的 bin 当中：`entries[tc_idx]`
-1. 更新这个 bin 的空闲块个数到 `count[tc_idx]` 当中
+2. 把它的 `key` 字段指向 tcache，用来表示这个空闲块当前在 `tcache` 当中，后续用它来检测 double free
+3. 以新的 `tcache_entry` 作为链表头，插入到 tcache 的对应的 bin 当中：`entries[tc_idx]`
+4. 更新这个 bin 的空闲块个数到 `count[tc_idx]` 当中
 
 反过来，`tcache_get` 则是从 tcache 中拿出一个空闲块：
 
 1. 从链表头 `entries[tc_idx]` 取出一个空闲块，把它从链表中删除：`entries[tc_idx] = e->next`
-1. 更新这个 bin 的空闲块个数到 `count[tc_idx]` 当中
-1. 把它的 `key` 字段指向 NULL，用来表示这个空闲块当前不在 `tcache` 当中
-1. 返回这个空闲块的地址
+2. 更新这个 bin 的空闲块个数到 `count[tc_idx]` 当中
+3. 把它的 `key` 字段指向 NULL，用来表示这个空闲块当前不在 `tcache` 当中
+4. 返回这个空闲块的地址
 
 ### malloc
 
@@ -159,7 +159,7 @@ checked_request2size (size_t req, size_t *sz) __nonnull (1)
 # define csize2tidx(x) (((x) - MINSIZE + MALLOC_ALIGNMENT - 1) / MALLOC_ALIGNMENT)
 ```
 
-可以看到，从 MINSIZE 开始，以 MALLOC_ALIGNMENT 为单位，每个 bin 对应一个经过 align 以后的可能的内存块大小。得到 tcache index 后，检查对应的 bin 是否有空闲块，如果有，则直接分配：
+可以看到，从 MINSIZE 开始，以 MALLOC\_ALIGNMENT 为单位，每个 bin 对应一个经过 align 以后的可能的内存块大小。得到 tcache index 后，检查对应的 bin 是否有空闲块，如果有，则直接分配：
 
 ```c
 if (tc_idx < mp_.tcache_bins
@@ -213,8 +213,8 @@ if (tcache != NULL && tc_idx < mp_.tcache_bins)
 它的逻辑也不复杂：
 
 1. 计算 tcache index，找到对应的 bin
-1. 检查它是不是已经被 free 过了，即 double free：free 过的指针，它的 key 字段应当指向 tcache，如果实际检测到是这样，那就去 tcache 里遍历链表，检查是不是真的在里面，如果是，说明 double free 了，报错
-1. 如果对应的 bin 的链表长度不是很长（阈值是 `mp_.tcache_count`，取值见后），则添加到链表头部，完成 free 的过程
+2. 检查它是不是已经被 free 过了，即 double free：free 过的指针，它的 key 字段应当指向 tcache，如果实际检测到是这样，那就去 tcache 里遍历链表，检查是不是真的在里面，如果是，说明 double free 了，报错
+3. 如果对应的 bin 的链表长度不是很长（阈值是 `mp_.tcache_count`，取值见后），则添加到链表头部，完成 free 的过程
 
 那么 tcache 默认情况下有多大呢：
 
@@ -258,9 +258,9 @@ p1=0x55fb2f9732a0 p2=0x55fb2f9732d0 p3=0x55fb2f9732d0 p4=0x55fb2f9732a0
 结果符合预期，tcache 的内部状态变化过程如下：
 
 1. `free(p1)`：p1 变成链表的头部
-1. `free(p2)`：p2 变成链表的头部，next 指针指向 p1
-1. `p3 = malloc(32)`: p2 是链表的头部，所以被分配给 p3，之后 p1 成为链表的头部
-1. `p4 = malloc(32)`: p1 是链表的头部，所以被分配给 p4
+2. `free(p2)`：p2 变成链表的头部，next 指针指向 p1
+3. `p3 = malloc(32)`: p2 是链表的头部，所以被分配给 p3，之后 p1 成为链表的头部
+4. `p4 = malloc(32)`: p1 是链表的头部，所以被分配给 p4
 
 如果修改分配的大小，让它们被放到不同的 bin，就不会出现顺序颠倒的情况：
 
@@ -411,9 +411,9 @@ for (;; )
 malloc 把空闲的块分成四种类型来保存：
 
 1. fast bin: 类似前面的 tcache bin，把大小相同的空闲块放到链表中，再维护多个对应不同大小的空闲块的链表头指针，采用单向链表维护
-1. small bin：small bin 也会把相同的空闲块放在链表中，但相邻的空闲块会被合并为更大的空闲块，采用双向链表维护
-1. large bin：large bin 可能保存不同大小的空闲块，采用双向链表维护
-1. unsorted bin：近期被 free 的空闲块，如果没有保存到 tcache，会被放到 unsorted bin 当中，留待后续的处理
+2. small bin：small bin 也会把相同的空闲块放在链表中，但相邻的空闲块会被合并为更大的空闲块，采用双向链表维护
+3. large bin：large bin 可能保存不同大小的空闲块，采用双向链表维护
+4. unsorted bin：近期被 free 的空闲块，如果没有保存到 tcache，会被放到 unsorted bin 当中，留待后续的处理
 
 在讨论这些 bin 的维护方式之前，首先要知道 glibc 是怎么维护块的：空闲的时候是什么布局，被分配的时候又是什么布局？
 
@@ -438,9 +438,9 @@ struct malloc_chunk {
 它的字段如下：
 
 1. 相邻的前一个空闲块的大小 `mchunk_prev_size`，记录它是为了方便找到前一个空闲块的开头，这样合并相邻的空闲块就很简单
-1. 当前空闲块的大小 `mchunk_size`，由于块的大小是对齐的，所以它的低位被用来记录 flag
-1. `fd` 和 `bk`：small bin 和 large bin 需要用双向链表维护空闲块，指针就保存在这里
-1. `fd_nextsize` 和 `bk_next_size`：large bin 需要用双向链表维护不同大小的空闲块，方便找到合适大小的空闲块
+2. 当前空闲块的大小 `mchunk_size`，由于块的大小是对齐的，所以它的低位被用来记录 flag
+3. `fd` 和 `bk`：small bin 和 large bin 需要用双向链表维护空闲块，指针就保存在这里
+4. `fd_nextsize` 和 `bk_next_size`：large bin 需要用双向链表维护不同大小的空闲块，方便找到合适大小的空闲块
 
 这是空闲块的内存布局，那么被分配的内存呢？被分配的内存，相当于是如下的结构：
 
@@ -503,7 +503,7 @@ struct malloc_state
 在 64 位下，默认 `NFASTBINS` 等于 10，计算方式如下：
 
 1. 最大的由 fast bin 管理的块大小等于 `80 * sizeof(size_t) / 4 + sizeof(size_t)` 向上取整到 16 的倍数，在 64 位机器上等于 176 字节
-1. 分配粒度从最小的 32 字节到最大的 176 字节，每 16 字节一个 bin，一共有 10 个 bin（`(176 - 32) / 16 + 1 = 10`）
+2. 分配粒度从最小的 32 字节到最大的 176 字节，每 16 字节一个 bin，一共有 10 个 bin（`(176 - 32) / 16 + 1 = 10`）
 
 不过默认情况下，fast bin 管理的块大小通过 `set_max_fast(DEFAULT_MXFAST)` 被限制在 `DEFAULT_MXFAST` 附近，这个值等于 `64 * sizeof(size_t) / 4`，加上 `sizeof(size_t)` 再向下取整到 16 的倍数，就是 128 字节。此时，只有前 7 个 bin 可以被用到（32 字节到 128 字节，每 16 字节一个 bin，`(128 - 32) / 16 + 1 = 7`），即 `malloc(120)` 或更小的分配会保存到 fast bin 中，`malloc(121)` 或更大的分配则不会。
 
@@ -568,11 +568,11 @@ if (victim != NULL)
 它的过程如下：
 
 1. 使用 `fastbin_index (nb)` 根据块的大小计算出 fast bin 的 index，然后 `fastbin (av, idx)` 对应 fast bin 的链表头指针
-1. 如果链表非空，说明可以从 fast bin 分配空闲块，此时就把链表头的结点弹出：`*fb = victim->fd`（单线程）或 `REMOVE_FB (fb, pp, victim)`（多线程）；只用到了单向链表的 `fd` 指针，其余的字段没有用到
-1. 进行一系列的安全检查：`__builtin_expect` 和 `check_remalloced_chunk`
-1. 检查 tcache 对应的 bin，如果它还没有满，就把 fast bin 链表中的元素挪到 tcache 当中
-1. 把 payload 地址通过 `chunk2mem` 计算出来，返回给 malloc 调用者
-1. 调用 `alloc_perturb` 往新分配的空间内写入垃圾数据（可选），避免泄露之前的数据
+2. 如果链表非空，说明可以从 fast bin 分配空闲块，此时就把链表头的结点弹出：`*fb = victim->fd`（单线程）或 `REMOVE_FB (fb, pp, victim)`（多线程）；只用到了单向链表的 `fd` 指针，其余的字段没有用到
+3. 进行一系列的安全检查：`__builtin_expect` 和 `check_remalloced_chunk`
+4. 检查 tcache 对应的 bin，如果它还没有满，就把 fast bin 链表中的元素挪到 tcache 当中
+5. 把 payload 地址通过 `chunk2mem` 计算出来，返回给 malloc 调用者
+6. 调用 `alloc_perturb` 往新分配的空间内写入垃圾数据（可选），避免泄露之前的数据
 
 可以看到，这个过程比较简单，和 tcache 类似，只不过它从 thread local 的 tcache 改成了支持多线程的版本，同时为了支持多线程访问，使用 CAS 原子指令来更新链表头部：
 
@@ -641,10 +641,10 @@ if ((unsigned long)(size) <= (unsigned long)(get_max_fast ()))
 接下来写一段代码来观察 fast bin 的更新过程：
 
 1. 由于 fastbin 保存在 `main_arena` 中，所以我们需要找到 `main_arena` 的运行时地址
-1. `main_arena` 不在 libc 符号表中，不能直接找到它的地址，此时可以通过 libc 的调试符号，找到它相对 image base 的 offset 是 `0x1ecb80`
-1. 再找一个在符号表中的符号 `_IO_2_1_stdout_`，它相对 image base 的 offset 是 `0x1ed6a0`
-1. 根据以上信息，就可以在运行时找到 libc 的 image base 地址，从而推断 `main_arena` 的地址，进而找到所有的 fast bin
-1. 下面写一段代码，观察空闲块进入 fast bin 的过程
+2. `main_arena` 不在 libc 符号表中，不能直接找到它的地址，此时可以通过 libc 的调试符号，找到它相对 image base 的 offset 是 `0x1ecb80`
+3. 再找一个在符号表中的符号 `_IO_2_1_stdout_`，它相对 image base 的 offset 是 `0x1ed6a0`
+4. 根据以上信息，就可以在运行时找到 libc 的 image base 地址，从而推断 `main_arena` 的地址，进而找到所有的 fast bin
+5. 下面写一段代码，观察空闲块进入 fast bin 的过程
 
 ```c
 #include <stddef.h>
@@ -845,14 +845,14 @@ if (in_smallbin_range (nb))
 它的过程如下：
 
 1. 使用 `in_smallbin_range (nb)` 检查块的大小是否应该放到 small bin 当中
-1. 使用 `smallbin_index (nb)` 根据块的大小计算出 small bin 的 index，然后 `bin_at (av, idx)` 对应 small bin 的链表尾部的哨兵，这个双向链表有且只有一个哨兵，这个哨兵就放在 small bin 数组当中
-1. 找到哨兵结点的前驱结点 `last (bin)`，如果链表为空，那么哨兵的前驱结点就是它自己；如果链表非空，那么哨兵的前驱结点就是链表里的最后一个结点，把它赋值给 `victim`
-1. 把这个空闲块标记为正在使用：`set_inuse_bit_at_offset (victim, nb)`
-1. 把 `victim` 从链表里删除：`bck = victim->bk; bin->bk = bck; bck->fd = bin;`，典型的双向链表的结点删除过程，维护 `victim` 前驱结点的后继指针，维护哨兵 `bin` 的前驱指针
-1. 进行一系列的安全检查：`check_malloced_chunk`
-1. 检查 tcache 对应的 bin，如果它还没有满，就把 small bin 链表中的元素挪到 tcache 当中
-1. 把 payload 地址通过 `chunk2mem` 计算出来，返回给 malloc 调用者
-1. 调用 `alloc_perturb` 往新分配的空间内写入垃圾数据（可选），避免泄露之前的数据
+2. 使用 `smallbin_index (nb)` 根据块的大小计算出 small bin 的 index，然后 `bin_at (av, idx)` 对应 small bin 的链表尾部的哨兵，这个双向链表有且只有一个哨兵，这个哨兵就放在 small bin 数组当中
+3. 找到哨兵结点的前驱结点 `last (bin)`，如果链表为空，那么哨兵的前驱结点就是它自己；如果链表非空，那么哨兵的前驱结点就是链表里的最后一个结点，把它赋值给 `victim`
+4. 把这个空闲块标记为正在使用：`set_inuse_bit_at_offset (victim, nb)`
+5. 把 `victim` 从链表里删除：`bck = victim->bk; bin->bk = bck; bck->fd = bin;`，典型的双向链表的结点删除过程，维护 `victim` 前驱结点的后继指针，维护哨兵 `bin` 的前驱指针
+6. 进行一系列的安全检查：`check_malloced_chunk`
+7. 检查 tcache 对应的 bin，如果它还没有满，就把 small bin 链表中的元素挪到 tcache 当中
+8. 把 payload 地址通过 `chunk2mem` 计算出来，返回给 malloc 调用者
+9. 调用 `alloc_perturb` 往新分配的空间内写入垃圾数据（可选），避免泄露之前的数据
 
 其实现过程和 fast bin 很类似，只不过把单向链表改成了双向，并且引入了哨兵结点，这个哨兵结点保存在 `malloc_state` 结构的 bins 数组当中：
 
@@ -894,9 +894,9 @@ struct malloc_state
 乍一看会觉得很奇怪，这里 `NBINS * 2 - 2` 是什么意思？`mchunkptr` 是个指针类型，那它指向的数据存在哪？其实这里用了一个小的 trick：
 
 1. 不去看 bins 元素的类型，只考虑它的元素的大小，每个元素大小是 `sizeof(size_t)`，一共有 `NBINS * 2 - 2` 个元素
-1. 而每个 bin 对应一个链表的哨兵结点，由于是双向链表，哨兵结点也没有数据，只需要保存前驱和后继两个指针，即每个 bin 只需要存两个指针的空间，也就是 `2 * sizeof(size_t)`
-1. 正好 `bins` 数组给每个 bin 留出了 `2 * sizeof(size_t)` 的空间（bin 0 除外，这个 bin 不存在），所以实际上这些哨兵结点的前驱和后继指针就保存在 `bins` 数组里，按顺序保存，首先是 bin 1 的前驱，然后是 bin 1 的后继，接着是 bin 2 的前驱，依此类推
-1. 虽然空间对上了，但是为了方便使用，代码里用 `bin_at` 宏来计算出一个 `malloc_chunk` 结构体的指针，而已知 bins 数组只保存了 `fd` 和 `bk` 两个指针，并且 bin 的下标从 1 开始，所以 bin i 的 `fd` 指针地址就是 `(char *) &((m)->bins[((i) - 1) * 2])`，再减去 `malloc_chunk` 结构体中 `fd` 成员的偏移，就得到了一个 `malloc_chunk` 结构体的指针，当然了，这个结构体只有 `fd` 和 `bk` 两个字段是合法的，其他字段如果访问了，就会访问到其他 bin 那里去
+2. 而每个 bin 对应一个链表的哨兵结点，由于是双向链表，哨兵结点也没有数据，只需要保存前驱和后继两个指针，即每个 bin 只需要存两个指针的空间，也就是 `2 * sizeof(size_t)`
+3. 正好 `bins` 数组给每个 bin 留出了 `2 * sizeof(size_t)` 的空间（bin 0 除外，这个 bin 不存在），所以实际上这些哨兵结点的前驱和后继指针就保存在 `bins` 数组里，按顺序保存，首先是 bin 1 的前驱，然后是 bin 1 的后继，接着是 bin 2 的前驱，依此类推
+4. 虽然空间对上了，但是为了方便使用，代码里用 `bin_at` 宏来计算出一个 `malloc_chunk` 结构体的指针，而已知 bins 数组只保存了 `fd` 和 `bk` 两个指针，并且 bin 的下标从 1 开始，所以 bin i 的 `fd` 指针地址就是 `(char *) &((m)->bins[((i) - 1) * 2])`，再减去 `malloc_chunk` 结构体中 `fd` 成员的偏移，就得到了一个 `malloc_chunk` 结构体的指针，当然了，这个结构体只有 `fd` 和 `bk` 两个字段是合法的，其他字段如果访问了，就会访问到其他 bin 那里去
 
 抛开这些 trick，其实就等价于用一个数组保存了每个 bin 的 `fd` 和 `bk` 指针，至于为什么要强行转换成 `malloc_chunk` 类型的指针，可能是为了方便代码的编写，不需要区分空闲块的结点和哨兵结点。
 
@@ -910,8 +910,8 @@ struct malloc_state
 乍一看会觉得很奇怪，这个访问不是越界了吗？其实这个就是跨过当前的 chunk，访问相邻的下一个 chunk，在它的 `mchunk_size` 字段上打标记，表示它的前一个 chunk 已经被占用。前面提到过，`mchunk_size` 同时保存了 chunk 的大小和一些 flag，由于 chunk 的大小至少是 8 字节对齐的（32 位系统上），所以最低的 3 位就被拿来保存如下的 flag：
 
 1. `PREV_INUSE(0x1)`: 前一个 chunk 已经被分配
-1. `IS_MAPPED(0x2)`：当前 chunk 的内存来自于 mmap
-1. `NON_MAIN_ARENA(0x4)`：当前 chunk 来自于 main arena 以外的其他 arena
+2. `IS_MAPPED(0x2)`：当前 chunk 的内存来自于 mmap
+3. `NON_MAIN_ARENA(0x4)`：当前 chunk 来自于 main arena 以外的其他 arena
 
 在这里，就是设置了 `PREV_INUSE` flag，方便后续的相邻块的合并。
 
@@ -988,11 +988,11 @@ do {
 ```
 
 1. 第一层循环，遍历每个非空的 fast bin，进行下列操作
-1. 第二层循环，每个非空的 fast bin 有一个单向链表，沿着链表进行迭代，遍历链表上的每个空闲块，进行下列操作
-1. 循环内部，检查当前空闲块能否和前后的空闲块合并
-1. 首先检查在它前面（地址更低的）相邻的块是否空闲：如果 `PREV_INUSE` 没有被设置，可以通过 `mchunk_prev_size` 找到前面相邻的块的开头，然后把两个块合并起来；如果前面相邻的块已经在某个双向链表当中（例如 small bin），把它从双向链表中删除：`unlink_chunk (av, p);`；为什么前面要用双向链表，也是为了在这里可以直接从链表中间删除一个结点
-1. 接着检查在它后面（地址更高的）相邻的块是否空闲：根据自己的 size，计算出下一个块的地址，得到下一个块的大小，再读取下一个块的下一个块，根据它的 `PREV_INUSE`，判断下一个块是否空闲；如果空闲，那就把下一个块也合并进来，同理也要把它从双向链表中删除：`unlink_chunk (av, nextchunk);`；代码中还有对 top chunk 的特殊处理，这里先略过
-1. 合并完成以后，把当前的空闲块放到 unsorted bin 当中，也是一个简单的双向链表向链表头的插入算法：`first_unsorted = unsorted_bin->fd; unsorted_bin->fd = p; first_unsorted->bk = p; p->bk = unsorted_bin; p->fd = first_unsorted;`
+2. 第二层循环，每个非空的 fast bin 有一个单向链表，沿着链表进行迭代，遍历链表上的每个空闲块，进行下列操作
+3. 循环内部，检查当前空闲块能否和前后的空闲块合并
+4. 首先检查在它前面（地址更低的）相邻的块是否空闲：如果 `PREV_INUSE` 没有被设置，可以通过 `mchunk_prev_size` 找到前面相邻的块的开头，然后把两个块合并起来；如果前面相邻的块已经在某个双向链表当中（例如 small bin），把它从双向链表中删除：`unlink_chunk (av, p);`；为什么前面要用双向链表，也是为了在这里可以直接从链表中间删除一个结点
+5. 接着检查在它后面（地址更高的）相邻的块是否空闲：根据自己的 size，计算出下一个块的地址，得到下一个块的大小，再读取下一个块的下一个块，根据它的 `PREV_INUSE`，判断下一个块是否空闲；如果空闲，那就把下一个块也合并进来，同理也要把它从双向链表中删除：`unlink_chunk (av, nextchunk);`；代码中还有对 top chunk 的特殊处理，这里先略过
+6. 合并完成以后，把当前的空闲块放到 unsorted bin 当中，也是一个简单的双向链表向链表头的插入算法：`first_unsorted = unsorted_bin->fd; unsorted_bin->fd = p; first_unsorted->bk = p; p->bk = unsorted_bin; p->fd = first_unsorted;`
 
 `unlink_chunk` 的实现就是经典的双向链表删除结点的算法：
 
@@ -1040,8 +1040,8 @@ unlink_chunk (mstate av, mchunkptr p)
 因此 unsorted bin 保存了一些从 fast bin 合并而来的一些块，由于 unsorted bin 只有一个，所以它里面会保存各种大小的空闲块。实际上，unsorted bin 占用的就是 `malloc_state` 结构中的 bin 1，因为我们已经知道，块的大小至少是 32，而大小为 32 的块，对应的 small bin index 是 2，说明 1 没有被用到，其实就是留给 unsorted bin 用的。在 64 位系统下，`malloc_state` 的 127 个 bin 分配如下：
 
 1. bin 1 是 unsorted bin
-1. bin 2 到 bin 63 是 small bin
-1. bin 64 到 bin 126 是 large bin
+2. bin 2 到 bin 63 是 small bin
+3. bin 64 到 bin 126 是 large bin
 
 bin 127 没有用到。
 
@@ -1052,8 +1052,8 @@ bin 127 没有用到。
 接下来，`_int_malloc` 有一大段代码来进行后续的内存分配，大概步骤包括：
 
 1. 把 unsorted bin 中的空闲块的处理，放到 small bin 或者 large bin 中，同时如果有合适的块，就分配给 malloc 的调用者
-1. 如果还是没有找到合适大小的块，就在 large bin 里寻找空闲块来分配；如果找不到合适大小的块，进行 consolidate，尝试更多的合并，得到更大的块；重复这个过程多次
-1. 如果还是找不到合适的块，就从堆顶分配新的块，如果堆已经满了，还需要去扩大堆，或者直接用 mmap 分配一片内存
+2. 如果还是没有找到合适大小的块，就在 large bin 里寻找空闲块来分配；如果找不到合适大小的块，进行 consolidate，尝试更多的合并，得到更大的块；重复这个过程多次
+3. 如果还是找不到合适的块，就从堆顶分配新的块，如果堆已经满了，还需要去扩大堆，或者直接用 mmap 分配一片内存
 
 现在分步骤观察这个过程，首先观察 unsorted bin 的处理。
 
@@ -1222,10 +1222,10 @@ while ((victim = unsorted_chunks (av)->bk) != unsorted_chunks (av))
 它的流程如下：
 
 1. 遍历 unsorted bin 双向链表，从哨兵结点开始，从后往前遍历空闲块
-1. fast path 逻辑：如果要申请的块比当前空闲块小，并且当前空闲块可以拆分，那就拆分当前的空闲块，然后直接分配拆分后的空闲块
-1. 如果要申请的块的大小和当前空闲块的大小相同，把空闲块放到 tcache，或者直接分配这个空闲块
-1. 把当前空闲块根据大小，分发到 small bin 或者 large bin
-1. 如果 tcache 中有合适的空闲块，就分配它
+2. fast path 逻辑：如果要申请的块比当前空闲块小，并且当前空闲块可以拆分，那就拆分当前的空闲块，然后直接分配拆分后的空闲块
+3. 如果要申请的块的大小和当前空闲块的大小相同，把空闲块放到 tcache，或者直接分配这个空闲块
+4. 把当前空闲块根据大小，分发到 small bin 或者 large bin
+5. 如果 tcache 中有合适的空闲块，就分配它
 
 由此可见，unsorted bin 中的空闲块在 malloc 的时候会被分派到对应的 small bin 或者 large bin 当中。small bin 的处理比较简单，因为每个 bin 的块大小都相同，直接加入到双向链表即可。large bin 的处理则比较复杂，下面主要来分析 large bin 的结构。
 
@@ -1234,12 +1234,12 @@ while ((victim = unsorted_chunks (av)->bk) != unsorted_chunks (av))
 large bin 和其他 bin 的不同的地方在于，它每个 bin 的大小不是一个固定的值，而是一个范围。在 64 位下，bin 64 到 bin 127 对应的块大小范围：
 
 1. bin 64 到 bin 96: 从 1024 字节开始，每个 bin 覆盖 64 字节的长度范围，例如 bin 64 对应 1024-1087 字节范围，bin 96 对应 3072-3135 字节范围
-1. bin 97 到 bin 111: 从 3136 字节开始，每个 bin 覆盖 512 字节的长度范围，例如 bin 97 对应 3136-3583 字节范围（没有涵盖 512 字节是因为对齐问题，其他的都是涵盖 512 字节），bin 111 对应 10240-10751 字节范围
-1. bin 112 到 bin 119: 从 10752 字节开始，每个 bin 覆盖 4096 字节的长度范围，例如 bin 112 对应 10752-12287 字节范围（没有涵盖 4096 字节是因为对齐问题，其他的都是涵盖 4096 字节），bin 119 对应 36864-40959 字节范围
-1. bin 120 到 bin 123: 从 40960 字节开始，每个 bin 覆盖 32768 字节的长度范围，例如 bin 120 对应 40960-65535 字节范围（没有涵盖 32768 字节是因为对齐问题，其他的都是涵盖 32768 字节），bin 123 对应 131072-163839 字节范围
-1. bin 124: 163840-262143 共 98304 个字节的范围
-1. bin 125: 262144-524287 共 262144 个字节的范围
-1. bin 126: 524288 或更长
+2. bin 97 到 bin 111: 从 3136 字节开始，每个 bin 覆盖 512 字节的长度范围，例如 bin 97 对应 3136-3583 字节范围（没有涵盖 512 字节是因为对齐问题，其他的都是涵盖 512 字节），bin 111 对应 10240-10751 字节范围
+3. bin 112 到 bin 119: 从 10752 字节开始，每个 bin 覆盖 4096 字节的长度范围，例如 bin 112 对应 10752-12287 字节范围（没有涵盖 4096 字节是因为对齐问题，其他的都是涵盖 4096 字节），bin 119 对应 36864-40959 字节范围
+4. bin 120 到 bin 123: 从 40960 字节开始，每个 bin 覆盖 32768 字节的长度范围，例如 bin 120 对应 40960-65535 字节范围（没有涵盖 32768 字节是因为对齐问题，其他的都是涵盖 32768 字节），bin 123 对应 131072-163839 字节范围
+5. bin 124: 163840-262143 共 98304 个字节的范围
+6. bin 125: 262144-524287 共 262144 个字节的范围
+7. bin 126: 524288 或更长
 
 可以看到，比较短的长度范围给的 bin 也比较多，后面则更加稀疏。上述各个 bin 的大小范围可以通过以下代码打印：
 
@@ -1273,7 +1273,7 @@ int main() {
 }
 ```
 
-因此 large bin 里面会有不同 chunk 大小的空闲块。为了快速地寻找想要的大小的空闲块，large bin 中空闲块按照从大到小的顺序组成链表，同时通过 `fd_nextsize` 和 `bk_nextsize` 把每种大小出现的第一个块组成双向链表。大致的连接方式如下，参考了 [Malloc Internals](https://sourceware.org/glibc/wiki/MallocInternals) 给的示例：
+因此 large bin 里面会有不同 chunk 大小的空闲块。为了快速地寻找想要的大小的空闲块，large bin 中空闲块按照从大到小的顺序组成链表，同时通过 `fd_nextsize` 和 `bk_nextsize` 把每种大小出现的第一个块组成双向链表。大致的连接方式如下，参考了 [Malloc Internals](<https://sourceware.org/glibc/wiki/MallocInternals>) 给的示例：
 
 ```text
   bins[id]      chunk A              chunk B              chunk C
@@ -1418,10 +1418,10 @@ if (!in_smallbin_range (nb))
 从 large bin 分配空闲块的过程如下：
 
 1. 根据大小找到对应的 large bin
-1. 如果 large bin 中最大的空闲块足够大，遍历 nextsize 链表，找到一个比要分配的大小更大的最小的空闲块
-1. 为了避免更新 nextsize 链表，如果当前块大小对应了不止一个空闲块，那就取第二个空闲块，这样就不用更新 nextsize 链表
-1. 计算空闲块大小和要分配的大小的差值，如果差值太小，多余的部分就直接浪费；如果差的空间还能放下一个 chunk，就进行拆分，把拆出来的剩下的部分放到 unsorted bin 中
-1. 计算 payload 地址，进行可选的 perturb，完成分配
+2. 如果 large bin 中最大的空闲块足够大，遍历 nextsize 链表，找到一个比要分配的大小更大的最小的空闲块
+3. 为了避免更新 nextsize 链表，如果当前块大小对应了不止一个空闲块，那就取第二个空闲块，这样就不用更新 nextsize 链表
+4. 计算空闲块大小和要分配的大小的差值，如果差值太小，多余的部分就直接浪费；如果差的空间还能放下一个 chunk，就进行拆分，把拆出来的剩下的部分放到 unsorted bin 中
+5. 计算 payload 地址，进行可选的 perturb，完成分配
 
 ## 寻找更大的 bin
 
@@ -1590,10 +1590,10 @@ else
 前面把 malloc 的流程基本分析完了，接下来分析一下 free 的逻辑，它做的事情包括：
 
 1. 前面已经分析过，如果 tcache 对应的 bin 存在且非满，则把空闲块插入到 tcache 的链表头
-1. 如果存在对应的 fast bin，则插入空闲块到 fast bin 对应链表的头部
-1. 尝试和它前后的空闲块进行合并，实现和前面 consolidate 类似，合并后进入 unsorted bin
-1. 如果释放的内存比较多，检查 top chunk 大小，如果剩余的空间比较多，则归还一部分内存给操作系统
-1. 对于 mmap 分配的内存，用 munmap 释放掉
+2. 如果存在对应的 fast bin，则插入空闲块到 fast bin 对应链表的头部
+3. 尝试和它前后的空闲块进行合并，实现和前面 consolidate 类似，合并后进入 unsorted bin
+4. 如果释放的内存比较多，检查 top chunk 大小，如果剩余的空间比较多，则归还一部分内存给操作系统
+5. 对于 mmap 分配的内存，用 munmap 释放掉
 
 由于 free 的实现相对简单，在这里就不详细解析了，比较详细的实现分析见后。
 
@@ -1602,24 +1602,24 @@ else
 realloc 的实现在 `__libc_realloc` 当中，它的实现比较简单：
 
 1. 如果重新分配的大小是 0，realloc 等价为 free，就调用 free
-1. 如果旧指针是 NULL，realloc 等价为 malloc，就调用 malloc
-1. 如果直接是 mmap 出来的块，利用 mremap 来扩展空间
-1. 如果是要申请更少的内存，把多出来的部分拆成一个单独的块，然后 free 掉它
-1. 如果是要申请更多的内存，尝试从内存更高地址的相邻块获取空间，如果有的话，合并两个块，然后把多余的空间拆成一个单独的块，然后 free 掉它；如果内存更高地址的相邻块已经被占用，就重新 malloc 一个块，用 memcpy 把数据拷贝过去，再 free 掉旧的内存
+2. 如果旧指针是 NULL，realloc 等价为 malloc，就调用 malloc
+3. 如果直接是 mmap 出来的块，利用 mremap 来扩展空间
+4. 如果是要申请更少的内存，把多出来的部分拆成一个单独的块，然后 free 掉它
+5. 如果是要申请更多的内存，尝试从内存更高地址的相邻块获取空间，如果有的话，合并两个块，然后把多余的空间拆成一个单独的块，然后 free 掉它；如果内存更高地址的相邻块已经被占用，就重新 malloc 一个块，用 memcpy 把数据拷贝过去，再 free 掉旧的内存
 
 ## calloc
 
 calloc 的实现在 `__libc_calloc` 当中，它的语义相比 malloc 多了一个清零，所以它的实现也不复杂：
 
 1. 如果 top chunk 还有空间，并且 top chunk 的数据已经被清零，则优先从 top chunk 分配空间，避免了 memset 的开销
-1. fallback 到 `_int_malloc` 进行内存分配，分配成功后，再 memset 清零
+2. fallback 到 `_int_malloc` 进行内存分配，分配成功后，再 memset 清零
 
 ## arena 和 heap
 
 前面讨论了各种 chunk 在内存分配器内部流转的情况，但并没有讨论这些空间是怎么从操作系统分配而来的，又是怎么维护的。glibc 内存分配器实际上设计了两个层次：
 
-1. arena 层次：对应锁的粒度，一个 arena 可以对应多个 heap，有一个特殊的 arena 是 main_arena；arena 的数量有限制，在 64 位系统下默认的数量限制是处理器核心数的 8 倍，避免出现太多的内存碎片
-1. heap 层次：每个 heap 大小有上限：`1024 * 1024` 字节，也就是 1MB；当 arena 需要更多空间的时候，可以分配新的 heap；arena 自身就保存在 arena 的第一个 heap 内部的空间，同一个 arena 的多个 heap 之间通单向链表连接起来；arena 的 top chunk 指向最后一个创建的 heap 的顶部的空闲块
+1. arena 层次：对应锁的粒度，一个 arena 可以对应多个 heap，有一个特殊的 arena 是 main\_arena；arena 的数量有限制，在 64 位系统下默认的数量限制是处理器核心数的 8 倍，避免出现太多的内存碎片
+2. heap 层次：每个 heap 大小有上限：`1024 * 1024` 字节，也就是 1MB；当 arena 需要更多空间的时候，可以分配新的 heap；arena 自身就保存在 arena 的第一个 heap 内部的空间，同一个 arena 的多个 heap 之间通单向链表连接起来；arena 的 top chunk 指向最后一个创建的 heap 的顶部的空闲块
 
 arena 的结构就是前面看到的 `malloc_state`，包括如下字段：
 
@@ -1672,21 +1672,21 @@ struct malloc_state
 这里很多字段在之前已经见过了，比如：
 
 1. `mutex`：arena 的互斥锁
-1. `have_fastchunks`：记录 fast bin 中是否还有空闲块，用于判断是否需要 consolidate
-1. `fastbinsY`：保存 fast bin 每个 bin 的头指针的数组
-1. `top`：指向 top chunk
-1. `last_remainder`：指向最近一次 split 出来的空闲块，用于访存局部性优化
-1. `bins`：保存 unsorted bin，small bin 和 large bin 各个双向链表的哨兵结点的 `fd` 和 `bk` 指针
-1. `binmap`：记录哪些 small 或 large bin 里面有空闲块，用于加速寻找下一个有空闲块的 bin
+2. `have_fastchunks`：记录 fast bin 中是否还有空闲块，用于判断是否需要 consolidate
+3. `fastbinsY`：保存 fast bin 每个 bin 的头指针的数组
+4. `top`：指向 top chunk
+5. `last_remainder`：指向最近一次 split 出来的空闲块，用于访存局部性优化
+6. `bins`：保存 unsorted bin，small bin 和 large bin 各个双向链表的哨兵结点的 `fd` 和 `bk` 指针
+7. `binmap`：记录哪些 small 或 large bin 里面有空闲块，用于加速寻找下一个有空闲块的 bin
 
 之前没有涉及到的字段包括：
 
 1. `flags`: 维护 `NONCONTIGUOUS_BIT` 标记，即 arena 所使用的内存是否是连续的，例如用 sbrk 分配出来的内存是连续的，用 mmap 则不是
-1. `next`: 维护所有 arena 的单向链表，链表头就是 `main_arena`
-1. `next_free`: 维护所有空闲的 arena 的单向链表 free list，链表头保存在 `static mstate free_list`
-1. `attached_threads`: 记录有多少个线程会使用这个 arena，类似于一种引用计数，当它减到零的时候，意味着 arena 可以被释放到 free list 了
-1. `system_mem`: 记录它从操作系统分配了多少的内存的大小
-1. `max_system_mem`：记录它历史上从操作系统分配最多的内存的大小
+2. `next`: 维护所有 arena 的单向链表，链表头就是 `main_arena`
+3. `next_free`: 维护所有空闲的 arena 的单向链表 free list，链表头保存在 `static mstate free_list`
+4. `attached_threads`: 记录有多少个线程会使用这个 arena，类似于一种引用计数，当它减到零的时候，意味着 arena 可以被释放到 free list 了
+5. `system_mem`: 记录它从操作系统分配了多少的内存的大小
+6. `max_system_mem`：记录它历史上从操作系统分配最多的内存的大小
 
 可见 arena 的结构还是比较简单的，接下来分析 heap 的结构：
 
@@ -1708,20 +1708,20 @@ typedef struct _heap_info
 字段如下：
 
 1. `ar_ptr`：指向 heap 所属的 arena
-1. `prev`：指向前一个 heap，组成一个 heap 的单向链表，新添加的 heap 放到链表的尾部
-1. `size`: heap 的大小
-1. `mprotect_size`: heap 被设置为可读写的部分的内存大小，也就是 heap 的活跃部分大小，对齐到页的边界；默认情况下，heap 的未分配空间被映射为不可读不可写不可执行的属性
-1. `pad`: 添加 padding，保证它的大小是 `MALLOC_ALIGNMENT` 的倍数
+2. `prev`：指向前一个 heap，组成一个 heap 的单向链表，新添加的 heap 放到链表的尾部
+3. `size`: heap 的大小
+4. `mprotect_size`: heap 被设置为可读写的部分的内存大小，也就是 heap 的活跃部分大小，对齐到页的边界；默认情况下，heap 的未分配空间被映射为不可读不可写不可执行的属性
+5. `pad`: 添加 padding，保证它的大小是 `MALLOC_ALIGNMENT` 的倍数
 
 前面提到过，arena 的空间会复用它的第一个 heap 的空间，紧接着放在 `heap_info` 结构体的后面。这个 `heap_info` 结构体就放在 heap 所用空间的开头。
 
-heap 有一个特性，就是它的起始地址，一定是对齐到 `HEAP_MAX_SIZE`（默认是 64MB）的整数倍数，并且它的大小也不会超过 `HEAP_MAX_SIZE`，所以如果要知道某个 chunk 属于哪个 heap，只需要向下取整到 `HEAP_MAX_SIZE` 的倍数即可。如果要知道某个 chunk 属于哪个 arena，就先找到 heap，再从 heap_info 获取 ar_ptr 就可以了。
+heap 有一个特性，就是它的起始地址，一定是对齐到 `HEAP_MAX_SIZE`（默认是 64MB）的整数倍数，并且它的大小也不会超过 `HEAP_MAX_SIZE`，所以如果要知道某个 chunk 属于哪个 heap，只需要向下取整到 `HEAP_MAX_SIZE` 的倍数即可。如果要知道某个 chunk 属于哪个 arena，就先找到 heap，再从 heap\_info 获取 ar\_ptr 就可以了。
 
 比较有意思的一个点是，heap 保存了 arena 的指针，但是反过来，arena 并没有保存 heap 的指针，那么怎么从 arena 找到属于这个 arena 的所有 heap 呢？这会用到一个性质：arena 的 top 永远指向最新的一个 heap 的地址最高的空闲块，而这个最新的 heap 正好处于 heap 链表的尾部，所以如果要遍历 arena 里的 heap，只需要：
 
 1. 获取 arena 的 top 指针
-1. 把 top 指针向下取整到 `HEAP_MAX_SIZE` 的整倍数，得到 top 所在 heap 的 heap_info 指针
-1. 沿着 heap_info 的 prev 指针向前走，一直遍历，直到 prev 指针为 NULL 为止
+2. 把 top 指针向下取整到 `HEAP_MAX_SIZE` 的整倍数，得到 top 所在 heap 的 heap\_info 指针
+3. 沿着 heap\_info 的 prev 指针向前走，一直遍历，直到 prev 指针为 NULL 为止
 
 所以 top 指针也充当了 heap 链表的尾指针的作用。
 
@@ -1732,15 +1732,15 @@ main arena 是特殊的，因为它直接保存在 glibc 的 data 段当中，�
 其他的 arena 则是通过 `_int_new_arena` 分配的，它的流程是：
 
 1. 调用 `new_heap` 创建一个堆，至少能够放 `heap_info` 和 `malloc_state` 的空间
-1. 这段空间的开头就是 `heap_info`，紧随其后就是 arena 自己的 `malloc_state`，然后把 top chunk 指向 `malloc_state` 后面的空闲空间
+2. 这段空间的开头就是 `heap_info`，紧随其后就是 arena 自己的 `malloc_state`，然后把 top chunk 指向 `malloc_state` 后面的空闲空间
 
-`new_heap` 则是会通过 `mmap` 向操作系统申请内存。因此除了 main_arena 以外，所有的 arena 的 heap 都会放在 mmap 出来的空间里。
+`new_heap` 则是会通过 `mmap` 向操作系统申请内存。因此除了 main\_arena 以外，所有的 arena 的 heap 都会放在 mmap 出来的空间里。
 
 于是 `sysmalloc` 要做的事情也比较清晰了，它要做的就是，在 top chunk 不够大的时候，分配更多空间给 top chunk：
 
 1. 如果要分配的块特别大，超出了阈值 `mmap_threshold`，就直接用 mmap 申请内存
-1. 如果不是 main arena，就尝试扩大 top 所在的 heap：heap 在初始化的时候，虽然会 mmap 一个 `HEAP_MAX_SIZE` 大小的内存，但大部分空间都被映射为不可读不可写不可执行；所以扩大 heap，实际上就是把要用的部分通过 mprotect 添加可读和可写的权限；如果 heap 达到了大小的上限，那就新建一个 heap，把 top chunk 放到新的 heap 上去
-1. 如果是 main arena，就用 sbrk 扩大 top chunk；如果扩大失败，那就用 mmap 来分配内存
+2. 如果不是 main arena，就尝试扩大 top 所在的 heap：heap 在初始化的时候，虽然会 mmap 一个 `HEAP_MAX_SIZE` 大小的内存，但大部分空间都被映射为不可读不可写不可执行；所以扩大 heap，实际上就是把要用的部分通过 mprotect 添加可读和可写的权限；如果 heap 达到了大小的上限，那就新建一个 heap，把 top chunk 放到新的 heap 上去
+3. 如果是 main arena，就用 sbrk 扩大 top chunk；如果扩大失败，那就用 mmap 来分配内存
 
 ## 小结
 
@@ -1749,17 +1749,17 @@ main arena 是特殊的，因为它直接保存在 glibc 的 data 段当中，�
 到这里就基本把 glibc 的内存分配器分析得差不多了。glibc 把空闲块放在如下四种 bin 内：
 
 1. fast bin: 每个 bin 对应固定大小的空闲块，用单向链表维护，链表头指针保存在 `malloc_state` 的 `fastbinsY` 成员
-1. unsorted bin: 一个双向链表，维护一些刚被 free 的空闲块，无大小要求，链表的哨兵结点保存在 `malloc_state` 的 `bins` 成员刚开头
-1. small bin: 每个 bin 对应固定大小的空闲块，用双向链表维护，链表的哨兵结点保存在 `malloc_state` 的 `bins` 成员，紧接在 unsorted bin 后面
-1. large bin: 每个 bin 对应一段大小范围的空闲块，用双向链表维护，按照块大小从大到小排序，每个大小的第一个空闲块在 nextsize 双向链表当中，链表的哨兵结点保存在 `malloc_state` 的 `bins` 成员中，紧接在 small bin 后面
+2. unsorted bin: 一个双向链表，维护一些刚被 free 的空闲块，无大小要求，链表的哨兵结点保存在 `malloc_state` 的 `bins` 成员刚开头
+3. small bin: 每个 bin 对应固定大小的空闲块，用双向链表维护，链表的哨兵结点保存在 `malloc_state` 的 `bins` 成员，紧接在 unsorted bin 后面
+4. large bin: 每个 bin 对应一段大小范围的空闲块，用双向链表维护，按照块大小从大到小排序，每个大小的第一个空闲块在 nextsize 双向链表当中，链表的哨兵结点保存在 `malloc_state` 的 `bins` 成员中，紧接在 small bin 后面
 
 除了这四种 bin 以外，还有一个 per thread 的 tcache 机制，结构和 fast bin 类似，每个 bin 对应固定大小的空闲块，用单向链表维护，链表头指针保存在 `tcache` 的 `entries` 成员。
 
 内存在分配器中流转的过程大致如下：
 
 1. 一开始从 top chunk 当中被分配出来
-1. 被 free 了以后，进入 tcache，或者 fast bin，或者合并后放到 unsorted bin，或者合并到 top chunk
-1. 在 malloc 的时候，从 tcache 或者 fast bin 分配，又或者从 unsorted bin 中取出，放到 small bin 或 large bin，中途可能被分配、拆分或者合并
+2. 被 free 了以后，进入 tcache，或者 fast bin，或者合并后放到 unsorted bin，或者合并到 top chunk
+3. 在 malloc 的时候，从 tcache 或者 fast bin 分配，又或者从 unsorted bin 中取出，放到 small bin 或 large bin，中途可能被分配、拆分或者合并
 
 ```
 flowchart TD
@@ -1884,85 +1884,86 @@ flowchart TD
 前面分段整理了 malloc 的实现，在这里列出完整的 malloc 流程：
 
 1. malloc 的入口是 `__libc_malloc (size_t bytes)` 函数
-1. 如果配置了 malloc hook，则调用 malloc hook，直接返回结果
-1. 根据用户传入的 malloc 的字节数（`bytes`），用 `checked_request2size` 计算出实际的 chunk 大小，算法是先加上 `sizeof(size_t)`（给 `mchunk_size` 预留空间），然后向上对齐到 `MALLOC_ALIGNMENT`（通常是 `2 * sizeof(size_t)`）的倍数，再和 `MINSIZE` 取 max，其中 `MINSIZE` 通常是 `4 * sizeof(size_t)`，因为空闲块至少要保存两个 size 加上双向链表的 `fd` 和 `bk` 指针
-1. 如果 tcache 还没初始化，就初始化 tcache
-1. 根据 chunk 大小，计算 tcache index，检查对应的 bin 是否有空闲块；如果有，直接分配空闲块并返回
-1. 接着获取一个 arena，如有必要，获取 arena 的锁；在单线程情况下，只有一个 main_arena；多线程情况下，每个线程有一个默认的 arena 指针（`static __thread mstate thread_arena`），在遇到 lock contention 的时候可以动态切换
-1. 进入 `_int_malloc` 从 arena 中分配一个 chunk，分配完成后释放 arena 的锁
-1. 接着分析 `_int_malloc` 的实现，除 tcache 以外的大部分逻辑都在 `_int_malloc` 函数中
-1. 判断 chunk size 大小，如果对应 fast bin 的块大小，在对应的 fast bin 的单向链表中寻找空闲块；如果链表非空，则取出链表头的空闲块，作为分配给 malloc 调用者的块，接着把 fast bin 链表上剩余的空闲块挪到 tcache 当中，直到 fast bin 链表空或者 tcache 满为止，然后函数结束
-1. 判断 chunk size 大小，如果对应 small bin 的块大小，在对应的 small bin 的双向链表中寻找空闲块；如果链表非空，则取出链表尾的空闲块，作为分配给 malloc 调用者的块，接着把 small bin 链表上剩余的空闲块挪到 tcache 当中，直到 small bin 链表空或者 tcache 满为止，然后函数结束
-1. 判断 chunk size 大小，如果对应 large bin 的块大小，则进行一次 malloc_consolidate：遍历 fast bin 每一个 bin 的每一个空闲块，尝试把它和内存上相邻的前后空闲块合并，合并后的空闲块放入 unsorted bin；特别地，如果空闲块和 top chunk 相邻，就会直接合并到 top chunk，这样就不需要把空闲块放入 unsorted bin
-1. 开始一个大的无限循环 `for (;;)`，如果后续尝试各种方式都分配不成功，但是 fast bin 还有空闲块，在 malloc_consolidate 后会从这里开始再尝试一次分配
-1. 遍历 unsorted bin，最多处理 10000 个空闲块：
-   1. 如果空闲块的大小对应 small bin，并且它是最近刚 split 出来的空闲块，并且可以放得下要分配的块，就原地把这个空闲块进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分则放回到 unsorted bin，然后函数结束
-   1. 把空闲块从 unsorted bin 链表中删除
-   1. 如果空闲块的大小正好是要分配的块的大小，判断 tcache 是否还有空间；如果 tcache 已经满了，直接把这个空闲块作为分配给 malloc 调用者的块，然后函数结束；如果 tcache 还没满，则先把空闲块挪到 tcache 当中，继续处理 unsorted bin 的其他空闲块，这样做的目的是尽量把 tcache 填满
-   1. 根据空闲块的大小，插入到对应的 small bin 或者 large bin 当中
-   1. 记录插入到 small bin 或者 large bin 的空闲块个数，如果超过了阈值，并且之前已经找到一个空闲块的大小正好是要分配的块的大小，同时挪到了 tcache 当中，则立即把这个空闲块从 tcache 中取出并分配给 malloc 调用者，然后函数结束；这样做的目的是避免处理太多无关的 unsorted bin 中的空闲块，导致 malloc 调用时间过长
-1. 如果在遍历 unsorted bin 过程中找到了和要分配的块一样大的空闲块，那么这个空闲块已经在 tcache 当中了，则立即把这个空闲块从 tcache 中取出并分配给 malloc 调用者，然后函数结束
-1. 判断 chunk size 大小，如果属于 large bin 的块大小，则找到对应的 large bin，从小到大通过 nextsize 链表遍历 large bin 中的空闲块，找到一个足够大的空闲块，对它进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分则放回到 unsorted bin，然后函数结束
-1. 根据 chunk size 大小，找到对应的 small bin 或者 large bin，然后从小到大遍历各个 bin（可能从 small bin 一路遍历到 large bin），通过 bitmap 跳过那些空的 bin，找到第一个非空的 bin 的空闲块，对它进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分则放回到 unsorted bin，然后函数结束
-1. 如果 top chunk 足够大，则对它进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分成为新的 top chunk，然后函数结束
-1. 如果此时 fast bin 有空闲块，调用 malloc_consolidate，然后回到无限循环的开头再尝试一次分配
-1. 最后的兜底分配方法：调用 `sysmalloc`，通过 mmap 或 sbrk 向操作系统申请更多的内存
+2. 如果配置了 malloc hook，则调用 malloc hook，直接返回结果
+3. 根据用户传入的 malloc 的字节数（`bytes`），用 `checked_request2size` 计算出实际的 chunk 大小，算法是先加上 `sizeof(size_t)`（给 `mchunk_size` 预留空间），然后向上对齐到 `MALLOC_ALIGNMENT`（通常是 `2 * sizeof(size_t)`）的倍数，再和 `MINSIZE` 取 max，其中 `MINSIZE` 通常是 `4 * sizeof(size_t)`，因为空闲块至少要保存两个 size 加上双向链表的 `fd` 和 `bk` 指针
+4. 如果 tcache 还没初始化，就初始化 tcache
+5. 根据 chunk 大小，计算 tcache index，检查对应的 bin 是否有空闲块；如果有，直接分配空闲块并返回
+6. 接着获取一个 arena，如有必要，获取 arena 的锁；在单线程情况下，只有一个 main\_arena；多线程情况下，每个线程有一个默认的 arena 指针（`static __thread mstate thread_arena`），在遇到 lock contention 的时候可以动态切换
+7. 进入 `_int_malloc` 从 arena 中分配一个 chunk，分配完成后释放 arena 的锁
+8. 接着分析 `_int_malloc` 的实现，除 tcache 以外的大部分逻辑都在 `_int_malloc` 函数中
+9. 判断 chunk size 大小，如果对应 fast bin 的块大小，在对应的 fast bin 的单向链表中寻找空闲块；如果链表非空，则取出链表头的空闲块，作为分配给 malloc 调用者的块，接着把 fast bin 链表上剩余的空闲块挪到 tcache 当中，直到 fast bin 链表空或者 tcache 满为止，然后函数结束
+10. 判断 chunk size 大小，如果对应 small bin 的块大小，在对应的 small bin 的双向链表中寻找空闲块；如果链表非空，则取出链表尾的空闲块，作为分配给 malloc 调用者的块，接着把 small bin 链表上剩余的空闲块挪到 tcache 当中，直到 small bin 链表空或者 tcache 满为止，然后函数结束
+11. 判断 chunk size 大小，如果对应 large bin 的块大小，则进行一次 malloc\_consolidate：遍历 fast bin 每一个 bin 的每一个空闲块，尝试把它和内存上相邻的前后空闲块合并，合并后的空闲块放入 unsorted bin；特别地，如果空闲块和 top chunk 相邻，就会直接合并到 top chunk，这样就不需要把空闲块放入 unsorted bin
+12. 开始一个大的无限循环 `for (;;)`，如果后续尝试各种方式都分配不成功，但是 fast bin 还有空闲块，在 malloc\_consolidate 后会从这里开始再尝试一次分配
+13. 遍历 unsorted bin，最多处理 10000 个空闲块：
+
+    1. 如果空闲块的大小对应 small bin，并且它是最近刚 split 出来的空闲块，并且可以放得下要分配的块，就原地把这个空闲块进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分则放回到 unsorted bin，然后函数结束
+    2. 把空闲块从 unsorted bin 链表中删除
+    3. 如果空闲块的大小正好是要分配的块的大小，判断 tcache 是否还有空间；如果 tcache 已经满了，直接把这个空闲块作为分配给 malloc 调用者的块，然后函数结束；如果 tcache 还没满，则先把空闲块挪到 tcache 当中，继续处理 unsorted bin 的其他空闲块，这样做的目的是尽量把 tcache 填满
+    4. 根据空闲块的大小，插入到对应的 small bin 或者 large bin 当中
+    5. 记录插入到 small bin 或者 large bin 的空闲块个数，如果超过了阈值，并且之前已经找到一个空闲块的大小正好是要分配的块的大小，同时挪到了 tcache 当中，则立即把这个空闲块从 tcache 中取出并分配给 malloc 调用者，然后函数结束；这样做的目的是避免处理太多无关的 unsorted bin 中的空闲块，导致 malloc 调用时间过长
+14. 如果在遍历 unsorted bin 过程中找到了和要分配的块一样大的空闲块，那么这个空闲块已经在 tcache 当中了，则立即把这个空闲块从 tcache 中取出并分配给 malloc 调用者，然后函数结束
+15. 判断 chunk size 大小，如果属于 large bin 的块大小，则找到对应的 large bin，从小到大通过 nextsize 链表遍历 large bin 中的空闲块，找到一个足够大的空闲块，对它进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分则放回到 unsorted bin，然后函数结束
+16. 根据 chunk size 大小，找到对应的 small bin 或者 large bin，然后从小到大遍历各个 bin（可能从 small bin 一路遍历到 large bin），通过 bitmap 跳过那些空的 bin，找到第一个非空的 bin 的空闲块，对它进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分则放回到 unsorted bin，然后函数结束
+17. 如果 top chunk 足够大，则对它进行拆分，前面的部分是分配给 malloc 调用者的块，后面的部分成为新的 top chunk，然后函数结束
+18. 如果此时 fast bin 有空闲块，调用 malloc\_consolidate，然后回到无限循环的开头再尝试一次分配
+19. 最后的兜底分配方法：调用 `sysmalloc`，通过 mmap 或 sbrk 向操作系统申请更多的内存
 
 ### free
 
 在这里列出完整的 free 流程：
 
 1. free 的入口是 `__libc_free (void *mem)` 函数
-1. 如果配置了 free hook，则调用 free hook，直接返回
-1. 如果是调用 `free(NULL)`，直接返回
-1. 检查 `mchunk_size` 的 `IS_MAPPED` 字段，如果它之前是通过 mmap 分配的，那么对它进行 munmap，然后返回
-1. 如果 tcache 还没初始化，就初始化 tcache
-1. 找到这个 chunk 从哪个 arena 分配的：检查 `mchunk_size` 的 `NON_MAIN_ARENA` 字段，如果它不是从 main arena 分配的，则根据 chunk 的地址，找到 heap 的地址（heap 的大小是有上限的，并且 heap 的起始地址是对齐到 `HEAP_MAX_SIZE` 的整倍数边界的），再根据 heap 开头的 heap_info 找到 arena 的地址
-1. 进入 `_int_free`，接着分析 `_int_free` 的实现
-1. 根据 chunk size 找到对应的 tcache bin，如果它还没有满，则把空闲块放到 tcache 当中，然后返回
-1. 判断 chunk size 大小，如果对应 fast bin 的块大小，把空闲块放到对应的 fast bin 的单向链表中，然后返回；注意此时没有获取 arena 的锁，所以 fast bin 的操作会用到原子指令，同理 malloc 中对 fast bin 的操作也要用到原子指令，即使 malloc 持有了 arena 的锁
-1. 获取 arena 的锁，尝试把空闲块和在内存中相邻的前后空闲块进行合并，合并后的空闲块放入 unsorted bin；合并时，如果被合并的空闲块已经在 small bin 或者 large bin 当中，利用双向链表的特性，把它从双向链表中删除；如果和 top chunk 相邻，则可以直接合并到 top chunk 上，然后返回
-1. 如果释放的块比较大，超过了阈值，则触发一次 malloc_consolidate
+2. 如果配置了 free hook，则调用 free hook，直接返回
+3. 如果是调用 `free(NULL)`，直接返回
+4. 检查 `mchunk_size` 的 `IS_MAPPED` 字段，如果它之前是通过 mmap 分配的，那么对它进行 munmap，然后返回
+5. 如果 tcache 还没初始化，就初始化 tcache
+6. 找到这个 chunk 从哪个 arena 分配的：检查 `mchunk_size` 的 `NON_MAIN_ARENA` 字段，如果它不是从 main arena 分配的，则根据 chunk 的地址，找到 heap 的地址（heap 的大小是有上限的，并且 heap 的起始地址是对齐到 `HEAP_MAX_SIZE` 的整倍数边界的），再根据 heap 开头的 heap\_info 找到 arena 的地址
+7. 进入 `_int_free`，接着分析 `_int_free` 的实现
+8. 根据 chunk size 找到对应的 tcache bin，如果它还没有满，则把空闲块放到 tcache 当中，然后返回
+9. 判断 chunk size 大小，如果对应 fast bin 的块大小，把空闲块放到对应的 fast bin 的单向链表中，然后返回；注意此时没有获取 arena 的锁，所以 fast bin 的操作会用到原子指令，同理 malloc 中对 fast bin 的操作也要用到原子指令，即使 malloc 持有了 arena 的锁
+10. 获取 arena 的锁，尝试把空闲块和在内存中相邻的前后空闲块进行合并，合并后的空闲块放入 unsorted bin；合并时，如果被合并的空闲块已经在 small bin 或者 large bin 当中，利用双向链表的特性，把它从双向链表中删除；如果和 top chunk 相邻，则可以直接合并到 top chunk 上，然后返回
+11. 如果释放的块比较大，超过了阈值，则触发一次 malloc\_consolidate
 
 ## 各种常量的默认值
 
 下面给出 glibc 内存分配器各常量在 64 位下的默认值：
 
 1. `MALLOC_ALIGNMENT = max(2 * SIZE_SZ, __alignof__ (long double))` 等于 16
-1. `MIN_CHUNK_SIZE = offsetof(struct malloc_chunk, fd_nextsize)` 等于 32
-1. `MINSIZE = alignUp(MIN_CHUNK_SIZE, MALLOC_ALIGNMENT)` 等于 32
-1. `MAX_FAST_SIZE = 80 * SIZE_SZ / 4` 等于 160
-1. `NSMALLBINS = 64`
-1. `MIN_LARGE_SIZE = (NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH` 等于 1024
-1. `DEFAULT_MMAP_THRESHOLD_MIN = 128 * 1024` 即 128KB
-1. `DEFAULT_MMAP_THRESHOLD_MAX = 4 * 1024 * 1024 * sizeof(long)` 即 32MB
-1. `HEAP_MIN_SIZE = 32 * 1024` 即 32KB
-1. `HEAP_MAX_SIZE = 2 * DEFAULT_MMAP_THRESHOLD_MAX` 即 64MB
-1. `TCACHE_MAX_BINS = 64`
-1. `TCACHE_FILL_COUNT = 7`
-1. `NFASTBINS = fastbin_index(request2size(MAX_FAST_SIZE)) + 1` 即 10
-1. `NBINS = 128`
-1. `DEFAULT_MXFAST = 64 * sizeof(size_t) / 4` 即 128
+2. `MIN_CHUNK_SIZE = offsetof(struct malloc_chunk, fd_nextsize)` 等于 32
+3. `MINSIZE = alignUp(MIN_CHUNK_SIZE, MALLOC_ALIGNMENT)` 等于 32
+4. `MAX_FAST_SIZE = 80 * SIZE_SZ / 4` 等于 160
+5. `NSMALLBINS = 64`
+6. `MIN_LARGE_SIZE = (NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH` 等于 1024
+7. `DEFAULT_MMAP_THRESHOLD_MIN = 128 * 1024` 即 128KB
+8. `DEFAULT_MMAP_THRESHOLD_MAX = 4 * 1024 * 1024 * sizeof(long)` 即 32MB
+9. `HEAP_MIN_SIZE = 32 * 1024` 即 32KB
+10. `HEAP_MAX_SIZE = 2 * DEFAULT_MMAP_THRESHOLD_MAX` 即 64MB
+11. `TCACHE_MAX_BINS = 64`
+12. `TCACHE_FILL_COUNT = 7`
+13. `NFASTBINS = fastbin_index(request2size(MAX_FAST_SIZE)) + 1` 即 10
+14. `NBINS = 128`
+15. `DEFAULT_MXFAST = 64 * sizeof(size_t) / 4` 即 128
 
 默认情况下各个 bin 负责的块大小范围：
 
 1. tcache: 块大小不超过 1040 字节，对应 `malloc(1032)` 或更小
-1. fast bin: 块大小不超过 128 字节，对应 `malloc(120)` 或更小
-1. small bin: 块大小不超过 1008 字节，对应 `malloc(1000)` 或更小
-1. large bin: 块大小不小于 1024 字节，不超过 131056 字节，对应 `malloc(1001)` 到 `malloc(131048)` 的范围，更大的内存分配会直接走 mmap
+2. fast bin: 块大小不超过 128 字节，对应 `malloc(120)` 或更小
+3. small bin: 块大小不超过 1008 字节，对应 `malloc(1000)` 或更小
+4. large bin: 块大小不小于 1024 字节，不超过 131056 字节，对应 `malloc(1001)` 到 `malloc(131048)` 的范围，更大的内存分配会直接走 mmap
 
 ## 性能优化
 
 简单总结一下 glibc 内存分配器的各种性能优化特性：
 
 1. tcache 作为一个 thread local 的结构，不需要锁，性能是最好的，所以尽量把空闲块都丢到 tcache 里面，无论是刚 free 的空闲块，还是在 malloc 过程中，顺带把一些空闲块从 fast bin 或者 small bin 丢到 tcache 里，这样也减少了 lock arena 的次数
-1. fast bin 虽然不再是 thread local，但它在 free 路径上使用原子指令来代替锁，使得 free 在很多时候不需要获取 arena 的锁；而把 fast bin 的空闲块的合并操作挪到 malloc 中进行，此时 arena 的锁是 lock 状态，尽量在一次 lock 的临界区里做更多的事情，减少 lock 的次数
-1. small bin 和 large bin 的区分，主要是考虑到了分配的块的大小分布，越大倾向于越稀疏；代价是 large bin 需要额外维护 nextsize 链表来快速地寻找不同大小的空闲块
-1. 在回收 unsorted bin 的时候，会进行一个内存局部性优化，即倾向于连续地从同一个块中切出小块用于分配，适合在循环中分配内存的场景
-1. 回收 unsorted bin 时，如果遇到了正好和要分配的块大小相同的空闲块时，先不急着分配，而是丢到 tcache 中，然后继续往前回收若干个空闲块，直到 tcache 满了或者遇到了足够多的大小不同的空闲块为止：这是利用了 unsorted bin 中空闲块大小的局部性，有机会把一系列连续的相同大小的空闲块拿到 tcache 当中，并且限制了搜索的长度，避免带来过多额外的延迟
-1. 如果尝试了 unsorted bin、small bin、large bin 和 top chunk 都无法分配，最后再检查一次 fast bin 是否为空，如果是空的，则进行一次 consolidate，把 fast bin 里的空闲块丢到 unsorted bin 中，再重新尝试分配一次：注意这整个过程 malloc 都是持有 arena 锁的，而 fast bin 在 free 中的写入是不需要持有 arena 锁的，而是直接用原子指令更新，所以这是考虑到其他线程在同时往同一个 arena free 的情况
-1. 在合并相邻空闲块的时候，被合并的空闲块可能已经在 unsorted bin、small bin 或者 large bin 当中，为了能够把空闲块从这些 bin 里删除，用双向链表来实现 O(1) 时间的删除
+2. fast bin 虽然不再是 thread local，但它在 free 路径上使用原子指令来代替锁，使得 free 在很多时候不需要获取 arena 的锁；而把 fast bin 的空闲块的合并操作挪到 malloc 中进行，此时 arena 的锁是 lock 状态，尽量在一次 lock 的临界区里做更多的事情，减少 lock 的次数
+3. small bin 和 large bin 的区分，主要是考虑到了分配的块的大小分布，越大倾向于越稀疏；代价是 large bin 需要额外维护 nextsize 链表来快速地寻找不同大小的空闲块
+4. 在回收 unsorted bin 的时候，会进行一个内存局部性优化，即倾向于连续地从同一个块中切出小块用于分配，适合在循环中分配内存的场景
+5. 回收 unsorted bin 时，如果遇到了正好和要分配的块大小相同的空闲块时，先不急着分配，而是丢到 tcache 中，然后继续往前回收若干个空闲块，直到 tcache 满了或者遇到了足够多的大小不同的空闲块为止：这是利用了 unsorted bin 中空闲块大小的局部性，有机会把一系列连续的相同大小的空闲块拿到 tcache 当中，并且限制了搜索的长度，避免带来过多额外的延迟
+6. 如果尝试了 unsorted bin、small bin、large bin 和 top chunk 都无法分配，最后再检查一次 fast bin 是否为空，如果是空的，则进行一次 consolidate，把 fast bin 里的空闲块丢到 unsorted bin 中，再重新尝试分配一次：注意这整个过程 malloc 都是持有 arena 锁的，而 fast bin 在 free 中的写入是不需要持有 arena 锁的，而是直接用原子指令更新，所以这是考虑到其他线程在同时往同一个 arena free 的情况
+7. 在合并相邻空闲块的时候，被合并的空闲块可能已经在 unsorted bin、small bin 或者 large bin 当中，为了能够把空闲块从这些 bin 里删除，用双向链表来实现 O(1) 时间的删除
 
 ## 参考
 
-- [Malloc Internals](https://sourceware.org/glibc/wiki/MallocInternals)
+- [Malloc Internals](<https://sourceware.org/glibc/wiki/MallocInternals>)

@@ -2,17 +2,17 @@
 
 ## 背景
 
-Rocket Chip 大量使用了 Diplomacy 系统来组织它的总线、中断和时钟网络。因此，如果想要对 Rocket Chip 进行定制，那么必须要对 Rocket Chip 中 Diplomacy 系统的使用有充分的了解，而这方面的文档比较欠缺。本文是对 Rocket Chip 中 Diplomacy 系统的使用的分析。阅读本文前，建议阅读先前的 [分析 Diplomacy 系统](https://jia.je/hardware/2022/01/05/diplomacy/index.md) 文章，对 Diplomacy 系统的设计和内部实现获得一定的了解。
+Rocket Chip 大量使用了 Diplomacy 系统来组织它的总线、中断和时钟网络。因此，如果想要对 Rocket Chip 进行定制，那么必须要对 Rocket Chip 中 Diplomacy 系统的使用有充分的了解，而这方面的文档比较欠缺。本文是对 Rocket Chip 中 Diplomacy 系统的使用的分析。阅读本文前，建议阅读先前的 [分析 Diplomacy 系统](<https://jia.je/blog/posts/hardware/diplomacy/index.md>) 文章，对 Diplomacy 系统的设计和内部实现获得一定的了解。
 
 ## Rocket Chip 总线结构概要
 
 Rocket Chip 主要有以下几个总线：
 
 1. sbus: System Bus
-1. mbus: Memory Bus
-1. cbus: Control Bus
-1. pbus: Periphery Bus
-1. fbus: Frontend Bus
+2. mbus: Memory Bus
+3. cbus: Control Bus
+4. pbus: Periphery Bus
+5. fbus: Frontend Bus
 
 图示可以见参考文档中的链接，不过链接中的结构和实际的有一些区别。目前的 Rocket Chip 的总线结构大致是这样：
 
@@ -40,12 +40,13 @@ tile --/    \-> cbus -> pbus
 
 这个图比较复杂，混合了多个 Diplomacy 网络，首先是总线的部分，包括 TileLink 和 AXI：
 
-1. 两个 Tile，对应一个双核的系统；每个 Tile 内部有一个 dcache 和 icache，连接到一个 tlMasterXbar 上，再通过 coupler_from_rockettile 连接到 fixer 再到 system_bus_xbar
-1. 从 system_bus_xbar 分出来三路 Slave：
-   1. 第一路是 cbus，通过 out_xbar，连接到多个 slave：debug，error device，plic，clint，l2 control，bootrom
-   1. 第二路是 mmio，通过 tl2axi4，转成 AXI4 连接到外部的 MMIO 外设
-   1. 第三路是 coh，连接到 InclusiveCache，再连接到 mbus，通过 tl2axi4，转成 AXI4 连接到外部的内存
-1. system_bus_xbar 除了每个 tile 对应一个 master 以外，还有一个 master：fbus，它从外部的 AXI4 进来，通过 axi42tl 转换，接到 fbus，提供一个有缓存一致性的 AXI 访问接口，用于 DMA
+1. 两个 Tile，对应一个双核的系统；每个 Tile 内部有一个 dcache 和 icache，连接到一个 tlMasterXbar 上，再通过 coupler\_from\_rockettile 连接到 fixer 再到 system\_bus\_xbar
+2. 从 system\_bus\_xbar 分出来三路 Slave：
+
+   1. 第一路是 cbus，通过 out\_xbar，连接到多个 slave：debug，error device，plic，clint，l2 control，bootrom
+   2. 第二路是 mmio，通过 tl2axi4，转成 AXI4 连接到外部的 MMIO 外设
+   3. 第三路是 coh，连接到 InclusiveCache，再连接到 mbus，通过 tl2axi4，转成 AXI4 连接到外部的内存
+3. system\_bus\_xbar 除了每个 tile 对应一个 master 以外，还有一个 master：fbus，它从外部的 AXI4 进来，通过 axi42tl 转换，接到 fbus，提供一个有缓存一致性的 AXI 访问接口，用于 DMA
 
 简化后的结构如图：
 
@@ -109,7 +110,7 @@ flowchart TD
    }
    ```
 
-   2. 其次是每个 tile 的 tlMasterXbar 连接到 coupler_from_rockettile，再连到 sbus(system_bus_xbar)
+   2\. 其次是每个 tile 的 tlMasterXbar 连接到 coupler\_from\_rockettile，再连到 sbus(system\_bus\_xbar)
 
    ```scala
    // in HasTiles.scala
@@ -163,8 +164,7 @@ flowchart TD
      }
    }
    ```
-
-1. 接着是 sbus 连接到 coh，coh 连接到 mbus：
+2. 接着是 sbus 连接到 coh，coh 连接到 mbus：
 
    ```scala
    // in BusTopology.scala
@@ -206,8 +206,7 @@ flowchart TD
      }
    }
    ```
-
-1. 为了让 Rocket Chip 可以访问外部的 AXI MMIO 设备，在 sbus 下面添加了 tl 到 axi 的一条路径：
+3. 为了让 Rocket Chip 可以访问外部的 AXI MMIO 设备，在 sbus 下面添加了 tl 到 axi 的一条路径：
 
    ```scala
    /** Adds a AXI4 port to the system intended to master an MMIO device bus */
@@ -247,8 +246,7 @@ flowchart TD
      val mmio_axi4 = InModuleBody { mmioAXI4Node.makeIOs() }
    }
    ```
-
-1. 类似地，为了让 Rocket Chip 可以访问外部的 AXI Memory，在 mbus 下面添加了 tl 到 axi 的一条路径：
+4. 类似地，为了让 Rocket Chip 可以访问外部的 AXI Memory，在 mbus 下面添加了 tl 到 axi 的一条路径：
 
    ```scala
    /** Adds a port to the system intended to master an AXI4 DRAM controller. */
@@ -320,8 +318,7 @@ flowchart TD
      val mem_axi4 = InModuleBody { memAXI4Node.makeIOs() }
    }
    ```
-
-1. 类似地，为了让外部的 AXI Master 可以访问一致的内存，在 fbus 上面添加了从 axi 到 tl 的一条路径，而 fbus 是连到 sbus 上的：
+5. 类似地，为了让外部的 AXI Master 可以访问一致的内存，在 fbus 上面添加了从 axi 到 tl 的一条路径，而 fbus 是连到 sbus 上的：
 
    ```scala
    /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
@@ -376,8 +373,7 @@ flowchart TD
        (FBUS, SBUS, TLBusWrapperConnection.crossFrom(xTypes.fbusToSbusXType, if (driveClocksFromSBus) Some(false) else None)))
    )
    ```
-
-1. 上一段代码中，在 sbus 的下游挂载了 cbus，在 cbus 下游挂载了 pbus；那么 debug/plic/clint 等设备都是挂载在 cbus 下的：
+6. 上一段代码中，在 sbus 的下游挂载了 cbus，在 cbus 下游挂载了 pbus；那么 debug/plic/clint 等设备都是挂载在 cbus 下的：
 
    ```scala
    // in HasPeripheryDebug of Periphery.scala
@@ -445,7 +441,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 }
 ```
 
-它通过 Diplomacy 的 intXbar 输入多路的中断，然后按照顺序，还原出对应的 debug/mtip/msip/seip 等中断信号。从前面的图中，也可以看到 intXbar 的第一个输入 debug（经过 intsink）来自 dmOuter 也就是调试模块，第二个和第三个输入 msip 和 mtip（经过 intsink_1）来自 clint（负责时钟 mtimer 和软件中断），最后的 meip 和 seip（经过 intsink_2/3）来自 plic（负责外部中断）。为了处理外部中断，从外面接了 6 位的中断信号到 plic。
+它通过 Diplomacy 的 intXbar 输入多路的中断，然后按照顺序，还原出对应的 debug/mtip/msip/seip 等中断信号。从前面的图中，也可以看到 intXbar 的第一个输入 debug（经过 intsink）来自 dmOuter 也就是调试模块，第二个和第三个输入 msip 和 mtip（经过 intsink\_1）来自 clint（负责时钟 mtimer 和软件中断），最后的 meip 和 seip（经过 intsink\_2/3）来自 plic（负责外部中断）。为了处理外部中断，从外面接了 6 位的中断信号到 plic。
 
 ### 时钟
 
@@ -490,8 +486,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
      viewpointBus.clockGroupNode := allClockGroupsNode
    }
    ```
-
-1. 前面提到，通过 CoherentBusTopologyParams，实现 `mbus := coh := sbus` 的连接，通过 HierarchicalBusTopologyParams，实现 `pbus := cbus := sbus := fbus` 的连接，与此同时，时钟也被接上了：
+2. 前面提到，通过 CoherentBusTopologyParams，实现 `mbus := coh := sbus` 的连接，通过 HierarchicalBusTopologyParams，实现 `pbus := cbus := sbus := fbus` 的连接，与此同时，时钟也被接上了：
 
    ```scala
    // in BusTopology.scala
@@ -513,8 +508,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
    // sbus := fbus, use sbus's clock for fbus by default
    (FBUS, SBUS, TLBusWrapperConnection.crossFrom(xTypes.fbusToSbusXType, if (driveClocksFromSBus) Some(false) else None)))
    ```
-
-1. 具体地，每个 bus 有一个自己的 clockGroupNode，bus 之间的 clockGroupNode 按照上面所属的方式连接，然后 bus 下面的设备再挂到 fixedClockNode 下面：
+3. 具体地，每个 bus 有一个自己的 clockGroupNode，bus 之间的 clockGroupNode 按照上面所属的方式连接，然后 bus 下面的设备再挂到 fixedClockNode 下面：
 
    ```scala
    abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
@@ -562,16 +556,16 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 Rocket Chip 中用 Diplomacy 实现 TileLink 总线的连接。涉及到的相关结构如下：
 
 1. TLBundle：代表 TileLink 总线的接口，根据 TLBundleParameters 例化
-1. TLMasterPortParameters：信息 TileLink Master 的信息，从 Upstream 向 Downstream 传递
-1. TLSlavePortParameters：信息 TileLink Slave 的信息，从 Downstream 向 Upstream 传递
-1. TLEdgeOut：记录 Outward 边，也就是 Master 侧的 TileLink 的信息
-1. TLEdgeIn：记录 Inward 边，也就是 Slave 侧的 TileLink 的信息
-1. TLImp: `extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLEdgeIn, TLBundle]`，基于这个类型来导出各种类型的 TileLink Node
-1. TLXBar：TileLink 的 Crossbar，生成一个继承 NexusNode 的 TLNexusNode，它的信息传递方式是，把下游的各个 Slave 信息拼起来传给上游，使得 Master 可以看到所有 Slave 的信息；把上游的各个 Master 信息拼起来传给下游，使得 Slave 可以看到所有 Master 的信息
-1. TLToAXI4：生成一个继承 AdapterNode 的 TLToAXI4Node，把 TileLink Master 转成 AXI4 Master，把上游的 TileLink Master 信息转换为 AXI Master 传递给下游，把下游的 AXI Slave 信息转换为 TileLink Slave 传递给上游
+2. TLMasterPortParameters：信息 TileLink Master 的信息，从 Upstream 向 Downstream 传递
+3. TLSlavePortParameters：信息 TileLink Slave 的信息，从 Downstream 向 Upstream 传递
+4. TLEdgeOut：记录 Outward 边，也就是 Master 侧的 TileLink 的信息
+5. TLEdgeIn：记录 Inward 边，也就是 Slave 侧的 TileLink 的信息
+6. TLImp: `extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLEdgeIn, TLBundle]`，基于这个类型来导出各种类型的 TileLink Node
+7. TLXBar：TileLink 的 Crossbar，生成一个继承 NexusNode 的 TLNexusNode，它的信息传递方式是，把下游的各个 Slave 信息拼起来传给上游，使得 Master 可以看到所有 Slave 的信息；把上游的各个 Master 信息拼起来传给下游，使得 Slave 可以看到所有 Master 的信息
+8. TLToAXI4：生成一个继承 AdapterNode 的 TLToAXI4Node，把 TileLink Master 转成 AXI4 Master，把上游的 TileLink Master 信息转换为 AXI Master 传递给下游，把下游的 AXI Slave 信息转换为 TileLink Slave 传递给上游
 
 ## 参考文档
 
-- [TileLink and Diplomacy Reference](https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html)
-- [Rocket Chip - Memory System](https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system)
-- [chipsalliance/diplomacy](https://github.com/chipsalliance/diplomacy)
+- [TileLink and Diplomacy Reference](<https://chipyard.readthedocs.io/en/latest/TileLink-Diplomacy-Reference/index.html>)
+- [Rocket Chip - Memory System](<https://chipyard.readthedocs.io/en/latest/Generators/Rocket-Chip.html#memory-system>)
+- [chipsalliance/diplomacy](<https://github.com/chipsalliance/diplomacy>)

@@ -8,13 +8,13 @@
 
 IBM 关于 POWER8 微架构有如下公开信息：
 
-- [IBM POWER8 processor core microarchitecture](https://research.ibm.com/publications/ibm-power8-processor-core-microarchitecture)
+- [IBM POWER8 processor core microarchitecture](<https://research.ibm.com/publications/ibm-power8-processor-core-microarchitecture>)
 
 下面分各个模块分别记录官方提供的信息，以及实测的结果。官方信息与实测结果一致的数据会加粗。
 
 ## Benchmark
 
-IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
+IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)。
 
 ## 前端
 
@@ -26,7 +26,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 超出 L1 ICache 容量后，IPC 从 6 降低到了 2.4。其中 6 IPC 来自于，IBM POWER8 在 ST 模式下每周期可以发射 8 条指令，但其中分支指令最多两条，非分支指令最多六条，所以执行 NOP 指令的 IPC 只能达到 6。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
 
 ### L1 ITLB (aka Instruction Effective to Real Address translation Table, IERAT)
 
@@ -36,7 +36,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 可以看到明显的 64 pages 的拐点，对应了 64 entry 的 L1 ITLB。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp>)。
 
 ### BTB (Branch Target Buffer)
 
@@ -54,7 +54,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 类似地，在其余七个逻辑核上分别运行 stress 负载，得到 SMT8 模式下的 RAS 大小为 8：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp>)。
 
 ### CBP (Conditional Branch Predictor)
 
@@ -78,7 +78,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 拐点大致在 168 附近，因为每 6 条 NOP 指令对应一个 Group，所以只能容纳 `28*6=168` 条指令。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp>)。
 
 ### Register File
 
@@ -121,7 +121,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量。第二个拐点在 512KB，对应的是 L2 Cache 的容量。第三个拐点是 3MB，对应的是 L1 DTLB 的容量：`48*64KB=3MB`。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
 
 #### Banking
 
@@ -135,7 +135,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 可以看到 48 Page 出现了明显的拐点，对应的就是 48 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 3 cycle。最终出现一个 18.8 cycle 的平台。
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 ### L2 DTLB (aka secondary Data Effective-to-Real Address Translation, DERAT)
 
@@ -145,7 +145,7 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 关掉 THP(Transparent Huge Page) 后，周期数的骤降消失，256 的拐点之后周期数增加而不是减少：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 ### L3 TLB
 
@@ -153,13 +153,13 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 继续扩大 DTLB 测试规模，在 2048 处出现了拐点，注意要关闭 THP，否则拐点会消失，因为实际上没有用到 2048 个页：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
 ### Prefetcher
 
 官方信息：16-entry Stream Prefetcher，可以跨 4KB/64KB 页边界，用虚拟地址预取，可以预取到 L1/L2/L3
 
-参考 [Battling the Prefetcher: Exploring Coffee Lake (Part 1)](https://abertschi.ch/blog/2022/prefetching/) 的方式，研究预取器的行为：分配一片内存，把数据从缓存中 flush 掉，再按照特定的访存模式访问，触发预取器，最后测量访问每个缓存行的时间，从而得到预取器预取了哪些缓存行的信息。
+参考 [Battling the Prefetcher: Exploring Coffee Lake (Part 1)](<https://abertschi.ch/blog/2022/prefetching/>) 的方式，研究预取器的行为：分配一片内存，把数据从缓存中 flush 掉，再按照特定的访存模式访问，触发预取器，最后测量访问每个缓存行的时间，从而得到预取器预取了哪些缓存行的信息。
 
 首先是连续访问若干个 128B cacheline，观察哪些被预取了进来：
 
@@ -167,4 +167,4 @@ IBM POWER8 的性能测试结果见 [SPEC](https://jia.je/benchmark/index.md)。
 
 如果是访问了几个分立的缓存行，行为变成了 Next 3 Line：
 
-[测试过程详见测试代码](https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp)。
+[测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp>)。

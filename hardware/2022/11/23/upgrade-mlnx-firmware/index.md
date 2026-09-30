@@ -18,7 +18,7 @@ Versions:    Current
 
 ## 升级固件
 
-从 PSID 可以看到，这是 DELL OEM 版本的网卡，可以在 https://network.nvidia.com/support/firmware/dell/ 处寻找最新固件，注意需要保证 PSID 一致，可以找到这个 PSID 的 DELL 固件地址：https://www.mellanox.com/downloads/firmware/fw-ConnectX4-rel-12_28_4512-06W1HY_0JJN39_Ax-FlexBoot-3.6.203.bin.zip。
+从 PSID 可以看到，这是 DELL OEM 版本的网卡，可以在 https://network.nvidia.com/support/firmware/dell/ 处寻找最新固件，注意需要保证 PSID 一致，可以找到这个 PSID 的 DELL 固件地址：https://www.mellanox.com/downloads/firmware/fw-ConnectX4-rel-12\_28\_4512-06W1HY\_0JJN39\_Ax-FlexBoot-3.6.203.bin.zip。
 
 下载以后，解压，然后就可以升级固件：
 
@@ -38,7 +38,7 @@ Versions:    Current
   FW         12.25.1020
 ```
 
-注意这里的 PSID 是 MT\_ 开头，说明是官方版本。这个型号可以在 https://network.nvidia.com/support/firmware/connectx4ib/ 找到最新的固件，注意 PSID 要正确，可以找到固件下载地址 https://www.mellanox.com/downloads/firmware/fw-ConnectX4-rel-12_28_2006-MCX454A-FCA_Ax-UEFI-14.21.17-FlexBoot-3.6.102.bin.zip。用同样的方法更新即可。
+注意这里的 PSID 是 MT\_ 开头，说明是官方版本。这个型号可以在 https://network.nvidia.com/support/firmware/connectx4ib/ 找到最新的固件，注意 PSID 要正确，可以找到固件下载地址 https://www.mellanox.com/downloads/firmware/fw-ConnectX4-rel-12\_28\_2006-MCX454A-FCA\_Ax-UEFI-14.21.17-FlexBoot-3.6.102.bin.zip。用同样的方法更新即可。
 
 还有一个 ConnectX-3 的例子：
 
@@ -50,7 +50,7 @@ Versions:    Current
   FW         2.36.5150
 ```
 
-ConnectX-3 系列的网卡固件可以在 https://network.nvidia.com/support/firmware/connectx3ib/ 找，根据 PSID，可以找到固件下载地址是 http://www.mellanox.com/downloads/firmware/fw-ConnectX3-rel-2_42_5000-MCX353A-FCB_A2-A5-FlexBoot-3.4.752.bin.zip。
+ConnectX-3 系列的网卡固件可以在 https://network.nvidia.com/support/firmware/connectx3ib/ 找，根据 PSID，可以找到固件下载地址是 http://www.mellanox.com/downloads/firmware/fw-ConnectX3-rel-2\_42\_5000-MCX353A-FCB\_A2-A5-FlexBoot-3.4.752.bin.zip。
 
 ## 小结
 

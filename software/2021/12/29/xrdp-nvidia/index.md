@@ -12,7 +12,7 @@ xf86OpenConsole: Cannot open virtual console 1 (Permission denied)
 
 ## 解决方法
 
-XRDP 作者在 [issue #2010](https://github.com/neutrinolabs/xrdp/issues/2010#issuecomment-942561105) 中提到了解决方法：
+XRDP 作者在 [issue \#2010](<https://github.com/neutrinolabs/xrdp/issues/2010#issuecomment-942561105>) 中提到了解决方法：
 
 修改 /etc/xrdp/sesman.ini，在 `[Xorg]` 部分里加上下面的配置：
 

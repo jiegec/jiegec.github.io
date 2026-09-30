@@ -12,7 +12,7 @@
 
 即使是同样的文件名，格式可能也是不一样的，相应的启动协议也可能不一样。这篇博客尝试结合 Linux，各种 Bootloader（QEMU，EDK-II，U-Boot，OpenSBI）的代码来研究不同的 Linux 二进制格式以及启动协议。
 
-## amd64/x86_64
+## amd64/x86\_64
 
 首先是常用的 amd64 架构，找几个系统，查看 `/boot` 目录下的 kernel 文件的类型：
 
@@ -25,9 +25,9 @@
 
 ### Linux/x86 Boot Protocol
 
-Linux 在 x86 下定义了一套 [Linux/x86 Boot Protocol](https://www.kernel.org/doc/html/v5.6/x86/boot.html)，它规定了 bootloader 在启动 Linux 的时候，需要做哪些事情，传递哪些参数，以什么形式传递参数，那么 Linux 就可以在这给基础上启动起来。
+Linux 在 x86 下定义了一套 [Linux/x86 Boot Protocol](<https://www.kernel.org/doc/html/v5.6/x86/boot.html>)，它规定了 bootloader 在启动 Linux 的时候，需要做哪些事情，传递哪些参数，以什么形式传递参数，那么 Linux 就可以在这给基础上启动起来。
 
-首先，Boot Protocol 定义了 Linux 内核的格式，使得 Bootloader 可以得到关于 Linux 内核的一些信息。这个格式定义在 [The Real-Mode Kernel Header](https://www.kernel.org/doc/html/v5.6/x86/boot.html#the-real-mode-kernel-header)，是一个巨大的结构体，对应的[代码](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/boot/header.S#L283-L584)如下：
+首先，Boot Protocol 定义了 Linux 内核的格式，使得 Bootloader 可以得到关于 Linux 内核的一些信息。这个格式定义在 [The Real-Mode Kernel Header](<https://www.kernel.org/doc/html/v5.6/x86/boot.html#the-real-mode-kernel-header>)，是一个巨大的结构体，对应的[代码](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/boot/header.S#L283-L584>)如下：
 
 ```asm
     .section ".header", "a"
@@ -45,7 +45,7 @@ root_dev:   .word 0         /* Filled in by build.c */
 boot_flag:  .word 0xAA55
 ```
 
-后面还有很长，都是这个结构体里的字段。其中也可以看到熟悉的 `0xAA55`，熟悉的启动分区结尾。这片数据通过 [linker script](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/boot/setup.ld#L16-L21) 来放置到从文件开始偏移 0x1f1 处：
+后面还有很长，都是这个结构体里的字段。其中也可以看到熟悉的 `0xAA55`，熟悉的启动分区结尾。这片数据通过 [linker script](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/boot/setup.ld#L16-L21>) 来放置到从文件开始偏移 0x1f1 处：
 
 ```text
     . = 495;
@@ -56,7 +56,7 @@ boot_flag:  .word 0xAA55
     __end_init = .;
 ```
 
-这里 `495=0x1ef`，再加上两个 `sentinel` 字节，最终 `hdr` 就会落在 0x1f1 地址处。前面看到的 `file` 命令输出里的各个字段，其实也是从这里[读来](https://github.com/file/file/blob/de7d52dce3e7a0bb1a72f299a265c2b641187842/magic/Magdir/linux#L137-L163)的：
+这里 `495=0x1ef`，再加上两个 `sentinel` 字节，最终 `hdr` 就会落在 0x1f1 地址处。前面看到的 `file` 命令输出里的各个字段，其实也是从这里[读来](<https://github.com/file/file/blob/de7d52dce3e7a0bb1a72f299a265c2b641187842/magic/Magdir/linux#L137-L163>)的：
 
 ```text
 /boot/vmlinuz-6.1.0-12-amd64: Linux kernel x86 boot executable bzImage, version 6.1.0-12-amd64 (debian-kernel@lists.debian.org) #1 SMP PREEMPT_DYNAMIC Debian 6.1.52-1 (2023-09-07), RO-rootFS, swap_dev 0X7, Normal VGA
@@ -132,7 +132,7 @@ ram_size:   .word 0         /* Obsolete */
 vid_mode:   .word SVGA_MODE
 ```
 
-在此基础上，Bootloader 初始化 [`struct boot_params`](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/include/uapi/asm/bootparam.h#L184-L232) 并传给 Linux 内核：
+在此基础上，Bootloader 初始化 [`struct boot_params`](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/include/uapi/asm/bootparam.h#L184-L232>) 并传给 Linux 内核：
 
 ```c
 /* The so-called "zeropage" */
@@ -186,7 +186,7 @@ struct boot_params {
 000000a0: a504 0000 0000 0000 0000 9c07 cf00 0002  ................
 ```
 
-这样做的目的是让 UEFI 认为 vmlinux 也是一个合法的 UEFI 程序，而 UEFI 的程序格式正是 [PE](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)，这种做法就是 [EFI boot stub](https://docs.kernel.org/admin-guide/efi-stub.html)，生成一个满足 UEFI 要求的头部。在 Linux 源码 [arch/x86/boot/header.S](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/boot/header.S#L39-L96)中，使用汇编来构造出一个 MS-DOS Stub：
+这样做的目的是让 UEFI 认为 vmlinux 也是一个合法的 UEFI 程序，而 UEFI 的程序格式正是 [PE](<https://learn.microsoft.com/en-us/windows/win32/debug/pe-format>)，这种做法就是 [EFI boot stub](<https://docs.kernel.org/admin-guide/efi-stub.html>)，生成一个满足 UEFI 要求的头部。在 Linux 源码 [arch/x86/boot/header.S](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/x86/boot/header.S#L39-L96>)中，使用汇编来构造出一个 MS-DOS Stub：
 
 ```asm
     .section ".bstext", "ax"
@@ -240,7 +240,7 @@ coff_header:
         IMAGE_FILE_LINE_NUMS_STRIPPED   # Characteristics
 ```
 
-后面还有很多内容，这里没有完整贴出来。里面比较重要的是 AddressOfEntryPoint，也就是 PE 程序的入口。UEFI 在执行 PE 程序的时候，会按照下面的[函数签名调用](https://uefi.org/specs/UEFI/2.10/07_Services_Boot_Services.html#efi-image-entry-point)：
+后面还有很多内容，这里没有完整贴出来。里面比较重要的是 AddressOfEntryPoint，也就是 PE 程序的入口。UEFI 在执行 PE 程序的时候，会按照下面的[函数签名调用](<https://uefi.org/specs/UEFI/2.10/07_Services_Boot_Services.html#efi-image-entry-point>)：
 
 ```text
 typedef
@@ -251,7 +251,7 @@ EFI_STATUS
    );
 ```
 
-所以 Linux 也按照这个签名实现了一个[函数](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/drivers/firmware/efi/libstub/x86-stub.c#L449)：
+所以 Linux 也按照这个签名实现了一个[函数](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/drivers/firmware/efi/libstub/x86-stub.c#L449>)：
 
 ```c
 /*
@@ -277,7 +277,7 @@ Linux 内核还经常会以压缩的形式存在，压缩的算法可能采用 g
 - zImage：经过压缩的 Linux 内核
 - bzImage：big zImage，而不是 bzip Image，是 zImage 的后续格式
 
-bzImage 和 zImage 从 Boot Protocol 来看，[加载的地址不同](https://www.kernel.org/doc/html/v5.6/x86/boot.html#loading-the-rest-of-the-kernel)：
+bzImage 和 zImage 从 Boot Protocol 来看，[加载的地址不同](<https://www.kernel.org/doc/html/v5.6/x86/boot.html#loading-the-rest-of-the-kernel>)：
 
 ```c
 is_bzImage = (protocol >= 0x0200) && (loadflags & 0x01);
@@ -314,11 +314,11 @@ cmd_arch/x86/boot/bzImage := arch/x86/boot/tools/build arch/x86/boot/setup.bin a
 
 最后就由 `installkernel` 命令把 `bzImage` 复制到 `/boot` 下，并改名为 `vmlinuz`。
 
-对于这一过程的完整描述，推荐阅读 [老司机带你探索内核编译系统](https://richardweiyang-2.gitbook.io/kernel-exploring/00_index/06_building_vmlinux_under_root)，写的比较详细。
+对于这一过程的完整描述，推荐阅读 [老司机带你探索内核编译系统](<https://richardweiyang-2.gitbook.io/kernel-exploring/00_index/06_building_vmlinux_under_root>)，写的比较详细。
 
 ### Unified Kernel Image
 
-[Unified Kernel Image](https://wiki.gentoo.org/wiki/Unified_Kernel_Image) 也是一种比较新的格式，它把启动时候需要的一些文件（Linux 内核，微码，initramfs 等等），都放在一个文件里，这样方便 Secure Boot，只需要对一个大文件进行签名即可。
+[Unified Kernel Image](<https://wiki.gentoo.org/wiki/Unified_Kernel_Image>) 也是一种比较新的格式，它把启动时候需要的一些文件（Linux 内核，微码，initramfs 等等），都放在一个文件里，这样方便 Secure Boot，只需要对一个大文件进行签名即可。
 
 ## riscv64
 
@@ -326,7 +326,7 @@ RISC-V 现在通常有两套固件标准，一套是 SBI（Supervisor Binary Int
 
 ### SBI
 
-[SBI](https://github.com/riscv-non-isa/riscv-sbi-doc) 是 M 态程序提供给 S 态程序的一套接口。SBI 一个的常见实现就是 OpenSBI，当 OpenSBI 加载 Linux 的时候，做了如下[约定](https://github.com/riscv-software-src/opensbi/blob/b7e9d34edf4f728bb02d11f73a2f9f79ad4acce4/lib/sbi/sbi_hsm.c#L138-L157)：
+[SBI](<https://github.com/riscv-non-isa/riscv-sbi-doc>) 是 M 态程序提供给 S 态程序的一套接口。SBI 一个的常见实现就是 OpenSBI，当 OpenSBI 加载 Linux 的时候，做了如下[约定](<https://github.com/riscv-software-src/opensbi/blob/b7e9d34edf4f728bb02d11f73a2f9f79ad4acce4/lib/sbi/sbi_hsm.c#L138-L157>)：
 
 - a0: hart id
 - a1: dtb 地址
@@ -360,7 +360,7 @@ void __noreturn sbi_hsm_hart_start_finish(struct sbi_scratch *scratch,
 
 当 Linux 启动的时候，就会从 dtb 中获取系统的各项信息。这样的设计接口比较简单，只需要传两个寄存器，但是很多东西就要放到 dtb 里面去传了，例如 initrd 的地址，cmdline 等等。无论是 bootloader 还是 Linux，都需要附带 dtb 解析和修改的代码，不像 x86 那样，只需要传一个固定结构的结构体即可。
 
-QEMU 支持直接加载 Kernel，也就是说 QEMU 也要负责[实现](https://github.com/qemu/qemu/blob/36e9aab3c569d4c9ad780473596e18479838d1aa/target/riscv/kvm.c#L1010-L1021)上面的 Boot Protocol：
+QEMU 支持直接加载 Kernel，也就是说 QEMU 也要负责[实现](<https://github.com/qemu/qemu/blob/36e9aab3c569d4c9ad780473596e18479838d1aa/target/riscv/kvm.c#L1010-L1021>)上面的 Boot Protocol：
 
 ```cpp
 void kvm_riscv_reset_vcpu(RISCVCPU *cpu)
@@ -379,7 +379,7 @@ void kvm_riscv_reset_vcpu(RISCVCPU *cpu)
 
 ### UEFI
 
-RISC-V 也支持用 UEFI 启动，它的做法和 x86 类似，也是做一个 EFI Boot Stub。稍微不一样的是，通过[构造](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/riscv/kernel/head.S#L21-L39)，EFI boot stub 可以保证它在直接当成 RISC-V 程序执行的时候，也可以正常工作：
+RISC-V 也支持用 UEFI 启动，它的做法和 x86 类似，也是做一个 EFI Boot Stub。稍微不一样的是，通过[构造](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/arch/riscv/kernel/head.S#L21-L39>)，EFI boot stub 可以保证它在直接当成 RISC-V 程序执行的时候，也可以正常工作：
 
 ```asm
 __HEAD
@@ -406,7 +406,7 @@ ENTRY(_start)
 
 在 RISC-V 下，PE 头部的 `MZ` 可以被解析成合法的指令，在它后面跳转到实际的 Kernel 入口，这样即使 Bootloader 没有实现 UEFI，例如 OpenSBI，跳转到 Kernel 第一条指令开始执行，也可以正常进入到 `_start_kernel` 当中。
 
-和 x86 类似，EFI boot stub 的实际 entry point 是一个单独的[函数](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/drivers/firmware/efi/libstub/efi-stub-entry.c#L19-L26)，而不是原来的 `_start_kernel`：
+和 x86 类似，EFI boot stub 的实际 entry point 是一个单独的[函数](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/drivers/firmware/efi/libstub/efi-stub-entry.c#L19-L26>)，而不是原来的 `_start_kernel`：
 
 ```c
 /*
@@ -418,7 +418,7 @@ efi_status_t __efiapi efi_pe_entry(efi_handle_t handle,
                    efi_system_table_t *systab);
 ```
 
-这个函数的接口和前面 amd64 UEFI 是一样的，因为是 UEFI 标准规定的。它做的事情是，从 UEFI 获取系统信息，构造出一个 dtb，然后从 UEFI 中获取 hart id（见后），然后再[跳转到实际的 `_start_kernel`](https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/drivers/firmware/efi/libstub/riscv.c#L90-L97)，传递的参数和前面 SBI 时是一样的：
+这个函数的接口和前面 amd64 UEFI 是一样的，因为是 UEFI 标准规定的。它做的事情是，从 UEFI 获取系统信息，构造出一个 dtb，然后从 UEFI 中获取 hart id（见后），然后再[跳转到实际的 `_start_kernel`](<https://github.com/torvalds/linux/blob/e402b08634b398e9feb94902c7adcf05bb8ba47d/drivers/firmware/efi/libstub/riscv.c#L90-L97>)，传递的参数和前面 SBI 时是一样的：
 
 ```c
 void __noreturn efi_enter_kernel(unsigned long entrypoint, unsigned long fdt,
@@ -438,7 +438,7 @@ void __noreturn efi_enter_kernel(unsigned long entrypoint, unsigned long fdt,
 }
 ```
 
-为了让 EFI boot stub 可以获取到 boot hart id，还设计了 [`RISCV_EFI_BOOT_PROTOCOL`](https://github.com/riscv-non-isa/riscv-uefi/blob/main/boot_protocol.adoc)，使得 EFI boot stub 可以[获取 boot hart id](https://github.com/torvalds/linux/blob/ec8c298121e3616f8013d3cf1db9c7169c9b0b2d/drivers/firmware/efi/libstub/riscv.c#L46-L57)：
+为了让 EFI boot stub 可以获取到 boot hart id，还设计了 [`RISCV_EFI_BOOT_PROTOCOL`](<https://github.com/riscv-non-isa/riscv-uefi/blob/main/boot_protocol.adoc>)，使得 EFI boot stub 可以[获取 boot hart id](<https://github.com/torvalds/linux/blob/ec8c298121e3616f8013d3cf1db9c7169c9b0b2d/drivers/firmware/efi/libstub/riscv.c#L46-L57>)：
 
 ```c
 static efi_status_t get_boot_hartid_from_efi(void)
@@ -455,7 +455,7 @@ static efi_status_t get_boot_hartid_from_efi(void)
 }
 ```
 
-这个函数就会在 UEFI 固件中实现，例如 [edk2](https://github.com/tianocore/edk2/blob/f36e1ec1f0a5fd3be84913e09181d7813444b620/UefiCpuPkg/CpuDxeRiscV64/CpuDxe.c#L21-L45)：
+这个函数就会在 UEFI 固件中实现，例如 [edk2](<https://github.com/tianocore/edk2/blob/f36e1ec1f0a5fd3be84913e09181d7813444b620/UefiCpuPkg/CpuDxeRiscV64/CpuDxe.c#L21-L45>)：
 
 ```c
 /**
@@ -485,7 +485,7 @@ RiscvGetBootHartId (
 }
 ```
 
-以及 [U-Boot](https://github.com/u-boot/u-boot/blob/2173c4a990664d8228d4dadd814bd64fdc12948f/lib/efi_loader/efi_riscv.c#L21-L44)：
+以及 [U-Boot](<https://github.com/u-boot/u-boot/blob/2173c4a990664d8228d4dadd814bd64fdc12948f/lib/efi_loader/efi_riscv.c#L21-L44>)：
 
 ```c
 /**

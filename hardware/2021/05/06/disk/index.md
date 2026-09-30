@@ -2,7 +2,7 @@
 
 ## ATA
 
-[ATA](https://en.wikipedia.org/wiki/Parallel_ATA) 定义了发送给硬盘的命令，[标准](https://people.freebsd.org/~imp/asiabsdcon2015/works/d2161r5-ATAATAPI_Command_Set_-_3.pdf)定义了命令：
+[ATA](<https://en.wikipedia.org/wiki/Parallel_ATA>) 定义了发送给硬盘的命令，[标准](<https://people.freebsd.org/~imp/asiabsdcon2015/works/d2161r5-ATAATAPI_Command_Set_-_3.pdf>)定义了命令：
 
 - ech IDENTIFY DEVICE: 获取设备信息
 - 25h READ DMA EXT: 读取扇区
@@ -12,7 +12,7 @@ ATA 同时也是接口，图片如下。ATA 前身是 IDE，现在 ATA 叫做 PA
 
 ## AHCI
 
-[AHCI](https://en.wikipedia.org/wiki/Advanced_Host_Controller_Interface) 可以简单理解为 PCIe \<-> SATA 的转换器。AHCI 暴露为一个 PCIe 设备：
+[AHCI](<https://en.wikipedia.org/wiki/Advanced_Host_Controller_Interface>) 可以简单理解为 PCIe \<-\> SATA 的转换器。AHCI 暴露为一个 PCIe 设备：
 
 ```shell
 $ lspci -vv
@@ -24,7 +24,7 @@ $ lspci -vv
 
 ## SATA
 
-[SATA](https://en.wikipedia.org/wiki/Serial_ATA) 一般说的是接口。它一般分为两个部分，数据和电源。数据部分只有 7 个 pin，三个 GND 和两对差分线（A+A- B+B-），图片如下：
+[SATA](<https://en.wikipedia.org/wiki/Serial_ATA>) 一般说的是接口。它一般分为两个部分，数据和电源。数据部分只有 7 个 pin，三个 GND 和两对差分线（A+A- B+B-），图片如下：
 
 电源部分有 15 个 pin，有 GND 3.3V 5V 和 12V，图片如下：
 
@@ -32,14 +32,14 @@ $ lspci -vv
 
 ## M.2
 
-[M.2](https://en.wikipedia.org/wiki/M.2) 又称 NGFF，有不同的 key 类型。常见的是 B 和 M：
+[M.2](<https://en.wikipedia.org/wiki/M.2>) 又称 NGFF，有不同的 key 类型。常见的是 B 和 M：
 
 - B key: 12-19 notched, PCIe x2, SATA
 - M key: 59-66 notched, PCIe x4, SATA
 
 都有部分引脚的位置是空的：
 
-在[这里](https://pinoutguide.com/HD/M.2_NGFF_connector_pinout.shtml)可以看到两种 key 的 pinout。
+在[这里](<https://pinoutguide.com/HD/M.2_NGFF_connector_pinout.shtml>)可以看到两种 key 的 pinout。
 
 - B key: SATA pin B(41,43) A(47,49), PCIe x2 pin R1(29,31) T1(35,37) R0(41,43) T0(47,49), USB 3.0 pin TX(29, 31) RX(35,37)
 - M key: SATA 同上，PCIe x4 pin R3(5,7) T3(11,13) R2(17,19) T2(23,25) Lane 0,1 同上
@@ -54,11 +54,11 @@ $ lspci -vv
 
 ## SATA express
 
-[SATA express](https://en.wikipedia.org/wiki/SATA_Express) 在 SATA 3.2 引入，它用的很少，被 U.2 取代。提供了 PCIe x2 或者 SATA x2。
+[SATA express](<https://en.wikipedia.org/wiki/SATA_Express>) 在 SATA 3.2 引入，它用的很少，被 U.2 取代。提供了 PCIe x2 或者 SATA x2。
 
 ## U.2
 
-[U.2](https://en.wikipedia.org/wiki/U.2) 也叫 [SFF-8639](https://members.snia.org/document/dl/26489)。它和 [SATA express](https://en.wikipedia.org/wiki/SATA_Express) 接口一样，但提供了 PCIe x4 或者 SATA x2。详见 [pinout](https://pinoutguide.com/HD/U.2_SATA_connector_pinout.shtml)。
+[U.2](<https://en.wikipedia.org/wiki/U.2>) 也叫 [SFF-8639](<https://members.snia.org/document/dl/26489>)。它和 [SATA express](<https://en.wikipedia.org/wiki/SATA_Express>) 接口一样，但提供了 PCIe x4 或者 SATA x2。详见 [pinout](<https://pinoutguide.com/HD/U.2_SATA_connector_pinout.shtml>)。
 
 ## 速度比较
 
@@ -71,19 +71,19 @@ $ lspci -vv
 - SAS-4: 22.5Gb/s
 - PCIe 3.0 x4: 32Gb/s(8GT/s, 128b/130b, 31.5 Gb/s uncoded)
 
-更完整的可以看[List of interface bit rates](https://en.wikipedia.org/wiki/List_of_interface_bit_rates)。
+更完整的可以看[List of interface bit rates](<https://en.wikipedia.org/wiki/List_of_interface_bit_rates>)。
 
-[Intel SSD DC P4618 Series](https://ark.intel.com/content/www/us/en/ark/products/192574/intel-ssd-dc-p4618-series-6-4tb-1-2-height-pcie-3-1-x8-3d2-tlc.html) 读写速度可以达到 40~50 Gb/s，它采用的是 PCIe 3.0 x8(64Gb/s) NVMe。
+[Intel SSD DC P4618 Series](<https://ark.intel.com/content/www/us/en/ark/products/192574/intel-ssd-dc-p4618-series-6-4tb-1-2-height-pcie-3-1-x8-3d2-tlc.html>) 读写速度可以达到 40\~50 Gb/s，它采用的是 PCIe 3.0 x8(64Gb/s) NVMe。
 
-[Intel SSD 545s Series](https://ark.intel.com/content/www/us/en/ark/products/125024/intel-ssd-545s-series-1-024tb-2-5in-sata-6gb-s-3d2-tlc.html) 读写速度约 4Gb/s，采用的是 SATA 3.0 6Gb/s。
+[Intel SSD 545s Series](<https://ark.intel.com/content/www/us/en/ark/products/125024/intel-ssd-545s-series-1-024tb-2-5in-sata-6gb-s-3d2-tlc.html>) 读写速度约 4Gb/s，采用的是 SATA 3.0 6Gb/s。
 
-[SAMSUNG 970 EVO](https://www.samsung.com/semiconductor/minisite/ssd/product/consumer/970evo/) 读写速度 20~30 Gb/s，它采用的是 PCIe 3.0 x4(32Gb/s) NVMe。
+[SAMSUNG 970 EVO](<https://www.samsung.com/semiconductor/minisite/ssd/product/consumer/970evo/>) 读写速度 20\~30 Gb/s，它采用的是 PCIe 3.0 x4(32Gb/s) NVMe。
 
 ## SAS
 
 SAS 涉及的物理接口比较多，下面举一个具体的例子：DELL SCv2000
 
-文档：https://dl.dell.com/topicspdf/storage-sc2000_owners-manual_en-us.pdf
+文档：https://dl.dell.com/topicspdf/storage-sc2000\_owners-manual\_en-us.pdf
 
 它的背面：
 
@@ -96,7 +96,7 @@ RAID 卡例子：MegaRAID SAS 9361-8i
 它的接口有：
 
 1. 两个 mini-SAS SFF-8643(Mini Multilane 4/8X 12 Gb/s Unshielded Connector (HD12un)) 内部连接器，连接到硬盘
-1. PCIe 3.0 8x 连接主板
+2. PCIe 3.0 8x 连接主板
 
 SAS 标准：
 
@@ -106,7 +106,7 @@ SAS 标准：
 - INCITS 519 Serial Attached SCSI - 3 (SAS-3)
 - INCITS 534 Serial Attached SCSI - 4 (SAS-4)
 
-可以从 https://www.t10.org/drafts.htm#SCSI3_SAS 免费下载尚未成为标准的 SAS-4.1 Working Draft。
+可以从 https://www.t10.org/drafts.htm\#SCSI3\_SAS 免费下载尚未成为标准的 SAS-4.1 Working Draft。
 
 ## SAS 相关的物理接口
 
@@ -124,7 +124,7 @@ Mini SAS 4i 连接器就是 36 pin 的 SFF-8087，支持四路 SAS。i 表示用
 
 标准下载地址：https://members.snia.org/document/dl/25823
 
-它的引脚定义可以在 [SFF-9402](https://members.snia.org/document/dl/27380) 看到，它的引脚分为 A 面和 B 面，每面有 18 个 PIN，用途如下：
+它的引脚定义可以在 [SFF-9402](<https://members.snia.org/document/dl/27380>) 看到，它的引脚分为 A 面和 B 面，每面有 18 个 PIN，用途如下：
 
 - A2(Rx0+), A3(Rx0-), B2(Tx0+), B3(Tx0-)：第一组差分对
 - A4(Rx1+), A5(Rx1-), B4(Tx1+), B5(Tx1-)：第二组差分对
@@ -133,7 +133,7 @@ Mini SAS 4i 连接器就是 36 pin 的 SFF-8087，支持四路 SAS。i 表示用
 - B8(Sclock), B9(Sload), A10(SDataOut), A11(SDataIn)：SGPIO 协议
 - B8(2W-CLK), B9(2W-DATA)：用于 SES 的 I2C 协议
 
-这四组差分对对应四路 SAS 或者 SATA。SGPIO 协议的标准是 [SFF-8485](https://members.snia.org/document/dl/25923)，主要用途是控制硬盘状态灯，以及判断盘是否插入。
+这四组差分对对应四路 SAS 或者 SATA。SGPIO 协议的标准是 [SFF-8485](<https://members.snia.org/document/dl/25923>)，主要用途是控制硬盘状态灯，以及判断盘是否插入。
 
 相关标准：
 
@@ -192,7 +192,7 @@ Multifunction 6X Unshielded Connector
 用途：
 
 - Single port SATA (as defined by Serial ATA revision 3.1)
-- Two port SATA Express (as defined in Serial ATA Technical Proposal #TPR_C109, currently under development)
+- Two port SATA Express (as defined in Serial ATA Technical Proposal \#TPR\_C109, currently under development)
 - Dual port SAS (as defined by SFF-8482)
 - MultiLink SAS (as defined by SFF-8630)
 - Up to 4 lanes of PCIe (as defined in this specification)
@@ -215,8 +215,8 @@ MiniLink 4/8X I/O Cable Assemblies
 硬盘性能一般会看如下几个指标：
 
 1. 顺序读写性能，在指定的 block size 下，顺序读写的传输速度，单位通常是 MB/s
-1. 随机读写性能，在指定的 block size 下（一般是 4KB），随机地址读写的每秒读写操作次数，单位通常是 IOPS
-1. 延迟
+2. 随机读写性能，在指定的 block size 下（一般是 4KB），随机地址读写的每秒读写操作次数，单位通常是 IOPS
+3. 延迟
 
 CrystalDiskInfo 术语：
 
@@ -225,22 +225,22 @@ CrystalDiskInfo 术语：
 - RND4KQ32T16：随机读写（RND），一次读写 4KB（4K），队列深度是 32（Q32），16 线程（T16）
 - RND4KQ1T1：随机读写（RND），一次读写 4KB（4K），队列深度是 1（Q1），单线程（T1）
 
-根据 [SSD vs HDD - Should You Buy a Solid State Drive or Hard Disk Drive?](https://www.buildcomputers.net/ssd-vs-hdd.html)，SSD 和 HDD 在顺序读写性能上的常见范围：
+根据 [SSD vs HDD - Should You Buy a Solid State Drive or Hard Disk Drive?](<https://www.buildcomputers.net/ssd-vs-hdd.html>)，SSD 和 HDD 在顺序读写性能上的常见范围：
 
-- SSD: 300 ~ 500 MB/s
-- HDD: 100 ~ 160 MB/s
+- SSD: 300 \~ 500 MB/s
+- HDD: 100 \~ 160 MB/s
 
 SSD 和 HDD 在随机读写性能上的常见范围：
 
-- SSD: 20,000 ~ 100,000 IOPS
-- HDD: 75 ~ 100 IOPS
+- SSD: 20,000 \~ 100,000 IOPS
+- HDD: 75 \~ 100 IOPS
 
 可以看到，SSD 和 HDD 相比，顺序读写性能高，随机读写性能显著高。但实际上，这个数据有些过时了。
 
 下面看一些具体的例子：
 
-- [HDD TOSHIBA AL15SEB120N](https://toshiba.semicon-storage.com/ap-en/storage/product/data-center-enterprise/enterprise-performance/articles/al15sebxxex.html): 顺序读写性能 234.0 MB/s，延迟 2.86ms
-- [HDD SEAGATE ST10000NM0096](https://www.seagate.com/www-content/datasheets/pdfs/ent-cap-3-5-hdd-10tb-channelDS1863-5C-1608US-en_US.pdf): 顺序读写性能 254 MB/s，随机读 170 IOPS，随机写 370 IOPS，延迟 4.16ms
-- [SSD Ultrastar DC SS200](https://documents.westerndigital.com/content/dam/doc-library/en_us/assets/public/western-digital/product/data-center-drives/ultrastar-ssd-sas-series/data-sheet-ultrastar-dc-ss200.pdf): 顺序读 1,800 MB/s，顺序写 1,000 MB/s，随机读 250,000 IOPS，随机写 86,000 IOPS，延迟 100us
-- [SSD KIOXIA EXCERIA PRO NVMe SSD](https://apac.kioxia.com/en-apac/personal/ssd/exceria-pro.html): 顺序读 7,300 MB/s，顺序写 6,400 MB/s，随机读 800,000 IOPS，随机写 1,300,000 IOPS
-- [SSD SAMSUNG PM9A1](https://semiconductor.samsung.com/cn/ssd/pc-ssd/pm9a1/): 顺序读 7,000 MB/s，顺序写 5,200 MB/s，随机读 1,000,000 IOPS，随机写 850,000 IOPS
+- [HDD TOSHIBA AL15SEB120N](<https://toshiba.semicon-storage.com/ap-en/storage/product/data-center-enterprise/enterprise-performance/articles/al15sebxxex.html>): 顺序读写性能 234.0 MB/s，延迟 2.86ms
+- [HDD SEAGATE ST10000NM0096](<https://www.seagate.com/www-content/datasheets/pdfs/ent-cap-3-5-hdd-10tb-channelDS1863-5C-1608US-en_US.pdf>): 顺序读写性能 254 MB/s，随机读 170 IOPS，随机写 370 IOPS，延迟 4.16ms
+- [SSD Ultrastar DC SS200](<https://documents.westerndigital.com/content/dam/doc-library/en_us/assets/public/western-digital/product/data-center-drives/ultrastar-ssd-sas-series/data-sheet-ultrastar-dc-ss200.pdf>): 顺序读 1,800 MB/s，顺序写 1,000 MB/s，随机读 250,000 IOPS，随机写 86,000 IOPS，延迟 100us
+- [SSD KIOXIA EXCERIA PRO NVMe SSD](<https://apac.kioxia.com/en-apac/personal/ssd/exceria-pro.html>): 顺序读 7,300 MB/s，顺序写 6,400 MB/s，随机读 800,000 IOPS，随机写 1,300,000 IOPS
+- [SSD SAMSUNG PM9A1](<https://semiconductor.samsung.com/cn/ssd/pc-ssd/pm9a1/>): 顺序读 7,000 MB/s，顺序写 5,200 MB/s，随机读 1,000,000 IOPS，随机写 850,000 IOPS

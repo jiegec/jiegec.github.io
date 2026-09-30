@@ -17,7 +17,7 @@ Thread model: posix
 InstalledDir: /data/llvm/bin
 ```
 
-还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 [riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz](https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.01.17/riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz)。下载以后解压，得到 riscv 目录，GCC 版本是比较新的：
+还需要配合一个 GCC 工具链才可以完整地工作。可以直接采用 riscv-gnu-toolchain nightly 版本，比如 [riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz](<https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.01.17/riscv64-elf-ubuntu-20.04-nightly-2022.01.17-nightly.tar.gz>)。下载以后解压，得到 riscv 目录，GCC 版本是比较新的：
 
 ```shell
 $ ~/riscv/bin/riscv64-unknown-elf-gcc --version

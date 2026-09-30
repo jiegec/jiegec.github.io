@@ -1,6 +1,6 @@
 # 「教学」缓存一致性协议分析
 
-本文的内容已经整合到[知识库](/kb/hardware/cache_coherence_protocol.html)中。
+本文的内容已经整合到[知识库](</kb/hardware/cache_coherence_protocol.html>)中。
 
 ## 背景
 
@@ -11,16 +11,16 @@
 最基础的缓存一致性思想有两种：
 
 1. Write-invalidate：写入数据的时候，将其他 Cache 中这条 Cache Line 设为 Invalid
-1. Write-update：写入数据的时候，把新的结果写入到有这条 Cache Line 的其他 Cache
+2. Write-update：写入数据的时候，把新的结果写入到有这条 Cache Line 的其他 Cache
 
 ## Write-once 协议
 
 Write-once 协议定义了四个状态：
 
 1. Invalid：表示这个块不合法
-1. Valid：表示这个块合法，并可能是共享的，同时数据没有修改
-1. Reserved：表示这个块合法，不是共享的，同时数据没有更改
-1. Dirty：表示这个块合法，不是共享的，数据做了修改，和内存不同。
+2. Valid：表示这个块合法，并可能是共享的，同时数据没有修改
+3. Reserved：表示这个块合法，不是共享的，同时数据没有更改
+4. Dirty：表示这个块合法，不是共享的，数据做了修改，和内存不同。
 
 可见，当一个缓存状态在 R 或者 D，其他缓存只能是 I；而缓存状态是 V 的时候，可以有多个缓存在 V 状态。
 
@@ -57,8 +57,8 @@ Write miss: A partial cache line write is handled as a read miss (if necessary t
 MSI 协议比较简单，它定义了三个状态：
 
 1. Modified：表示数据已经修改，和内存里不一致
-1. Shared：数据和内存一致，可以有一到多个缓存同时处在 Shared 状态
-1. Invalid：不在缓存中
+2. Shared：数据和内存一致，可以有一到多个缓存同时处在 Shared 状态
+3. Invalid：不在缓存中
 
 当 Read hit 的时候，状态不变。
 
@@ -73,9 +73,9 @@ MSI 协议比较简单，它定义了三个状态：
 MESI 协议定义了四种状态：
 
 1. Modified：数据与内存不一致，并且只有一个缓存有数据
-1. Exclusive：数据与内存一致，并且只有一个缓存有数据
-1. Shared：数据与内存一致，可以有多个缓存同时有数据
-1. Invalid：不在缓存中
+2. Exclusive：数据与内存一致，并且只有一个缓存有数据
+3. Shared：数据与内存一致，可以有多个缓存同时有数据
+4. Invalid：不在缓存中
 
 当 Read hit 的时候，状态不变。
 
@@ -92,10 +92,10 @@ MESI 协议定义了四种状态：
 MOESI 定义了五个状态：
 
 1. Modified：数据经过修改，并且只有一个缓存有这个数据
-1. Owned：同时有多个缓存有这个数据，但是只有这个缓存可以修改数据
-1. Exclusive：数据没有修改，并且只有一个缓存有这个数据
-1. Shared：同时有多个缓存有这个数据，但是不能修改数据
-1. Invalid：不在缓存中
+2. Owned：同时有多个缓存有这个数据，但是只有这个缓存可以修改数据
+3. Exclusive：数据没有修改，并且只有一个缓存有这个数据
+4. Shared：同时有多个缓存有这个数据，但是不能修改数据
+5. Invalid：不在缓存中
 
 状态中，M 和 E 是独占的，所有缓存里只能有一个。此外，可以同时有多个 S，或者多个 S 加一个 O，但是不能同时有多个 O。
 
@@ -104,10 +104,10 @@ MOESI 定义了五个状态：
 AMD64 文档里采用的就是 MOESI 协议。AMBA ACE 协议其实也是 MOESI 协议，只不过换了一些名称，表示可以兼容 MEI/MESI/MOESI 中的一个协议。ACE 对应关系如下：
 
 1. UniqueDirty: Modified
-1. SharedDirty: Owned
-1. UniqueClean: Exclusive
-1. SharedClean: Shared
-1. Invalid: Invalid
+2. SharedDirty: Owned
+3. UniqueClean: Exclusive
+4. SharedClean: Shared
+5. Invalid: Invalid
 
 需要注意的是，SharedClean 并不代表它的数据和内存一致，比如说和 SharedDirty 缓存一致，它只是说缓存替换的时候，不需要写回内存。
 
@@ -116,9 +116,9 @@ AMD64 文档里采用的就是 MOESI 协议。AMBA ACE 协议其实也是 MOESI 
 Dragon 协议是一个基于更新的协议，意味着写入缓存的时候，会把更新的数据同步到拥有这个缓存行的其他核心。它定义了四个状态：
 
 1. Exclusive clean(E)：独占，并且数据和内存一致
-1. Shared clean(Sc)：数据同时存在多个缓存中，并且自己不是最后一个写入该缓存数据的
-1. Shared modified(Sm)：数据同时存在多个缓存中，并且自己设最后一个写入该缓存数据的，类似于前面 MOESI 协议的 Owner 状态
-1. Modify(M)：独占，并且数据和内存不一致
+2. Shared clean(Sc)：数据同时存在多个缓存中，并且自己不是最后一个写入该缓存数据的
+3. Shared modified(Sm)：数据同时存在多个缓存中，并且自己设最后一个写入该缓存数据的，类似于前面 MOESI 协议的 Owner 状态
+4. Modify(M)：独占，并且数据和内存不一致
 
 可以看到，E 和 M 都是独占的，如果出现了多个缓存有同一个缓存行，那就是若干个 Sc 和一个 Sm。
 
@@ -135,15 +135,15 @@ Dragon 协议是一个基于更新的协议，意味着写入缓存的时候，�
 ACE 协议在 AXI 的基础上，添加了三个 channel：
 
 1. AC: Coherent address channel, Input to master: ACADDR, ACSNOOP, ACPROT
-1. CR: Coherent response channel, Output from master: CRRESP
-1. CD: Coherent data channel, Output from master: CDDATA, CDLAST
+2. CR: Coherent response channel, Output from master: CRRESP
+3. CD: Coherent data channel, Output from master: CDDATA, CDLAST
 
 此外，已有的 Channel 也添加了信号：
 
-1. ARSNOOP[3:0]/ARBAR[1:0]/ARDOMAIN[1:0]
-1. AWSNOOP[3:0]/AWBAR[1:0]/AWDOMAIN[1:0]/AWUNIQUE
-1. RRESP[3:2]
-1. RACK/WACK
+1. ARSNOOP\[3:0\]/ARBAR\[1:0\]/ARDOMAIN\[1:0\]
+2. AWSNOOP\[3:0\]/AWBAR\[1:0\]/AWDOMAIN\[1:0\]/AWUNIQUE
+3. RRESP\[3:2\]
+4. RACK/WACK
 
 ACE-lite 只在已有 Channel 上添加了新信号，没有添加新的 Channel。因此它内部不能有 Cache，但是可以访问一致的缓存内容。
 
@@ -165,11 +165,11 @@ ACE-lite 只在已有 Channel 上添加了新信号，没有添加新的 Channel
 
 ## 参考文档
 
-- [Cache coherence](https://en.wikipedia.org/wiki/Cache_coherence)
-- [MSI protocol](https://en.wikipedia.org/wiki/MSI_protocol)
+- [Cache coherence](<https://en.wikipedia.org/wiki/Cache_coherence>)
+- [MSI protocol](<https://en.wikipedia.org/wiki/MSI_protocol>)
 - [Write-once (cache coherence)](<https://en.wikipedia.org/wiki/Write-once_(cache_coherence)>)
-- [MESI protocol](https://en.wikipedia.org/wiki/MESI_protocol)
-- [MOESI protocol](https://en.wikipedia.org/wiki/MOESI_protocol)
-- [Dragon protocol](https://en.wikipedia.org/wiki/Dragon_protocol)
-- [A Strategy to Verify an AXI/ACE Compliant Interconnect (2 of 4)](https://blogs.synopsys.com/vip-central/2014/12/23/a-strategy-to-verify-an-axi-ace-compliant-interconnect-part-2-of-4/)
-- [Directory-based cache coherence](https://en.wikipedia.org/wiki/Directory-based_cache_coherence)
+- [MESI protocol](<https://en.wikipedia.org/wiki/MESI_protocol>)
+- [MOESI protocol](<https://en.wikipedia.org/wiki/MOESI_protocol>)
+- [Dragon protocol](<https://en.wikipedia.org/wiki/Dragon_protocol>)
+- [A Strategy to Verify an AXI/ACE Compliant Interconnect (2 of 4)](<https://blogs.synopsys.com/vip-central/2014/12/23/a-strategy-to-verify-an-axi-ace-compliant-interconnect-part-2-of-4/>)
+- [Directory-based cache coherence](<https://en.wikipedia.org/wiki/Directory-based_cache_coherence>)

@@ -2,7 +2,7 @@
 
 ## 安装过程
 
-首先从 <https://www.sco.com/support/update/download/product.php?pfid=12&prid=20> 下载 SCO OpenServer 的安装 ISO。尝试过用 QEMU 启动，但是会卡在无法读取硬盘的错误上。
+首先从 [https://www.sco.com/support/update/download/product.php?pfid=12&amp;prid=20](<https://www.sco.com/support/update/download/product.php?pfid=12&amp;prid=20>) 下载 SCO OpenServer 的安装 ISO。尝试过用 QEMU 启动，但是会卡在无法读取硬盘的错误上。
 
 最后使用 VirtualBox 7.0.6 成功启动，注意创建虚拟机的时候不要给太多内存，例如 4GB 就起不来，2GB 可以。硬盘我也只给了 4GB 的空间。
 
@@ -12,4 +12,4 @@
 
 本博客参考了以下文档中的命令：
 
-- <https://virtuallyfun.com/2020/11/21/fun-with-openserver-6-and-mergepro/>
+- [https://virtuallyfun.com/2020/11/21/fun-with-openserver-6-and-mergepro/](<https://virtuallyfun.com/2020/11/21/fun-with-openserver-6-and-mergepro/>)

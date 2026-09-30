@@ -2,11 +2,11 @@
 
 ## 背景
 
-在之前，我们分析了 [AMD Zen 1](https://jia.je/hardware/2025/07/07/amd-zen-1-btb/index.md) 的 BTB，接下来分析它的下一代微架构：2019 年发布的 AMD Zen 2 的 BTB，看看 AMD 的 Zen 系列的 BTB 是如何演进的。
+在之前，我们分析了 [AMD Zen 1](<https://jia.je/blog/posts/hardware/amd-zen-1-btb/index.md>) 的 BTB，接下来分析它的下一代微架构：2019 年发布的 AMD Zen 2 的 BTB，看看 AMD 的 Zen 系列的 BTB 是如何演进的。
 
 ## 官方信息
 
-AMD 在 [Software Optimization Guide for AMD EPYC™ 7002 Processors (Publication No. 56305)](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/software-optimization-guides/56305.zip) 中有如下的表述：
+AMD 在 [Software Optimization Guide for AMD EPYC™ 7002 Processors (Publication No. 56305)](<https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/software-optimization-guides/56305.zip>) 中有如下的表述：
 
 > The branch target buffer (BTB) is a three-level structure accessed using the fetch address of the current fetch block.
 
@@ -100,24 +100,24 @@ Zen 2 的 L2 BTB 依然是带有压缩的，只有在 mix (cond + uncond) 模式
 测试到这里就差不多了，更大的 stride 得到的也是类似的结果，总结一下前面的发现：
 
 - L0 BTB 是 (8+8)-entry，1 cycle latency，不随着 stride 变化，全相连
-- L1 BTB 是 512-entry，2 cycle latency，容量随着 stride 变化，大概率是 PC[n:3] 这一段被用于 index，使得 stride=16B 开始容量不断减半；但 cond 模式下的行为和其余几种模式不同，直到 stride=128B 才开始容量减半
-- L2 BTB 是 4096-entry，5 cycle latency，容量随着 stride 变化，大概率是 PC[n:6] 这一段被用于 index，使得 stride=128B 开始容量不断减半；其中有 3072 个 entry 最多保存两条分支，前提是这两条分支在同一个 cacheline 当中，并且第一条是 cond，第二条是 uncond；因此最多保存 7168 条分支
+- L1 BTB 是 512-entry，2 cycle latency，容量随着 stride 变化，大概率是 PC\[n:3\] 这一段被用于 index，使得 stride=16B 开始容量不断减半；但 cond 模式下的行为和其余几种模式不同，直到 stride=128B 才开始容量减半
+- L2 BTB 是 4096-entry，5 cycle latency，容量随着 stride 变化，大概率是 PC\[n:6\] 这一段被用于 index，使得 stride=128B 开始容量不断减半；其中有 3072 个 entry 最多保存两条分支，前提是这两条分支在同一个 cacheline 当中，并且第一条是 cond，第二条是 uncond；因此最多保存 7168 条分支
 
 ## Zen 1 和 Zen 2 的 BTB 的对比
 
 下面是对比表格：
 
-| uArch                   | AMD Zen 1    | AMD Zen 2    |
-| ----------------------- | ------------ | ------------ |
-| L0 BTB size             | 4+4 branches | 8+8 branches |
-| L0 BTB latency          | 1 cycle      | 1 cycle      |
-| L1 BTB size             | 256 branches | 512 branches |
-| L1 BTB latency          | 2 cycles     | 2 cycles     |
-| L2 BTB size w/o sharing | 2K branches  | 4K branches  |
-| L2 BTB size w/ sharing  | 4K branches  | 7K branches  |
-| L2 BTB latency          | 5 cycles     | 5 cycles     |
-| Technology Node         | 14nm         | 7nm          |
-| Release Year            | 2017         | 2019         |
+| uArch | AMD Zen 1 | AMD Zen 2 |
+| --- | --- | --- |
+| L0 BTB size | 4+4 branches | 8+8 branches |
+| L0 BTB latency | 1 cycle | 1 cycle |
+| L1 BTB size | 256 branches | 512 branches |
+| L1 BTB latency | 2 cycles | 2 cycles |
+| L2 BTB size w/o sharing | 2K branches | 4K branches |
+| L2 BTB size w/ sharing | 4K branches | 7K branches |
+| L2 BTB latency | 5 cycles | 5 cycles |
+| Technology Node | 14nm | 7nm |
+| Release Year | 2017 | 2019 |
 
 可见 Zen 2 在容量上做了一定的扩展，但机制上比较类似；特别地，可能是观察到 cond + uncond 的压缩能够生效的比例没有那么高，所以只允许其中一部分 entry 被压缩，例如 4 路组相连，只有前 3 个 way 是可以保存两条分支；剩下的一个 way 只能保存一条分支。
 
@@ -125,16 +125,16 @@ Zen 2 的 L2 BTB 依然是带有压缩的，只有在 mix (cond + uncond) 模式
 
 AMD Zen 2 和 ARM Neoverse N1 都是在 2019 发布的处理器，下面对它们进行一个对比：
 
-| uArch                        | AMD Zen 2    | ARM Neoverse N1 |
-| ---------------------------- | ------------ | --------------- |
-| L0/Nano BTB size             | 8+8 branches | 16 branches     |
-| L0/Nano BTB latency          | 1 cycle      | 1 cycle         |
-| L1/Micro BTB size            | 512 branches | 64 branches     |
-| L1/Micro BTB latency         | 2 cycles     | 2 cycles        |
-| L2/Main BTB size w/o sharing | 4K branches  | 3K\*2 branches  |
-| L2/Main BTB size w/ sharing  | 7K branches  | 3K\*2 branches  |
-| L2/Main BTB latency          | 5 cycles     | 2-3 cycles      |
-| Technology Node              | 7nm          | 7nm             |
+| uArch | AMD Zen 2 | ARM Neoverse N1 |
+| --- | --- | --- |
+| L0/Nano BTB size | 8+8 branches | 16 branches |
+| L0/Nano BTB latency | 1 cycle | 1 cycle |
+| L1/Micro BTB size | 512 branches | 64 branches |
+| L1/Micro BTB latency | 2 cycles | 2 cycles |
+| L2/Main BTB size w/o sharing | 4K branches | 3K\*2 branches |
+| L2/Main BTB size w/ sharing | 7K branches | 3K\*2 branches |
+| L2/Main BTB latency | 5 cycles | 2-3 cycles |
+| Technology Node | 7nm | 7nm |
 
 可见 AMD Zen 2 在 BTB 容量上有优势，但是延迟要更长；两者都在最后一级 BTB 上做了压缩，但是压缩的方法和目的不同：
 
@@ -143,7 +143,7 @@ AMD Zen 2 和 ARM Neoverse N1 都是在 2019 发布的处理器，下面对它�
 
 二者都没有实现一个周期预测两条分支，即 two taken（ARM 的说法是 two predicted branches per cycle）。这要等到 2020 年的 ARM Neoverse N2/V1，或者 2022 年的 AMD Zen 4 才被实现。
 
-注意到 AMD 的 [Software Optimization Guide for AMD EPYC™ 7002 Processors (Publication No. 56305)](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/software-optimization-guides/56305.zip) 文档里，有这么一段表述：
+注意到 AMD 的 [Software Optimization Guide for AMD EPYC™ 7002 Processors (Publication No. 56305)](<https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/software-optimization-guides/56305.zip>) 文档里，有这么一段表述：
 
 > Branches whose target crosses a half-megabyte aligned boundary are unable to be installed in the L0 BTB or to share BTB entries with other branches.
 

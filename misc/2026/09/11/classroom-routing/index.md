@@ -53,7 +53,7 @@ flowchart TD
 
 ## 针对上课需求的设计
 
-回到我的课程。我希望能在多个信号源之间方便地切换，包括 Mac 笔记本、鸿蒙电脑以及一台便携摄像头。讲台自带的导播功能不足以支撑这么复杂的切换，手上又没有 ATEM Mini 导播台（怀念以前学生节的日子），于是打算在 Mac 笔记本上用 [OBS](https://obsproject.com/) 做软件导播。
+回到我的课程。我希望能在多个信号源之间方便地切换，包括 Mac 笔记本、鸿蒙电脑以及一台便携摄像头。讲台自带的导播功能不足以支撑这么复杂的切换，手上又没有 ATEM Mini 导播台（怀念以前学生节的日子），于是打算在 Mac 笔记本上用 [OBS](<https://obsproject.com/>) 做软件导播。
 
 那么音视频路由该如何设计？下面是我最终采用的路由方式。视频部分：
 
@@ -90,7 +90,7 @@ flowchart TD
 
 针对上课 4K 30 FPS 但是静态为主的场景，在 OBS 设置里，Output 选择 Simple，Video Bitrate 选 8000 Kbps，Video Encoder 选 Hardware (Apple, H.264)，下面 Recording Quality 选 Same as stream，Recording Format 选 Matroska Video (.mkv)。
 
-可以打开 OBS 的 View -> Stats，看看实时码率，有没有 missed or skipped frame。
+可以打开 OBS 的 View -\> Stats，看看实时码率，有没有 missed or skipped frame。
 
 ### 基于 HDMI 分配器的候选方案
 
@@ -115,14 +115,14 @@ flowchart TD
 
 ## 设备选型
 
-采集卡用的是绿联的 [UG307-95348 4K60Hz MS2130S 视频采集卡](https://www.lulian.cn/product/1537.html)，USB 名称是 UGREEN 95348，VID 0x2b89，PID 0x5348。
+采集卡用的是绿联的 [UG307-95348 4K60Hz MS2130S 视频采集卡](<https://www.lulian.cn/product/1537.html>)，USB 名称是 UGREEN 95348，VID 0x2b89，PID 0x5348。
 
 便携摄像头用的是：
 
-- 绿联 [CM717-25442 2K USB 400W 像素摄像头](https://www.lulian.cn/product/1815.html)，USB 名称是 UGREEN Camera 2K，VID 0x0c45，PID 0x636f；
+- 绿联 [CM717-25442 2K USB 400W 像素摄像头](<https://www.lulian.cn/product/1815.html>)，USB 名称是 UGREEN Camera 2K，VID 0x0c45，PID 0x636f；
 - 绿联 CM831-65381 4K USB 800W 像素摄像头，USB 名称是 UGREEN Camera 4K，VID 0xeba4，PID 0x6579。
 
-HDMI 分配器用的是绿联的 [AP502-55493 4K60Hz 一进二出 HDMI 分配器](https://www.lulian.cn/product/1527.html)，输入规格为 5V/1A，支持一路 HDMI 输入、两路 HDMI 输出。从 EDID 来看，采用的是 [IT6664](https://www.ite.com.tw/tw/product/cate1/IT6664) 方案，可以通过拨码开关切换不同的模式：
+HDMI 分配器用的是绿联的 [AP502-55493 4K60Hz 一进二出 HDMI 分配器](<https://www.lulian.cn/product/1527.html>)，输入规格为 5V/1A，支持一路 HDMI 输入、两路 HDMI 输出。从 EDID 来看，采用的是 [IT6664](<https://www.ite.com.tw/tw/product/cate1/IT6664>) 方案，可以通过拨码开关切换不同的模式：
 
 - 1 上 2 上（默认）：当两路输出都接上时，输入侧看到的 EDID 由两路输出的 EDID 共同决定，设备显示 ITE-6664；只接一路输出时，输入侧直接透传该路的 EDID
 - 1 上 2 下：强制 1080P60Hz，设备显示 UGREEN-FHD
@@ -133,7 +133,7 @@ HDMI 分配器用的是绿联的 [AP502-55493 4K60Hz 一进二出 HDMI 分配器
 
 ## 遇到的实际问题
 
-在使用绿联 UG307-95348 采集卡的过程中，还遇到并修复了一些清晰度和颜色问题，具体方法见 [修复绿联 UG307-95348 HDMI 采集卡清晰度与颜色问题](https://jia.je/hardware/2026/09/12/fix-ugreen-95348/index.md)。
+在使用绿联 UG307-95348 采集卡的过程中，还遇到并修复了一些清晰度和颜色问题，具体方法见 [修复绿联 UG307-95348 HDMI 采集卡清晰度与颜色问题](<https://jia.je/blog/posts/hardware/fix-ugreen-95348/index.md>)。
 
 在使用绿联 AP502-55493 HDMI 分配器的过程中，也遇到了一些显示问题：在特定教室里，在默认的 1 上 2 上配置（自动计算 EDID）下，两路输出只有一路可以正常显示，比如 OUT1 接教室的投影是正常的，OUT2 接采集卡就黑屏。调整成 1 下 2 下，即复制 OUT1 设备的 EDID，把 OUT1 接教室的投影，把 OUT2 接上面的采集卡，这两路又都能正常工作。初步怀疑和 EDID 有关系，后续考虑把两路输出的 EDID 导出来对比一下，也看看 HDMI 分配器给输入侧暴露的 EDID 是怎么样的。
 
@@ -143,7 +143,7 @@ HDMI 分配器用的是绿联的 [AP502-55493 4K60Hz 一进二出 HDMI 分配器
 
 第二个坑：另一个教室录出来的音频同样是双声道，但右声道是左声道的反相，两个声道一旦叠加就会互相抵消。
 
-上面两张图都是用 [stereo_check.py](https://jia.je/misc/stereo_check.py) 绘制的。
+上面两张图都是用 [stereo\_check.py](<https://jia.je/blog/posts/misc/stereo_check.py>) 绘制的。
 
 此外，上课途中还遇到过突发情况：采集卡采集的视频出现闪屏和黑屏，不确定是采集卡的问题还是 HDMI 线的问题。下课后又无法复现，不知道是否和温度有关。
 

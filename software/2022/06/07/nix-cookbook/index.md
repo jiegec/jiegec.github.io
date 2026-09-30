@@ -96,7 +96,7 @@ services.udev.packages = with pkgs; [
 
 VSCode Remote 会在远程的机器上运行一个预编译的 nodejs，运行的时候会因为路径问题无法执行。
 
-解决方法在 [NixOS Wiki](https://nixos.wiki/wiki/Visual_Studio_Code#Remote_SSH) 上有，具体来说，首先，需要安装 `nodejs`：
+解决方法在 [NixOS Wiki](<https://nixos.wiki/wiki/Visual_Studio_Code#Remote_SSH>) 上有，具体来说，首先，需要安装 `nodejs`：
 
 ```nix
 environment.systemPackages = with pkgs; [
@@ -115,7 +115,7 @@ ln -sf /run/current-system/sw/bin/node
 
 ## Home Manager
 
-[Home Manager](https://github.com/nix-community/home-manager) 描述用户默认看到的程序，而 NixOS 的配置是所有用户的。
+[Home Manager](<https://github.com/nix-community/home-manager>) 描述用户默认看到的程序，而 NixOS 的配置是所有用户的。
 
 ### 配置文件
 
@@ -309,11 +309,11 @@ home-manager switch --flake .
 
 ### nixpkgs-fmt
 
-[nixpkgs-fmt](https://github.com/nix-community/nixpkgs-fmt) 用来格式化 Nix 代码。
+[nixpkgs-fmt](<https://github.com/nix-community/nixpkgs-fmt>) 用来格式化 Nix 代码。
 
 ### search.nixos.org
 
-[search.nixos.org](https://search.nixos.org/) 可以搜索 nixpkgs 上的各种包，也可以看到不同平台支持情况。缺点是看不出是否 unfree 和 broken，并且一些 darwin os-specific 的包不会显示。
+[search.nixos.org](<https://search.nixos.org/>) 可以搜索 nixpkgs 上的各种包，也可以看到不同平台支持情况。缺点是看不出是否 unfree 和 broken，并且一些 darwin os-specific 的包不会显示。
 
 ### nix-tree
 
@@ -446,8 +446,8 @@ nix-shell -I nixpkgs=$PWD -p xxx
 Nixpkgs 开发分支主要有三个：
 
 1. master
-1. staging-next
-1. staging
+2. staging-next
+3. staging
 
 发 PR 的时候，如果需要重新编译的包比较多，就要往 staging 提交；比较少，就往 staging-next 提交。
 
@@ -457,33 +457,33 @@ CI 会自动把 master 合并到 staging-next，也会把 staging-next 合并到
 
 Hydra 会编译 master 分支和 staging-next 分支上的包，不会编译 staging 分支上的包。同理，binary cache 上前两个分支上有的，而 staging 上没有的。
 
-参考：<https://nixos.org/manual/nixpkgs/stable/#submitting-changes-commit-policy>
+参考：[https://nixos.org/manual/nixpkgs/stable/\#submitting-changes-commit-policy](<https://nixos.org/manual/nixpkgs/stable/#submitting-changes-commit-policy>)
 
 ### 提交贡献
 
 注意事项：
 
-1. 升级一些比较老的写法，例如 mkDerivation -> stdenv.mkDerivation，Qt 的 hook
-1. 引入 patch 的时候，建议先向上游提 PR，如果合并了，就直接用上游的 commit；如果没有合并，退而求其次可以用 pr 的 patch；如果没有提 PR 的渠道，或者上游的 commit 无法应用到当前的版本，或者这个 patch 没有普适性，再写本地的 patch；注释里要写打 patch 的原因和相关的 issue 链接，什么时候不再需要这个 patch，并且起个名字
-1. 不知道 SHA256 的时候，可以注释掉或者随便写一个，这样 nix build 的时候会重新下载，然后把正确的显示出来
-1. 对于有命令的包，可以添加 testVersion 测试
-1. 长时间没有 review 的 pr，可以在 discourse 上回复帖子。
-1. 更新之前，可以搜索一下，有没有相关的 issue 或者 pr；如果有 issue，新建 pr 的时候要提一下
+1. 升级一些比较老的写法，例如 mkDerivation -\> stdenv.mkDerivation，Qt 的 hook
+2. 引入 patch 的时候，建议先向上游提 PR，如果合并了，就直接用上游的 commit；如果没有合并，退而求其次可以用 pr 的 patch；如果没有提 PR 的渠道，或者上游的 commit 无法应用到当前的版本，或者这个 patch 没有普适性，再写本地的 patch；注释里要写打 patch 的原因和相关的 issue 链接，什么时候不再需要这个 patch，并且起个名字
+3. 不知道 SHA256 的时候，可以注释掉或者随便写一个，这样 nix build 的时候会重新下载，然后把正确的显示出来
+4. 对于有命令的包，可以添加 testVersion 测试
+5. 长时间没有 review 的 pr，可以在 discourse 上回复帖子。
+6. 更新之前，可以搜索一下，有没有相关的 issue 或者 pr；如果有 issue，新建 pr 的时候要提一下
 
 一些常见的问题：
 
 1. 编译器打开 `-fno-common` 后，可能会导致一些链接问题
-1. Darwin 上的 clang 没有打开 LTO，也没有打开 Universal 支持
-1. AArch64 Darwin 上的 gfortran 的 stack protector 不工作，需要把 hardening 关掉
-1. 当编译报错是 `-Werror` 导致的时候，按照 warning 类型在 NIX_CFLAGS_COMPILE 中添加 `-Wno-error=warning-type`
-1. configure 版本较老，需要引入 autoreconfHook
+2. Darwin 上的 clang 没有打开 LTO，也没有打开 Universal 支持
+3. AArch64 Darwin 上的 gfortran 的 stack protector 不工作，需要把 hardening 关掉
+4. 当编译报错是 `-Werror` 导致的时候，按照 warning 类型在 NIX\_CFLAGS\_COMPILE 中添加 `-Wno-error=warning-type`
+5. configure 版本较老，需要引入 autoreconfHook
 
-阅读文档：<https://github.com/NixOS/nixpkgs/blob/master/doc/contributing/quick-start.chapter.md> 和 <https://github.com/NixOS/nixpkgs/blob/master/doc/contributing/coding-conventions.chapter.md>
+阅读文档：[https://github.com/NixOS/nixpkgs/blob/master/doc/contributing/quick-start.chapter.md](<https://github.com/NixOS/nixpkgs/blob/master/doc/contributing/quick-start.chapter.md>) 和 [https://github.com/NixOS/nixpkgs/blob/master/doc/contributing/coding-conventions.chapter.md](<https://github.com/NixOS/nixpkgs/blob/master/doc/contributing/coding-conventions.chapter.md>)
 
 ## VSCode
 
-可以安装 <https://github.com/nix-community/vscode-nix-ide/> 插件，配合 `rnix-lsp` 来使用。
+可以安装 [https://github.com/nix-community/vscode-nix-ide/](<https://github.com/nix-community/vscode-nix-ide/>) 插件，配合 `rnix-lsp` 来使用。
 
 ## 杂项
 
-可以用 `nix copy` 命令在不同机器的 store 之间复制文件，见 [nix copy - copy paths between Nix stores](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-copy.html)。
+可以用 `nix copy` 命令在不同机器的 store 之间复制文件，见 [nix copy - copy paths between Nix stores](<https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-copy.html>)。

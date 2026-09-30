@@ -1,6 +1,6 @@
 # Tar 文件格式
 
-本文的内容已经整合到[知识库](/kb/software/tar.html)中。
+本文的内容已经整合到[知识库](</kb/software/tar.html>)中。
 
 ## 背景
 
@@ -37,7 +37,7 @@ struct posix_header
 };
 ```
 
-来源：[Basic Tar Format](https://www.gnu.org/software/tar/manual/html_node/Standard.html)
+来源：[Basic Tar Format](<https://www.gnu.org/software/tar/manual/html_node/Standard.html>)
 
 可以看到，就是一系列的 char 数组，里面的很多数字字段，例如 mode，uid 和 gid 等，都是用 ASCII 码写的。由于头部需要对齐到 512 字节，所以实际上后面还有 12 字节的 padding。
 
@@ -52,7 +52,7 @@ struct posix_header
 具体来说，PAX 扩展以特殊的文件形式存在。例如要记录一个名字很长的文件 `'X'*101`，实际上 Tar 中记录了两个文件：
 
 1. PaxHeader：特殊的 PAX 文件，不对应实际的文件
-1. `'X'*100`：文件名被截断，其他不变
+2. `'X'*100`：文件名被截断，其他不变
 
 这个 PaxHeader 在解压的时候，不会生成实际的文件。它的内容是一些键值对，例如：
 
@@ -62,7 +62,7 @@ struct posix_header
 
 格式是：`length key=value\n`，然后可以有多个这样的键值对。这样就可以解决 `posix_header` 里名字长度限制的问题：只要在 PaxHeader 文件里，保存一个 key 为 path，value 为实际名字的信息。那么 tar 在看到 PaxHeader 的时候，记录下来，再遇到下一个文件的时候，就知道要用 PaxHeader 中的 path，而不是保存在 `posix_header` 中的 `name[100]`。
 
-类似地，PaxHeader 还可以存很多其他 `posix_header` 中没有的信息，例如 `atime`、`ctime` 和 `uid` 等等。完整列表可以参考 [Extended header keywords](https://www.ibm.com/docs/en/zos/2.4.0?topic=descriptions-pax-interchange-portable-archives#r4paxsh__pxchk)。
+类似地，PaxHeader 还可以存很多其他 `posix_header` 中没有的信息，例如 `atime`、`ctime` 和 `uid` 等等。完整列表可以参考 [Extended header keywords](<https://www.ibm.com/docs/en/zos/2.4.0?topic=descriptions-pax-interchange-portable-archives#r4paxsh__pxchk>)。
 
 ## Bard
 
@@ -77,6 +77,7 @@ The tar format is a simple and efficient format for storing files. It is also a 
 Here is a more detailed description of the tar file format:
 
 - The header of a tar file is 512 bytes long. It contains the following information:
+
   - The name of the file
   - The size of the file
   - The permissions of the file

@@ -11,9 +11,9 @@
 使用 Ceph 做存储的方式：
 
 1. librados: 库
-1. radosgw: 对象存储 HTTP API
-1. rbd: 块存储
-1. cephfs: 文件系统
+2. radosgw: 对象存储 HTTP API
+3. rbd: 块存储
+4. cephfs: 文件系统
 
 ## 认证
 
@@ -287,7 +287,7 @@ ceph osd pool get noautoscale
 ceph osd pool autoscale-status
 ```
 
-如果没有显示，说明 autoscale 没有工作，可能的原因是，部分 pool 采用了指定 osd class 的 crush rule，例如指定了 hdd 盘，但是也有部分 pool 没有指定盘的类型，例如默认的 replicated_rule。这时候，把这些盘也设置成一个指定 osd class 的 crush rule 即可。
+如果没有显示，说明 autoscale 没有工作，可能的原因是，部分 pool 采用了指定 osd class 的 crush rule，例如指定了 hdd 盘，但是也有部分 pool 没有指定盘的类型，例如默认的 replicated\_rule。这时候，把这些盘也设置成一个指定 osd class 的 crush rule 即可。
 
 ## RBD
 
@@ -602,13 +602,12 @@ ceph orch ps
 
 在集群只有单机的时候，由于默认 MGR 每个 host 只能有一个，所以会导致无法升级。
 
-一种方法是在创建 cluster 的时候，传入 `--single-host-defaults` 参数，详见 [Single host deployment](https://github.com/ceph/ceph/blob/main/doc/cephadm/install.rst#single-host)
+一种方法是在创建 cluster 的时候，传入 `--single-host-defaults` 参数，详见 [Single host deployment](<https://github.com/ceph/ceph/blob/main/doc/cephadm/install.rst#single-host>)
 
 另一种方法是，动态修改 MGR 的 `mgr_standby_modules` 选项为 `false`：
 
 1. 运行 `ceph config set mgr mgr_standby_modules false`
-
-1. 创建一个 `mgr.yaml` 文件：
+2. 创建一个 `mgr.yaml` 文件：
 
    ````text
    ```yaml
@@ -618,14 +617,10 @@ ceph orch ps
      hosts:
        - YOUR_HOSTNAME_HERE
      count_per_host: 2
+   ```
    ````
-
-   ```
-   ```
-
-1. 告诉 cephadm，让它在 `YOUR_HOSTNAME_HERE` 机器上部署两个 MGR：`ceph orch apply -i mgr.yaml`
-
-1. 这样就成功了，可以用 `ceph orch ps` 确认有两个 MGR，这样就可以升级 ceph 了
+3. 告诉 cephadm，让它在 `YOUR_HOSTNAME_HERE` 机器上部署两个 MGR：`ceph orch apply -i mgr.yaml`
+4. 这样就成功了，可以用 `ceph orch ps` 确认有两个 MGR，这样就可以升级 ceph 了
 
 ## 更新
 
@@ -653,15 +648,15 @@ ceph -W cephadm
 
 ## 参考文档
 
-- [Ceph Architecture](https://docs.ceph.com/en/latest/architecture/)
-- [Ceph User Management](https://docs.ceph.com/en/latest/rados/operations/user-management/)
-- [Ceph Create a Ceph File System](https://docs.ceph.com/en/latest/cephfs/createfs/)
-- [mount.ceph](https://docs.ceph.com/en/latest/man/8/mount.ceph/)
-- [Ceph CephFS Quota](https://docs.ceph.com/en/latest/cephfs/quota/)
-- [Ceph Basic Block Device Commands](https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/)
-- [Ceph Upgrade](https://docs.ceph.com/en/quincy/cephadm/upgrade/)
-- [Ceph CephFS & RGW Exports Over NFS](https://docs.ceph.com/en/latest/mgr/nfs/)
-- [CRUSH Maps](https://docs.ceph.com/en/quincy/rados/operations/crush-map/)
-- [CRUSH Map Edits](https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/)
-- [ceph 架构和概念](https://llussy.github.io/2019/08/17/ceph-architecture/)
-- [RedHat Object Gateway Guide](https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw)
+- [Ceph Architecture](<https://docs.ceph.com/en/latest/architecture/>)
+- [Ceph User Management](<https://docs.ceph.com/en/latest/rados/operations/user-management/>)
+- [Ceph Create a Ceph File System](<https://docs.ceph.com/en/latest/cephfs/createfs/>)
+- [mount.ceph](<https://docs.ceph.com/en/latest/man/8/mount.ceph/>)
+- [Ceph CephFS Quota](<https://docs.ceph.com/en/latest/cephfs/quota/>)
+- [Ceph Basic Block Device Commands](<https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/>)
+- [Ceph Upgrade](<https://docs.ceph.com/en/quincy/cephadm/upgrade/>)
+- [Ceph CephFS &amp; RGW Exports Over NFS](<https://docs.ceph.com/en/latest/mgr/nfs/>)
+- [CRUSH Maps](<https://docs.ceph.com/en/quincy/rados/operations/crush-map/>)
+- [CRUSH Map Edits](<https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/>)
+- [ceph 架构和概念](<https://llussy.github.io/2019/08/17/ceph-architecture/>)
+- [RedHat Object Gateway Guide](<https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/5/html/object_gateway_guide/the-ceph-object-gateway_rgw>)

@@ -17,6 +17,6 @@ paths = /usr/bin, /usr/lib
 exectuables = /usr/bin/scp
 ```
 
-之后可以发现该用户的 shell 已经更改 jk_chrootsh，并且只能用 scp。
+之后可以发现该用户的 shell 已经更改 jk\_chrootsh，并且只能用 scp。
 
 参考：https://blog.tinned-software.net/restrict-linux-user-to-scp-to-his-home-directory/

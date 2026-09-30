@@ -4,7 +4,7 @@
 
 把应用迁移到 k3s 中，然后用了 traefik 作为 Ingress Controller，发现无法获得真实的用户 IP 地址，而是 cni 内部的地址。搜索了一番，找到了靠谱的解决方案：
 
-[Traefik Kubernetes Ingress and X-Forwarded-Headers](https://medium.com/@_jonas/traefik-kubernetes-ingresse-x-forwarded-headers-82194d319b0e)
+[Traefik Kubernetes Ingress and X-Forwarded-Headers](<https://medium.com/@_jonas/traefik-kubernetes-ingresse-x-forwarded-headers-82194d319b0e>)
 
 具体来说，需要给 traefik 传额外的参数，方法是在 k3s 的配置目录下，添加一个 HelmChartConfig：
 

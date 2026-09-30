@@ -4,7 +4,7 @@
 
 因为长时间不更新 Android Studio，回头一看，我的版本才 135.1339820，最新版本都 135.1626825 去了，我就萌生了更新的念头。。
 
-首先，我尝试调用 update_studio.sh。。。。。但是！！404 Not Found！！看来版本跨度太大无法打补丁了呢。。
+首先，我尝试调用 update\_studio.sh。。。。。但是！！404 Not Found！！看来版本跨度太大无法打补丁了呢。。
 
 那只好看看 https://dl.google.com/android/studio/patches/updates.xml 这个里面了，找到我的版本号：
 
@@ -52,7 +52,7 @@
 
 以后要想用 patch 升级，一定要尽快啊～
 
-吐槽一下 update_studio.sh 的编写人，我要改进一下他的脚本。。升不上去太挫了。。
+吐槽一下 update\_studio.sh 的编写人，我要改进一下他的脚本。。升不上去太挫了。。
 
 题外话：
 

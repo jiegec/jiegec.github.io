@@ -10,7 +10,7 @@
 
 编译中会找不到一些库，比如可能需要安装这些依赖：`liblemon-dev libeigen3-dev libreadline-dev swig`，此外运行的时候还需要 `klayout` 依赖。
 
-如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 [BUG](https://lemon.cs.elte.hu/trac/lemon/ticket/628)，可以运行下面的命令解决：
+如果遇到解决 cmake 找不到 LEMON 的问题，这是一个 [BUG](<https://lemon.cs.elte.hu/trac/lemon/ticket/628>)，可以运行下面的命令解决：
 
 ```shell
 cd /usr/lib/x86_64-linux-gnu/cmake/lemon
@@ -49,36 +49,41 @@ endmodule
 
 根据日志可以看到，从 verilog 到最终的 gds 文件，经过了这些步骤：
 
-1. 第一步用 yosys 综合（1_1_yosys），把 verilog 代码转化为网表，网表中的单元就是形如 `NAND2_X1` `DFF_X1` 等这样由工艺库定义的一些单元。
-1. 第二步进行 floorplan（2_1_floorplan），规划出芯片的大小，逻辑放在哪个位置，输入输出引脚放在什么位置（2_2_floorplan_io），还要考虑 SRAM 等宏或者 IP（2_4_mplace），电源网络 PDN（2_6_floorplan_pdn）
-1. 第三步是 Placement，就是把前面得到的一些 cell 放到芯片上的 (x,y) 坐标上
-1. 第四步是 Clock Tree Synthesis（4_1_cts），简称 CTS，生成时钟树
-1. 第五步是进行路由连线，OpenROAD 有两个路由：FastRoute（5_1_fastroute）和 TritonRoute（5_2_TritonRoute）
-1. 第六步输出结果到 gds 文件（6_1_merge）。
+1. 第一步用 yosys 综合（1\_1\_yosys），把 verilog 代码转化为网表，网表中的单元就是形如 `NAND2_X1` `DFF_X1` 等这样由工艺库定义的一些单元。
+2. 第二步进行 floorplan（2\_1\_floorplan），规划出芯片的大小，逻辑放在哪个位置，输入输出引脚放在什么位置（2\_2\_floorplan\_io），还要考虑 SRAM 等宏或者 IP（2\_4\_mplace），电源网络 PDN（2\_6\_floorplan\_pdn）
+3. 第三步是 Placement，就是把前面得到的一些 cell 放到芯片上的 (x,y) 坐标上
+4. 第四步是 Clock Tree Synthesis（4\_1\_cts），简称 CTS，生成时钟树
+5. 第五步是进行路由连线，OpenROAD 有两个路由：FastRoute（5\_1\_fastroute）和 TritonRoute（5\_2\_TritonRoute）
+6. 第六步输出结果到 gds 文件（6\_1\_merge）。
 
 这些步骤可以在仓库的 `flow/Makefile` 里面看得比较清晰，英文版摘抄如下：
 
 1. SYNTHESIS
+
    1. Run Synthesis using yosys
-1. FLOORPLAN
+2. FLOORPLAN
+
    1. Translate verilog to def
-   1. IO Placement (random)
-   1. Timing Driven Mixed Size Placement (tdms)
-   1. Macro Placement
-   1. Tapcell and Welltie insertion
-   1. PDN generation
-1. PLACE
+   2. IO Placement (random)
+   3. Timing Driven Mixed Size Placement (tdms)
+   4. Macro Placement
+   5. Tapcell and Welltie insertion
+   6. PDN generation
+3. PLACE
+
    1. Global placement without placed IOs, timing-driven, and routability-driven
-   1. IO placement (non-random)
-   1. Global placement with placed IOs, timing-driven, and routability-driven
-   1. Resizing & Buffering
-   1. Detail placement
-1. CTS(Clock Tree Synthesis)
+   2. IO placement (non-random)
+   3. Global placement with placed IOs, timing-driven, and routability-driven
+   4. Resizing &amp; Buffering
+   5. Detail placement
+4. CTS(Clock Tree Synthesis)
+
    1. Run TritonCTS
-   1. Filler cell insertion
-1. ROUTING
+   2. Filler cell insertion
+5. ROUTING
+
    1. Run global route (FastRoute)
-   1. Run detailed route (TritonRoute)
+   2. Run detailed route (TritonRoute)
 
 最后生成的 gds，用 KLayout 打开，可以看到这个样子：
 
@@ -95,11 +100,11 @@ endmodule
 ## 工艺库常见术语
 
 - slvt/lvt/rvt/hvt: super-low/low/regular/high V threshold 前者速度快：阈值电压低，同时漏电流大
-- ss/tt/ff: slow-slow/typical-typical/fast-fast 后者速度快：电压高，温度低，比如 SS（0.99V 125C）TT（1.10V 25C）FF（1.21V -40C）；有时候还会看到 ssg，可以理解为 ss 的比较精确的版本，因此没有那么悲观，延迟比 SS 低一些，详见 [STA | ssg 跟 ss corner 的区别——谬误更正版](https://cloud.tencent.com/developer/article/1598417)
+- ss/tt/ff: slow-slow/typical-typical/fast-fast 后者速度快：电压高，温度低，比如 SS（0.99V 125C）TT（1.10V 25C）FF（1.21V -40C）；有时候还会看到 ssg，可以理解为 ss 的比较精确的版本，因此没有那么悲观，延迟比 SS 低一些，详见 [STA | ssg 跟 ss corner 的区别——谬误更正版](<https://cloud.tencent.com/developer/article/1598417>)
 - c + 数字：表示的是 channel length，c40 表示 40nm，数字越大速度越慢，能耗越低
 - 数字+track：表示的是 track height，sc12 表示 12-track，数字越大速度越快
 
-ARM 的文档 [Choosing the physical IP libraries](https://developer.arm.com/documentation/102738/0100/Choosing-the-physical-IP-libraries) 描述了 Channel length, Track height, Voltage threshold 等不同的选择。
+ARM 的文档 [Choosing the physical IP libraries](<https://developer.arm.com/documentation/102738/0100/Choosing-the-physical-IP-libraries>) 描述了 Channel length, Track height, Voltage threshold 等不同的选择。
 
 综合来说，如果要更低的延迟，选择低 vt，小 c 和大 track，反之如果要更低的能耗，选择高 vt，大 c 和 小 track。
 
@@ -109,8 +114,8 @@ ARM 的文档 [Choosing the physical IP libraries](https://developer.arm.com/doc
 
 ## 参考文档
 
-- [GETTING STARTED WITH OPENROAD APP – PART 1](https://theopenroadproject.org/2019/12/11/getting-started-with-openroad-app-part-1/)
-- [Advanced ASIC Chip Synthesis Using Synopsys® Design Compiler™ Physical Compiler™ and PrimeTime®](https://link.springer.com/book/10.1007/b117024)
-- [Comparing NLDM And CCS delay models](https://www.paripath.com/blog/characterization-blog/comparing-nldm-and-ccs-delay-models)
-- [Introduction to Liberty : CCS, ECSM and NDLM](https://chitlesh.ch/wordpress/liberty-ccs-ecsm-or-ndlm/)
-- [STA 概念：一文了解 NLDM 与 CCS](https://blog.csdn.net/graymount/article/details/106010388)
+- [GETTING STARTED WITH OPENROAD APP – PART 1](<https://theopenroadproject.org/2019/12/11/getting-started-with-openroad-app-part-1/>)
+- [Advanced ASIC Chip Synthesis Using Synopsys® Design Compiler™ Physical Compiler™ and PrimeTime®](<https://link.springer.com/book/10.1007/b117024>)
+- [Comparing NLDM And CCS delay models](<https://www.paripath.com/blog/characterization-blog/comparing-nldm-and-ccs-delay-models>)
+- [Introduction to Liberty : CCS, ECSM and NDLM](<https://chitlesh.ch/wordpress/liberty-ccs-ecsm-or-ndlm/>)
+- [STA 概念：一文了解 NLDM 与 CCS](<https://blog.csdn.net/graymount/article/details/106010388>)

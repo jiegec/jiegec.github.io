@@ -26,13 +26,13 @@ $ python3 -m litex_boards.targets.alinx_ax7021 --build --uart-name jtag_uart
 
 ## OpenOCD 配置
 
-下一步是使用 litex_term 来连接 UART over JTAG。它的启动方式是：
+下一步是使用 litex\_term 来连接 UART over JTAG。它的启动方式是：
 
 ```shell
 $ litex_term --jtag-config alinx_ax7021.cfg jtag
 ```
 
-实现的原理是，litex_term 会启动一个 OpenOCD，让 OpenOCD 监听 20000 端口，然后虚拟串口的收发都会在 TCP 上进行。那么，首先第一步是要让 OpenOCD 找到 Zynq 中的 PL。首先可以找到 Zynq 的 OpenOCD 配置模板：
+实现的原理是，litex\_term 会启动一个 OpenOCD，让 OpenOCD 监听 20000 端口，然后虚拟串口的收发都会在 TCP 上进行。那么，首先第一步是要让 OpenOCD 找到 Zynq 中的 PL。首先可以找到 Zynq 的 OpenOCD 配置模板：
 
 ```tcl
 source [find interface/ftdi/digilent_jtag_smt2.cfg]
@@ -42,7 +42,7 @@ reset_config srst_only srst_push_pull
 source [find target/zynq_7000.cfg]
 ```
 
-这个模板可以找到 ARM 核和 FPGA PL 部分，但是因为名字和 litex_term 期望的不同，所以无法工作。去掉那些不需要的，只保留想要的 PL 部分的 JTAG 配置：
+这个模板可以找到 ARM 核和 FPGA PL 部分，但是因为名字和 litex\_term 期望的不同，所以无法工作。去掉那些不需要的，只保留想要的 PL 部分的 JTAG 配置：
 
 ```tcl
 source [find interface/ftdi/digilent_jtag_smt2.cfg]
@@ -69,7 +69,7 @@ jtag newtap zynq_pl bs -irlen 6 -ignore-version -ircapture 0x1 -irmask 0x03 \
 openocd -f alinx_ax7021.cfg -f stream.cfg -c "init; irscan zynq_pl.bs 2; jtagstream_serve zynq_pl.bs 20000"
 ```
 
-这里的 stream.cfg 是 litex_term 生成的，没有用 litex_term 启动是因为它写死了 tap 的名字，需要适配，不如直接绕过它去启动 OpenOCD，然后用 nc 连接：
+这里的 stream.cfg 是 litex\_term 生成的，没有用 litex\_term 启动是因为它写死了 tap 的名字，需要适配，不如直接绕过它去启动 OpenOCD，然后用 nc 连接：
 
 ```shell
 $ nc localhost 20000

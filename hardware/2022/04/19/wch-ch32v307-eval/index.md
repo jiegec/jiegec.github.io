@@ -2,21 +2,21 @@
 
 ## 背景
 
-之前有一天看到朋友在捣鼓 CH32V307，因此自己也萌生了试用 CH32V307 评估板的兴趣，于是在[沁恒官网申请样品](http://www.wch.cn/services/request_sample.html)，很快就接到电话了解情况，几天后就顺丰送到了，不过因为疫情原因直到现在才拿到手上，只能说疫情期间说不定货比人还快。
+之前有一天看到朋友在捣鼓 CH32V307，因此自己也萌生了试用 CH32V307 评估板的兴趣，于是在[沁恒官网申请样品](<http://www.wch.cn/services/request_sample.html>)，很快就接到电话了解情况，几天后就顺丰送到了，不过因为疫情原因直到现在才拿到手上，只能说疫情期间说不定货比人还快。
 
 ## 开箱
 
-收到的盒子里有一个 [CH32V307 评估板](http://special.wch.cn/zh_cn/RISCV_MCU_Index/)，和一个 [WCH-Link](http://www.wch.cn/products/WCH-Link.html)，相关资料可以在 [官网](http://www.wch.cn/products/CH32V307.html) 或者 [openwch/ch32v307](https://github.com/openwch/ch32v307) 下载。在说明书中有如下的图示：
+收到的盒子里有一个 [CH32V307 评估板](<http://special.wch.cn/zh_cn/RISCV_MCU_Index/>)，和一个 [WCH-Link](<http://www.wch.cn/products/WCH-Link.html>)，相关资料可以在 [官网](<http://www.wch.cn/products/CH32V307.html>) 或者 [openwch/ch32v307](<https://github.com/openwch/ch32v307>) 下载。在说明书中有如下的图示：
 
 板子自带的跳线帽不是很多，建议自备一些，或者用杜邦线替代。比较重要的是 WCH-Link 子板上 CH549 和 CH2V307 连接的几个信号，和下面 BOOT0/1 的选择。
 
 ## WCH-Link
 
-可以看到评估板自带了一个 WCH-Link，所以不需要附赠的那一个，直接把 11 号 Type-C 连接到电脑上即可。这里还遇到一个小插曲，用 Type-C to Type-C 的线连电脑上不工作，连 PWR LED 都点不亮，换一根 Type-A to Type-C 的就可以，没有继续研究是什么原因。电脑上可以看到 WCH-Link 的设备：VID=1a86, PID=8010。比较有意思的是，在 RISC-V 模式（CON 灯不亮）的时候 PID 是 8010，ARM 模式（CON 灯亮）的时候 PID 是 8011，从 RISC-V 模式切换到 ARM 模式的方法是连接 TX 和 GND 后上电，反过来要用 MounRiver，详见 WCH-Link 使用说明 [V1.0](http://www.wch.cn/uploads/file/20210707/1625645582172366.pdf) [V1.3](http://www.wch.cn/uploads/file/20210906/1630922260396691.pdf) 和原理图 [V1.1](http://www.wch.cn/uploads/file/20210104/1609725144187113.pdf)。
+可以看到评估板自带了一个 WCH-Link，所以不需要附赠的那一个，直接把 11 号 Type-C 连接到电脑上即可。这里还遇到一个小插曲，用 Type-C to Type-C 的线连电脑上不工作，连 PWR LED 都点不亮，换一根 Type-A to Type-C 的就可以，没有继续研究是什么原因。电脑上可以看到 WCH-Link 的设备：VID=1a86, PID=8010。比较有意思的是，在 RISC-V 模式（CON 灯不亮）的时候 PID 是 8010，ARM 模式（CON 灯亮）的时候 PID 是 8011，从 RISC-V 模式切换到 ARM 模式的方法是连接 TX 和 GND 后上电，反过来要用 MounRiver，详见 WCH-Link 使用说明 [V1.0](<http://www.wch.cn/uploads/file/20210707/1625645582172366.pdf>) [V1.3](<http://www.wch.cn/uploads/file/20210906/1630922260396691.pdf>) 和原理图 [V1.1](<http://www.wch.cn/uploads/file/20210104/1609725144187113.pdf>)。
 
 给沁恒开源 WCH-Link 原理图并开放固件点个赞，在淘宝上也可以看到不少 WCH-Link 的仿真器，挺有意思的。
 
-在 ARM 模式下，它实现了类似 [CMSIS-DAP](https://www.keil.com/support/man/docs/dapdebug/dapdebug_introduction.htm) 的协议，可以用 OpenOCD 调试：
+在 ARM 模式下，它实现了类似 [CMSIS-DAP](<https://www.keil.com/support/man/docs/dapdebug/dapdebug_introduction.htm>) 的协议，可以用 OpenOCD 调试：
 
 ```tcl
 source [find interface/cmsis-dap.cfg]
@@ -49,10 +49,10 @@ Info : Listening on port 4444 for telnet connections
 
 ## OpenOCD
 
-目前开源工具上游还不支持 CH32V307 的开发，需要用 [MounRiver](http://www.mounriver.com/download)，支持 Windows 和 Linux，有两部分：
+目前开源工具上游还不支持 CH32V307 的开发，需要用 [MounRiver](<http://www.mounriver.com/download>)，支持 Windows 和 Linux，有两部分：
 
-- [MRS_Toolchain_Linux_x64_V1.40.tar.xz](http://file.mounriver.com/tools/MRS_Toolchain_Linux_x64_V1.40.tar.xz): RISC-V GNU Toolchain 和 OpenOCD
-- [MounRiver_Studio_Community_Linux_V110](http://file.mounriver.com/upgrade/MounRiver_Studio_Community_Linux_x64_V110.tar.xz)：基于 Eclipse 做的 IDE
+- [MRS\_Toolchain\_Linux\_x64\_V1.40.tar.xz](<http://file.mounriver.com/tools/MRS_Toolchain_Linux_x64_V1.40.tar.xz>): RISC-V GNU Toolchain 和 OpenOCD
+- [MounRiver\_Studio\_Community\_Linux\_V110](<http://file.mounriver.com/upgrade/MounRiver_Studio_Community_Linux_x64_V110.tar.xz>)：基于 Eclipse 做的 IDE
 
 解压缩后，可以看到它的 OpenOCD 配置：
 
@@ -81,9 +81,9 @@ echo "Ready for Remote Connections"
 
 其中 ch32f1x.cfg 就是 stm32f1x.cfg 改了一下名字，可以看到 WCH OpenOCD 把它的 RISC-V 调试协议称为 wlink，估计是取 wch-link 的简称吧。除了 wlink 部分，其他就是正常的 RISC-V CPU 调试的 OpenOCD 配置，比较有意思的就是 IDCODE 设为了 0x00001，比较有个性。
 
-在网上一番搜索，找到了 WCH OpenOCD 的源码 [Embedded_Projects/riscv-openocd-wch](https://git.minori.work/Embedded_Projects/riscv-openocd-wch)，是网友向沁恒获取的源代码，毕竟 OpenOCD 是 GPL 软件。简单看了一下代码，是直接把 RISC-V Debug 中的 DMI 操作封装了一下，然后通过 USB Bulk 和 WCH-Link 通信。我从 riscv-openocd 找到了一个比较接近的 [commit](https://github.com/jiegec/riscv-openocd/commit/cc0ecfb6d5b939bd109ea84b07b5eab3cdf80316)，然后把 WCH 的代码提交上去，得到了 [diff](https://github.com/jiegec/riscv-openocd/commit/bfa3bc7f98d22fa60ef6d3b2f5d98859fa963f85)，有兴趣的可以看看具体实现，甚至把这个支持提交到上游。
+在网上一番搜索，找到了 WCH OpenOCD 的源码 [Embedded\_Projects/riscv-openocd-wch](<https://git.minori.work/Embedded_Projects/riscv-openocd-wch>)，是网友向沁恒获取的源代码，毕竟 OpenOCD 是 GPL 软件。简单看了一下代码，是直接把 RISC-V Debug 中的 DMI 操作封装了一下，然后通过 USB Bulk 和 WCH-Link 通信。我从 riscv-openocd 找到了一个比较接近的 [commit](<https://github.com/jiegec/riscv-openocd/commit/cc0ecfb6d5b939bd109ea84b07b5eab3cdf80316>)，然后把 WCH 的代码提交上去，得到了 [diff](<https://github.com/jiegec/riscv-openocd/commit/bfa3bc7f98d22fa60ef6d3b2f5d98859fa963f85>)，有兴趣的可以看看具体实现，甚至把这个支持提交到上游。
 
-有源码以后，就可以在 macOS 上编译了（需要修复三处 clang 报告的编译错误，[最终代码](https://github.com/jiegec/riscv-openocd/tree/wch)）：
+有源码以后，就可以在 macOS 上编译了（需要修复三处 clang 报告的编译错误，[最终代码](<https://github.com/jiegec/riscv-openocd/tree/wch>)）：
 
 ```shell
 $ ./bootstrap
@@ -142,7 +142,7 @@ SystemClk:72000000
 
 ## Baremetal 代码
 
-接下来看看沁恒提供的代码是如何配置的。在 EVT/EXAM/SRC/Startup/startup_ch32v30x_D8C.S 可以看到初始化的汇编代码。比较有意思的是，这个核心扩展了 mtvec，支持 ARM 的 vector table 模式，即放一个指针数组，而不是指令：
+接下来看看沁恒提供的代码是如何配置的。在 EVT/EXAM/SRC/Startup/startup\_ch32v30x\_D8C.S 可以看到初始化的汇编代码。比较有意思的是，这个核心扩展了 mtvec，支持 ARM 的 vector table 模式，即放一个指针数组，而不是指令：
 
 ```asm
     .section    .vector,"ax",@progbits
@@ -221,11 +221,11 @@ handle_reset:
     mret
 ```
 
-这里有一些自定义的 csr，比如 corecfgr(0xbc0)，intsyscr(0x804，设置了 HWSTKEN=1, INESTEN=1, PMTCFG=0b11, HWSTKOVEN=1)，具体参考 [QingKeV4_Processor_Manual](http://www.wch.cn/downloads/QingKeV4_Processor_Manual_PDF.html)。接着代码往 0x1ffff1b0 写入 0x300，然后不断读取 FLASH Interface (0x40022000) 的 STATR 字段，没有找到代码中相关的定义，简单猜测与 Flash 的零等待/非零等待区有关，因为后续代码要提高频率，因此 Flash 控制器需要增加 wait state。
+这里有一些自定义的 csr，比如 corecfgr(0xbc0)，intsyscr(0x804，设置了 HWSTKEN=1, INESTEN=1, PMTCFG=0b11, HWSTKOVEN=1)，具体参考 [QingKeV4\_Processor\_Manual](<http://www.wch.cn/downloads/QingKeV4_Processor_Manual_PDF.html>)。接着代码往 0x1ffff1b0 写入 0x300，然后不断读取 FLASH Interface (0x40022000) 的 STATR 字段，没有找到代码中相关的定义，简单猜测与 Flash 的零等待/非零等待区有关，因为后续代码要提高频率，因此 Flash 控制器需要增加 wait state。
 
 ## 编译
 
-可以用 MounRiver 编译，也可以用 SiFive 的 riscv64-unknown-elf 工具链进行编译，参考 [Embedded_Projects/CH32V307_Template](https://git.minori.work/Embedded_Projects/CH32V307_Template) 项目中的编译方式，修改 `riscv64-elf.cmake` 为：
+可以用 MounRiver 编译，也可以用 SiFive 的 riscv64-unknown-elf 工具链进行编译，参考 [Embedded\_Projects/CH32V307\_Template](<https://git.minori.work/Embedded_Projects/CH32V307_Template>) 项目中的编译方式，修改 `riscv64-elf.cmake` 为：
 
 ```cmake
 set(CMAKE_SYSTEM_NAME Generic)
@@ -341,5 +341,5 @@ Info : Verify Success
 
 本文已授权转发到以下的地址：
 
-- [公众号 物联网小生 试用沁恒 CH32V307 评估板](https://mp.weixin.qq.com/s/wJ0X8qdIWRxavGo9N37QSg)
-- [语雀 硬件知识库 试用沁恒 CH32V307 评估板](https://www.yuque.com/zsafly/lfxyfc/zseeyx)
+- [公众号 物联网小生 试用沁恒 CH32V307 评估板](<https://mp.weixin.qq.com/s/wJ0X8qdIWRxavGo9N37QSg>)
+- [语雀 硬件知识库 试用沁恒 CH32V307 评估板](<https://www.yuque.com/zsafly/lfxyfc/zseeyx>)

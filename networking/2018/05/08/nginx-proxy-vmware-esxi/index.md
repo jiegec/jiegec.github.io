@@ -80,7 +80,7 @@ server {
 
 20:02 更新：现在做了 WebSocket 转发，目前可以在浏览器中打开 Web Console 了。但是，在访问 https://esxi.example.org/ 的时候还是会出现一些问题，然而 https://esxi.example.org:8443/ 是好的。
 
-转发 WebSocket，参考 [WebSocket proxying](http://nginx.org/en/docs/http/websocket.html)：
+转发 WebSocket，参考 [WebSocket proxying](<http://nginx.org/en/docs/http/websocket.html>)：
 
 ```bash
 map $http_upgrade $connection_upgrade {

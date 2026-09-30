@@ -1,8 +1,8 @@
 # 通过 Ipfilter Extension 实现 RFC8367
 
-前几天无聊闲逛看到了一个很有趣的 [RFC8367 - Wrongful Termination of Internet Protocol (IP) Packets](https://tools.ietf.org/html/rfc8367) ，看到日期大家应该都懂了，这是个粥客，不过里面还是反映了一些事情，咳。
+前几天无聊闲逛看到了一个很有趣的 [RFC8367 - Wrongful Termination of Internet Protocol (IP) Packets](<https://tools.ietf.org/html/rfc8367>) ，看到日期大家应该都懂了，这是个粥客，不过里面还是反映了一些事情，咳。
 
-之前看到闪客实现了 [shankerwangmiao/xt_PROTO](https://github.com/shankerwangmiao/xt_PROTO) ，想到自己也可以做一个 iptables 扩展，于是就写了 [jiegec/xt_EQUALIZE](https://github.com/jiegec/xt_EQUALIZE) 。它是这样使用的：
+之前看到闪客实现了 [shankerwangmiao/xt\_PROTO](<https://github.com/shankerwangmiao/xt_PROTO>) ，想到自己也可以做一个 iptables 扩展，于是就写了 [jiegec/xt\_EQUALIZE](<https://github.com/jiegec/xt_EQUALIZE>) 。它是这样使用的：
 
 ```shell
 $ git clone git@github.com:jiegec/xt_EQUALIZE.git

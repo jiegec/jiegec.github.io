@@ -2,7 +2,7 @@
 
 ## 背景
 
-最近看到 [Windows Subsystem for Linux September 2023 update](https://devblogs.microsoft.com/commandline/windows-subsystem-for-linux-september-2023-update/) 声称 WSL2 最新的预览版本支持让 Linux 和 Windows 一定程度上共享网络地址空间，就像 WSL1 那样：
+最近看到 [Windows Subsystem for Linux September 2023 update](<https://devblogs.microsoft.com/commandline/windows-subsystem-for-linux-september-2023-update/>) 声称 WSL2 最新的预览版本支持让 Linux 和 Windows 一定程度上共享网络地址空间，就像 WSL1 那样：
 
 - IPv6 support
 - Connect to Windows servers from within Linux using the localhost address 127.0.0.1
@@ -16,7 +16,7 @@
 
 WSL1 实现的是 proxy kernel 模式，虽然跑的是 linux 程序，但其实还是 windows 内核，中间包了一层 syscall 的转换，没有开一个虚拟机。这个套路和 MinGW/Cygwin 类似，只不过是在不同层次上做的 syscall 转换。
 
-WSL2 则是回归传统的虚拟机模式，基于 Hyper-V 开了虚拟机，然后做了比较多的集成，尽量保证和原来 WSL1 的功能一致。但此时就是两个分立的系统了，在虚拟机里跑一份 Linux 内核，这个内核有微软自己的一些修改，可以在 [microsoft/WSL2-Linux-Kernel](https://github.com/microsoft/WSL2-Linux-Kernel) 里看到。除此之外，我们看不到 bootloader，虚拟机启动的流程都被隐藏起来了，所以这里就有很多可以做骚操作的地方了，例如植入一些程序，提前做一些配置等等。
+WSL2 则是回归传统的虚拟机模式，基于 Hyper-V 开了虚拟机，然后做了比较多的集成，尽量保证和原来 WSL1 的功能一致。但此时就是两个分立的系统了，在虚拟机里跑一份 Linux 内核，这个内核有微软自己的一些修改，可以在 [microsoft/WSL2-Linux-Kernel](<https://github.com/microsoft/WSL2-Linux-Kernel>) 里看到。除此之外，我们看不到 bootloader，虚拟机启动的流程都被隐藏起来了，所以这里就有很多可以做骚操作的地方了，例如植入一些程序，提前做一些配置等等。
 
 下面尝试探究 WSL2 的一些功能背后的原理。
 
@@ -74,7 +74,7 @@ root         7  0.0  0.0   2332   112 ?        Ss   23:20   0:00 /init
 root         8  0.0  0.0   2348   116 ?        S    23:20   0:00 /init
 ```
 
-WSL2 可以打开 systemd，见 [Advanced settings configuration in WS](https://learn.microsoft.com/en-us/windows/wsl/wsl-config)，此时 PID 1 是 systemd，而 PID 2 还有其他几个进程就是 `/init`：可以猜测，启动过程中，首先启动还是的 `/init`，然后 PID 1 的 `/init` 调用 `exec` 切换到 systemd PID 1，其余进程继续执行。
+WSL2 可以打开 systemd，见 [Advanced settings configuration in WS](<https://learn.microsoft.com/en-us/windows/wsl/wsl-config>)，此时 PID 1 是 systemd，而 PID 2 还有其他几个进程就是 `/init`：可以猜测，启动过程中，首先启动还是的 `/init`，然后 PID 1 的 `/init` 调用 `exec` 切换到 systemd PID 1，其余进程继续执行。
 
 ### kernel 和 initramfs
 
@@ -84,7 +84,7 @@ WSL2 可以打开 systemd，见 [Advanced settings configuration in WS](https://
 initrd=\initrd.img WSL_ROOT_INIT=1 panic=-1 nr_cpus=8 bonding.max_bonds=0 dummy.numdummies=0 fb_tunnels=none swiotlb=force console=hvc0 debug pty.legacy_count=0
 ```
 
-这个 `initrd.img` 可以在 `C:\Windows\System32\lxss\tools` 下面找到，也可以从 [WSL 安装包](https://github.com/microsoft/WSL/releases/download/1.2.5/Microsoft.WSL_1.2.5.0_x64_ARM64.msixbundle) 中解包出来。进一步可以发现 `initrd.img` 内部只有一个 `/init` 文件：
+这个 `initrd.img` 可以在 `C:\Windows\System32\lxss\tools` 下面找到，也可以从 [WSL 安装包](<https://github.com/microsoft/WSL/releases/download/1.2.5/Microsoft.WSL_1.2.5.0_x64_ARM64.msixbundle>) 中解包出来。进一步可以发现 `initrd.img` 内部只有一个 `/init` 文件：
 
 ```shell
 $ cpio -itv < initrd.img
@@ -168,7 +168,7 @@ DnsTunnelingManager::DnsTunnelingManager - using DNS server IP %s
 
 ### kernel
 
-在内核方面，WSL2 打了一些自己的 [patch](https://github.com/microsoft/WSL2-Linux-Kernel/commits/linux-msft-wsl-5.15.y)，涵盖的范围有：
+在内核方面，WSL2 打了一些自己的 [patch](<https://github.com/microsoft/WSL2-Linux-Kernel/commits/linux-msft-wsl-5.15.y>)，涵盖的范围有：
 
 - 内存相关：memory-reclaim，page-reporting
 - WSLg 相关：Hyper-V vGPU
@@ -202,7 +202,7 @@ none on /tmp/.X11-unix type tmpfs (ro,relatime)
 
 ### system.vhd
 
-在 WSL2 安装包中，可以看到一个 `system.vhd` 文件，里面是一个 ext2 的 rootfs，解开以后，会看到是 [CBL-Mariner](https://github.com/microsoft/CBL-Mariner) 的发行版：
+在 WSL2 安装包中，可以看到一个 `system.vhd` 文件，里面是一个 ext2 的 rootfs，解开以后，会看到是 [CBL-Mariner](<https://github.com/microsoft/CBL-Mariner>) 的发行版：
 
 ```shell
 DISTRIB_ID="Mariner"
@@ -244,6 +244,6 @@ wsl --system
 
 就可以看到它里面确实跑了一个 Xwayland，并且和 WSL2 Linux 拥有同样的 IP 地址：这说明它们共享了同一个 network namespace，但其他是独立的，甚至你还可以在 CBL-Mariner 看到你在 WSL2 Linux 里面的进程，就好像你运行了一个 `docker run --net=host` 的容器一样。
 
-关于 WSL2 System Distro 的讨论，推荐阅读：<https://unix.stackexchange.com/a/732459/144358>，你甚至可以自己构建一个：[Building the WSLg System Distro](https://github.com/microsoft/WSLG/blob/main/CONTRIBUTING.md#building-the-wslg-system-distro)，并且替换掉自带的 WSLg System Distro。
+关于 WSL2 System Distro 的讨论，推荐阅读：[https://unix.stackexchange.com/a/732459/144358](<https://unix.stackexchange.com/a/732459/144358>)，你甚至可以自己构建一个：[Building the WSLg System Distro](<https://github.com/microsoft/WSLG/blob/main/CONTRIBUTING.md#building-the-wslg-system-distro>)，并且替换掉自带的 WSLg System Distro。
 
 注：根据评论区 Pierre J 提醒，除了 System Distro，外面还有一层 CBL-Mariner，通过 `wsl --debug-shell` 可以进入，这真的是容器套娃了。

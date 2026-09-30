@@ -6,11 +6,11 @@
 
 ## FreeBSD
 
-文档参考：<https://docs.freebsd.org/en/books/handbook>
+文档参考：[https://docs.freebsd.org/en/books/handbook](<https://docs.freebsd.org/en/books/handbook>)
 
 ### 安装
 
-在 <https://www.freebsd.org/where/> 找到最新版下载，对于虚拟机的需求，用 `-disk1.iso`，1 GB 左右。安装过程按照 UI 一步步走即可。
+在 [https://www.freebsd.org/where/](<https://www.freebsd.org/where/>) 找到最新版下载，对于虚拟机的需求，用 `-disk1.iso`，1 GB 左右。安装过程按照 UI 一步步走即可。
 
 或者直接用官方的 qcow2 image 启动（用户名 root，无密码）：
 
@@ -133,7 +133,7 @@ service sshd start
 
 ### 换源
 
-USTC <https://mirrors.ustc.edu.cn/help/freebsd-pkg.html>:
+USTC [https://mirrors.ustc.edu.cn/help/freebsd-pkg.html](<https://mirrors.ustc.edu.cn/help/freebsd-pkg.html>):
 
 ```shell
 mkdir -p /usr/local/etc/pkg/repos/
@@ -148,7 +148,7 @@ truss 相当于 Linux 中的 strace。
 
 ### 编译内核
 
-文档：<https://docs.freebsd.org/en/books/handbook/kernelconfig/>
+文档：[https://docs.freebsd.org/en/books/handbook/kernelconfig/](<https://docs.freebsd.org/en/books/handbook/kernelconfig/>)
 
 首先下载内核源码，然后创建内核配置：
 
@@ -165,7 +165,7 @@ make buildkernel KERNCONF=MYKERNEL
 make installkernel KERNCONF=MYKERNEL
 ```
 
-提交 patch：<https://wiki.freebsd.org/Phabricator>
+提交 patch：[https://wiki.freebsd.org/Phabricator](<https://wiki.freebsd.org/Phabricator>)
 
 ### 关机
 
@@ -189,7 +189,7 @@ qemu-system-x86_64 -accel kvm -m 8G -smp 4 -drive file=netbsd-10.1.qcow2,format=
 
 ### 包管理
 
-参考：<https://www.netbsd.org/docs/pkgsrc/using.html>
+参考：[https://www.netbsd.org/docs/pkgsrc/using.html](<https://www.netbsd.org/docs/pkgsrc/using.html>)
 
 使用 pkgin 做二进制包的包管理，首先安装 pkgin：
 
@@ -249,13 +249,13 @@ make
 - `route`：修改路由表
 - `ifconfig`：配置网络接口
 
-但是 `/etc/rc.conf` 的配置语法不同，见 `man rc.conf` 和 <https://www.netbsd.org/docs/network/#configuration_files>。
+但是 `/etc/rc.conf` 的配置语法不同，见 `man rc.conf` 和 [https://www.netbsd.org/docs/network/\#configuration\_files](<https://www.netbsd.org/docs/network/#configuration_files>)。
 
 DHCP：向 `/etc/rc.conf` 添加一行 `dhcpcd=yes`。如果不要 IPv6，添加 `dhcpcd_flags="-4"`。
 
 ### 升级
 
-参考 <https://www.netbsd.org/docs/guide/en/chap-upgrading.html>
+参考 [https://www.netbsd.org/docs/guide/en/chap-upgrading.html](<https://www.netbsd.org/docs/guide/en/chap-upgrading.html>)
 
 使用 sysupgrade 命令升级：
 
@@ -266,7 +266,7 @@ sysupgrade auto https://cdn.NetBSD.org/pub/NetBSD/NetBSD-9.3/amd64
 
 ### 安装内核源码
 
-内核源码可以从 <https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-9.3/source/sets/> 下载。对于 lsof 只需要其中的 syssrc.tgz。
+内核源码可以从 [https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-9.3/source/sets/](<https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-9.3/source/sets/>) 下载。对于 lsof 只需要其中的 syssrc.tgz。
 
 解压：
 
@@ -278,13 +278,13 @@ tar -xzf syssrc.tgz -C /
 
 ### 安装
 
-文档：<https://www.openbsd.org/faq/faq4.html>
+文档：[https://www.openbsd.org/faq/faq4.html](<https://www.openbsd.org/faq/faq4.html>)
 
-下载 <https://mirrors.tuna.tsinghua.edu.cn/OpenBSD/7.2/amd64/install72.iso>，然后按照 UI 提示进行安装。使用 virt-manager 安装 OpenBSD 虚拟机的时候，在安装界面会遇到无法输入的问题，可以创建一个 USB Keyboard 来解决。
+下载 [https://mirrors.tuna.tsinghua.edu.cn/OpenBSD/7.2/amd64/install72.iso](<https://mirrors.tuna.tsinghua.edu.cn/OpenBSD/7.2/amd64/install72.iso>)，然后按照 UI 提示进行安装。使用 virt-manager 安装 OpenBSD 虚拟机的时候，在安装界面会遇到无法输入的问题，可以创建一个 USB Keyboard 来解决。
 
 ### 包管理
 
-文档：<https://www.openbsdhandbook.com/package_management/>
+文档：[https://www.openbsdhandbook.com/package\_management/](<https://www.openbsdhandbook.com/package_management/>)
 
 常用命令：
 
@@ -309,7 +309,7 @@ tar xzf /path/to/ports.tar.gz
 
 ### 系统升级
 
-参考：<https://www.openbsdhandbook.com/system_management/updates/>
+参考：[https://www.openbsdhandbook.com/system\_management/updates/](<https://www.openbsdhandbook.com/system_management/updates/>)
 
 ```shell
 syspatch -c
@@ -327,7 +327,7 @@ export AUTOMAKE_VERSION=1.16
 
 ### 获取内核源码
 
-文档：<https://www.openbsd.org/faq/faq5.html>
+文档：[https://www.openbsd.org/faq/faq5.html](<https://www.openbsd.org/faq/faq5.html>)
 
 命令：
 
@@ -348,7 +348,7 @@ ktrace 相当于 Linux 中的 strace。结果会保存在文件中，用 kdump �
 
 ### 安装
 
-下载 ISO 文件：<https://mirror-master.dragonflybsd.org/iso-images/dfly-x86_64-6.4.0_REL.iso>
+下载 ISO 文件：[https://mirror-master.dragonflybsd.org/iso-images/dfly-x86\_64-6.4.0\_REL.iso](<https://mirror-master.dragonflybsd.org/iso-images/dfly-x86_64-6.4.0_REL.iso>)
 
 用 installer 用户登录开始安装。
 
@@ -378,4 +378,4 @@ pkg upgrade
 pkg install sudo vim fish
 ```
 
-也可以从源码编译，见 <https://www.dragonflybsd.org/docs/howtos/HowToDPorts/>
+也可以从源码编译，见 [https://www.dragonflybsd.org/docs/howtos/HowToDPorts/](<https://www.dragonflybsd.org/docs/howtos/HowToDPorts/>)

@@ -2,7 +2,7 @@
 
 ## 背景
 
-今年的龙芯杯又开始报名了，我来写一篇关于协同仿真（cosim）的博客蹭蹭热度。下面的内容参考了一些已有的协同仿真的框架，例如 [ibex co-sim](https://ibex-core.readthedocs.io/en/latest/03_reference/cosim.html) 和 [OpenXiangShan/difftest](https://github.com/OpenXiangShan/difftest)。
+今年的龙芯杯又开始报名了，我来写一篇关于协同仿真（cosim）的博客蹭蹭热度。下面的内容参考了一些已有的协同仿真的框架，例如 [ibex co-sim](<https://ibex-core.readthedocs.io/en/latest/03_reference/cosim.html>) 和 [OpenXiangShan/difftest](<https://github.com/OpenXiangShan/difftest>)。
 
 ## 协同仿真
 
@@ -13,13 +13,13 @@ cosim 是怎么工作的呢？模拟器是软件实现的，它原子地执行�
 整体的工作流程如下：
 
 1. 选择一个模拟器，自己写或者使用一个现成的。考虑到模拟器实现的功能和 CPU 不一定一致，有时候需要修改模拟器的源码，所以可以考虑使用一些现成的开源软件，如果是为了 cosim 设计的就更好了。
-1. 找到模拟器的单步执行接口，并且让模拟器可以把内部状态暴露出来。这一步可能需要修改源代码。
-1. 修改 RTL，把指令的提交信息、寄存器堆的内容通过一些方法传递出来。
-1. 修改仿真顶层，每当指令提交的时候，单步执行模拟器，然后比对双方的状态。
+2. 找到模拟器的单步执行接口，并且让模拟器可以把内部状态暴露出来。这一步可能需要修改源代码。
+3. 修改 RTL，把指令的提交信息、寄存器堆的内容通过一些方法传递出来。
+4. 修改仿真顶层，每当指令提交的时候，单步执行模拟器，然后比对双方的状态。
 
 ## 模拟器
 
-选择模拟器，要根据你所实现的指令集来选择。下面以 Spike 为例，用来和 RISC-V CPU 进行协同仿真。spike 实现了比较完整的 RISC-V 指令集，并且以库的形式提供了它的 API，但还需要一些修改，让它更加适合协同仿真。这一部分参考了 [ibex co-sim](https://ibex-core.readthedocs.io/en/latest/03_reference/cosim.html)的文档。
+选择模拟器，要根据你所实现的指令集来选择。下面以 Spike 为例，用来和 RISC-V CPU 进行协同仿真。spike 实现了比较完整的 RISC-V 指令集，并且以库的形式提供了它的 API，但还需要一些修改，让它更加适合协同仿真。这一部分参考了 [ibex co-sim](<https://ibex-core.readthedocs.io/en/latest/03_reference/cosim.html>)的文档。
 
 首先，spike 提供了 step 函数，就是我们想要的单步执行。但是，spike 的 step 在遇到异常或者中断的时候也会返回，但实际上在处理器一侧，通常异常是单独处理的，所以这时候就要修改 spike 的 step 函数，如果遇到异常了，继续执行，直到执行了一条指令为止。与此同时，spike 没有记录最后一次执行的指令的 pc，只记录了下一个 PC，那么在发生异常的时候，就不会记录异常处理的第一条指令的 PC，这里也要进行针对性的修改。
 
@@ -36,8 +36,8 @@ advance_pc();
 接下来，需要修改处理器，让它可以汇报每个周期完成执行的指令情况，具体的格式因实现而异，最后都需要把这些信息暴露给仿真顶层，可能的方法有：
 
 1. 通过多级的 module output 一路传到顶层，最终是顶层模块的输出信号。这种方法改动比较大，而且麻烦。
-1. 通过 DPI 函数，每个周期调用一次，把信息通过 DPI 的参数传递给 C 函数。这种方法比较推荐。
-1. 通过仿真器的功能，例如 verilator 可以通过添加注释的方法，把信号暴露出去。
+2. 通过 DPI 函数，每个周期调用一次，把信息通过 DPI 的参数传递给 C 函数。这种方法比较推荐。
+3. 通过仿真器的功能，例如 verilator 可以通过添加注释的方法，把信号暴露出去。
 
 仿真顶层拿到信息以后，就可以进行 cosim 了：CPU 执行一条指令，就让模拟器也 step 一步，然后比较二者的状态。状态怎么比对呢？常见的有通用寄存器，RISC-V 的 CSR。既可以通过记录寄存器堆的写入来比对，又可以直接把整个寄存器堆的内容导出来比对。实际上这些部分的性能影响都是很小的。
 
@@ -85,21 +85,21 @@ ChatGPT:
 Co-simulation with Spike can be a great way to verify your RISC-V processor design. Here's a high-level overview of the process:
 
 1. Write a testbench: You'll need to create a testbench that can generate inputs to your processor and check the outputs. This testbench can be written in any language you prefer, but most people use a hardware description language like Verilog or VHDL.
-1. Connect your processor to Spike: To run a co-simulation with Spike, you'll need to connect your processor design to Spike using a TLM (transaction-level modeling) interface. Spike has a built-in TLM interface called the "Spike External Debug Interface" (S-EDI) that you can use.
+2. Connect your processor to Spike: To run a co-simulation with Spike, you'll need to connect your processor design to Spike using a TLM (transaction-level modeling) interface. Spike has a built-in TLM interface called the "Spike External Debug Interface" (S-EDI) that you can use.
 
 注：查不到 Spike External Debug Interface
 
 1. Configure the co-simulation: You'll need to configure the co-simulation by specifying the parameters of your processor design and Spike, such as the clock frequency and the reset signal.
-1. Run the simulation: Once your testbench is written, your processor is connected to Spike, and the co-simulation is configured, you can run the simulation. Your testbench will generate inputs to your processor, which will be processed by Spike and your processor design. The output of your processor will be checked by your testbench to verify that it's correct.
-1. Debug any issues: If you encounter any issues during the simulation, you'll need to debug them. This can involve looking at waveforms or logs to understand where things went wrong.
+2. Run the simulation: Once your testbench is written, your processor is connected to Spike, and the co-simulation is configured, you can run the simulation. Your testbench will generate inputs to your processor, which will be processed by Spike and your processor design. The output of your processor will be checked by your testbench to verify that it's correct.
+3. Debug any issues: If you encounter any issues during the simulation, you'll need to debug them. This can involve looking at waveforms or logs to understand where things went wrong.
 
 Here are some more detailed steps to follow:
 
 1. Write your testbench in Verilog or VHDL. Your testbench should be able to generate inputs to your processor design and check the outputs. You can use any verification methodology you prefer, such as directed tests or random tests.
-1. Connect your processor design to Spike using the S-EDI interface. The S-EDI interface is a TLM interface that allows Spike to communicate with your processor design. You'll need to instantiate the S-EDI module in your testbench and connect it to your processor design. You can find more information about the S-EDI interface in the Spike documentation.
-1. Configure the co-simulation. You'll need to specify the clock frequency and reset signal for your processor design and Spike. You may also need to specify other parameters, such as the memory map for your processor design.
-1. Run the simulation. Once your testbench is written, your processor is connected to Spike, and the co-simulation is configured, you can run the simulation. You can use a simulator like ModelSim or QuestaSim to run the simulation.
-1. Debug any issues. If you encounter any issues during the simulation, you'll need to debug them. You can use the waveform viewer in your simulator to understand what's happening in your design. You can also use the Spike debugger to debug your processor design. The Spike debugger allows you to step through your code and examine the processor state.
+2. Connect your processor design to Spike using the S-EDI interface. The S-EDI interface is a TLM interface that allows Spike to communicate with your processor design. You'll need to instantiate the S-EDI module in your testbench and connect it to your processor design. You can find more information about the S-EDI interface in the Spike documentation.
+3. Configure the co-simulation. You'll need to specify the clock frequency and reset signal for your processor design and Spike. You may also need to specify other parameters, such as the memory map for your processor design.
+4. Run the simulation. Once your testbench is written, your processor is connected to Spike, and the co-simulation is configured, you can run the simulation. You can use a simulator like ModelSim or QuestaSim to run the simulation.
+5. Debug any issues. If you encounter any issues during the simulation, you'll need to debug them. You can use the waveform viewer in your simulator to understand what's happening in your design. You can also use the Spike debugger to debug your processor design. The Spike debugger allows you to step through your code and examine the processor state.
 
 By following these steps, you can use co-simulation with Spike to verify your RISC-V processor design.
 
@@ -127,4 +127,4 @@ Overall, co-simulation is a powerful technique that can be used to verify your R
 
 ## 多核
 
-以上的方法都是针对单核 CPU 进行协同仿真的，但多核会更加复杂，多核涉及到不同核心之间的同步、通信等等，很难把一个周期精确的 CPU 和一个不精确的模拟器匹配起来。香山提供了一个思路：<https://github.com/OpenXiangShan/XiangShan-doc/blob/main/slides/20210624-RVWC-SMP-Difftest%20%E6%94%AF%E6%8C%81%E5%A4%9A%E5%A4%84%E7%90%86%E5%99%A8%E7%9A%84%E5%B7%AE%E5%88%86%E6%B5%8B%E8%AF%95%E6%96%B9%E6%B3%95.pdf>
+以上的方法都是针对单核 CPU 进行协同仿真的，但多核会更加复杂，多核涉及到不同核心之间的同步、通信等等，很难把一个周期精确的 CPU 和一个不精确的模拟器匹配起来。香山提供了一个思路：[https://github.com/OpenXiangShan/XiangShan-doc/blob/main/slides/20210624-RVWC-SMP-Difftest%20%E6%94%AF%E6%8C%81%E5%A4%9A%E5%A4%84%E7%90%86%E5%99%A8%E7%9A%84%E5%B7%AE%E5%88%86%E6%B5%8B%E8%AF%95%E6%96%B9%E6%B3%95.pdf](<https://github.com/OpenXiangShan/XiangShan-doc/blob/main/slides/20210624-RVWC-SMP-Difftest 支持多处理器的差分测试方法.pdf>)

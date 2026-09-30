@@ -103,7 +103,7 @@ http {
 
 ## 解决方法
 
-首先，查阅 nginx 的[文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)，可以看到它的描述：
+首先，查阅 nginx 的[文档](<https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering>)，可以看到它的描述：
 
 ```text
 Syntax:     proxy_buffering on | off;
@@ -116,13 +116,13 @@ When buffering is enabled, nginx receives a response from the proxied server as 
 
 When buffering is disabled, the response is passed to a client synchronously, immediately as it is received. nginx will not try to read the whole response from the proxied server. The maximum size of the data that nginx can receive from the server at a time is set by the proxy_buffer_size directive.
 
-Buffering can also be enabled or disabled by passing “yes” or “no” in the “X-Accel-Buffering” response header field. This capability can be disabled using the proxy_ignore_headers directive.
+Buffering can also be enabled or disabled by passing “yes” or “no” in the “X-Accel-Buffering” response header field. This capability can be disabled using the proxy_ignore_headers directive. 
 ```
 
 根据描述，可以想到一些可能的解决方法：
 
 1. Nginx 配置添加 `proxy_buffering off;`：工作
-1. 服务端在响应的 header 里添加 `X-Accel-Buffering: no`（`self.send_header("X-Accel-Buffering", "no")`）：工作
+2. 服务端在响应的 header 里添加 `X-Accel-Buffering: no`（`self.send_header("X-Accel-Buffering", "no")`）：工作
 
 在一开头的场景里，由于中间的 Nginx 配置改起来比较麻烦，最后就用了第二种方法。回想起来，一开始思路走偏了，一直在往 cache 方向想，实际上是 buffering 的问题：Nginx 会先从 server 读取一大片数据，攒够了再发给 client，避免来回转发小段数据的开销，但 SSE 又希望有较低的延迟，这就冲突了。
 

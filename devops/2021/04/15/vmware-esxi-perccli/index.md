@@ -5,12 +5,12 @@
 最近有一台机器的盘出现了报警，需要换掉，然后重建 RAID5 阵列。iDRAC 出现报错：
 
 1. Disk 2 in Backplane 1 of Integrated RAID Controller 1 is not functioning correctly.
-1. Virtual Disk 1 on Integrated RAID Controller 1 has become degraded.
-1. Error occurred on Disk2 in Backplane 1 of Integrated RAID Controller 1 : (Error 2)
+2. Virtual Disk 1 on Integrated RAID Controller 1 has become degraded.
+3. Error occurred on Disk2 in Backplane 1 of Integrated RAID Controller 1 : (Error 2)
 
 ## 安装 PERCCli
 
-首先，因为系统是 VMware ESXi 6.7，所以在[DELL 官网](https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx)下载对应的文件。按照里面的 README 安装 vib：
+首先，因为系统是 VMware ESXi 6.7，所以在[DELL 官网](<https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx>)下载对应的文件。按照里面的 README 安装 vib：
 
 ```shell
 esxcli software vib install -v /vmware-perccli-007.1420.vib
@@ -44,7 +44,7 @@ DG Arr Row EID:Slot DID Type  State BT       Size PDC  PI SED DS3  FSpace TR
  1 0   2   32:3     3   DRIVE Onln   N    3.637 TB dflt N  N   dflt -      N
 ```
 
-可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 [PERCCli 文档](https://dl.dell.com/topicspdf/cli_guide_en-us.pdf)，它告诉我们要这么做：
+可以看到 DG1 处于 Degraded 状态，然后 E32S4 处于 Failed 状态。参考了一下 [PERCCli 文档](<https://dl.dell.com/topicspdf/cli_guide_en-us.pdf>)，它告诉我们要这么做：
 
 ```shell
 perccli /cx[/ex]/sx set offline
@@ -165,24 +165,24 @@ TR=Transport Ready
 
 ## 相关软件下载
 
-可以在[这里](https://www.broadcom.com/products/storage/raid-controllers/megaraid-9660-16i)和[这里](https://www.broadcom.com/support/download-search?dk=storcli)寻找 StorCLI 版本。
+可以在[这里](<https://www.broadcom.com/products/storage/raid-controllers/megaraid-9660-16i>)和[这里](<https://www.broadcom.com/support/download-search?dk=storcli>)寻找 StorCLI 版本。
 
 StorCLI：
 
-- 007.3007.0000.0000 May 16, 2024 [007.3007.0000.0000_MR7.30_Storcli.zip](https://docs.broadcom.com/docs-and-downloads/007.3007.0000.0000_MR7.30_Storcli.zip)
-- 007.1613.0000.0000 Oct 29, 2020 [007.1613.0000.0000_Unified_StorCLI.zip](https://docs.broadcom.com/docs/007.1613.0000.0000_Unified_StorCLI.zip)
-- 007.1506.0000.0000 Aug 11, 2020 [StorCLI_MR7.15.zip](https://downloadcenter.intel.com/download/30286/StorCLI-Standalone-Utility)
-- 008.0010.0000.0010 Jun 14, 2024 [008.0010.0000.0010_MR8.10_Storcli2.zip](https://docs.broadcom.com/docs-and-downloads/008.0010.0000.0010_MR8.10_Storcli2.zip)，注：不支持旧型号
-- 008.0005.0000.0010 Feb 22, 2023 [008.0005.0000.0010_StorCLI.zip](https://docs.broadcom.com/docs/1232743171)，注：不支持旧型号
-- 1.15.12 Apr 23, 2015 [MR_SAS_StorCLI_6-7-1-15-12-SCGCQ00852539.zip](https://docs.broadcom.com/docs/12354905)
-- 1.15.05 Jan 22, 2015 [1-15-05_StorCLI.zip](https://docs.broadcom.com/docs/12354804)
+- 007.3007.0000.0000 May 16, 2024 [007.3007.0000.0000\_MR7.30\_Storcli.zip](<https://docs.broadcom.com/docs-and-downloads/007.3007.0000.0000_MR7.30_Storcli.zip>)
+- 007.1613.0000.0000 Oct 29, 2020 [007.1613.0000.0000\_Unified\_StorCLI.zip](<https://docs.broadcom.com/docs/007.1613.0000.0000_Unified_StorCLI.zip>)
+- 007.1506.0000.0000 Aug 11, 2020 [StorCLI\_MR7.15.zip](<https://downloadcenter.intel.com/download/30286/StorCLI-Standalone-Utility>)
+- 008.0010.0000.0010 Jun 14, 2024 [008.0010.0000.0010\_MR8.10\_Storcli2.zip](<https://docs.broadcom.com/docs-and-downloads/008.0010.0000.0010_MR8.10_Storcli2.zip>)，注：不支持旧型号
+- 008.0005.0000.0010 Feb 22, 2023 [008.0005.0000.0010\_StorCLI.zip](<https://docs.broadcom.com/docs/1232743171>)，注：不支持旧型号
+- 1.15.12 Apr 23, 2015 [MR\_SAS\_StorCLI\_6-7-1-15-12-SCGCQ00852539.zip](<https://docs.broadcom.com/docs/12354905>)
+- 1.15.05 Jan 22, 2015 [1-15-05\_StorCLI.zip](<https://docs.broadcom.com/docs/12354804>)
 
 MegaCLI:
 
-- 8.07.07 Dec 19, 2012 [8-07-07_MegaCLI.zip](https://docs.broadcom.com/docs/12351585)
+- 8.07.07 Dec 19, 2012 [8-07-07\_MegaCLI.zip](<https://docs.broadcom.com/docs/12351585>)
 
 PercCLI:
 
-- 007.1420.0000.0000 Dec 10, 2020 [PERCCLI_N65F1_7.1420.00_A10_Linux.tar.gz](https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=n65f1) [PERCCLI_5V7XX_7.1420.0_A10_VMware.tar.gz](https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx)
-- 007.1327.0000.0000 July 27, 2020 [PERCCLI_D6YWP_7.1327.00_A09_Linux.tar.gz](https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=d6ywp)
-- 007.0127.0000.0000 July 13, 2017 [perccli_7.1-007.0127_linux.tar.gz](https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=f48c2)
+- 007.1420.0000.0000 Dec 10, 2020 [PERCCLI\_N65F1\_7.1420.00\_A10\_Linux.tar.gz](<https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=n65f1>) [PERCCLI\_5V7XX\_7.1420.0\_A10\_VMware.tar.gz](<https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=5v7xx>)
+- 007.1327.0000.0000 July 27, 2020 [PERCCLI\_D6YWP\_7.1327.00\_A09\_Linux.tar.gz](<https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=d6ywp>)
+- 007.0127.0000.0000 July 13, 2017 [perccli\_7.1-007.0127\_linux.tar.gz](<https://www.dell.com/support/home/zh-cn/drivers/driversdetails?driverid=f48c2>)

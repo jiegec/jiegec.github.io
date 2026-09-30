@@ -2,7 +2,7 @@
 
 ## 写在前面
 
-这个博客自 2014 年更新至今，已走过近十一个年头，累计发布了四百多篇文章。出于好奇，我一直想了解哪些内容更受读者欢迎。五年前，我曾配置过 Google Analytics，但使用体验并不理想，于是转而自行部署了 [rybbit](https://github.com/rybbit-io/rybbit/) 实例来收集访问数据。如今三个月过去，是时候与大家分享一些有趣的发现。
+这个博客自 2014 年更新至今，已走过近十一个年头，累计发布了四百多篇文章。出于好奇，我一直想了解哪些内容更受读者欢迎。五年前，我曾配置过 Google Analytics，但使用体验并不理想，于是转而自行部署了 [rybbit](<https://github.com/rybbit-io/rybbit/>) 实例来收集访问数据。如今三个月过去，是时候与大家分享一些有趣的发现。
 
 P.S. 如果你对数据收集有所顾虑，可以屏蔽对应的 analytics 脚本。
 
@@ -13,7 +13,7 @@ P.S. 如果你对数据收集有所顾虑，可以屏蔽对应的 analytics 脚�
 访问量比我的预期要高一些。虽然这些年写了不少内容，但并没有刻意宣传，主要依赖搜索引擎推荐和读者的订阅与转发。从时间趋势上可以看出两个明显特点：
 
 1. 工作日访问量显著高于周末，通常为周末的两到三倍；
-1. 开学后工作日的访问量比暑假期间又高出一倍，但周末依然低迷。
+2. 开学后工作日的访问量比暑假期间又高出一倍，但周末依然低迷。
 
 由此推测，学生读者占比较高。结合国庆假期访问量的下降来看，国内读者仍是主力。下面是各国家与地区的访问分布：
 
@@ -33,11 +33,11 @@ Windows 占比最高，macOS 次之。考虑到博客内容主要涉及计算机
 
 以下是访问次数较多的几篇文章：
 
-- [ACPI 学习笔记](https://jia.je/hardware/2022/12/10/acpi-notes/index.md): 886 次
-- [NVIDIA 驱动和 CUDA 版本信息速查](https://jia.je/software/2021/12/26/nvidia-cuda/index.md): 835 次
-- [在 QEMU 中运行 OpenBMC](https://jia.je/system/2023/08/11/openbmc-qemu/index.md): 725 次
-- [SPEC CPU 2006 性能测试](https://jia.je/software/2023/08/02/spec-cpu-2006/index.md): 520 次
-- [MIFARE Classic 上配置 NDEF](https://jia.je/hardware/2020/05/10/mifare-classic-ndef/index.md): 464 次
+- [ACPI 学习笔记](<https://jia.je/blog/posts/hardware/acpi-notes/index.md>): 886 次
+- [NVIDIA 驱动和 CUDA 版本信息速查](<https://jia.je/blog/posts/software/nvidia-cuda/index.md>): 835 次
+- [在 QEMU 中运行 OpenBMC](<https://jia.je/blog/posts/system/openbmc-qemu/index.md>): 725 次
+- [SPEC CPU 2006 性能测试](<https://jia.je/blog/posts/software/spec-cpu-2006/index.md>): 520 次
+- [MIFARE Classic 上配置 NDEF](<https://jia.je/blog/posts/hardware/mifare-classic-ndef/index.md>): 464 次
 
 这个排名有些出乎我的意料。这几篇文章在撰写时并未特别考虑入门读者的理解难度或内容的丰富性。或许是因为它们涉及的领域资料较少，因此在相关关键词搜索中容易被找到。这一点在 Google Search Console 中也得到了印证：
 
@@ -54,6 +54,6 @@ Windows 占比最高，macOS 次之。考虑到博客内容主要涉及计算机
 
 通过这次数据分析，我收获了不少有趣的观察。未来可能会不定期更新类似内容，看看随着时间推移，是否会有新的发现。
 
-最后，如果你对访问数据的收集感到不适，可以直接屏蔽 analytics 脚本（或许你的浏览器插件已经这样做了）。根据 rybbit 的官方说明，其信息收集方法较为尊重用户隐私，我也没有对代码进行任何修改，不放心的读者可以阅读 [rybbit](https://github.com/rybbit-io/rybbit) 的源码来审计。
+最后，如果你对访问数据的收集感到不适，可以直接屏蔽 analytics 脚本（或许你的浏览器插件已经这样做了）。根据 rybbit 的官方说明，其信息收集方法较为尊重用户隐私，我也没有对代码进行任何修改，不放心的读者可以阅读 [rybbit](<https://github.com/rybbit-io/rybbit>) 的源码来审计。
 
 P.S. 你能看出这篇文章是，我先写了一遍，然后让大模型润色的结果吗？

@@ -6,7 +6,7 @@ Google Chrome 也用了很长时间了，但是一直没有尝试过构建 Chrom
 
 ## 克隆代码
 
-Chromium 官方的构建文档链接是 [Checking out and building Chromium on Linux](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md)，按照流程做就可以：
+Chromium 官方的构建文档链接是 [Checking out and building Chromium on Linux](<https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md>)，按照流程做就可以：
 
 ```shell
 cd build-chromium
@@ -29,7 +29,7 @@ cd src
 gclient runhooks
 ```
 
-当然了，这个过程主要是为了开发 chromium 做的，实际上可以做一些简化：如果只是要编译一个已经发布正式版的 chromium，可以直接下载 tarball，例如 <https://commondatastorage.googleapis.com/chromium-browser-official/chromium-120.0.6099.216.tar.xz>，把链接里的版本号改掉即可；这样可以省去克隆 git repo 以及一堆 submodule 的大量时间。当然了，解压本身也需要比较长的时间，对付这种大型软件必须要有耐心。同理，depot_tools 也可以不要，毕竟自己把代码下载下来了，只需要再装一个 gn，就可以完成剩下的构建。
+当然了，这个过程主要是为了开发 chromium 做的，实际上可以做一些简化：如果只是要编译一个已经发布正式版的 chromium，可以直接下载 tarball，例如 [https://commondatastorage.googleapis.com/chromium-browser-official/chromium-120.0.6099.216.tar.xz](<https://commondatastorage.googleapis.com/chromium-browser-official/chromium-120.0.6099.216.tar.xz>)，把链接里的版本号改掉即可；这样可以省去克隆 git repo 以及一堆 submodule 的大量时间。当然了，解压本身也需要比较长的时间，对付这种大型软件必须要有耐心。同理，depot\_tools 也可以不要，毕竟自己把代码下载下来了，只需要再装一个 gn，就可以完成剩下的构建。
 
 ## 构建
 
@@ -55,10 +55,10 @@ gn gen out/Default --args='...'
 
 下面给出一些链接：
 
-- [AOSC OS](https://github.com/AOSC-Dev/aosc-os-abbs/tree/stable/app-web/chromium/autobuild)
-- [Arch Linux](https://gitlab.archlinux.org/archlinux/packaging/packages/chromium/-/blob/main/PKGBUILD?ref_type=heads)
-- [Debian](https://salsa.debian.org/chromium-team/chromium/-/blob/master/debian/rules?ref_type=heads)
-- [Fedora](https://src.fedoraproject.org/rpms/chromium/blob/rawhide/f/chromium.spec)
+- [AOSC OS](<https://github.com/AOSC-Dev/aosc-os-abbs/tree/stable/app-web/chromium/autobuild>)
+- [Arch Linux](<https://gitlab.archlinux.org/archlinux/packaging/packages/chromium/-/blob/main/PKGBUILD?ref_type=heads>)
+- [Debian](<https://salsa.debian.org/chromium-team/chromium/-/blob/master/debian/rules?ref_type=heads>)
+- [Fedora](<https://src.fedoraproject.org/rpms/chromium/blob/rawhide/f/chromium.spec>)
 
 这里的门门道道就很多了，很多编译参数影响了最终 Chromium 的功能、性能等等重要的指标。
 
@@ -85,7 +85,7 @@ CC=gcc CXX=g++ AR=ar NM=nm gn gen out/Default --args='is_clang=false ...'
 
 除了在 amd64 构建以外，Chromium 主要还支持 arm64 架构，其他架构属于有第三方 patch，但是 Chromium 处于一个付出额外维护负担的状态，所以其他架构的补丁就没有合并，因此你会发现 riscv64 和 ppc64le 架构上能找到一些发行版自己维护的 patch，并且没有合并到上游。loongarch64 的处境也是类似的，龙芯之前做过一些移植，尝试提交上游，但是最后没有合并进去。
 
-但是 Chromium 对于桌面来说又是比较重要的，无论是作为浏览器，还是用在 Electron 或者 QT 生态中。因此借着龙芯把移植 Electron 的 patch 放出来的机会，顺便把 Chromium 的移植做了：最早是 [@prcups](https://github.com/prcups) 把补丁移植到 qt6-webengine 上，证实了补丁的可用性；之后我又移植到了最新版的 Chromium 上，补丁发布在 [AOSC-Dev/chromium-loongarch64](https://github.com/AOSC-Dev/chromium-loongarch64)。目前 120 已经适配了，但是这几天 121 又发布了，需要再次更新补丁。新版 Electron 的补丁也还没有做。
+但是 Chromium 对于桌面来说又是比较重要的，无论是作为浏览器，还是用在 Electron 或者 QT 生态中。因此借着龙芯把移植 Electron 的 patch 放出来的机会，顺便把 Chromium 的移植做了：最早是 [@prcups](<https://github.com/prcups>) 把补丁移植到 qt6-webengine 上，证实了补丁的可用性；之后我又移植到了最新版的 Chromium 上，补丁发布在 [AOSC-Dev/chromium-loongarch64](<https://github.com/AOSC-Dev/chromium-loongarch64>)。目前 120 已经适配了，但是这几天 121 又发布了，需要再次更新补丁。新版 Electron 的补丁也还没有做。
 
 在这个过程中，也发现龙芯原来的 patch 内置的 bug：与 seccomp sandbox 有关，原来的代码把对 stat 的处理照抄到了 statx 上，但是它的参数顺序和含义都是不一样的，不能直接照抄。对着代码，大概是正确地实现了出来。之前没有遇到这个问题，大概率是 Electron 下不会用到这个 sandbox。回顾下来，移植的补丁不算多，主要是 crashpad 和 sandbox 两部分代码，观察了一下 archriscv 维护的 riscv 补丁，其实也是类似的。
 

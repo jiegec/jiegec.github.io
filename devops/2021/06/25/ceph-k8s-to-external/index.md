@@ -10,7 +10,7 @@
 
 ### cephadm 搭建 ceph 集群
 
-首先，配置 [TUNA 源](https://mirrors.tuna.tsinghua.edu.cn/help/ceph/)，在各个节点上安装 `docker-ce` 和 `cephadm`。接着，在主节点上 bootstrap：
+首先，配置 [TUNA 源](<https://mirrors.tuna.tsinghua.edu.cn/help/ceph/>)，在各个节点上安装 `docker-ce` 和 `cephadm`。接着，在主节点上 bootstrap：
 
 ```shell
 cephadm bootstrap --mon-ip HOST1_IP
@@ -18,14 +18,14 @@ cephadm bootstrap --mon-ip HOST1_IP
 
 此时，在主节点上会运行最基础的 ceph 集群，不过此时还没有任何数据。寻找 ceph 分区，会发现因为 FSID 不匹配而无法导入。所以，首先要恢复 MON 数据。
 
-参考文档：[cephadm install](https://docs.ceph.com/en/latest/cephadm/install/)。
+参考文档：[cephadm install](<https://docs.ceph.com/en/latest/cephadm/install/>)。
 
 ### 恢复 MON 数据
 
 首先，关掉 rook ceph 集群，找到留存下来的 MON 数据目录，默认路径是 `/var/lib/rook` 下的 `mon-[a-z]` 目录，找到最新的一个即可。我把目录下的路径覆盖到 cephadm 生成的 MON 目录下，然后跑起来，发现有几个问题：
 
 1. cephadm 生成的 /etc/ceph/ceph.client.admin.keyring 与 MON 中保存的 auth 信息不匹配，导致无法访问
-1. FSID 不一致，而 cephadm 会将各个设置目录放到 `/var/lib/ceph/$FSID` 下
+2. FSID 不一致，而 cephadm 会将各个设置目录放到 `/var/lib/ceph/$FSID` 下
 
 第一个问题的解决办法就是临时用 MON 目录下的 keyring 进行认证，再创建一个新的 client.admin 认证。第二个问题的解决办法就是将遇到的各种 cephadm 生成的 FSID 替换为 MON 中的 FSID，包括目录名、各个目录下 unit.run 中的路径和 systemd unit 的名称。
 
@@ -61,9 +61,9 @@ $ cephadm adopt --style legacy --name osd.ID
 
 配置好外部 ceph 集群后，还需要配置 k8s rook。
 
-参考 <https://rook.github.io/docs/rook/v1.8/ceph-cluster-crd.html#external-cluster>，大概有这么几步：
+参考 [https://rook.github.io/docs/rook/v1.8/ceph-cluster-crd.html\#external-cluster](<https://rook.github.io/docs/rook/v1.8/ceph-cluster-crd.html#external-cluster>)，大概有这么几步：
 
 1. 在 ceph 集群上运行 create-external-cluster-resources.sh，创建用户，并且导出 key
-1. 在 k8s 集群上应用第一步生成的环境变量，然后运行 import-external-cluster.sh
-1. 复制一份 cluster-external.yaml 然后应用
-1. 复制 storageclass.yaml，把里面的 namespace 改成 rook-ceph-external
+2. 在 k8s 集群上应用第一步生成的环境变量，然后运行 import-external-cluster.sh
+3. 复制一份 cluster-external.yaml 然后应用
+4. 复制 storageclass.yaml，把里面的 namespace 改成 rook-ceph-external

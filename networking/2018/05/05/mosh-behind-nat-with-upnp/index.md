@@ -3,7 +3,7 @@
 由于经常要从宿舍、教室等不同的 Wi-Fi 之间切换，但是 ssh 连接又总是断，所以想用 mosh 代替 ssh。但是 mosh 也有它的问题：
 
 1. 不能滚动。这个可以在 mosh 中嵌套一层 tmux 解决。我目前写了一些自动 mosh 后打开 tmux 并且开启鼠标支持的脚本，但还是有缺陷。
-1. 在高端口 60000+ 监听 UDP，这使得 NAT 后的服务器难以直接通过端口转发。如果直接转发到 NAT 后的机器，那么 NAT 后面如果有多台机器，这又失效了。
+2. 在高端口 60000+ 监听 UDP，这使得 NAT 后的服务器难以直接通过端口转发。如果直接转发到 NAT 后的机器，那么 NAT 后面如果有多台机器，这又失效了。
 
 于是找了找网上的 NAT 穿透的一些文章，看到了 UPnP 的方法。大致就是，用户可以向路由器注册一个临时的转发规则，路由会自动在 iptables 上配置转发。但是，这样也会遇到一个问题：路由上的 mosh-server 不知道这个转发的存在，所以它可能会尝试监听同样的端口。解决方案下面会提到。
 
@@ -32,7 +32,7 @@ sudo vim /etc/miniupnpd/miniupnpd.conf
 sudo systemctl enable --now miniupnpd
 ```
 
-现在，复制 [我修改的 mosh-wrapper.js](https://github.com/jiegec/mosh-upnp-hole-puncher/blob/master/mosh-wrapper.js) 到用户的 home 目录下，在 Server 安装 `miniupnpc` 然后通过：
+现在，复制 [我修改的 mosh-wrapper.js](<https://github.com/jiegec/mosh-upnp-hole-puncher/blob/master/mosh-wrapper.js>) 到用户的 home 目录下，在 Server 安装 `miniupnpc` 然后通过：
 
 ```shell
 mosh --ssh="ssh -p 8022" --server=~/mosh-wrapper.js user@router
@@ -47,7 +47,7 @@ mosh --ssh="ssh -p 8022" --server=~/mosh-wrapper.js user@router
 我想到了一些可能的解决方案：
 
 1. 在 Router 上让 miniupnpd 监听对应的端口，占住这个坑。这样，Router 上的 `mosh-server` 就不会用和 Server 相同的端口
-1. 如果有多个 Server，则会出现抢夺相同端口的情况。我目前的想法是，让 `upnpc` 去询问 Router 找空闲的端口，然后再传给 `mosh-server` 使用。另一种方法则是，给不同的 Server 划分不同的端口范围，比如 Router 用 60001-60005, 然后 Server1 用 60006-60010, Server2 用 60011-60015 如此下去。
+2. 如果有多个 Server，则会出现抢夺相同端口的情况。我目前的想法是，让 `upnpc` 去询问 Router 找空闲的端口，然后再传给 `mosh-server` 使用。另一种方法则是，给不同的 Server 划分不同的端口范围，比如 Router 用 60001-60005, 然后 Server1 用 60006-60010, Server2 用 60011-60015 如此下去。
 
 然后，新的问题又发现了：
 

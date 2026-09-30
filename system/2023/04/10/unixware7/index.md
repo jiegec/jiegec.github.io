@@ -2,7 +2,7 @@
 
 ## 安装过程
 
-在 <https://www.sco.com/support/update/download/product.php?pfid=1&prid=6> 可以看到 UnixWare 7.1.4 的相关下载，其中首先要下载 UnixWare 的安装 ISO：<https://www.sco.com/support/update/download/release.php?rid=346>，尝试过用 QEMU 启动，会遇到找不到 CD-ROM 的问题，虽然通过设置 `ATAPI_DMA_DISABLE=YES` 解决了，但是又遇到了找不到硬盘的问题。
+在 [https://www.sco.com/support/update/download/product.php?pfid=1&amp;prid=6](<https://www.sco.com/support/update/download/product.php?pfid=1&amp;prid=6>) 可以看到 UnixWare 7.1.4 的相关下载，其中首先要下载 UnixWare 的安装 ISO：[https://www.sco.com/support/update/download/release.php?rid=346](<https://www.sco.com/support/update/download/release.php?rid=346>)，尝试过用 QEMU 启动，会遇到找不到 CD-ROM 的问题，虽然通过设置 `ATAPI_DMA_DISABLE=YES` 解决了，但是又遇到了找不到硬盘的问题。
 
 最后换成了 VirtualBox 7.0.6。用 VirtualBox 创建虚拟机的时候，不要给太多内存，4GB 就会无法启动，2GB 可以，硬盘也不要给太多，4GB 就足够。
 
@@ -14,4 +14,4 @@
 
 本博客参考了以下文档中的命令：
 
-- <https://virtuallyfun.com/2018/01/31/revisiting-a-unixware-7-1-1-install-on-qemu-kvm/>
+- [https://virtuallyfun.com/2018/01/31/revisiting-a-unixware-7-1-1-install-on-qemu-kvm/](<https://virtuallyfun.com/2018/01/31/revisiting-a-unixware-7-1-1-install-on-qemu-kvm/>)

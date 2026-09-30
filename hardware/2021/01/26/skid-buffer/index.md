@@ -31,7 +31,7 @@ class SkidBufferCommon[T <: Data](
 
 第一个版本来自 ZipCPU：
 
-博客地址：[Building a Skid Buffer for AXI processing](https://zipcpu.com/blog/2019/05/22/skidbuffer.html) 代码地址：[skidbuffer.v](https://github.com/ZipCPU/wb2axip/blob/master/rtl/skidbuffer.v)
+博客地址：[Building a Skid Buffer for AXI processing](<https://zipcpu.com/blog/2019/05/22/skidbuffer.html>) 代码地址：[skidbuffer.v](<https://github.com/ZipCPU/wb2axip/blob/master/rtl/skidbuffer.v>)
 
 它有两个参数，一个表示是否有额外的输出寄存器（outputReg），一个表示是否低功耗（lowPower）。
 
@@ -39,44 +39,44 @@ class SkidBufferCommon[T <: Data](
 
 第二个版本来自 FPGACPU：
 
-文章地址：[Pipeline Skid Buffer](http://fpgacpu.ca/fpga/Pipeline_Skid_Buffer.html)
+文章地址：[Pipeline Skid Buffer](<http://fpgacpu.ca/fpga/Pipeline_Skid_Buffer.html>)
 
 ### SpinalHDL S2M 版本
 
 第三个版本来自 SpinalHDL Library 的 s2mPipe：
 
-代码地址：[Stream.scala L348](https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L348)
+代码地址：[Stream.scala L348](<https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L348>)
 
 ### SpinalHDL M2S 版本
 
 第四个版本来自 SpinalHDL Library 的 m2sPipe：
 
-代码地址：[Stream.scala L327](https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L327)
+代码地址：[Stream.scala L327](<https://github.com/SpinalHDL/SpinalHDL/blob/f9eda46bb5968659fe4e97cad8b69c8c0cb2bf89/lib/src/main/scala/spinal/lib/Stream.scala#L327>)
 
 ### 四个版本的对比
 
 在研究了代码以后，可以看到这四个版本的区别：
 
-| 版本         | ZipCPU w/ outputReg | ZipCPU w/o outputReg | FPGACPU | S2M  | M2S  |
-| ------------ | ------------------- | -------------------- | ------- | ---- | ---- |
-| io.s.ready   | Reg                 | Reg                  | Reg     | Reg  | Comb |
-| io.m.valid   | Reg                 | Comb                 | Reg     | Comb | Reg  |
-| io.m.payload | Reg                 | Comb                 | Reg     | Comb | Reg  |
-| latency      | 1                   | 0                    | 1       | 0    | 1    |
-| buffer 数量  | 1                   | 1                    | 2       | 1    | 1    |
+| 版本 | ZipCPU w/ outputReg | ZipCPU w/o outputReg | FPGACPU | S2M | M2S |
+| --- | --- | --- | --- | --- | --- |
+| io.s.ready | Reg | Reg | Reg | Reg | Comb |
+| io.m.valid | Reg | Comb | Reg | Comb | Reg |
+| io.m.payload | Reg | Comb | Reg | Comb | Reg |
+| latency | 1 | 0 | 1 | 0 | 1 |
+| buffer 数量 | 1 | 1 | 2 | 1 | 1 |
 
 注：
 
 1. Reg 表示从寄存器输出，Comb 表示从组合逻辑输出
-1. Latency 表示从 `io.s.fire` 到 `io.m.fire` 的延迟
-1. Buffer 表示缓冲的 payload 个数
-1. ZipCPU w/o outputReg 和 S2M 实现的逻辑是一样的
+2. Latency 表示从 `io.s.fire` 到 `io.m.fire` 的延迟
+3. Buffer 表示缓冲的 payload 个数
+4. ZipCPU w/o outputReg 和 S2M 实现的逻辑是一样的
 
 ### 形式化验证
 
 为了确认上面这些类型的 Skid Buffer 都可以正常工作，按照 ZipCPU Skid Buffer 的文章，也照着写了几个 property：
 
-1: 在 valid && ~ready 的时候，valid 需要继续保持为高，并且 payload 不变：
+1: 在 valid &amp;&amp; \~ready 的时候，valid 需要继续保持为高，并且 payload 不变：
 
 ```scala
 // When valid goes high, data is stable and valid stays high before ready
@@ -103,7 +103,7 @@ when(pastValid && past(outerReset) && ~outerReset) {
 }
 ```
 
-3: 添加 cover property，要求 `io.s` 和 `io.m` 可以连续若干个周期 valid && ready，保证吞吐率：
+3: 添加 cover property，要求 `io.s` 和 `io.m` 可以连续若干个周期 valid &amp;&amp; ready，保证吞吐率：
 
 ```scala
 cover(
