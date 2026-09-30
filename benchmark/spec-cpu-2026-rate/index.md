@@ -94,6 +94,7 @@
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -flto -ljemalloc`）: [1.50](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7551_O3-flto-ljemalloc_001.txt)
 - AMD EPYC 7742 @ 3.4 GHz Zen 2（`-O3 -flto -ljemalloc`）: [2.41](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_7742_O3-flto-ljemalloc_001.txt)
 - AMD EPYC 9T25 @ 4.1 GHz Zen 5（`-O3 -flto -ljemalloc`）: [4.34](https://jia.je/benchmark/data-trixie/int2026_rate1/AMD_EPYC_9T25_O3-flto-ljemalloc_001.txt)
+- AWS Graviton 4 @ 2.8 GHz Neoverse V2（`-O3 -flto -ljemalloc`）: [3.48](https://jia.je/benchmark/data-trixie/int2026_rate1/AWS_Graviton_4_O3-flto-ljemalloc_001.txt)
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3 -flto -ljemalloc`）: [4.56](https://jia.je/benchmark/data-trixie/int2026_rate1/AWS_Graviton_5_O3-flto-ljemalloc_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -flto -ljemalloc`）: [2.14](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_E5-2680_v4_O3-flto-ljemalloc_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3 -flto -ljemalloc`）: [2.50](https://jia.je/benchmark/data-trixie/int2026_rate1/Intel_Xeon_Gold_6430_O3-flto-ljemalloc_001.txt)
@@ -235,6 +236,7 @@ ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3 -march=native`）: [2.04](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7551_O3-march%3Dnative_001.txt)
 - AMD EPYC 7742 @ 3.4 GHz Zen 2（`-O3 -march=native`）: [3.88](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7742_O3-march%3Dnative_001.txt)
+- AMD EPYC 9T25 @ 4.1 GHz Zen 5（`-O3 -march=native`）: [7.59](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_9T25_O3-march%3Dnative_001.txt)
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3 -march=native`）: [6.10](https://jia.je/benchmark/data-trixie/fp2026_rate1/AWS_Graviton_5_O3-march%3Dnative_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3 -march=native`）: [2.74](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3-march%3Dnative_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3 -march=native`）: [3.86](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_Gold_6430_O3-march%3Dnative_001.txt)
@@ -246,6 +248,7 @@ ARM64 平台的分支预测准确率（Average）由高到低（`-O3`）：
 
 - AMD EPYC 7551 @ 2.5 GHz Zen 1（`-O3`）: [1.86](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7551_O3_001.txt)
 - AMD EPYC 7742 @ 3.4 GHz Zen 2（`-O3`）: [3.25](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_7742_O3_001.txt)
+- AMD EPYC 9T25 @ 4.1 GHz Zen 5（`-O3`）: [5.63](https://jia.je/benchmark/data-trixie/fp2026_rate1/AMD_EPYC_9T25_O3_001.txt)
 - AWS Graviton 5 @ 3.3 GHz Neoverse V3（`-O3`）: [5.67](https://jia.je/benchmark/data-trixie/fp2026_rate1/AWS_Graviton_5_O3_001.txt)
 - Intel Xeon E5-2680 v4 @ 3.3 GHz Broadwell（`-O3`）: [2.43](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_E5-2680_v4_O3_001.txt)
 - Intel Xeon Gold 6430 @ 2.6 GHz Golden Cove（`-O3`）: [3.01](https://jia.je/benchmark/data-trixie/fp2026_rate1/Intel_Xeon_Gold_6430_O3_001.txt)
