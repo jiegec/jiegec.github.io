@@ -270,7 +270,7 @@ course, and disciplinary action. Copying, or helping somebody copy, may
 result in an F on your transcript that you will not be able to drop.
 ```
 
-上述的要求对课程所有的单人作业都使用。
+上述的要求对课程所有的单人作业都适用。
 
 ```text
 This policy applies to all coursework that is handed in by an

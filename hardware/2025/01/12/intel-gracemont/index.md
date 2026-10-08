@@ -69,7 +69,7 @@ Gracemont 的 Clustered Decode 架构比较特别，目前没有找到方法去�
 
 为了解决这个问题，修改代码，在函数里构造两个 call 去调用同一个函数，这样 ret 的返回地址就会变化了，称这个版本为 B。这时候跑出来的结果比较奇怪，周期数快速上升：
 
-同样的 B 版本代码在 AMD Zen3 和 Apple Firestorm 的处理器上，可以观察到在符合预期的 Return Stack 大小处出现性能拐点，和 A 版本代码得到的结论一致。而 B 版本代码在 Golden Cove 上，会观察到在 6 的附近有一个性能下降如下图，但之前用 [A 版本代码测得的拐点为 20](<https://jia.je/blog/posts/hardware/intel-gracemont/index.md>):
+同样的 B 版本代码在 AMD Zen3 和 Apple Firestorm 的处理器上，可以观察到在符合预期的 Return Stack 大小处出现性能拐点，和 A 版本代码得到的结论一致。而 B 版本代码在 Golden Cove 上，会观察到在 6 的附近有一个性能下降如下图，但之前用 [A 版本代码测得的拐点为 20](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>):
 
 这个区别背后的原因还需要进一步的分析。下面是两个版本的汇编代码的对比：
 

@@ -2192,8 +2192,8 @@
 <p>编译原理课程在做 Decaf 的 PA，之前做了一些比较简单的尝试，包括在线 Decaf、在线 TAC VM 等等，都是套一个前端，然后整个编译到 wasm 跑前端就可以了。如果要做 LSP 的话，工作量会稍微大一些，不过也更加实用。</p>
 <p>然后有一天，助教 @equation314 写了 <a href="https://github.com/equation314/decaf-vscode">decaf-vscode</a> 一个 VSCode 对 Decaf 的语法高亮插件，我就 Fork 了一份到 <a href="https://github.com/jiegec/decaf-vscode">jiegec/decaf-vscode</a>，然后添加了 LSP 的支持，让它有了一些更高级的功能。</p>
 <h3 id="实现"><a class="toclink" href="../../programming/2019/11/17/rust-decaf-lsp/#实现">实现</a></h3>
-<p>LSP 服务端一般是一个命令行程序，通过 JSONRPC 进行消息通讯，然后就上午找有没有现成的框架。比较重要的是 <a href="https://crates.io/crates/lsp-types">lsp-types</a> 和 <a href="https://crates.io/crates/tower-lsp">tower-lsp</a> ，前者封装了 LSP 协议的各个结构体，后者提供了服务端的大概实现。不过由于后者做的不大全，所以我自己 fork 了一份添加了一些。</p>
-<p>实际实现的时候，需要实现几个函数，分别相应客户端的请求，比如在 initialize 的时候告诉客户端我都实现了哪些东西，然后相应地提供各种信息，如 symbol，hover，folding，definition 等等。为了实现简单，我要求客户端每次修改的时候都把完整的文件传过来，虽然不是很高效，但是很简单，目前也没有啥很长的 Decaf 程序嘛。</p>
+<p>LSP 服务端一般是一个命令行程序，通过 JSONRPC 进行消息通讯，然后就上网找有没有现成的框架。比较重要的是 <a href="https://crates.io/crates/lsp-types">lsp-types</a> 和 <a href="https://crates.io/crates/tower-lsp">tower-lsp</a> ，前者封装了 LSP 协议的各个结构体，后者提供了服务端的大概实现。不过由于后者做的不大全，所以我自己 fork 了一份添加了一些。</p>
+<p>实际实现的时候，需要实现几个函数，分别响应客户端的请求，比如在 initialize 的时候告诉客户端我都实现了哪些东西，然后相应地提供各种信息，如 symbol，hover，folding，definition 等等。为了实现简单，我要求客户端每次修改的时候都把完整的文件传过来，虽然不是很高效，但是很简单，目前也没有啥很长的 Decaf 程序嘛。</p>
 <p>每次拿到 Decaf 程序之后，就按照 decaf-rs 的方法，Lex 然后 Parse，然后遍历 AST，分别把需要的各个信息都存下来，当客户端在请求的时候，直接返回即可。然后就会在 VSCode 中出现，比如实现了 document symbol，在左边的 Outline 中就会出现相应的结构；实现了 hover，当移动到一些地方的时候，客户端发出请求，服务端就把相应的 hover 信息返回给客户端。整个协议并不复杂，后面实际实现其实才是比较复杂的地方。</p>
 <p>实现的功能中，symbols hovers ranges definition 都是在得到 AST 后一次遍历都计算好，然后返回，同时在遇到错误的时候，也通过 diagnostic 的形式把检查出来的错误汇报给用户。由于 VSCode 的良好支持，基本不需要写 TypeScript 代码。</p>
 <p>至于代码补全，现在做的比较粗糙，仅仅补全了一些内置函数：Print ReadInteger 和 ReadLine。还在考虑支持函数调用的补全，但是在补全的时候会出现语法错误，意味着需要保证在补全的时候我还能拿到之前正确的类型信息，需要一些工作量，现在还没有去做。</p>
@@ -2240,7 +2240,7 @@
 <h3 id="尝试"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#尝试">尝试</a></h3>
 <p>首先是阅读 GLL 的论文，它并不长，大概的意思就是，LL(1) 文法需要考虑 PS 冲突的情况，而 GLL 的解决方法就是“都试一下”，然后为了效率，用了 GSS 表示解析过程和 SPPF 表示解析结果。然后就开始照着论文手写了不同版本的实现，见 <a href="https://github.com/jiegec/gll-test">jiegec/gll-test</a> 。</p>
 <p>第一种就是按照论文里第一段实现直接抄过来，每个可能性作为一个 Continuation 存下来，它有自己的栈和执行位置（Label）。这样 Work 以后呢，我又想到了 async/await，用类似的方法又写了一遍，相对要简洁一些，也是很平常的递归下降的写法，而不是 Loop + Label 的形式。但这些都不能做到合并栈的目的，所以遇到十分有歧义的文法的时候会很糟糕。</p>
-<p>然后开始按照论文中的 GSS 进行编写，基本还是按照论文进行翻译，然后一步一步做，做好以后把 GSS 画出来，和论文的图可以对的上；然后照着 GLL parse-tree generation 的论文把 SPPF 实现了，这时候就可以从 recongizer 变成一个 parser 了。</p>
+<p>然后开始按照论文中的 GSS 进行编写，基本还是按照论文进行翻译，然后一步一步做，做好以后把 GSS 画出来，和论文的图可以对的上；然后照着 GLL parse-tree generation 的论文把 SPPF 实现了，这时候就可以从 recognizer 变成一个 parser 了。</p>
 <h3 id="宏"><a class="toclink" href="../../programming/2019/11/15/rust-proc-macro-gll/#宏">宏</a></h3>
 <p>得到一份可行的代码以后，就要扩展到通用的情况上。学习了一下 MashPlant/lalr1 的实现，实现了一个 proc macro，它读取了用户的程序，从一个模板文件开始，往里面插入一些生成的代码，丢给编译器去编译。这时候就涉及到编译期和运行时的不同了，我把运行时一些通用的结构放到了 <code>gll-pg-core</code> 中，把编译期的代码放到了 <code>gll-pg-macros</code> 。</p>
 <p>代码生成的时候，基本按照之前自己写的样子抄，只不过这个时候要按照用户编写的产生式进行生成了，各种名字都要规范化，变得可以复用，然后尽量减少命名空间的污染等等这些常见的写宏需要注意的操作。</p>
@@ -2599,7 +2599,7 @@
 <p>把 https://github.com/haad/net-snmp/tree/master/mibs 和 https://github.com/zampat/neteye4/tree/master/monitoring/monitoring-plugins/wireless/cisco/mibs 目录下的所有 .txt 文件放到 /usr/share/snmp/mibs 目录下。</p>
 <p>然后把 https://github.com/zampat/neteye4/blob/master/monitoring/monitoring-plugins/wireless/cisco/telegraf.conf 下面 snmp 的配置复制到 telegraf 配置中，然后修改一下 IP 地址。</p>
 <p>确保 Cisco WLC 的 SNMP 的 Public Community 已经配置好，然后就可以拿到数据了。</p>
-<p>目前可以拿到 WLC 自身的一些运行˙状态信息、AP 的信息、SSID 的信息和 Client 的信息，基本满足了我们的需求。</p>
+<p>目前可以拿到 WLC 自身的一些运行状态信息、AP 的信息、SSID 的信息和 Client 的信息，基本满足了我们的需求。</p>
 <p>参考：https://www.neteye-blog.com/2019/08/monitoring-a-cisco-wireless-controller/</p>
     
     

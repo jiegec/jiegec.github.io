@@ -5308,7 +5308,7 @@ in 1.4.
 </tr>
 </tbody>
 </table>
-<p>其中 Key A 和 Key B 上用于当前 Sector 认证的两个 Key，用相应的 Key 认证以后就可以修改 Sector 里面 Block 的内容。既然有 Key，就会有细粒度的权限控制，就是 Access Bits。它的计算方式比较复杂，首先举个文档<a href="https://www.nxp.com/docs/en/application-note/AN1305.pdf">AN1305</a>出现过的例子 <code>0x7F 0x07 0x88</code>：</p>
+<p>其中 Key A 和 Key B 是用于当前 Sector 认证的两个 Key，用相应的 Key 认证以后就可以修改 Sector 里面 Block 的内容。既然有 Key，就会有细粒度的权限控制，就是 Access Bits。它的计算方式比较复杂，首先举个文档<a href="https://www.nxp.com/docs/en/application-note/AN1305.pdf">AN1305</a>出现过的例子 <code>0x7F 0x07 0x88</code>：</p>
 <ol>
 <li>按字节翻转：0x88 0x07 0x7F</li>
 <li>改写成二进制：1000 1000 0000 0111 0111 1111</li>
@@ -5320,7 +5320,7 @@ in 1.4.
 </ol>
 <p>这里的 011 表示的是 Sector Trailer 的访问权限，特别地，它表示，不能读出 Key A，只能用 Key B 认证后修改 Key A；用 Key A 或者 Key B 认证后都可以读 Access Bits，但只能在 Key B 认证后修改 Access Bits；不能读出 Key B，只能用 Key B 认证后修改 Key B。也就是说，Key A 认证只能读 Access Bits，而 Key B 认证有权限写入 Key A、Access Bits 和 Key B 字段。完整表格见<a href="https://www.nxp.com/docs/en/application-note/AN1305.pdf">AN1305 Table 7</a> 。</p>
 <p>之后的三个 000 分别对应前三个 Blocks（又称 Data Blocks，先只考虑带 4 Blocks 的 Sector）的访问权限。000 表示的是，用 Key A 和 Key B 都有完整的读写权限。完整的表格见 <a href="https://www.nxp.com/docs/en/application-note/AN1305.pdf">AN 1305 Table 8</a> 。</p>
-<p>这里可以给读者留一个练习：0x78 0x77 0x88 对应的权限上什么？</p>
+<p>这里可以给读者留一个练习：0x78 0x77 0x88 对应的权限是什么？</p>
 <p>答案：对 Sector Trailer：011；对 Data Blocks：100；此时 Data Blocks 可以用 Key A 或者 Key B 认证读取，但只能用 Key B 认证写入。</p>
 <p>如果查看完整的表格就可以发现，Key B 的权限一般是比 Key A 大的，所以 Key B 一般是保密的，而 Key A 可以是公开的。</p>
 <h4 id="mifare-命令"><a class="toclink" href="../../../../hardware/2020/05/10/mifare-classic-ndef/#mifare-命令">MIFARE 命令</a></h4>
@@ -5341,19 +5341,19 @@ in 1.4.
 <p>这个命令会进行 Key A 或者 Key B 的认证，如果是对 Key A 认证：</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../../../hardware/2020/05/10/mifare-classic-ndef/#__codelineno-3-1"></a>60 XX YY YY YY YY ZZ ZZ ZZ ZZ ZZ ZZ
 </span></code></pre></div>
-<p>这里的 XX 也是 Block 地址，但实际上认证的粒度上 Sector，所以只要认证了 Sector 里面的一个 Block，其他 Block 也是同时认证，也是用同一个 Sector Trailer 中的信息进行认证。YY 则是 ISO 14443-3 Type A 中的 UID，如果用 Android 的 API 读取，就可以在 NfcA 中找到这个四字节的信息。ZZ 就是要认证的密钥，六个字节。</p>
+<p>这里的 XX 也是 Block 地址，但实际上认证的粒度是 Sector，所以只要认证了 Sector 里面的一个 Block，其他 Block 也是同时认证，也是用同一个 Sector Trailer 中的信息进行认证。YY 则是 ISO 14443-3 Type A 中的 UID，如果用 Android 的 API 读取，就可以在 NfcA 中找到这个四字节的信息。ZZ 就是要认证的密钥，六个字节。</p>
 <p>如果是对 Key B 认证，把第一个字节的 0x60 改成 0x61 即可。</p>
 <p>认证成功后，返回一个 0x00；如果认证失败，则会断开 NFC。</p>
 <h4 id="ndef-是什么"><a class="toclink" href="../../../../hardware/2020/05/10/mifare-classic-ndef/#ndef-是什么">NDEF 是什么</a></h4>
 <p>NDEF 实际上是比较高层次的数据，就像 HTML，表示了一个格式化的数组数据，数组的元素可能是文本、URI 等等。它是由若干个 Record 组成的。一个 Record 如下：</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../../../hardware/2020/05/10/mifare-classic-ndef/#__codelineno-4-1"></a>03 0B 01 07 54 02 65 6E 61 62 63 64
 </span></code></pre></div>
-<p>首先是一个 03 表示类型，然后是长度 0x0B（11，从下一个字节开始数），接着是 0x01 0x07 表示这似乎一个 Well Known 类型的 Record，内容的长度为 7，0x54（ASCII T）表示这是文本格式，0x02 表示编码是 UTF-8，0x65 0x6E (ASCII "en") 表示语言是英语，之后的 0x61 0x62 0x63 0x64（ASCII "abcd"）就是文本内容。</p>
+<p>首先是一个 03 表示类型，然后是长度 0x0B（11，从下一个字节开始数），接着是 0x01 0x07 表示这是一个 Well Known 类型的 Record，内容的长度为 7，0x54（ASCII T）表示这是文本格式，0x02 表示编码是 UTF-8，0x65 0x6E (ASCII "en") 表示语言是英语，之后的 0x61 0x62 0x63 0x64（ASCII "abcd"）就是文本内容。</p>
 <p>很多个 record 连起来，最终一个 0xFE 表示结束，这就是完整的 NDEF 信息了。</p>
 <h4 id="在-mifare-classic-上使用-ndef"><a class="toclink" href="../../../../hardware/2020/05/10/mifare-classic-ndef/#在-mifare-classic-上使用-ndef">在 MIFARE Classic 上使用 NDEF</a></h4>
-<p>NDEF 只定义了数据格式，但为了实际使用，还得看具体情况。就好像文件内容保存在硬盘上的时候，并不是直接保存，而是通过文件系统，人为定义一个路径，这样大家才知道要从 /etc/shadow 文件去读 Linux 的用户密码信息，NDEF 也需要人为定义一些规则，再作为数据存放在智能卡里的某个地方，这样大家去读取 metadata，发现上 NDEF Tag，然后才会去解析 NDEF 信息。</p>
+<p>NDEF 只定义了数据格式，但为了实际使用，还得看具体情况。就好像文件内容保存在硬盘上的时候，并不是直接保存，而是通过文件系统，人为定义一个路径，这样大家才知道要从 /etc/shadow 文件去读 Linux 的用户密码信息，NDEF 也需要人为定义一些规则，再作为数据存放在智能卡里的某个地方，这样大家去读取 metadata，发现是 NDEF Tag，然后才会去解析 NDEF 信息。</p>
 <p>有些时候，这个定义很简单，比如直接把 NDEF 数据放在某个 block 里面；有的时候又很复杂，因为可能同时存在很多应用，NDEF 只是其中的一种，所以要有一种类似目录的东西去索引 NDEF“文件”。</p>
-<p>MIFARE Classic 上采用的方法上，在特定的 Sector（比如 Sector 0）放一些元数据，元数据里注明了其他的 Sector（从 1 开始的其它 sector）分别用于什么用途，然后 NDEF 是其中一种用途。这个结构叫做 <a href="https://www.nxp.com/docs/en/application-note/AN10787.pdf">MIFARE Application Directory</a>。具体来说，在 MIFARE Classic 里面，它规定 Block 1 和 Block 2 的内容如下：</p>
+<p>MIFARE Classic 上采用的方法是，在特定的 Sector（比如 Sector 0）放一些元数据，元数据里注明了其他的 Sector（从 1 开始的其它 sector）分别用于什么用途，然后 NDEF 是其中一种用途。这个结构叫做 <a href="https://www.nxp.com/docs/en/application-note/AN10787.pdf">MIFARE Application Directory</a>。具体来说，在 MIFARE Classic 里面，它规定 Block 1 和 Block 2 的内容如下：</p>
 <table>
 <thead>
 <tr>
@@ -5390,7 +5390,7 @@ in 1.4.
 </tr>
 </tbody>
 </table>
-<p>第一个字节是 CRC 8，它的定义可以在<a href="http://reveng.sourceforge.net/crc-catalogue/1-15.htm">这里的 CRC-8/MIFARE-MAD</a> 里找到：初始值 0xC7，多项式上 0x1D。参与 CRC 计算的是按顺序从第二个字节开始的 31 个字节。</p>
+<p>第一个字节是 CRC 8，它的定义可以在<a href="http://reveng.sourceforge.net/crc-catalogue/1-15.htm">这里的 CRC-8/MIFARE-MAD</a> 里找到：初始值 0xC7，多项式是 0x1D。参与 CRC 计算的是按顺序从第二个字节开始的 31 个字节。</p>
 <p>第二个字节是 Info Byte，用处不大，见 MAD 的文档。</p>
 <p>之后每两个字节对应一个 Sector 的 AID（Application ID），比如 Block 1 的 2-3 字节对应 Sector 1 的 AID，Block 1 的 4-5 字节对应 Sector 2 的 AID，最后 Block 2 的 14-15 字节对应 Sector 15 的 AID。NDEF 的 AID 就是 0x03 0xE1。当软件发现这里的 AID 是 0x03E1 的时候，它就会去相应的 Sector 去读取 NDEF 信息。</p>
 <p>一个用 TagInfo 读出来的例子如下：</p>
@@ -5412,7 +5412,7 @@ in 1.4.
 </ol>
 <h3 id="如何在-mifare-classic-上配置-ndef"><a class="toclink" href="../../../../hardware/2020/05/10/mifare-classic-ndef/#如何在-mifare-classic-上配置-ndef">如何在 MIFARE Classic 上配置 NDEF</a></h3>
 <p>如果看了这么多背景知识，你还有心情看到这里，那要给个掌声。</p>
-<p>为什么要在 MIFARE Classic 上配置 NDEF 呢？因为直接买到的 MIFARE Classic（比如我用的 EV1 4K S70）里面都是出厂状态，Key A 和 Key B 都是 FF FF FF FF FF FF，除了 Block 0 以外数据都是 0，所以它并不能用作 NDEF，Android 也只是认为它 NdefFormattable。所以我们要做的就是，Format as NDEF。为啥要自己搞呢，也是因为试了几个现成的工具 format 都失败了。</p>
+<p>为什么要在 MIFARE Classic 上配置 NDEF 呢？因为直接买到的 MIFARE Classic（比如我用的 EV1 4K S70）里面都是出厂状态，Key A 和 Key B 都是 FF FF FF FF FF FF，除了 Block 0 以外数据都是 0，所以它并不能用作 NDEF，Android 也只是认为它是 NdefFormattable。所以我们要做的就是，Format as NDEF。为啥要自己搞呢，也是因为试了几个现成的工具 format 都失败了。</p>
 <p>其实整个流程在 <a href="https://www.nxp.com/docs/en/application-note/AN1305.pdf">AN1305</a> 的 8.1 章节都写了，但看起来简单，实现起来还是有很多细节，在搞的时候也是来来回回做了很多尝试，同时也利用 TagInfo 强大的 Memory dump 配合调试。</p>
 <p>首先复习一下我们可以用哪些命令：</p>
 <ol>
@@ -5424,7 +5424,7 @@ in 1.4.
 <ol>
 <li>修改 Block 1 和 Block 2 中的信息，符合 MAD 的格式</li>
 <li>修改 Sector 0 的 Sector Trailer</li>
-<li>修改 Block 4，填入一个空白的 NDEF，或者直接前面背景知识里的例子。</li>
+<li>修改 Block 4，填入一个空白的 NDEF，或者直接用前面背景知识里的例子。</li>
 <li>修改 Sector 1 和 Sector 2 的 Sector Trailer</li>
 </ol>
 <p>但有一些细节：</p>
