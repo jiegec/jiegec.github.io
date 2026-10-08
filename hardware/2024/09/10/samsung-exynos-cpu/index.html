@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../../../../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.68">
+      <meta name="generator" content="zensical-0.0.69">
     
     
       
@@ -34,7 +34,7 @@
       
         
       
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/modern/main.595f2bf5.min.css">
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/modern/main.e15858d4.min.css">
       
       
 
@@ -1930,7 +1930,7 @@
 <p>首先从 Exynos 最早的分支预测器设计开始。一开始设计的时候，就考虑到要支持 2 prediction/clock 的场景，前提是第一个分支是 not taken 的。例如有两条分支指令，第一条是条件分支指令，如果第一条分支 taken，那就以第一条分支的结果为准；如果第一条分支 not taken，那就应该以第二条分支的结果为准。这样可以在比较低的开销的前提下，一个周期预测两条分支指令，提高分支预测的性能，如果不做这个优化的话，需要先预测第一条分支，预测完，再去预测第二条分支。论文中指出，对于这种需要预测 2 个分支的场景，有 60% 的情况是第一条分支 taken，24% 情况是第一条分支 not taken 并且第二条分支 taken，两个都 not taken 的情况占 16%。那么后 40% 的情况就可以得到性能提升。这个优化还是挺常见的，例如<a href="https://raw.githubusercontent.com/OpenXiangShan/XiangShan-doc/main/slides/20220825-RVSC-%E9%A6%99%E5%B1%B1%E5%A4%84%E7%90%86%E5%99%A8%E5%89%8D%E7%AB%AF%E5%8F%96%E6%8C%87%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B.pdf">香山南湖架构</a>做了这个优化，而且虽然可以 2 predictions/cycle，但实际上只有一个 Fetch Packet，也最多 1 taken prediction/cycle。</p>
 <p>SHP，也就是那个最大的 Perceptron 预测器，包含了 8 个表，每个表有 1024 个权重，每个 BTB 表项还给每个分支记录了一个 bias。预测的时候，根据 GHR（根据分支 taken/not taken 历史）和 PHR（根据 taken branch 地址）以及分支的 PC 经过哈希，得到 table 的 index，根据 index 去访问权重。把从 8 个表里读出来的权重加起来，再加上 bias 的两倍，得到最早的计算结果，如果是非负数，则预测为 taken；负数则预测为 not taken。</p>
 <p>知道分支的实际跳转方向后，如果预测错误了，或者预测对了，但是计算结果太接近 0，就需要更新 weight。更新时，会更新参与到计算的来自各个表的 weight，如果是 taken，那就增加 weight；如果是 not taken，就减少 weight。Exynos M1 采用了 165 位的 GHR，也就是最近 165 条条件分支的跳转方向，以及 80 位的 PHR，每个 taken branch 会向 PHR 贡献 3 个 bit（B[4:2]），但是没说移位多少。这样就构成了一个 Perceptron 预测器。</p>
-<p>特别地，针对总是跳转的分支，例如无条件跳转分支，或者总是跳转的条件分支，就不用更新 SHP 了，他们只需要在 BTB 中标记一下即可，避免污染 SHP，干扰其他分支的预测。类似的思路也挺常见的，AMD 的做法是，对于从来没有跳转过的条件分支指令，不分配 BTB 表项，并且预测为不跳转；当条件分支了跳转第一次，那就会在 BTB 中分配表项，标记为 always taken，表示预测为总是跳转；当条件分支跳转和不跳转各至少一次，才启用分支方向预测器。</p>
+<p>特别地，针对总是跳转的分支，例如无条件跳转分支，或者总是跳转的条件分支，就不用更新 SHP 了，他们只需要在 BTB 中标记一下即可，避免污染 SHP，干扰其他分支的预测。类似的思路也挺常见的，AMD 的做法是，对于从来没有跳转过的条件分支指令，不分配 BTB 表项，并且预测为不跳转；当条件分支跳转第一次，那就会在 BTB 中分配表项，标记为 always taken，表示预测为总是跳转；当条件分支跳转和不跳转各至少一次，才启用分支方向预测器。</p>
 <p>接下来是 BTB。mBTB，也就是上面提到的有 1-2 bubble 的略微大一些的 BTB，可以给 128B 大小的 cacheline 保存 8 条分支指令。统计数据表示，平均每 5 条指令有一条是分支指令，那么 128B 在 4 字节定长指令的情况下，可以存 32 条指令，估算得到大约有 6-7 条分支指令，所以设计了可以存 8 条。但也有可能分支密度很高，128B 全是分支指令，那就会有 32 条分支指令了。</p>
 <p>为了解决这个问题，设计了 vBTB（virtual indexed BTB），可以把 128B 的 cacheline 里超过 8 个 branch 的多余部分保存下来，当然了，会有额外的开销。</p>
 <p>比较特别的是，没有设计单独的例如 ITTAGE 那样的 Indirect Predictor，而是采用了叫做 VPC（Virtual PC）的方案，它的思路是，复用方向预测器和 BTB 的能力，把一条 Indirect Branch 映射为多条 Conditional Branch，每个 Conditional Branch 的 Target 对应一个可能的 Indirect Branch Target，这个 Target 就存在 BTB 当中。预测的时候，按照顺序遍历每个虚拟的 Conditional Branch，如果预测为 taken，那就跳转到这个虚拟的分支的目的地址；如果预测为 not taken，那就遍历到下一个虚拟的分支。如果所有的虚拟条件分支都被预测为不跳转，那就需要等到后端计算出实际的目的地址，再跳转。对于每个 Indirect Branch，这样的虚拟条件分支最多生成 16 个。</p>
@@ -1956,7 +1956,7 @@
 <p>Exynos M6 的办法是，针对这些目的地址特别多的间接跳转指令，设计单独的存储，不去占用 vBTB 的空间，这个空间是 Indirect target storage，采用 4 路组相连，一共 256 个 set。经常出现的目的地址还是和之前一样，放在 mBTB 中，但是对于剩下的目的地址，则是放到 Indirect target storage 中，根据最近的 indirect branch target 计算出 Index 和 Tag，去 Indirect target storage 中寻找，其实这个就和 ITTAGE 里的一个 table 有点类似了。</p>
 <p>最后论文总结了 Exynos 从 M1 到 M6 的各级分支预测器的存储面积开销，基本每一代都有所增加，既有 MPKI 的减少（M6 相比 M1 在 SPECint2006 上 MPKI 减少 25.6%），又有预测性能的提升。</p>
 <h2 id="分支预测安全">分支预测安全<a class="headerlink" href="#分支预测安全" title="Permanent link">&para;</a></h2>
-<p>有意思的，论文也提到了分支预测的安全问题，主要是避免跨上下文的分支预测器注入攻击。核心思路是，给每个上下文生成一个随机数（<code>CONTEXT_HASH</code>），然后把随机数异或到 BTB 保存的目的地址里面去，在从 BTB 读出来目的地址使用之前，要再次异或同一个随机数。那么如果是读取了来自同一个上下文的 BTB entry，通过两次异或可以得到正确的原始数据；如果是读取了来自不同上下文的 BTB entry，由于随机数不同，最后会得到随机的数据。当然了，前提是这些随机数不能被攻击者得到，对软件是不可见的。</p>
+<p>有意思的是，论文也提到了分支预测的安全问题，主要是避免跨上下文的分支预测器注入攻击。核心思路是，给每个上下文生成一个随机数（<code>CONTEXT_HASH</code>），然后把随机数异或到 BTB 保存的目的地址里面去，在从 BTB 读出来目的地址使用之前，要再次异或同一个随机数。那么如果是读取了来自同一个上下文的 BTB entry，通过两次异或可以得到正确的原始数据；如果是读取了来自不同上下文的 BTB entry，由于随机数不同，最后会得到随机的数据。当然了，前提是这些随机数不能被攻击者得到，对软件是不可见的。</p>
 <h2 id="uop-cache">uOP Cache<a class="headerlink" href="#uop-cache" title="Permanent link">&para;</a></h2>
 <p>Exynos M1 到 M4 没有 uOP Cache，所有指令都需要经过取指和译码，得到 uOP。从 Exynos M5 开始引入了 uOP Cache，会缓存译码后的 uOP。Exynos M5 的 uOP Cache 最多可以保存 384 个 uOP，每个 entry 可以保存 6 个 uOP，一个周期提供一个 entry。一个 uOP Cache Entry 中的 uOP 来自连续的指令，以分支指令作为结尾。下面是论文给出的一个例子：</p>
 <p><img alt="" src="../../../../samsung-exynos-cpu-uop.png" /></p>
@@ -2277,7 +2277,7 @@ function openBibtexModal() {
       <script id="__config" type="application/json">{"annotate":null,"base":"../../../../..","features":["navigation.tabs","navigation.tabs.sticky","navigation.sections","navigation.footer","content.action.copy","content.code.copy","toc.follow","toc.integrate"],"redirect":null,"search":"../../../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"已复制","clipboard.copy":"复制","clipboard.error":"Could not copy to clipboard","search.result.more.one":"在该页上还有 1 个符合条件的结果","search.result.more.other":"在该页上还有 # 个符合条件的结果","search.result.none":"没有找到符合条件的结果","search.result.one":"找到 1 个符合条件的结果","search.result.other":"# 个符合条件的结果","search.result.placeholder":"键入以开始搜索","search.result.term.missing":"缺少","select.version":"选择当前版本"},"version":null}</script>
     
     
-      <script src="../../../../../assets/javascripts/bundle.3c842f4c.min.js"></script>
+      <script src="../../../../../assets/javascripts/bundle.8b1c90bd.min.js"></script>
       
         <script src="../../../../../javascripts/mathjax.js"></script>
       

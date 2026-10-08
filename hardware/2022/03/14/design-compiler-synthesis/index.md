@@ -10,7 +10,7 @@
 
 网上可以找到一些 Liberty 格式的工艺库，比如 [Nangate45](<https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD-flow-scripts/master/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib>)，它的设定是 25 摄氏度，1.10 伏，属于 TT（Typical/Typical）的 Process Corner。
 
-在里面可以看到一些基本单元的定理，比如 `AND2_X1`，就是一个 drive strength 是 1 的二输入与门：
+在里面可以看到一些基本单元的定义，比如 `AND2_X1`，就是一个 drive strength 是 1 的二输入与门：
 
 ```text
 cell (AND2_X1) {
@@ -280,7 +280,7 @@ report_qor
 
 # step 5: export
 write -format ddc -hierarchy -output xxx.ddc
-write_sdc -version 1.0 xxx.sdf
+write_sdc -version 1.0 xxx.sdc
 write -format verilog -hierarchy -output xxx.syn.v
 write_sdc xxx.sdc
 ```

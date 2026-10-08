@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../../../../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.68">
+      <meta name="generator" content="zensical-0.0.69">
     
     
       
@@ -34,7 +34,7 @@
       
         
       
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/modern/main.595f2bf5.min.css">
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/modern/main.e15858d4.min.css">
       
       
 
@@ -1805,7 +1805,7 @@
 </span><span id="__span-4-36"><a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
 </span><span id="__span-4-37"><a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>这里的 <code>ngx_alloc</code> 就是对 <code>malloc</code> 的简单封装，直接分配一段内存，然后向 <code>pool-&gt;large</code> 中以 <code>ngx_pool_large_t</code> 组成的链表中插入。这里有一个小优化：因为 <code>ngx_pool_large_t</code> 本身也要占用内存，为了复用已经被释放的 <code>ngx_pool_large_t</code> ，尝试链表的前几项，如果几项中都没有空的位置，因为 <code>ngx_pool_large_t</code> 本身是一个很小的对象，自然可以复用自己在内存池中分配对象的方法 <code>ngx_palloc_small</code> ，然后把它加入到 <code>pool-&gt;large</code> 的链表的第一向前。如果很大的内存都在分配后很快释放，这种方法可以复用很多的 <code>ngx_pool_large_t</code> 。</p>
+<p>这里的 <code>ngx_alloc</code> 就是对 <code>malloc</code> 的简单封装，直接分配一段内存，然后向 <code>pool-&gt;large</code> 中以 <code>ngx_pool_large_t</code> 组成的链表中插入。这里有一个小优化：因为 <code>ngx_pool_large_t</code> 本身也要占用内存，为了复用已经被释放的 <code>ngx_pool_large_t</code> ，尝试链表的前几项，如果几项中都没有空的位置，因为 <code>ngx_pool_large_t</code> 本身是一个很小的对象，自然可以复用自己在内存池中分配对象的方法 <code>ngx_palloc_small</code> ，然后把它加入到 <code>pool-&gt;large</code> 的链表的头部。如果很大的内存都在分配后很快释放，这种方法可以复用很多的 <code>ngx_pool_large_t</code> 。</p>
 <p>接下来分析 <code>ngx_palloc_small</code> ：</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">static</span><span class="w"> </span><span class="n">ngx_inline</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ngx_palloc_small</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">ngx_uint_t</span><span class="w"> </span><span class="n">align</span><span class="p">)</span>
@@ -1871,7 +1871,7 @@
 </span><span id="__span-6-33"><a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">m</span><span class="p">;</span>
 </span><span id="__span-6-34"><a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>为了节省内存，结构体中并没有记录实际分配的内存块的大小，于是根据第一个块的大小分配当前的块，虽然这里用的也是一个类型为 <code>ngx_pool_t</code> 结构体，实际上只用到了 <code>new-&gt;d</code> 中的内容维护块组成的链表和块内的分配情况。然后从 <code>pool-&gt;current</code> 开始找块的链表的结尾，找到节尾后把当前的块加到结尾的后面，然后把刚才需要分配的小对象的地址返回。与此同时，由于调用这个函数的时候，一定是当前的对象在已有的从 <code>pool-&gt;current</code> 开始的块中都放不下了，我们给这些块的 <code>p-&gt;d.failed</code> 进行自增，意思是说这个块在分配新的对象的时候又一次放不下了，如果放不下的次数比较多，我们可以认为这个块已经装得比较满了，那么，我们把 <code>pool-&gt;current</code> 设为它的后继，以后在分配新的对象的时候就会自动跳过这些比较满的块，从而提高了效率。</p>
+<p>为了节省内存，结构体中并没有记录实际分配的内存块的大小，于是根据第一个块的大小分配当前的块，虽然这里用的也是一个类型为 <code>ngx_pool_t</code> 结构体，实际上只用到了 <code>new-&gt;d</code> 中的内容维护块组成的链表和块内的分配情况。然后从 <code>pool-&gt;current</code> 开始找块的链表的结尾，找到结尾后把当前的块加到结尾的后面，然后把刚才需要分配的小对象的地址返回。与此同时，由于调用这个函数的时候，一定是当前的对象在已有的从 <code>pool-&gt;current</code> 开始的块中都放不下了，我们给这些块的 <code>p-&gt;d.failed</code> 进行自增，意思是说这个块在分配新的对象的时候又一次放不下了，如果放不下的次数比较多，我们可以认为这个块已经装得比较满了，那么，我们把 <code>pool-&gt;current</code> 设为它的后继，以后在分配新的对象的时候就会自动跳过这些比较满的块，从而提高了效率。</p>
 <div class="language-c highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">ngx_int_t</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nf">ngx_pfree</span><span class="p">(</span><span class="n">ngx_pool_t</span><span class="w"> </span><span class="o">*</span><span class="n">pool</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">p</span><span class="p">)</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">{</span>
@@ -1944,7 +1944,7 @@
 </span><span id="__span-8-50"><a id="__codelineno-8-50" name="__codelineno-8-50" href="#__codelineno-8-50"></a><span class="w">    </span><span class="p">}</span>
 </span><span id="__span-8-51"><a id="__codelineno-8-51" name="__codelineno-8-51" href="#__codelineno-8-51"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>这个函数首先调用了一系列用户定义的 <code>pool-&gt;cleanup</code> 链表中的函数，允许自定义回收一些特定的资源。然后对每一个 <code>pool-&gt;large</code> 链表中的内容分别释放，最后再把各个块中所有的内存整块释放。注意 <code>ngx_large_block_t</code> 也是存在块中的，所以顺序不能反了。</p>
+<p>这个函数首先调用了一系列用户定义的 <code>pool-&gt;cleanup</code> 链表中的函数，允许自定义回收一些特定的资源。然后对每一个 <code>pool-&gt;large</code> 链表中的内容分别释放，最后再把各个块中所有的内存整块释放。注意 <code>ngx_pool_large_t</code> 也是存在块中的，所以顺序不能反了。</p>
 
   
 
@@ -2229,7 +2229,7 @@ function openBibtexModal() {
       <script id="__config" type="application/json">{"annotate":null,"base":"../../../../..","features":["navigation.tabs","navigation.tabs.sticky","navigation.sections","navigation.footer","content.action.copy","content.code.copy","toc.follow","toc.integrate"],"redirect":null,"search":"../../../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"已复制","clipboard.copy":"复制","clipboard.error":"Could not copy to clipboard","search.result.more.one":"在该页上还有 1 个符合条件的结果","search.result.more.other":"在该页上还有 # 个符合条件的结果","search.result.none":"没有找到符合条件的结果","search.result.one":"找到 1 个符合条件的结果","search.result.other":"# 个符合条件的结果","search.result.placeholder":"键入以开始搜索","search.result.term.missing":"缺少","select.version":"选择当前版本"},"version":null}</script>
     
     
-      <script src="../../../../../assets/javascripts/bundle.3c842f4c.min.js"></script>
+      <script src="../../../../../assets/javascripts/bundle.8b1c90bd.min.js"></script>
       
         <script src="../../../../../javascripts/mathjax.js"></script>
       
