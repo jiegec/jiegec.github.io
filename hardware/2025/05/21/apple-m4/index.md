@@ -8,7 +8,7 @@
 >
 > **图片来源**
 >
-> 使用 [Z-Image](<https://github.com/Tongyi-MAI/Z-Image>) 生成，提示词： `Create a cover iamge for Apple M4 微架构评测, with a proper Apple M4 MacBookAir in the middle with M4 in the background, your text must be accurate`
+> 使用 [Z-Image](<https://github.com/Tongyi-MAI/Z-Image>) 生成，提示词： `Create a cover image for Apple M4 微架构评测, with a proper Apple M4 MacBookAir in the middle with M4 in the background, your text must be accurate`
 
 ## 官方信息
 
@@ -450,7 +450,7 @@ P-Core 访存：
   - 即 3 load, 2 sta, 2 std
 - Sustained: 4 uops, 2 write into the cache
 
-和 M1 E-Core 相同。
+和 M1 P-Core 相同。
 
 M4 Family 的 E-Core 包括如下计算单元：
 
@@ -466,10 +466,10 @@ M4 Family 的 E-Core 包括如下计算单元：
 
 E-Core 访存：
 
-- Burst: 3 load uops, 2 store uops (address part), and 2 store uops (data part)
+- Burst: 2 load uops, or 2 store uops (address part), or 1 of each, along with 2 store uops (data part)
 
-  - 即 3 load, 2 sta, 2 std
-- Sustained: 4 uops, 2 write into the cache
+  - 即 2 load，或者 2 sta，或者 1 load + 1 std，或者 1 sta + 1 std
+- Sustained: 2 uops, 1 write into the cache
 
 和 M1 E-Core 相同。
 

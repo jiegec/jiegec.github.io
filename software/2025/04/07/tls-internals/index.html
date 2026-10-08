@@ -2114,7 +2114,7 @@
 <p>首先 TLS 是 per-thread 的存储，意味着每个新线程，都有一个 buffer 需要保存 TLS 的数据。那么这个数据所在的位置，也需要一些 per-thread 的高效方式来访问，在 amd64 上，它是通过 <code>%fs</code> 段寄存器来维护的。那么 TLS 可能有哪些来源呢？首先可执行程序自己可能会用一些，它通过 DT_NEEDED 由动态链接器在启动时加载的动态库也有一些（比如 <a href="../../../03/30/glibc-allocator/">glibc 的 tcache</a>），此外运行时 dlopen 了一些动态库也会有 TLS 的需求。为了满足这些需求，需要设计一个 TLS 的结构，既能满足这些在启动时已知的可执行程序和动态库的需求，又能满足运行时动态加载的新动态库的需求。</p>
 <p>这里面可执行程序和启动时加载的动态库的需求是明确的，不会变的，因此可以由动态链接器在加载的时候，直接给可执行程序和动态库分配 TLS 空间：</p>
 <ol>
-<li>比如可执行程序本身需要 0x10 字节的 TLS 空间，它启动时加载两个动态库 libc.so.6 和 libstdc++.so.6，期中 libc.so.6 需要 0x20 字节的 TLS 空间，libstdc++.so.6 需要 0x30 字节的 TLS 空间</li>
+<li>比如可执行程序本身需要 0x10 字节的 TLS 空间，它启动时加载两个动态库 libc.so.6 和 libstdc++.so.6，其中 libc.so.6 需要 0x20 字节的 TLS 空间，libstdc++.so.6 需要 0x30 字节的 TLS 空间</li>
 <li>加起来一共需要 0x60 字节的 TLS 空间，那么在创建线程的时候，创建好 0x60 字节的 TLS 空间，按照顺序进行分配：<ol>
 <li>0x00-0x10: 属于可执行程序</li>
 <li>0x10-0x30: 属于 libc.so.6</li>
@@ -2596,7 +2596,7 @@
 <ol>
 <li>如果在编译源码的时候，没有开 <code>-fPIC</code>，那么生成的代码只出现在可执行程序中，这个时候编译器会直接使用 local exec TLS model，即生成 <code>movl %fs:symbol@tpoff, %rax</code> 的指令</li>
 <li>如果在编译源码的时候，开了 <code>-fPIC</code>，那么生成的代码既可能出现在可执行程序中，也可能出现在动态库中，这时会首先默认为 global dynamic TLS model，即生成 <code>data16 leaq symbol@tlsgd(%rip), %rdi; .value 0x6666; rex64; call __tls_get_addr@PLT; movl (%rax), %eax</code> 指令</li>
-<li>但如果 <code>__thread</code> 变量设置了 <code>static</code>，即使打开了 <code>-fPIC</code>，也保证了这个 TLS 变量一定是访问自己 TLS 空间中的，不会访问别人的，那么编译器会自动选择 local dynamic TLS model，即生成 <code>leaq symbol@tlsld(%rip), %rdi; call__tls_get_addr@PLT; movl %symbol@dtpoff(%rax), %eax</code> 指令</li>
+<li>但如果 <code>__thread</code> 变量设置了 <code>static</code>，即使打开了 <code>-fPIC</code>，也保证了这个 TLS 变量一定是访问自己 TLS 空间中的，不会访问别人的，那么编译器会自动选择 local dynamic TLS model，即生成 <code>leaq symbol@tlsld(%rip), %rdi; call __tls_get_addr@PLT; movl %symbol@dtpoff(%rax), %eax</code> 指令</li>
 </ol>
 <p>接下来观察链接的时候，会发生什么事情：</p>
 <ol>
@@ -2659,7 +2659,7 @@
 <ol>
 <li>global dynamic -&gt; initial exec：编译的时候开了 -fPIC 和 <code>extern</code>，然后链接到可执行程序内，TLS 变量来自动态库</li>
 <li>global dynamic -&gt; local exec：编译的时候开了 -fPIC，然后链接到可执行程序内，TLS 变量来自程序自己</li>
-<li>local dynamic -&gt; local exec：编译的时候开了 -fPIC 和 <code>-static</code>，然后链接到可执行程序内，TLS 变量来自程序自己</li>
+<li>local dynamic -&gt; local exec：编译的时候开了 -fPIC 和 -static，然后链接到可执行程序内，TLS 变量来自程序自己</li>
 <li>initial exec -&gt; local exec：编译的时候没开 -fPIC，然后链接到可执行程序内，TLS 变量来自程序自己</li>
 </ol>
 <h2 id="tlsdesc">TLSDESC<a class="headerlink" href="#tlsdesc" title="Permanent link">&para;</a></h2>

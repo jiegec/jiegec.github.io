@@ -2942,7 +2942,7 @@
 <li><code>ML_CCZ4::ML_CCZ4_EvolutionInteriorSplitBy2_Body</code> 来自 <code>src/repos/mclachlan/ML_CCZ4/src/ML_CCZ4_EvolutionInteriorSplitBy2.cc</code>：占总时间 41.30%，下同；</li>
 <li><code>ML_CCZ4::ML_CCZ4_EvolutionInteriorSplitBy3_Body</code> 来自 <code>src/repos/mclachlan/ML_CCZ4/src/ML_CCZ4_EvolutionInteriorSplitBy3.cc</code>：31.26%；</li>
 <li><code>ML_CCZ4::ML_CCZ4_ConstraintsInterior_Body</code> 来自 <code>src/repos/mclachlan/ML_CCZ4/src/ML_CCZ4_ConstraintsInterior_Body.cc</code>：6.71%；</li>
-<li><code>ML_CCZ4::ML_CCZ4_EvolutionInteriorSplitBy1_Body</code> 来自 <code>src/repos/mclachlan/ML_CCZ4/src/ML_CCZ4_EvolutionInteriorSplitBy3.cc</code>：6.44%。</li>
+<li><code>ML_CCZ4::ML_CCZ4_EvolutionInteriorSplitBy1_Body</code> 来自 <code>src/repos/mclachlan/ML_CCZ4/src/ML_CCZ4_EvolutionInteriorSplitBy1.cc</code>：6.44%。</li>
 </ul>
 <p>这些热点函数的代码模式都是类似的：在三层循环里，读取对应三维空间中的点的数据，进行一系列的 Stencil 访存和浮点运算，包括大量的浮点乘法加法减法、pow 和 fabs，最后把结果写入对应数组。从指令来看，就是用大量的 SSE 指令来进行标量的双精度浮点运算，没有进行向量化。实验的时候，还观察到了编译器对 <code>pow</code> 和 <code>fabs</code> 的优化。在 <code>-O3</code> 时，<code>pow(a, 1)</code> 被编译成 <code>a</code>，<code>pow(a, 2)</code> 被编译成 <code>a * a</code>，<code>pow(a, -1)</code> 被编译成 <code>1.0 / a</code>，不过其他的例如 <code>pow(a, 3)</code> 和 <code>pow(a, -2)</code> 就只能转为 <code>libm</code> 的 <code>pow</code> 实现了。如果开了 <code>-O3 -ffast-math</code>，那么 <code>pow(a, 3)</code> 会编译成 <code>a * a * a</code>，<code>pow(a, -2)</code> 会被编译为 <code>1.0 / (a * a)</code>。两种编译选项的对比见 <a href="https://godbolt.org/z/nKfGMfE49">Godbolt</a>。代码中，出现的主要就是 <code>pow(a, -1)</code>，<code>pow(a, 2)</code>、<code>pow(a, -2)</code> 和 <code>pow(a, runtimeVariable)</code>，其中 <code>runtimeVariable</code> 指一个在运行时才知道的数，在代码中对应 <code>shiftAlphaPower</code> 或 <code>harmonicN</code>。<code>fabs</code> 被编译成了位运算 <code>andpd</code> 指令，直接把符号位置零。</p>
 <p>开启 <code>-O3 -march=native</code> 后，其实依然没有向量化，用 AVX2 指令计算双精度标量浮点，依然能看到对 <code>libm</code> 的 <code>pow</code> 的调用，就是上面提到的 <code>pow(a, -2)</code> 或 <code>pow(a, runtimeVariable)</code>，不过其余的计算部分因为能用 <a href="https://www.felixcloutier.com/x86/vfmadd132sd:vfmadd213sd:vfmadd231sd"><code>vfmadd132sd</code></a>/<code>vfnmadd132sd</code> 而获得了性能提升，同时 <a href="https://www.felixcloutier.com/x86/addsd"><code>vaddsd</code></a> 相比 <a href="https://www.felixcloutier.com/x86/addsd"><code>addsd</code></a> 从两操作数变为三操作数，还允许访存，进一步节省了指令数。而在 ARM64 平台上，开 <code>-march=native</code> 就没有性能提升，这是因为它的浮点乘加融合指令即使在没开 <code>-march=native</code> 的情况下也是可以使用的，见 <a href="https://godbolt.org/z/nqMjY4EoY">Godbolt</a>。某种意义上来说，AMD64 上开 <code>-march=native</code> 有性能巨大提升，也是吃了先发劣势的亏：基线对应的处理器太早，缺少很多重要的指令集扩展，这种兼容性负担在很多其他指令集上不会出现，例如乘加融合 FMA 指令很多指令集里已经在基线当中，在这些指令集上，开 <code>-march=native</code> 的提升就会相对来说更低。所以现在很多软件会曲线救国，为了保证兼容性，针对多个不同指令集扩展分别做手动适配，在运行时根据可用性选择性能最好的那一个。如果编译器能很好地自动完成这一点，将会在保持兼容性和开发便捷性的前提下，带来不错的系统整体性能提升。</p>
@@ -3850,7 +3850,7 @@
 <li><code>OpenColorIO_v2_2dev::Lut3DTetrahedralRenderer::apply</code> 来自 <code>src/ASWF-OpenColorIO/src/OpenColorIO/ops/lut3d/Lut3DOpCPU.cpp</code>：50.74%，做的操作还挺复杂，每个元素首先进行一次乘法，然后进行一次 clamp，floor 和 ceil 后分别转化为 int，再根据 int 去进行对一个表进行间接访存，查表的结果再经过一系列的加权平均完成计算，向量化程度不高；</li>
 <li><code>OpenColorIO_v2_2dev::MatrixRenderer::apply</code> 来自 <code>src/ASWF-OpenColorIO/src/OpenColorIO/ops/matrix/MatrixOpCPU.cpp</code>：11.55%，进行矩阵的运算，把输入的四维向量和一个 4x4 矩阵进行乘法，得到输出的四维向量，向量化程度较高；</li>
 <li><code>__log2f_fma</code> 来自 libm：10.02%，计算浮点 log2；</li>
-<li><code>OpenColorIO_v2_2dev::CameraLin2LogRenderer::apply</code> 来自 <code>src/ASWF-OpenCOlorIO/src/OpenColorIO/ops/log/LogOpCPU.cpp</code>：9.76%，判断输入的范围，如果小于一个阈值 <code>m_linb</code>，就用线性的乘加计算结果，否则就会调用上述 log2 函数，结合一些乘加以及 max 操作来进行计算，向量化程度低。</li>
+<li><code>OpenColorIO_v2_2dev::CameraLin2LogRenderer::apply</code> 来自 <code>src/ASWF-OpenColorIO/src/OpenColorIO/ops/log/LogOpCPU.cpp</code>：9.76%，判断输入的范围，如果小于一个阈值 <code>m_linb</code>，就用线性的乘加计算结果，否则就会调用上述 log2 函数，结合一些乘加以及 max 操作来进行计算，向量化程度低。</li>
 </ul>
 <p>不同编译器和编译选项的对比：</p>
 <table>
@@ -4058,7 +4058,7 @@
 <h4 id="3-projection">3. projection<a class="headerlink" href="#3-projection" title="Permanent link">&para;</a></h4>
 <p>热点函数：</p>
 <ul>
-<li><code>laplaceSmoothing</code> 来自 <code>src/gmsh/src/mesh/meshGFaceOptimize.cpp</code>：11.73%，主要瓶颈是 <code>std::set</code> 的操作，，而 <code>std::set</code> 是用 <code>std::map</code> 实现的，因此会调用下面的 <code>std::map</code> 的代码；</li>
+<li><code>laplaceSmoothing</code> 来自 <code>src/gmsh/src/mesh/meshGFaceOptimize.cpp</code>：11.73%，主要瓶颈是 <code>std::set</code> 的操作，而 <code>std::set</code> 是用 <code>std::map</code> 实现的，因此会调用下面的 <code>std::map</code> 的代码；</li>
 <li><code>std::map::_M_get_insert_unique_pos</code> 来自 libstdc++：7.49%，<code>std::map</code> 的插入算法实现；</li>
 <li><code>__ieee754_atan2_fma</code> 来自 libm：7.21%；</li>
 <li><code>reparamMeshVertexOnFace</code>：6.66%，描述见上；</li>
@@ -4075,7 +4075,7 @@
 </ul>
 <p>瓶颈主要还是在 <code>std::map</code>。</p>
 <h4 id="5-torus6spec-和-7p19">5. Torus、6.spec 和 7.p19<a class="headerlink" href="#5-torus6spec-和-7p19" title="Permanent link">&para;</a></h4>
-<p>最后三个负载，其热点函数都与 4.gadis 相同，不再赘述。</p>
+<p>最后三个负载，其热点函数都与 4.gasdis 相同，不再赘述。</p>
 <h4 id="小结_2">小结<a class="headerlink" href="#小结_2" title="Permanent link">&para;</a></h4>
 <p>各负载的情况：</p>
 <table>
@@ -4167,7 +4167,7 @@
 <td>5.39</td>
 </tr>
 <tr>
-<td>7. p10</td>
+<td>7. p19</td>
 <td>12.7</td>
 <td>96.3</td>
 <td>28.8</td>
@@ -4882,7 +4882,7 @@
 <li><code>marian::cpu::integer::affineOrDotTyped</code>：78.96%，描述见上；</li>
 <li><code>marian::cpu::ProdBatched</code>：14.25%，描述见上。</li>
 </ul>
-<p>热点函数和 1. TileMODEL 完全相同，其余的分析对 2. EuroPat 也是成立的，这里直接给出性能计数器的对比：</p>
+<p>热点函数和 1. TildeMODEL 完全相同，其余的分析对 2. EuroPat 也是成立的，这里直接给出性能计数器的对比：</p>
 <p>不同编译器和编译选项下的对比：</p>
 <table>
 <thead>

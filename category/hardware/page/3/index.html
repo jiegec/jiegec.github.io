@@ -3098,13 +3098,13 @@ ensure the address bus is valid.
 <p>接下来考虑上面提到的第三件事情：需要 evict 一个 valid &amp;&amp; dirty 的缓存行的时候，需要把 dirty 数据写回，并且降级自己的状态，比如 Modified -&gt; Shared/Invalid。</p>
 <p>按照前面的 <code>操作 + 目的状态</code> 命名法，可以命名为 WriteBackInvalid。ACE 实际采用的命名是 WriteBack。</p>
 <p>终于到了第四件事情：收到 snoop 请求的时候，需要返回当前的缓存数据，并且更新状态。</p>
-<p>既然 snoop 是从 Interconnect 发给 Master，在已有的 AR R AW W B channel 里没办法做这个事情，不然会打破已有的逻辑。那不得不添加一对 channel，比如我规定一个 AC channel 发送 snoop 请求，规定一个 C channel 让 master 发送响应，这样就可以了。这就相当于 TileLink 里面的 B channel（Probe 请求）和 C channel（ProbeAck 响应）。实际 ACE 和刚才设计的实际有一些区别，把 C channel 拆成了两个：CR 用于返回所有响应，CD 用于返回那些需要数据的响应。这就像 AW 和 W 的关系，一个传地址，一个传数据；类似地，CR 传状态，CD 传数据。</p>
+<p>既然 snoop 是从 Interconnect 发给 Master，在已有的 AR R AW W B channel 里没办法做这个事情，不然会打破已有的逻辑。那不得不添加一对 channel，比如我规定一个 AC channel 发送 snoop 请求，规定一个 C channel 让 master 发送响应，这样就可以了。这就相当于 TileLink 里面的 B channel（Probe 请求）和 C channel（ProbeAck 响应）。实际 ACE 和刚才的设计有一些区别，把 C channel 拆成了两个：CR 用于返回所有响应，CD 用于返回那些需要数据的响应。这就像 AW 和 W 的关系，一个传地址，一个传数据；类似地，CR 传状态，CD 传数据。</p>
 <p>那么，接下来考虑一下 AC channel 上要发送什么请求呢？我们回顾一下上面已经用到的请求类型：需要 snoop 的有 ReadShared，ReadUnique 和 CleanUnique，不需要 snoop 的有 WriteBack。那我们直接通过 AC channel 把 ReadShared，ReadUnique 和 CleanUnique 这三种请求原样发送给需要 snoop 的 cache 那里就可以了。</p>
 <p>Cache 在 AC channel 收到这些请求的时候，可以做相应的动作。由于 MOESI 协议下同样的请求可以有不同的响应方法，这里就不细说了。</p>
-<p>这时候我们已经基本把 ACE 协议的信号和大题的工作流程推导出来了。哦，我们还忘了第五件事情：需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。TileLink 添加了一个额外的 E channel 来做这个事情，ACE 更加粗暴：直接用一对 RACK 和 WACK 信号来分别表示最后一次读和写已经完成。</p>
+<p>这时候我们已经基本把 ACE 协议的信号和大体的工作流程推导出来了。哦，我们还忘了第五件事情：需要一个方法来通知下一级 Cache/Interconnect，告诉它第一和第二步完成了。TileLink 添加了一个额外的 E channel 来做这个事情，ACE 更加粗暴：直接用一对 RACK 和 WACK 信号来分别表示最后一次读和写已经完成。</p>
 <p>关于 WACK 和 RACK 详见 <a href="https://community.arm.com/support-forums/f/soc-design-and-simulation-forum/9888/what-s-the-purpose-for-wack-and-rack-for-ace-and-what-s-the-relationship-with-wvalid-and-rvalid">What's the purpose for WACK and RACK for ACE and what's the relationship with WVALID and RVALID?</a> 的讨论。</p>
 <h3 id="总结"><a class="toclink" href="../../../../hardware/2022/05/16/ace/#总结">总结</a></h3>
-<p>到这里就暂时不继续分析了，其他的很多请求类型是服务于更多场景，比如一次写整个 Cache Line 的话，就不需要读取已有的数据了；或者一次性读取完就不管了，或者这是一个不带缓存的加速器，DMA 等，有一些针对性的优化或者简化的处理，比如对于不带缓存的 master，可以简化为 ACE-Lite，比如 ARM 的 CCI-400 支持两个 ACE master 和 三个 ACE-Lite Master，这些 Master 可以用来接 GPU 等外设。再简化一下 ACE-Lite，就得到了 ACP（Accelerator Coherency Port）。</p>
+<p>到这里就暂时不继续分析了，其他的很多请求类型是服务于更多场景，比如一次写整个 Cache Line 的话，就不需要读取已有的数据了；或者一次性读取完就不管了，或者这是一个不带缓存的加速器，DMA 等，有一些针对性的优化或者简化的处理，比如对于不带缓存的 master，可以简化为 ACE-Lite，比如 ARM 的 CCI-400 支持两个 ACE master 和三个 ACE-Lite Master，这些 Master 可以用来接 GPU 等外设。再简化一下 ACE-Lite，就得到了 ACP（Accelerator Coherency Port）。</p>
 <p>最后我们再把文章开头的五件事对应到 ACE 上，作为一个前后的呼应：</p>
 <ol>
 <li>读或写 miss 的时候，需要请求这个缓存行的数据（AR 上发送 ReadShared/ReadUnique），并且更新自己的状态，比如读取到 Shared，写入到 Modified 等。</li>
@@ -3275,7 +3275,7 @@ ensure the address bus is valid.
 <p>内存认证计算的背景是可信计算，比如要做一些涉及重要数据的处理，从软件上，希望即使系统被攻击非法进入了，也可以保证重要信息不会泄漏；从硬件上，希望即使系统可以被攻击者进行一些物理的操作（比如导出或者修改内存等等），也可以保证攻击者无法读取或者篡改数据。</p>
 <p>下面的内容主要参考了 <a href="https://link.springer.com/chapter/10.1007/978-3-642-01004-0_1">Hardware Mechanisms for Memory Authentication: A Survey of Existing Techniques and Engines</a> 这篇 2009 年的文章。</p>
 <h3 id="威胁模型"><a class="toclink" href="../../../../hardware/2022/05/10/memory-authentication/#威胁模型">威胁模型</a></h3>
-<p>作为一个防御机制，首先要确定攻击方的能力。一个常见的威胁模型是认为，攻击者具有物理的控制，可以任意操控内存中的数据，但是无法读取或者修改 CPU 内部的数据。也就是说，只有 CPU 芯片内的数据是可信的，离开了芯片都是攻击者掌控的范围。一个简单的想法是让内存中保存的数据是加密的，那么怎样攻击者可以如何攻击加密的数据？下面是几个典型的攻击方法：</p>
+<p>作为一个防御机制，首先要确定攻击方的能力。一个常见的威胁模型是认为，攻击者具有物理的控制，可以任意操控内存中的数据，但是无法读取或者修改 CPU 内部的数据。也就是说，只有 CPU 芯片内的数据是可信的，离开了芯片都是攻击者掌控的范围。一个简单的想法是让内存中保存的数据是加密的，那么攻击者可以如何攻击加密的数据？下面是几个典型的攻击方法：</p>
 <ul>
 <li>Spoofing attack：把内存数据改成任意攻击者控制的数据；这种攻击可以通过签名来解决</li>
 <li>Splicing or relocation attack：把某一段内存数据挪到另一部分，这样数据的签名依然是正确的；所以计算签名时需要把地址考虑进来，这样地址变了，验证签名就会失败</li>
@@ -3365,7 +3365,7 @@ ensure the address bus is valid.
 <p>一些请求的例子：</p>
 <ul>
 <li>读：M-&gt;S 在 A channel 上发送 Get，S-&gt;M 在 D channel 上发送 AccessAckData</li>
-<li>写：M-&gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&gt;M 在 D channel 是发送 AccessAck</li>
+<li>写：M-&gt;S 在 A channel 上发送 PutFullData/PutPartialData，S-&gt;M 在 D channel 上发送 AccessAck</li>
 <li>原子操作：M-&gt;S 在 A channel 上发送 ArithmeticData/LogicalData，S-&gt;M 在 D channel 上发送 AccessAckData</li>
 <li>预取操作：M-&gt;S 在 A channel 上发送 Intent，S-&gt;M 在 D channel 上发送 AccessAck</li>
 </ul>
@@ -3490,7 +3490,7 @@ ensure the address bus is valid.
 <li>A low priority valid may not combinationally depend on a high priority valid. In other words, the decision to send a request may not be based on receiving a response in the same cycle.</li>
 <li>A high priority ready may not combinationally depend on a low priority ready. In other words, acceptance of a response may not be made contingent upon a request being accepted the same cycle.</li>
 </ul>
-<p>这两条的意思是，同一个周期内，我设置发送的请求的 valid，不能依赖于同一个周期内接受到的响应的 valid，比如 A 的 valid 不能组合依赖于 D 的 valid。另一方面，我设置的响应的 ready 不能依赖于同一个周期内的请求，比如 D 的 ready 不能组和依赖于 A 的 ready。</p>
+<p>这两条的意思是，同一个周期内，我设置发送的请求的 valid，不能依赖于同一个周期内接受到的响应的 valid，比如 A 的 valid 不能组合依赖于 D 的 valid。另一方面，我设置的响应的 ready 不能依赖于同一个周期内的请求，比如 D 的 ready 不能组合依赖于 A 的 ready。</p>
 <p>那么，有这么几种用法是可以的：</p>
 <ul>
 <li>It is acceptable for a receiver to drive ready in response to valid or any of the control and data signals. For example, an arbiter may lower ready if a valid request is made for an address which is busy. However, whenever possible, it is recommended that ready be driven independently so as to reduce the handshaking circuit depth. 接收方可以让 ready 依赖于 valid 或者其他的控制和数据信号，不过这样会让组合逻辑比较长。</li>

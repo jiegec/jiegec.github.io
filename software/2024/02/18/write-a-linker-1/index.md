@@ -304,7 +304,7 @@ $ objdump -S helloworld_asm
 
 这里还有一些细节没有交代，例如 section string table (.shstrtab) 的维护等等。如果只是为了跑起来，符号表都可以直接删掉不要。
 
-实现的过程中，灵活运用 readelf 和 objdump 等工具，确认自己输出的 ELF 文件内容是正确的。如果实现成功，就可以执行生成的可执行文件，成功打印 `Hello world！`。
+实现的过程中，灵活运用 readelf 和 objdump 等工具，确认自己输出的 ELF 文件内容是正确的。如果实现成功，就可以执行生成的可执行文件，成功打印 `Hello world!`。
 
 这个过程我用 Rust 完成了实现，使用了现成的 ELF 读写库 `object`，链接器部分的代码量大概是 200 行。
 
@@ -315,4 +315,4 @@ $ objdump -S helloworld_asm
 - [Tool Interface Standard (TIS) Executable and Linking Format (ELF) Specification](<https://refspecs.linuxfoundation.org/elf/elf.pdf>)
 - [System V Application Binary Interface AMD64 Architecture Processor Supplement Draft Version 0.99.6](<https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf>)
 
-[^/software/2024/02/18/write-a-linker-1/#1]: 这是为了在加载 ELF 时可以直接 mmap，而不需要立即把文件内容读取到内存里；更进一步，mmap 是允许多个虚拟页映射到同一个物理页上的，所以允许一些出现一些“不对齐”的情况，得以节省因为对齐而浪费的空间。对于这个话题的进一步了解，建议阅读 [Exploring the section layout in linker output](<https://maskray.me/blog/2023-12-17-exploring-the-section-layout-in-linker-output>)。
+[^/software/2024/02/18/write-a-linker-1/#1]: 这是为了在加载 ELF 时可以直接 mmap，而不需要立即把文件内容读取到内存里；更进一步，mmap 是允许多个虚拟页映射到同一个物理页上的，所以允许出现一些“不对齐”的情况，得以节省因为对齐而浪费的空间。对于这个话题的进一步了解，建议阅读 [Exploring the section layout in linker output](<https://maskray.me/blog/2023-12-17-exploring-the-section-layout-in-linker-output>)。

@@ -613,7 +613,7 @@ Enabling `-flto`, `-march=native`, or `-ljemalloc` provides negligible improveme
 Hotspot functions:
 
 - `sat_solver_propagate(sat_solver* s)` from `src/berkeley-abc/src/sat/bsat/satSolver.c`: 75.33%, SAT Solver's Unit Propagation, finding clauses with only one undetermined variable, assigning it, then propagating;
-- `sat_solver_analyze(sat_solver* s, int h, veci* learnt)` from `src/berkeley-abc/src/sat/bsat/satSolver`: 15.85%, conflict analysis as part of CDCL (Conflict Driven Clause Learning);
+- `sat_solver_analyze(sat_solver* s, int h, veci* learnt)` from `src/berkeley-abc/src/sat/bsat/satSolver.c`: 15.85%, conflict analysis as part of CDCL (Conflict Driven Clause Learning);
 - `sat_solver_solve_internal(sat_solver* s)` from `src/berkeley-abc/src/sat/bsat/satSolver.c`: 3.80%, SAT Solver entry point.
 
 Rarely see such concentrated bottlenecks, but indeed, SAT Solvers spend most time in Unit Propagation and CDCL on conflicts. Reminds me of writing a [DPLL SAT Solver](<https://github.com/jiegec/dpll>) for a Software Analysis and Verification course long ago. Main bottleneck: memory accesses and data-dependent branches searching the SAT problem's solution space.
@@ -866,7 +866,7 @@ Oddly, `-O3 -flto` regresses; `-O3 -flto -ljemalloc` has no effect; `-O3 -march=
 First, GCC 14 `-O3` hotspot analysis:
 
 - `seal::util::DWTHandler::transform_to_rev(...)` from `src/seal/util/dwthandler.h`: 25.65%, DWT (Discrete Wavelet Transform), instruction-level: lots of imul/add/shr/shl;
-- `seal::util::DWTHandler::transform_from_rev(...)` from `src/seal/util/DWTHandler.h`: 16.58%, inverse DWT, same computation pattern;
+- `seal::util::DWTHandler::transform_from_rev(...)` from `src/seal/util/dwthandler.h`: 16.58%, inverse DWT, same computation pattern;
 - `seal::util::multiply_uint64_generic(T operand1, S operand2, unsigned long long *result128)` from `src/seal/util/uintarith.h`: 11.60%, 64-bit \* 64-bit = 128-bit multiplication via arithmetic and bit operations;
 - `seal::util::dot_product_mod(...)` from `src/seal/util/uintarithsmallmod.cpp`: 11.48%, dot product with modular reduction using `multiply_accumulate_uint64` and `barrett_reduce_128`;
 - `seal::util::dyadic_product_coeffmod(...)` from `src/seal/util/polyarithsmallmod.cpp`: 9.08%, element-wise modular multiplication;

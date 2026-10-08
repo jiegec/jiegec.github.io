@@ -427,7 +427,7 @@ cpython_r -I -B dna_bench.py 600000
 
 ### 721.gcc\_r
 
-SPEC INT 2017 中的 502.gcc\_r 便已存在，当时基于 GCC 4.5.0，针对 gcc-pp.c、gcc-smaller.c 和 ref32.c 进行五次编译，这次 721.gcc\_r 对着三个同名文件（其中 gcc-pp.c 内容更新了，其余两个不变）分别进行一次编译，基于 GCC 11.2.0 版本，命令行参数如下，相比 502.gcc\_r 有所简化：
+SPEC INT 2017 中的 502.gcc\_r 便已存在，当时基于 GCC 4.5.0，针对 gcc-pp.c、gcc-smaller.c 和 ref32.c 进行五次编译，这次 721.gcc\_r 对着这三个同名文件（其中 gcc-pp.c 内容更新了，其余两个不变）分别进行一次编译，基于 GCC 11.2.0 版本，命令行参数如下，相比 502.gcc\_r 有所简化：
 
 ```shell
 # 1. gcc-pp
@@ -617,7 +617,7 @@ cppcheck_r --force 770-7z-SystemPage.cpp --checkers-report=770_report.txt --outp
 主要的热点函数：
 
 - `sat_solver_propagate(sat_solver* s)` 来自 `src/berkeley-abc/src/sat/bsat/satSolver.c`：75.33%，应该是 SAT Solver 中的 Unit Propagation，寻找那些只剩下一个变量还没确定的语句，给它进行赋值，然后传播到其他语句；
-- `sat_solver_analyze(sat_solver* s, int h, veci* learnt)` 来自 `src/berkeley-abc/src/sat/bsat/satSolver`：15.85%，应该是针对出现冲突的语句进行分析，属于 CDCL（Conflict Driven Clause Learning）的一部分；
+- `sat_solver_analyze(sat_solver* s, int h, veci* learnt)` 来自 `src/berkeley-abc/src/sat/bsat/satSolver.c`：15.85%，应该是针对出现冲突的语句进行分析，属于 CDCL（Conflict Driven Clause Learning）的一部分；
 - `sat_solver_solve_internal(sat_solver* s)` 来自 `src/berkeley-abc/src/sat/bsat/satSolver.c`：3.80%，是 SAT Solver 的入口函数。
 
 很少能见到这种瓶颈如此高度集中的情况了，不过确实，SAT Solver 大部分时间都在做 Unit Propagation，出现冲突了就做 CDCL。唤起了很久以前在《软件分析与验证》课上写 DPLL SAT Solver 的[回忆](<https://github.com/jiegec/dpll>)，当然了，abc 的实现肯定比我那课程作业要更加复杂和高级。主要的瓶颈就是一堆访存以及依赖内存结果的分支，在 SAT 问题的解空间内进行搜索。
@@ -885,7 +885,7 @@ sealcrypto_r refrate ecuador_province_capitals_refrate.csv Galapagos
 首先还是对 `-O3` 的 GCC 14 进行热点分析：
 
 - `seal::util::DWTHandler::transform_to_rev(ValueType *values, int log_n, const RootType *roots, const ScalarType *scalar = nullptr)` 来自 `src/seal/util/dwthandler.h`：25.65%，这里 DWT 是离散小波变换 Discrete Wavelet Transform，上一次看到小波变换还是 Ghost Hunter，没想到在这里又遇到了，具体到指令上，就是一堆 imul/add/shr/shl 的运算指令；
-- `seal::util::DWTHandler::transform_from_rev(ValueType *values, int log_n, const RootType *roots, const ScalarType *scalar = nullptr)` 来自 `src/seal/util/DWTHandler.h`：16.58%，应该是 DWT 的逆过程，计算模式基本一样；
+- `seal::util::DWTHandler::transform_from_rev(ValueType *values, int log_n, const RootType *roots, const ScalarType *scalar = nullptr)` 来自 `src/seal/util/dwthandler.h`：16.58%，应该是 DWT 的逆过程，计算模式基本一样；
 - `seal::util::multiply_uint64_generic(T operand1, S operand2, unsigned long long *result128)` 来自 `src/seal/util/uintarith.h`：11.60%，实现了 64 位乘以 64 位得到 128 位结果的乘法，也是一堆乘法、加法和位运算；
 - `seal::util::dot_product_mod(const uint64_t *operand1, const uint64_t *operand2, size_t count, const Modulus &modulus)` 来自 `src/seal/util/uintarithsmallmod.cpp`：11.48%，实现的是点乘后取模的操作，调用 `multiply_accumulate_uint64` 函数进行乘法和累加，最后用 `barrett_reduce_128` 进行取模；
 - `seal::util::dyadic_product_coeffmod(ConstCoeffIter operand1, ConstCoeffIter operand2, size_t coeff_count, const Modulus &modulus, CoeffIter result)` 来自 `src/seal/util/polyarithsmallmod.cpp`：9.08%，实现的是 element wise 的模乘；
