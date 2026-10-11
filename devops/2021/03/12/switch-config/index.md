@@ -293,6 +293,22 @@ The file name is invalid(does not end with .cfg).
 [switch] logging loghost 1.2.3.4
 ```
 
+### 生成 SSH Host Key
+
+```text
+[switch] public-key local create rsa
+[switch] public-key local create dsa
+[switch] public-key local create ecdsa secp384r1
+```
+
+### 显示 SSH Host Key
+
+```text
+[switch] display public-key local dsa public
+[switch] display public-key local ecdsa public
+[switch] display public-key local rsa public
+```
+
 ## Mellanox
 
 ### 进入配置模式
