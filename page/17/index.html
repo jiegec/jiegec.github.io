@@ -534,6 +534,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        使用 Nginx 转发 VMware ESXi
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="../../networking/2018/05/06/nat-forwarding-with-src-address/" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -791,17 +802,6 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Nginx 的内存池实现
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        在 Jupyter Notebook 中运行 C++ 代码
       </span>
     </span>
   </a>
@@ -1910,6 +1910,157 @@
         <a id="__skip" tabindex="-1"></a>
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2018-05-08 00:00:00+00:00">May 8, 2018</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/networking/" class="md-meta__link">networking</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="使用-nginx-转发-vmware-esxi"><a class="toclink" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/">使用 Nginx 转发 VMware ESXi</a></h2>
+<p>我们的 VMware ESXi 在一台 NAT Router 之后，但是我们希望通过域名可以直接访问 VMware ESXi。我们首先的尝试是，把 8443 转发到它的 443 端口，比如：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-0-1"></a>socat<span class="w"> </span>TCP-LISTEN:8443,reuseaddr,fork<span class="w"> </span>TCP:esxi_addr:443
+</span></code></pre></div>
+<p>它能工作得很好（假的，如果你把 8443 换成 9443 它就不工作了），但是，我们想要的是，直接通过 esxi.example.org 就可以访问它。于是，我们需要 Nginx 在其中做一个转发的功能。在这个过程中遇到了很多的坑，最后终于是做好了（VMware Remote Console 等功能还不行，需要继续研究）。</p>
+<p>首先讲讲为啥把 8443 换成 9443 不能工作吧 -- 很简单，ESXi 的网页界面会请求 8443 端口。只是恰好我用 8443 转发到 443，所以可以正常工作。这个很迷，但是测试的结果确实如此。VMware Remote Console 还用到了别的端口，我还在研究之中。</p>
+<p>来谈谈怎么配置这个 Nginx 转发吧。首先是 80 跳转 443:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-1"></a>server<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-2"></a><span class="w">        </span>listen<span class="w"> </span><span class="m">80</span><span class="p">;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-3"></a><span class="w">        </span>listen<span class="w"> </span><span class="m">8080</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-4"></a><span class="w">        </span>server_name<span class="w"> </span>esxi.example.org<span class="p">;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-6"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="m">301</span><span class="w"> </span>https://<span class="nv">$host$request_uri</span><span class="p">;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-1-7"></a><span class="o">}</span>
+</span></code></pre></div>
+<p>这个很简单，接下来是转发 443 端口：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-1"></a>server<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-2"></a><span class="w">        </span>listen<span class="w"> </span><span class="m">443</span><span class="w"> </span>ssl<span class="p">;</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-3"></a><span class="w">        </span>server_name<span class="w"> </span>esxi.example.org<span class="p">;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-4"></a><span class="w">        </span>ssl_certificate<span class="w"> </span>/path/to/ssl/cert.pem<span class="p">;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-5"></a><span class="w">        </span>ssl_certificate_key<span class="w"> </span>/path/to/ssl/key.pem<span class="p">;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-7"></a><span class="w">        </span>location<span class="w"> </span>/<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-8"></a><span class="w">                </span>proxy_pass<span class="w"> </span>https://esxi_addr<span class="p">;</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-9"></a><span class="w">                </span>proxy_ssl_verify<span class="w"> </span>off<span class="p">;</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-10"></a><span class="w">                </span>proxy_ssl_session_reuse<span class="w"> </span>on<span class="p">;</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-11"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>Host<span class="w"> </span><span class="nv">$http_host</span><span class="p">;</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-12"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>X-Forwarded-For<span class="w"> </span><span class="nv">$proxy_add_x_forwarded_for</span><span class="p">;</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-13"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>X-Forwarded-Proto<span class="w"> </span><span class="nv">$scheme</span><span class="p">;</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-14"></a><span class="w">        </span><span class="o">}</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-2-15"></a><span class="o">}</span>
+</span></code></pre></div>
+<p>此时，打开 https://esxi.example.org 就能看到登录界面了。但是仍然无法登录。从 DevTools 看错误，发现它请求了 8443 端口。于是进行转发：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-1"></a>server<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-2"></a><span class="w">        </span>listen<span class="w"> </span><span class="m">8443</span><span class="w"> </span>ssl<span class="p">;</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-3"></a><span class="w">        </span>server_name<span class="w"> </span>esxi.example.org<span class="p">;</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-4"></a><span class="w">        </span>ssl_certificate<span class="w"> </span>/path/to/ssl/cert.pem<span class="p">;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-5"></a><span class="w">        </span>ssl_certificate_key<span class="w"> </span>/path/to/ssl/key.pem<span class="p">;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-8"></a><span class="w">        </span>location<span class="w"> </span>/<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-9"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="o">(</span><span class="nv">$request_method</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'OPTIONS'</span><span class="o">)</span><span class="w"> </span><span class="o">{</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-10"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Origin'</span><span class="w"> </span><span class="s1">'https://esxi.example.org'</span><span class="p">;</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-11"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Credentials'</span><span class="w"> </span><span class="s1">'true'</span><span class="p">;</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-12"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Methods'</span><span class="w"> </span><span class="s1">'GET, POST, OPTIONS'</span><span class="p">;</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-13"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Max-Age'</span><span class="w"> </span><span class="m">1728000</span><span class="p">;</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-14"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Headers'</span><span class="w"> </span><span class="s1">'VMware-CSRF-Token,DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Cookie,SOAPAction'</span><span class="p">;</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-15"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Content-Type'</span><span class="w"> </span><span class="s1">'text/plain; charset=utf-8'</span><span class="p">;</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-16"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Content-Length'</span><span class="w"> </span><span class="m">0</span><span class="p">;</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-17"></a><span class="w">                        </span><span class="k">return</span><span class="w"> </span><span class="m">204</span><span class="p">;</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-18"></a><span class="w">                </span><span class="o">}</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-19"></a>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-20"></a><span class="w">                </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Origin'</span><span class="w"> </span><span class="s1">'https://esxi.example.org'</span><span class="p">;</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-21"></a><span class="w">                </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Credentials'</span><span class="w"> </span><span class="s1">'true'</span><span class="p">;</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-22"></a><span class="w">                </span>proxy_pass<span class="w"> </span>https://esxi_addr:443<span class="p">;</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-23"></a><span class="w">                </span>proxy_ssl_verify<span class="w"> </span>off<span class="p">;</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-24"></a><span class="w">                </span>proxy_ssl_session_reuse<span class="w"> </span>on<span class="p">;</span>
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-25"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>Host<span class="w"> </span><span class="nv">$http_host</span><span class="p">;</span>
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-26"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>X-Forwarded-For<span class="w"> </span><span class="nv">$proxy_add_x_forwarded_for</span><span class="p">;</span>
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-27"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>X-Forwarded-Proto<span class="w"> </span><span class="nv">$scheme</span><span class="p">;</span>
+</span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-28"></a><span class="w">        </span><span class="o">}</span>
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-3-29"></a><span class="o">}</span>
+</span></code></pre></div>
+<p>主要麻烦的是配置 CORS 的相关策略。我也是看了 DevTools 的错误提示半天才慢慢写出来的。这样配置以后，就可以成功登录 VMware ESXi 了。</p>
+<p>20:02 更新：现在做了 WebSocket 转发，目前可以在浏览器中打开 Web Console 了。但是，在访问 https://esxi.example.org/ 的时候还是会出现一些问题，然而 https://esxi.example.org:8443/ 是好的。</p>
+<p>转发 WebSocket，参考 <a href="http://nginx.org/en/docs/http/websocket.html">WebSocket proxying</a>：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-1"></a>map<span class="w"> </span><span class="nv">$http_upgrade</span><span class="w"> </span><span class="nv">$connection_upgrade</span><span class="w"> </span><span class="o">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-2"></a><span class="w">        </span>default<span class="w"> </span>upgrade<span class="p">;</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-3"></a><span class="w">        </span><span class="s1">''</span><span class="w">      </span>close<span class="p">;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-4"></a><span class="o">}</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-5"></a>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-6"></a>server<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-7"></a><span class="w">        </span>listen<span class="w"> </span><span class="m">8443</span><span class="w"> </span>ssl<span class="p">;</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-8"></a><span class="w">        </span>server_name<span class="w"> </span>esxi.example.org<span class="p">;</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-9"></a><span class="w">        </span>ssl_certificate<span class="w"> </span>/path/to/ssl/cert.pem<span class="p">;</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-10"></a><span class="w">        </span>ssl_certificate_key<span class="w"> </span>/path/to/ssl/key.pem<span class="p">;</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-11"></a>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-13"></a><span class="w">        </span>location<span class="w"> </span>/<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-14"></a>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-15"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="o">(</span><span class="nv">$request_method</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'OPTIONS'</span><span class="o">)</span><span class="w"> </span><span class="o">{</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-16"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Origin'</span><span class="w"> </span><span class="s1">'https://esxi.example.org'</span><span class="p">;</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-17"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Credentials'</span><span class="w"> </span><span class="s1">'true'</span><span class="p">;</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-18"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Methods'</span><span class="w"> </span><span class="s1">'GET, POST, OPTIONS'</span><span class="p">;</span>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-19"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Max-Age'</span><span class="w"> </span><span class="m">1728000</span><span class="p">;</span>
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-20"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Headers'</span><span class="w"> </span><span class="s1">'VMware-CSRF-Token,DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Cookie,SOAPAction'</span><span class="p">;</span>
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-21"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Content-Type'</span><span class="w"> </span><span class="s1">'text/plain; charset=utf-8'</span><span class="p">;</span>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-22"></a><span class="w">                        </span>add_header<span class="w"> </span><span class="s1">'Content-Length'</span><span class="w"> </span><span class="m">0</span><span class="p">;</span>
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-23"></a><span class="w">                        </span><span class="k">return</span><span class="w"> </span><span class="m">204</span><span class="p">;</span>
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-24"></a><span class="w">                </span><span class="o">}</span>
+</span><span id="__span-4-25"><a id="__codelineno-4-25" name="__codelineno-4-25" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-25"></a>
+</span><span id="__span-4-26"><a id="__codelineno-4-26" name="__codelineno-4-26" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-26"></a><span class="w">                </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Origin'</span><span class="w"> </span><span class="s1">'https://esxi.example.org'</span><span class="w"> </span>always<span class="p">;</span>
+</span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-27"></a><span class="w">                </span>add_header<span class="w"> </span><span class="s1">'Access-Control-Allow-Credentials'</span><span class="w"> </span><span class="s1">'true'</span><span class="w"> </span>always<span class="p">;</span>
+</span><span id="__span-4-28"><a id="__codelineno-4-28" name="__codelineno-4-28" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-28"></a>
+</span><span id="__span-4-29"><a id="__codelineno-4-29" name="__codelineno-4-29" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-29"></a><span class="w">                </span>proxy_pass<span class="w"> </span>https://esxi_addr:443<span class="p">;</span>
+</span><span id="__span-4-30"><a id="__codelineno-4-30" name="__codelineno-4-30" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-30"></a><span class="w">                </span>proxy_ssl_verify<span class="w"> </span>off<span class="p">;</span>
+</span><span id="__span-4-31"><a id="__codelineno-4-31" name="__codelineno-4-31" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-31"></a><span class="w">                </span>proxy_ssl_session_reuse<span class="w"> </span>on<span class="p">;</span>
+</span><span id="__span-4-32"><a id="__codelineno-4-32" name="__codelineno-4-32" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-32"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>Host<span class="w"> </span><span class="nv">$http_host</span><span class="p">;</span>
+</span><span id="__span-4-33"><a id="__codelineno-4-33" name="__codelineno-4-33" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-33"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>X-Forwarded-For<span class="w"> </span><span class="nv">$proxy_add_x_forwarded_for</span><span class="p">;</span>
+</span><span id="__span-4-34"><a id="__codelineno-4-34" name="__codelineno-4-34" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-34"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>X-Forwarded-Proto<span class="w"> </span><span class="nv">$scheme</span><span class="p">;</span>
+</span><span id="__span-4-35"><a id="__codelineno-4-35" name="__codelineno-4-35" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-35"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>Upgrade<span class="w"> </span><span class="nv">$http_upgrade</span><span class="p">;</span>
+</span><span id="__span-4-36"><a id="__codelineno-4-36" name="__codelineno-4-36" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-36"></a><span class="w">                </span>proxy_set_header<span class="w"> </span>Connection<span class="w"> </span><span class="nv">$connection_upgrade</span><span class="p">;</span>
+</span><span id="__span-4-37"><a id="__codelineno-4-37" name="__codelineno-4-37" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-37"></a><span class="w">        </span><span class="o">}</span>
+</span><span id="__span-4-38"><a id="__codelineno-4-38" name="__codelineno-4-38" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-4-38"></a><span class="o">}</span>
+</span></code></pre></div>
+<p>20:29 更新：找到了 VMware Remote Console 的端口：902，用 iptables 进行 DNAT 即可：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-5-1"></a>iptables<span class="w"> </span>-A<span class="w"> </span>PREROUTING<span class="w"> </span>-i<span class="w"> </span>wan_interface<span class="w"> </span>-p<span class="w"> </span>tcp<span class="w"> </span>-m<span class="w"> </span>tcp<span class="w"> </span>--dport<span class="w"> </span><span class="m">902</span><span class="w"> </span>-j<span class="w"> </span>DNAT<span class="w"> </span>--to-destination<span class="w"> </span>esxi_addr:902
+</span></code></pre></div>
+<p>2018-05-09 08:07 更新：最后发现，还是直接隧道到内网访问 ESXi 最科学。或者，让 443 重定向到 8443：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-1"></a>server<span class="w"> </span><span class="o">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-2"></a><span class="w">        </span>listen<span class="w"> </span><span class="m">443</span><span class="w"> </span>ssl<span class="p">;</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-3"></a><span class="w">        </span>server_name<span class="w"> </span>esxi.example.org<span class="p">;</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-4"></a><span class="w">        </span>ssl_certificate<span class="w"> </span>/path/to/ssl/cert.pem<span class="p">;</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-5"></a><span class="w">        </span>ssl_certificate_key<span class="w"> </span>/path/to/ssl/key.pem<span class="p">;</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-7"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="m">301</span><span class="w"> </span>https://<span class="nv">$host</span>:8443<span class="nv">$request_uri</span><span class="p">;</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="../../networking/2018/05/08/nginx-proxy-vmware-esxi/#__codelineno-6-8"></a><span class="o">}</span>
+</span></code></pre></div>
+<p>这样，前面也不用写那么多 CORS 的东西了。</p>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -3532,77 +3683,6 @@
 </span><span id="__span-8-51"><a id="__codelineno-8-51" name="__codelineno-8-51" href="../../programming/2017/12/02/on-nginx-memory-pool/#__codelineno-8-51"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>这个函数首先调用了一系列用户定义的 <code>pool-&gt;cleanup</code> 链表中的函数，允许自定义回收一些特定的资源。然后对每一个 <code>pool-&gt;large</code> 链表中的内容分别释放，最后再把各个块中所有的内存整块释放。注意 <code>ngx_pool_large_t</code> 也是存在块中的，所以顺序不能反了。</p>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2017-11-30 00:00:00+00:00">November 30, 2017</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/programming/" class="md-meta__link">programming</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="在-jupyter-notebook-中运行-c-代码"><a class="toclink" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/">在 Jupyter Notebook 中运行 C++ 代码</a></h2>
-<p>刚刚在 HN 上看到了这么一个文章：<a href="https://blog.jupyter.org/interactive-workflows-for-c-with-jupyter-fe9b54227d92">Interactive Workflows for C++ with Jupyter</a> <a href="https://news.ycombinator.com/item?id=15808809">HN</a> ，终于可以在 Jupyter Notebook 里跑 C++ 代码了，很开心，于是开始自己研究了起来怎么本地跑。</p>
-<p>首先当然是更新一波 jupyter，安装一波 cling：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-0-1"></a>pip3<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span>jupyter
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-0-2"></a>brew<span class="w"> </span>install<span class="w"> </span>cling
-</span></code></pre></div>
-<p>然后根据<a href="https://github.com/root-project/cling/tree/master/tools/Jupyter">官方教程</a>里的要求执行：</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>/usr/local/share/cling/Jupyter/kernel
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-1-2"></a>pip3<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-1-3"></a>jupyter<span class="w"> </span>kernelspec<span class="w"> </span>install<span class="w"> </span>cling-cpp11
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-1-4"></a>jupyter<span class="w"> </span>kernelspec<span class="w"> </span>install<span class="w"> </span>cling-cpp14
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-1-5"></a>jupyter<span class="w"> </span>kernelspec<span class="w"> </span>install<span class="w"> </span>cling-cpp17
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-1-6"></a>jupyter<span class="w"> </span>kernelspec<span class="w"> </span>install<span class="w"> </span>cling-cpp1z
-</span></code></pre></div>
-<p>结果发现找不到<code>jupyter-kernelspec</code>，遂重装了一下<code>jupyter-client</code>这个包，果然就可以了。打开一个 notebook 测试：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-2-1"></a>jupyter notebook
-</span></code></pre></div>
-<p>然后创建一个 C++14 的 Notebook，结果发现一直 Kernel rebooting，错误信息是说找不到<code>../Cellar/cling/0.5/lib/libclingJupyter.dylib</code>。这一看就是路径处理的问题，当前目录肯定不是<code>/usr/local</code>，肯定出现了什么问题，然后研究发现<code>cling-kernel.py</code>中对<code>cling</code>判断是否是个链接，如果是链接则按照链接去找<code>cling</code>的安装目录，但是！没有考虑到这个连接是个相对路径的问题（Homebrew 你背锅吗）。于是我愉快地改了代码并提交了<a href="https://github.com/root-project/cling/pull/198">PR</a>。修复了以后就可以用了。</p>
-<p>以下是一个小小的例子：
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-1"></a>&gt;&gt;<span class="w"> </span>jupyter<span class="w"> </span>console<span class="w"> </span>--kernel<span class="w"> </span>cling-cpp14
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-2"></a>Jupyter<span class="w"> </span>console<span class="w"> </span><span class="m">5</span>.2.0
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-4"></a>cling-X
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-5"></a>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-7"></a>In<span class="w"> </span><span class="o">[</span><span class="m">1</span><span class="o">]</span>:<span class="w"> </span><span class="c1">#include &lt;stdio.h&gt;</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-8"></a>Out<span class="o">[</span><span class="m">1</span><span class="o">]</span>:
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-9"></a>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-10"></a>In<span class="w"> </span><span class="o">[</span><span class="m">2</span><span class="o">]</span>:<span class="w"> </span>char<span class="w"> </span>*s<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Hello, world!"</span><span class="p">;</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-11"></a>input_line_4:2:12:<span class="w"> </span>warning:<span class="w"> </span>ISO<span class="w"> </span>C++11<span class="w"> </span>does<span class="w"> </span>not<span class="w"> </span>allow<span class="w"> </span>conversion<span class="w"> </span>from<span class="w"> </span>string<span class="w"> </span>literal<span class="w"> </span>to<span class="w"> </span><span class="s1">'char *'</span><span class="w"> </span><span class="o">[</span>-Wwritable-strings<span class="o">]</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-12"></a><span class="w"> </span>char<span class="w"> </span>*s<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Hello, world!"</span><span class="p">;</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-13"></a><span class="w">           </span>^
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-14"></a>Out<span class="o">[</span><span class="m">2</span><span class="o">]</span>:
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-15"></a>
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-16"></a>In<span class="w"> </span><span class="o">[</span><span class="m">3</span><span class="o">]</span>:<span class="w"> </span>printf<span class="o">(</span><span class="s2">"%s"</span>,s<span class="o">)</span><span class="p">;</span>
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-17"></a>Hello,<span class="w"> </span>world!Out<span class="o">[</span><span class="m">3</span><span class="o">]</span>:
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="../../programming/2017/11/30/run-cpp-in-jupyter-notebook/#__codelineno-3-18"></a><span class="o">(</span>int<span class="o">)</span><span class="w"> </span><span class="m">13</span>
-</span></code></pre></div></p>
-<p>Okay，大功告成！</p>
     
     
   </div>
