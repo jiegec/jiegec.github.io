@@ -95,7 +95,7 @@ assign S_AXI_awaddr = {4'd1, mem_awaddr[27:0]};
 
 我在前面也提到，在 PS 上访问 0x43C00000 就是对应了 Zynq Adapter 的 0x0 地址。这里也是，在 Rocket Chip 上访问 0x0 的地址，我强行改成了 0x10000000，然后 Offset 是 0，所以最后到内存就是 0x10000000 的地址了。
 
-所以 AXI 总线上 Slave Register 的地址 = Master 地址 - 匹配到的 Slave 的 Offset 地址。但是，**如果只有单个 Slave 的时候，AXI Interconnect 可能不检查地址范围，而是直接截断，但在有多个 Slave 的时候，会先检查地址范围，如果找不到就返回错误。**这个问题让我困惑了许久，直到我挂上了 `System ILA` 看。。
+所以 AXI 总线上 Slave Register 的地址 = Master 地址 - 匹配到的 Slave 的 Offset 地址。但是，\*\*如果只有单个 Slave 的时候，AXI Interconnect 可能不检查地址范围，而是直接截断，但在有多个 Slave 的时候，会先检查地址范围，如果找不到就返回错误。\*\*这个问题让我困惑了许久，直到我挂上了 `System ILA` 看。。
 
 #### AXI Uartlite
 
