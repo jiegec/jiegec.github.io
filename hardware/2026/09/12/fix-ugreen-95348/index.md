@@ -361,6 +361,38 @@ P.S. 实测发现，把 `0xfc8e` 改为 `0x11` 只对 `3840x2160 (16:9) - 30, 60
 
 下面这个计算器可以拖动 R/G/B，打开或关闭 luma（`0xfc8e`）/ chroma（`0xfc8f`）processing，实时看到每个像素经过哪些计算、最终变成什么。用的就是上面拟合出来的 `Yf' = 1.1533·Yf − 11.55` 和 `s = 1.38`：
 
+## 附录：MacBookAir
+
+MateBook Pro 的问题解决了，但 MacBookAir 又出现了问题，即使关闭了 luma 和 chroma processing：
+
+- rgb 0,0,0 -\> rgb 16,16,16
+- rgb 64,64,64 -\> rgb 64,60,54
+- rgb 128,128,128 -\> rgb 116,109,101
+- rgb 192,192,192 -\> rgb 174,164,148
+- rgb 255,255,255 -\> rgb 235,221,199
+- rgb 64,0,0 -\> rgb 61,16,19
+- rgb 128,0,0 -\> rgb 112,18,22
+- rgb 192,0,0 -\> rgb 170,19,24
+- rgb 255,0,0 -\> rgb 226,18,27
+
+为了解决这个问题，最后让 AI 写了一个脚本，来生成一个 LUT 来校色：
+
+1. 在 MacBookAir 上访问 [https://jia.je/ms2130s-calibration.html](<https://jia.je/ms2130s-calibration.html>)，全屏输出到采集卡
+2. 在采集侧运行 [calibrate.py](<https://jia.je/blog/posts/hardware/calibrate.py>)，得到 capture-fix.cube 文件
+3. 在 OBS 里，给采集卡新增一个 Apply LUT 的 Effect Filter，选择第二步生成的 capture-fix.cube 文件
+
+关掉 luma 和 chroma processing，Apply LUT 后的最终效果，颜色误差小了很多：
+
+- rgb 0,0,0 -\> rgb 0,0,0
+- rgb 64,64,64 -\> rgb 65,65,62
+- rgb 128,128,128 -\> rgb 133,128,133
+- rgb 192,192,192 -\> rgb 195,194,193
+- rgb 255,255,255 -\> rgb 252,254,251
+- rgb 64,0,0 -\> rgb 70,0,4
+- rgb 128,0,0 -\> rgb 129,0,4
+- rgb 192,0,0 -\> rgb 185,0,6
+- rgb 255,0,0 -\> rgb 254,0,4
+
 ## 附录
 
 以下是这个采集卡的 EDID：
