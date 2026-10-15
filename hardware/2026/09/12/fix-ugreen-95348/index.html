@@ -638,6 +638,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#附录chroma-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        附录：chroma processing
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="附录：chroma processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#交互式计算器" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        交互式计算器
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#附录" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1798,7 +1826,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 11 分钟阅读时间
+                              需要 13 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1928,6 +1956,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#附录chroma-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        附录：chroma processing
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="附录：chroma processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#交互式计算器" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        交互式计算器
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#附录" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2031,12 +2087,18 @@
 </span></code></pre></div>
 <p>猜想压缩的版本，实际的分辨率更高，经过压缩后可以通过 USB 5Gbps 正常传输；不压缩的版本，由于带宽限制，内部不是真正按照 4K@30Hz 处理的，导致画质有损耗。</p>
 <h2 id="颜色问题">颜色问题<a class="headerlink" href="#颜色问题" title="Permanent link">&para;</a></h2>
-<p>除了清晰度问题，采集卡采到的鸿蒙电脑画面颜色不对。在鸿蒙电脑上打开 <a href="http://www.lagom.nl/lcd-test/zhs_white.php">Lagom 白饱和测试图</a>，采集到的 RGB 与预期对不上，大致关系如下：</p>
+<p>除了清晰度问题，采集卡采到的鸿蒙电脑画面颜色不对。在鸿蒙电脑上打开 <a href="http://www.lagom.nl/lcd-test/zhs_white.php">Lagom 白饱和测试图</a> 或 <a href="https://jia.je/display-color-test.html">显示器色彩测试</a>，采集到的 RGB 与预期对不上，大致关系如下：</p>
 <ul>
-<li>原来 200 -&gt; 显示 219</li>
-<li>原来 244 -&gt; 显示 255</li>
+<li>原来 15,15,15 -&gt; 显示 6,6,6</li>
+<li>原来 64,64,64 -&gt; 显示 62,62,62</li>
+<li>原来 128,128,128 -&gt; 显示 136,136,136</li>
+<li>原来 160,160,160 -&gt; 显示 173,173,173</li>
+<li>原来 200,200,200 -&gt; 显示 219,219,219</li>
+<li>原来 224,224,224 -&gt; 显示 247,247,247</li>
+<li>原来 244,244,244 -&gt; 显示 255,255,255</li>
 </ul>
-<p>用 ffmpeg 观察后发现，采集卡实际给出的是 204；由于这是 limited range（16-235）下的 204，转换到 full range 后就是 <code>(204 - 16) / 219 * 255 = 219</code>。若把鸿蒙电脑直接接到显示器上，显示则正常。</p>
+<p>用 ffmpeg 观察后发现，原来 200,200,200 的像素，到采集卡实际给出的是 204；由于这是 limited range（16-235）下的 204，转换到 full range 后就是 <code>(204 - 16) / 219 * 255 = 219</code>。若把鸿蒙电脑直接接到显示器上，显示则正常。</p>
+<p>先考虑纯色，即 RGB 三个分量都等于同一个 x 的情况，它对应的 YUV，如果不考虑 limited range，都按 full range 算，那就是 Y 分量就等于 x。经过 MS2130S 的 luma processing 处理后，拟合出来的情况就是，Y 分量变成了 <span class="arithmatex">\(1.1533 x - 11.55\)</span> 再 clamp 到 [0,255]。</p>
 <p>深入研究后，我找到了一些通过设置 MS2130S 寄存器来改变其行为的方法（参考 <a href="https://github.com/steve-m/hsdaoh/blob/master/src/libhsdaoh.c">steve-m/hsdaoh</a>）。在 AI 的帮助下定位到了问题：只要关闭 MS2130S 自带的 luma processing（即把寄存器 0xfc8e 从原来的 0x00 改为 0x11），颜色就会恢复正常。下面这个小工具可以在 OBS 开始录制后运行，用来 toggle luma processing，从而实时看到颜色变化：</p>
 <div class="language-c++ highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="cm">/*</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="cm"> * ugreen_fix_toggle - minimal hidapi-only tool for the UGREEN 95348</span>
@@ -2150,7 +2212,17 @@
 </span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="o">(</span><span class="nv">0x11</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>luma<span class="w"> </span>processing<span class="w"> </span><span class="nv">disabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>fix<span class="w"> </span>on<span class="p">;</span><span class="w"> </span><span class="nv">0x00</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>default/bug<span class="o">)</span>
 </span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># 再次 toggle，颜色问题重新出现</span>
 </span></code></pre></div>
-<p>修复后，200 变成 199，244 变成 243。虽然仍有很小的偏差，但可以认为问题已经解决。</p>
+<p>修复后：</p>
+<ul>
+<li>原来 15,15,15 -&gt; 显示 15,15,15</li>
+<li>原来 64,64,64 -&gt; 显示 95,95,95</li>
+<li>原来 128,128,128 -&gt; 显示 127,127,127</li>
+<li>原来 160,160,160 -&gt; 显示 160,160,160</li>
+<li>原来 200,200,200 -&gt; 显示 199,199,199</li>
+<li>原来 224,224,224 -&gt; 显示 224,224,224</li>
+<li>原来 244,244,244 -&gt; 显示 243,243,243</li>
+</ul>
+<p>虽然仍有很小的偏差，但可以认为问题已经解决。</p>
 <p>不过每次开始采集后都要重新跑一次这个工具，还是有点麻烦。一个一劳永逸的办法是参考 <a href="https://github.com/steve-m/ms2130_patcher/blob/master/ms2130_patch.c">steve-m/ms2130_patcher</a>，给固件打补丁，让硬件往 0xfc8e 寄存器写入 0x11 而不是 0x00。</p>
 <p>首先用 <a href="https://github.com/steve-m/ms213x_flash">steve-m/ms213x_flash</a> 导出绿联 95348 自带的固件，然后让 AI 进行逆向，这个固件就是一个 8051 代码，有很多成熟的工具。具体的补丁方法和上面类似，下面直接给出 AI 对固件代码以及如何修复的分析：</p>
 <h3 id="补丁的原理">补丁的原理<a class="headerlink" href="#补丁的原理" title="Permanent link">&para;</a></h3>
@@ -2232,6 +2304,91 @@
 <li><a href="https://github.com/steve-m/ms213x_flash">steve-m/ms213x_flash</a>：用来导出/烧写 MS213x 固件的工具，本文用它导出了绿联 95348 的原始固件。</li>
 </ul>
 <p>这些项目大多出自 <a href="https://github.com/steve-m">steve-m</a> 之手，感谢他的开源工作。</p>
+<h2 id="附录chroma-processing">附录：chroma processing<a class="headerlink" href="#附录chroma-processing" title="Permanent link">&para;</a></h2>
+<p>上面只关了 luma processing，主要是对亮度也就是 Y 分量做了处理。实际上，硬件还有 chroma processing。</p>
+<p>初始情况下，luma 和 chroma processing 都启用的时候：</p>
+<ul>
+<li>原来 64,0,0 -&gt; 显示 72,0,0</li>
+<li>原来 128,0,0 -&gt; 显示 156,0,0</li>
+<li>原来 192,0,0 -&gt; 显示 235,0,0</li>
+<li>原来 255,0,0 -&gt; 显示 250,0,0</li>
+<li>原来 0,64,0 -&gt; 显示 0,67,0</li>
+<li>原来 0,128,0 -&gt; 显示 0,146,0</li>
+<li>原来 0,192,0 -&gt; 显示 1,224,0</li>
+<li>原来 0,255,0 -&gt; 显示 0,255,0</li>
+<li>原来 0,0,64 -&gt; 显示 0,0,82</li>
+<li>原来 0,0,128 -&gt; 显示 0,0,165</li>
+<li>原来 0,0,192 -&gt; 显示 0,0,238</li>
+<li>原来 0,0,255 -&gt; 显示 0,0,245</li>
+</ul>
+<p>关闭 luma processing 后，此时还有 chroma processing：</p>
+<ul>
+<li>原来 64,0,0 -&gt; 显示 81,0,0</li>
+<li>原来 128,0,0 -&gt; 显示 163,0,0</li>
+<li>原来 192,0,0 -&gt; 显示 239,0,0</li>
+<li>原来 255,0,0 -&gt; 显示 253,2,0</li>
+<li>原来 0,64,0 -&gt; 显示 0,72,0</li>
+<li>原来 0,128,0 -&gt; 显示 0,143,0</li>
+<li>原来 0,192,0 -&gt; 显示 0,215,0</li>
+<li>原来 0,255,0 -&gt; 显示 0,255,0</li>
+<li>原来 0,0,64 -&gt; 显示 0,0,86</li>
+<li>原来 0,0,128 -&gt; 显示 0,0,174</li>
+<li>原来 0,0,192 -&gt; 显示 0,0,247</li>
+<li>原来 0,0,255 -&gt; 显示 0,3,251</li>
+</ul>
+<p>如果进一步关闭 chroma processing，往 0xfc8f 也写入 0x11，此时 0xfc8e 和 0xfc8f 都等于 0x11，对应关系如下：</p>
+<ul>
+<li>原来 64,64,64 -&gt; 显示 63,63,63</li>
+<li>原来 128,128,128 -&gt; 显示 127,127,127</li>
+<li>原来 192,192,129 -&gt; 显示 191,191,191</li>
+<li>原来 255,255,255 -&gt; 显示 254,254,254</li>
+<li>原来 64,0,0 -&gt; 显示 61,0,0</li>
+<li>原来 128,0,0 -&gt; 显示 125,0,0</li>
+<li>原来 192,0,0 -&gt; 显示 188,0,0</li>
+<li>原来 255,0,0 -&gt; 显示 254,0,0</li>
+<li>原来 0,64,0 -&gt; 显示 0,64,0</li>
+<li>原来 0,128,0 -&gt; 显示 0,128,0</li>
+<li>原来 0,192,0 -&gt; 显示 0,193,0</li>
+<li>原来 0,255,0 -&gt; 显示 0,255,0</li>
+<li>原来 0,0,64 -&gt; 显示 0,0,63</li>
+<li>原来 0,0,128 -&gt; 显示 0,0,128</li>
+<li>原来 0,0,192 -&gt; 显示 0,0,190</li>
+<li>原来 0,0,255 -&gt; 显示 0,0,254</li>
+</ul>
+<h3 id="交互式计算器">交互式计算器<a class="headerlink" href="#交互式计算器" title="Permanent link">&para;</a></h3>
+<p>下面这个计算器可以拖动 R/G/B，打开或关闭 luma（<code>0xfc8e</code>）/ chroma（<code>0xfc8f</code>）processing，实时看到每个像素经过哪些计算、最终变成什么。用的就是上面拟合出来的 <code>Yf' = 1.1533·Yf − 11.55</code> 和 <code>s = 1.38</code>：</p>
+<iframe id="ms2130s-color-calc" src="/ms2130s-color-processing.html" title="MS2130S luma / chroma processing 可视化" loading="lazy" style="width:100%;height:960px;border:0;border-radius:10px"></iframe>
+
+<script>
+  (function () {
+    function fit() {
+      var f = document.getElementById('ms2130s-color-calc');
+      if (!f) return;
+      try {
+        var d = f.contentDocument;
+        if (d && d.body) {
+          var h = Math.ceil(d.body.getBoundingClientRect().height);
+          if (h > 100) f.style.height = (h + 4) + 'px';
+        }
+      } catch (e) { }
+    }
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'ms2130s-color-calc-height') {
+        var f = document.getElementById('ms2130s-color-calc');
+        if (f) f.style.height = (e.data.height + 4) + 'px';
+      }
+    });
+    window.addEventListener('resize', function () { setTimeout(fit, 50); });
+    var f = document.getElementById('ms2130s-color-calc');
+    if (f) {
+      f.addEventListener('load', fit);
+      fit();
+      setTimeout(fit, 300);
+      setTimeout(fit, 1200);
+    }
+  })();
+</script>
+
 <h2 id="附录">附录<a class="headerlink" href="#附录" title="Permanent link">&para;</a></h2>
 <p>以下是这个采集卡的 EDID：</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>00ffffffffffff0054f248538d0135012b230103803c2278022895a7554ea3260f5054010000d1c081c0010001000100010001000100023a801871382d40582c4500c48e2100001e9c45007251d01e206e28550055502100001e000000fd0018501e641e000a202020202020000000fc0055475245454e2d39353334380a01c002032d724c1f222120133e3d3c5f64676223090707830100006d030c001000003c200060010203e50e616066656a5e00a0a0a0295030202500b0133200000019640080a3a02b50b0103510b01332000000352f00a0a0a0295030202500b001320000000000000000000000000000000000000000000000000000000000000058
