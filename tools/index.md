@@ -31,6 +31,7 @@
 5. 在线编译 Decaf https://jia.je/online\_decaf/
 6. 在线解码登机牌信息 BCBP https://jia.je/decode-bcbp/
 7. IEEE 754 等浮点格式转换 https://jia.je/floating/
+8. 显示器色彩测试 https://jia.je/display-color-test.html
 
 ## 调试工具
 
