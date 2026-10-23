@@ -2270,7 +2270,7 @@
 <li>原来 244,244,244 -&gt; 显示 255,255,255</li>
 </ul>
 <p>用 ffmpeg 观察后发现，原来 200,200,200 的像素，到采集卡实际给出的是 204；由于这是 limited range（16-235）下的 204，转换到 full range 后就是 <code>(204 - 16) / 219 * 255 = 219</code>。若把鸿蒙电脑直接接到显示器上，显示则正常。</p>
-<p>先考虑纯色，即 RGB 三个分量都等于同一个 x 的情况，它对应的 YUV，如果不考虑 limited range，都按 full range 算，那就是 Y 分量就等于 x。经过 MS2130S 的 luma processing 处理后，拟合出来的情况就是，Y 分量变成了 <span class="arithmatex">\(1.1533 x - 11.55\)</span> 再 clamp 到 [0,255]。</p>
+<p>先考虑灰色，即 RGB 三个分量都等于同一个 x 的情况。它对应的 YUV，如果不考虑 limited range、都按 full range 算，Y 分量就等于 x。经过 MS2130S 的 luma processing 后，一开始拟合出来的结果是 <code>1.1533x − 11.55</code> 再 clamp 到 [0,255]。后来深入研究发现它其实是两个阶段：先给 Y 加上 0xfc90 寄存器的值（默认 0xF5，有符号 int8，即 −11），clip 之后再乘以 0xfc91 寄存器的值再除以 128（0xfc91 寄存器默认 0x94，即乘上 148/128 = 1.15625），再 clip 一次，即 <code>clip(clip(x + fc90) · fc91 / 128)</code>。代入默认值约为 <code>1.15625x − 12.71875</code>，与基于实测数据拟合的 <code>1.1533x − 11.55</code> 非常接近。具体计算过程看本文后面的逆向。</p>
 <p>深入研究后，我找到了一些通过设置 MS2130S 寄存器来改变其行为的方法（参考 <a href="https://github.com/steve-m/hsdaoh/blob/master/src/libhsdaoh.c">steve-m/hsdaoh</a>）。在 AI 的帮助下定位到了问题：只要关闭 MS2130S 自带的 luma processing（即把寄存器 0xfc8e 从原来的 0x00 改为 0x11），颜色就会恢复正常。下面这个小工具可以在 OBS 开始录制后运行，用来 toggle luma processing，从而实时看到颜色变化：</p>
 <div class="language-c++ highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="cm">/*</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="cm"> * ugreen_fix_toggle - minimal hidapi-only tool for the UGREEN 95348</span>
