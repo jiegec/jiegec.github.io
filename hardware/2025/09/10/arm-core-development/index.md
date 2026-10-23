@@ -193,7 +193,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - Up to 9 µOPs utilizing the V pipelines
   - Up to 8 µOPs utilizing the L pipelines
   - Dispatch of CME MOPs staying in-order are directly sent to the C pipeline. The C pipeline can receive up to 4 MOPs directly from the rename stage.
-  - Implements FEAT\_MOPS: memory copying (CPY\*) up to 32 bytes/cycle, memset to 0 (SET\*) up to 64 bytes/cycle, memset to non-zero up to 32 bytes/cycle
+  - Implements FEAT\_MOPS: memory copying (CPY*) up to 32 bytes/cycle, memset to 0 (SET*) up to 64 bytes/cycle, memset to non-zero up to 32 bytes/cycle
 
 ### C1-Premium
 
