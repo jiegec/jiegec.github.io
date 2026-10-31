@@ -49,6 +49,8 @@ Apple M1 预装的是 macOS，macOS 的绑核只能绑到 P 或者 E，不能具
 
 在此基础上，构造一个循环，循环的第一条指令放在第一个页的最后四个字节，其余指令放第二个页上，那么每次循环的取指时间，就是一个周期（读取第一个页内的指令）加上第二个页内指令需要 Fetch 的周期数，多的这一个周期就足以把 Fetch 宽度从后端限制中区分开，实验结果如下：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-if-width.png>)
+
 图中蓝线（cross-page）表示的就是上面所述的第一条指令放一个页，其余指令放第二个页的情况，横坐标是第二个页内的指令数，那么一次循环的指令数等于横坐标 +1。纵坐标是运行很多次循环的总 cycle 数除以循环次数，也就是平均每次循环耗费的周期数。可以看到每 16 条指令会多一个周期，因此 Firestorm 的前端取指宽度确实是 16 条指令。
 
 为了确认这个瓶颈是由取指造成的，又构造了一组实验，把循环的所有指令都放到一个页中，这个时候 Fetch 不再成为瓶颈（图中 aligned），两个曲线的对比可以明确地得出上述结论。
@@ -58,6 +60,8 @@ Apple M1 预装的是 macOS，macOS 的绑核只能绑到 P 或者 E，不能具
 #### Icestorm
 
 用相同的方式测试 Icestorm，结果如下：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-if-width.png>)
 
 可以看到每 8 条指令会多一个周期，意味着 Icestorm 的前端取指宽度为 8 条指令。
 
@@ -76,11 +80,15 @@ hw.perflevel1.l1icachesize: 131072
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下 Firestorm 的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-fetch-bandwidth.png>)
+
 可以看到 footprint 在 192 KB 之前时可以达到 8 IPC，之后则快速降到 2.22 IPC，这里的 192 KB 就对应了 Firestorm 的 L1 ICache 的容量，和官方信息一致。虽然 Fetch 可以每周期 16 条指令，也就是一条 64B 的缓存行，由于后端的限制，只能观察到 8 的 IPC。
 
 #### Icestorm
 
 用相同的方式测试 Icestorm，结果如下：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-fetch-bandwidth.png>)
 
 可以看到 footprint 在 128 KB 之前时可以达到 4 IPC，之后则快速降到 2.10 IPC，这里的 128 KB 就对应了 Icestorm 的 L1 ICache 的容量，和官方信息一致。虽然 Fetch 可以每周期 8 条指令，由于后端的限制，只能观察到 4 的 IPC。
 
@@ -90,9 +98,13 @@ hw.perflevel1.l1icachesize: 131072
 
 构造大量的无条件分支指令（B 指令），BTB 需要记录这些指令的目的地址，那么如果分支数量超过了 BTB 的容量，性能会出现明显下降。当把大量 B 指令紧密放置，也就是每 4 字节一条 B 指令时：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-btb-4b.png>)
+
 可见在 1024 个分支之内可以达到 1 的 CPI，超过 1024 个分支，出现了 3 CPI 的平台，一直延续到 49152 个分支。超出 BTB 容量以后，分支预测时，无法从 BTB 中得到哪些指令是分支指令的信息，只能等到取指甚至译码后才能后知后觉地发现这是一条分支指令，这样就出现了性能损失，出现了 3 CPI 的情况。第二个拐点 49152，对应的是指令 footprint 超出 L1 ICache 的情况：L1 ICache 是 192KB，按照每 4 字节一个 B 指令计算，最多可以存放 49152 条 B 指令。
 
 降低分支指令的密度，在 B 指令之间插入 NOP 指令，使得每 8 个字节有一条 B 指令，得到如下结果：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-btb-8b.png>)
 
 可以看到 CPI=1 的拐点前移到 512 个分支，同时 CPI=3 的平台的拐点也前移到了 24576。拐点的前移，意味着 BTB 采用了组相连的结构，当 B 指令的 PC 的部分低位总是为 0 时，组相连的 Index 可能无法取到所有的 Set，导致表现出来的 BTB 容量只有部分 Set，例如此处容量减半，说明只有一半的 Set 被用到了。
 
@@ -102,19 +114,29 @@ hw.perflevel1.l1icachesize: 131072
 
 用相同的方式测试 Icestorm，首先用 4B 的间距：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-btb-4b.png>)
+
 可以看到 1024 的拐点，1024 之前是 1 IPC，之后增加到 3 IPC。比较奇怪的是，没有看到第二个拐点，第二个拐点在 8B 的间距下显现：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-btb-8b.png>)
 
 第一个拐点前移到 512，第二个拐点出现在 16384，而 Icestorm 的 L1 ICache 容量是 128KB，8B 间距下正好可以保存 16384 个分支。
 
 用 16B 间距测试：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-btb-16b.png>)
+
 第一个拐点前移到 256，然后出现了一个 2 CPI 的新平台，2 CPI 的平台的拐点出现在 2048，第三个拐点出现在 8192，对应 L1 ICache 容量。
 
 用 32B 间距测试：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-btb-32b.png>)
+
 第一个拐点在 1024，第二个拐点出现在 4096，对应 L1 ICache 容量，没有观察到 2 CPI。
 
 用 64B 间距测试：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-btb-64b.png>)
 
 第一个拐点在 512，第二个拐点出现在 2048，对应 L1 ICache 容量。
 
@@ -138,11 +160,15 @@ Icestorm 的 BTB 测试结果并不像 Firestorm 那样有规律，根据这个�
 
 构造一系列的 B 指令，使得 B 指令分布在不同的 page 上，使得 ITLB 成为瓶颈，在 Firestorm 上进行测试：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-itlb.png>)
+
 从 1 Cycle 到 3 Cycle 的增加是由于 L1 BTB 的冲突缺失，之后在 192 个页时从 3 Cycle 快速增加到 13 Cycle，则对应了 192 项的 L1 ITLB 容量，和官方信息一致。
 
 #### Icestorm
 
 在 Icestorm 上重复实验：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-itlb.png>)
 
 只有一个拐点，在 128 个页时，性能从 1 Cycle 下降到 8 Cycle，意味着 L1 ITLB 容量是 128 项，和官方信息一致。
 
@@ -158,11 +184,15 @@ Icestorm 的 BTB 测试结果并不像 Firestorm 那样有规律，根据这个�
 
 构造不同深度的调用链，测试每次调用花费的平均时间，在 Firestorm 上得到下面的图：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-rs.png>)
+
 可以看到调用链深度为 50 时性能突然变差，因此 Firestorm 的 Return Stack 深度为 50。
 
 #### Icestorm
 
 在 Icestorm 上测试：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-rs.png>)
 
 可以看到调用链深度为 32 时性能突然变差，因此 Icestorm 的 Return Stack 深度为 32。
 
@@ -188,6 +218,8 @@ Icestorm 的分支预测器采用的历史更新方式为：
 
 为了测试物理寄存器堆的大小，一般会用两个依赖链很长的操作放在开头和结尾，中间填入若干个无关的指令，并且用这些指令来耗费物理寄存器堆。Firestorm 测试结果见下图：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-prf.png>)
+
 - 32b/64b int：测试 speculative 32/64 位整数寄存器的数量，拐点在 362
 - 32b fp：测试 speculative 32 位浮点寄存器的数量，拐点在 382
 - flags：测试 speculative NZCV 寄存器的数量，拐点在 123
@@ -195,6 +227,8 @@ Icestorm 的分支预测器采用的历史更新方式为：
 #### Icestorm
 
 Icestorm 测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-prf.png>)
 
 - 32b/64b int：测试 speculative 32/64 位整数寄存器的数量，拐点在 77
 - 32b fp：测试 speculative 32 位浮点寄存器的数量，拐点在 74
@@ -219,11 +253,15 @@ hw.perflevel1.l1dcachesize: 65536
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间，Firestorm 上的结果：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-l1dc.png>)
+
 可以看到 128KB 出现了明显的拐点，对应的就是 128KB 的 L1 DCache 容量，和官方信息一致。L1 DCache 范围内延迟是 3 cycle，之后提升到 16 cycle。
 
 ##### Icestorm
 
 Icestorm 上的结果：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-l1dc.png>)
 
 可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量，和官方信息一致。L1 DCache 范围内延迟是 3 cycle，之后提升到 14 cycle。
 
@@ -237,6 +275,8 @@ Icestorm 上的结果：
 
 用类似的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈，在 Firestorm 上：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-l1dtlb.png>)
+
 从 160 个页开始性能下降，到 250 个页时性能稳定在 9 CPI，认为 Firestorm 的 L1 DTLB 有 160 项，和官方信息一致。9 CPI 包括了 L1 DTLB miss L2 TLB hit 带来的额外延迟。
 
 如果每两个页放一个指针，则拐点前移到 80；每四个页放一个指针，拐点变成 40；每八个页放一个指针，拐点变成 20；每 16 个页一个指针，拐点是 10；每 32 个页一个指针，拐点变成 5；每 64 个页一个指针，拐点依然是 5。说明 Firestorm 的 L1 DTLB 是 5 路组相连，32 个 Set，Index 是 VA\[18:14\]，注意页表大小是 16KB。
@@ -244,6 +284,8 @@ Icestorm 上的结果：
 ##### Icestorm
 
 Icestorm:
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-l1dtlb.png>)
 
 从 128 个页开始性能下降，到 160 个页时性能稳定在 10 CPI，认为 Icestorm 的 L1 DTLB 有 128 项，和官方信息一致。10 CPI 包括了 L1 DTLB miss L2 TLB hit 带来的额外延迟。
 
@@ -281,9 +323,13 @@ Icestorm:
 
 初始化时，`x1` 和 `x2` 指向同一个地址，重复如上的指令模式，观察到多少条 `ldr` 指令时会出现性能下降，在 Firestorm 上测试：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-memory-dependency-predictor.png>)
+
 数据依赖没有明显的阈值，但从 84 开始出现了一个小的增长，且斜率不为零；地址依赖的阈值是 70。
 
 Icestorm:
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-memory-dependency-predictor.png>)
 
 数据依赖和地址依赖的阈值都是 13。
 
@@ -837,6 +883,8 @@ Firestorm 的 ROB 采用的是比较特别的方案，它的 entry 地位不是�
 
 首先用 NOP 指令测试 Icestorm 的 ROB 大小：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-rob.png>)
+
 可以看到拐点是 413 条指令。改成用 load/store 指令，可以测到拐点在 57 左右，根据上面的分析，认为 group 数量在 57 左右，每个 group 最多保存 7 个 uop。由于 `413 / 7 = 59`，认为有 59 个 group。
 
 结论：Icestorm 的 ROB 有 59 个 group，每个 group 最多保存 7 个 uop。
@@ -878,6 +926,8 @@ hw.perflevel1.cpusperl2: 4
 
 从苹果提供的性能计数器来看，L1 TLB 分为指令和数据，而 L2 TLB 是 Unified，不区分指令和数据。沿用之前测试 L1 DTLB 的方法，把规模扩大到 L2 Unified TLB 的范围，就可以测出来 L2 Unified TLB 的容量，下面是 Firestorm 上的测试结果：
 
+![](<https://jia.je/blog/posts/hardware/apple-m1-firestorm-l2tlb.png>)
+
 可以看到拐点是 3072 个 Page，说明 Firestorm 的 L2 TLB 容量是 3072 项，和官方信息一致。
 
 把指针的跨度增大：
@@ -894,6 +944,8 @@ hw.perflevel1.cpusperl2: 4
 #### Icestorm
 
 在 Icestorm 上测试：
+
+![](<https://jia.je/blog/posts/hardware/apple-m1-icestorm-l2tlb.png>)
 
 可以看到拐点是 1024 个 Page，说明 Icestorm 的 L2 TLB 容量是 1024 项，和官方信息一致。
 

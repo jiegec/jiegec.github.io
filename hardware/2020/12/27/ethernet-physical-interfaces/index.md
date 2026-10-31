@@ -143,7 +143,11 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 1000BASE-X 在 802.3 Clause 36 中定义，它的层级是这样的：
 
+![](<https://jia.je/blog/posts/hardware/1000basex.png>)
+
 它支持三种不同的介质，对应了三个 PMD 层，也就是 LX、SX 和 CX。这些体现在设备上，其实就是不同的 SFP 模块。SFP 模块实际上就是图中的 PMD 层，SFP 接口上连接的是 1000BASE-X 的 PCS/PMA，这也就是为什么说在带有 SFP 的 FPGA 上，Xilinx 的 IP 叫做 1G/2.5G Ethernet PCS/PMA。在这里，PCS 和 PMA 层在 FPGA 内部通过 IP 实现，通过 PCB 连接到 SFP 上，光模块就是 PMD 层。见下图：
+
+![](<https://jia.je/blog/posts/hardware/xilinx-pcs-pma.png>)
 
 左边通过 GMII 连接到内部的 MAC，右边连接到 SFP 上，通过光模块，连接到光纤。这里光模块只需要负责光电转换。另一种比较常见的形式，就是 MAC 在 FPGA 内部，PHY（包括 PCS/PMA/PMD）都在 FPGA 外部，此时 FPGA IO 上就是各种 MII。
 
@@ -165,6 +169,8 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 在 IEEE 802.3ab-1999 中定义，具体位置是 Clause 40。
 
+![](<https://jia.je/blog/posts/hardware/1000baset.png>)
+
 物理层往上通过 GMII 连接 MAC，往下通过 MDI 连接其他网络设备。物理层又包括 PCS 和 PMA。
 
 1000BASE-T 使用四对差分线，每对差分线上都是全双工传输，波特率 125Mbaud，symbol 的范围是 `{2, 1, 0, -1, -2}`，通过 PAM5 传输。
@@ -175,6 +181,10 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 MDIO 是 MAC 和 PHY 之间一个低速的通信接口，定义在 IEEE 802.3 Clause 45，可以用来配置一些寄存器。它支持读和写，多个 PHY 可以共享一个 MDIO 总线，通过 5 位的地址区分。为了让 PHY 分配到不同的地址，PHY 通常会通过某些引脚的上下拉来决定它自己的 MDIO 地址，这样可以避免冲突。以 RTL8201F 为例，它的 PHY 的 MDIO 地址配置与 LED 输出引脚是共享的，根据外部电路的上下拉不同，配置 MDIO 地址的最低两位：
 
+![](<https://jia.je/blog/posts/hardware/rtl8201f-phyad.png>)
+
 也就是说，这款芯片的 MDIO 地址可以在二进制的 00000 到 00011 之间取。但不建议用 00000 地址，这是因为一些芯片会把 00000 重定义为广播，此时总线上的所有 PHY 芯片都要响应目标地址为自己的地址（非 00000）或者 00000 地址的请求（见 [MDIO Addressing](<https://docs.amd.com/r/en-US/pg047-gig-eth-pcs-pma/MDIO-Addressing>)）。RTL8211 在它的文档里描述了这个行为：
+
+![](<https://jia.je/blog/posts/hardware/rtl8211-phyad-0.png>)
 
 这样的好处是可以同时往多个 PHY 芯片写入寄存器，但如果要从 00000 地址读寄存器的话，一旦多个 PHY 同时响应，MDIO 总线上就会出现冲突。不过如果只有一个 PHY 芯片连接到 MDIO 总线上，那么让 MAC 通过 00000 地址访问 PHY 也是可以的。

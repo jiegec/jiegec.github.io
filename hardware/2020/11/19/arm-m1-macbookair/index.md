@@ -10,6 +10,8 @@
 
 从外观来看，一切都和 Intel MBA 一样，包装上也看不出区别，模具也是一样的。
 
+![](<https://jia.je/blog/posts/hardware/arm-m1-macbookair-1.png>)
+
 进了系统才能看得出区别。预装的系统是 macOS Big Sur 11.0，之后手动更新到了目前最新的 11.0.1。
 
 顺带 [@FactorialN](<https://github.com/FactorialN>) 同学提醒我在这里提一句：包装里有电源适配器，不太环保。
@@ -46,6 +48,8 @@ $ file /bin/bash
 接着，就是重头戏 Rosetta 了。第一次打开 Intel 的程序的时候，会弹出窗口安装 Rosetta，确定以后立马就装好了。接着常用的各种软件啥的，都没有什么问题。
 
 唯一能看出区别的，就是在 Activity Monitor 可以看到架构的区别：
+
+![](<https://jia.je/blog/posts/hardware/arm-m1-macbookair-2.png>)
 
 实际体验的时候，其实没有什么感觉。默认情况下，在 Terminal 下打开的是 ARM64 架构的，如果要切换的话，只需要：
 

@@ -14,7 +14,11 @@
 
 安装完是这个样子的：
 
+![](<https://jia.je/blog/posts/csdn/20140426171926125.png>)
+
 3.开始启动！ 打开 Complete Linux Installer， 选择启动系统，点击右上角 Settings，选择添加：
+
+![](<https://jia.je/blog/posts/csdn/20140426172223984.png>)
 
 在名称输入你喜欢的名称，比如 ubuntu。 选择...，然后选择 sd 卡上的 img 文件。保存更改
 
@@ -22,7 +26,11 @@
 
 你会发现出现了一个终端模拟器有没有！！
 
+![](<https://jia.je/blog/posts/csdn/20140426172417015.png>)
+
 完成！你可以用 VNCViewer 去查看他的界面： 连接 localhost：5900。
+
+![](<https://jia.je/blog/posts/csdn/20140426172607765.png>)
 
 什么都没有，什么情况！？！？ 因为我下载的是 Core 啊！什么都没有啊啊啊啊。。。。 如果下载的是别的，那估计已经有界面了。。
 

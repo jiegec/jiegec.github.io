@@ -161,7 +161,11 @@ test1 3772291 [006] 1693209.504363:          1     branches:u:      5b4f1df51146
 
 如果要看 Intel PT 到底生成了什么数据，可以用 `perf script -D` 显示。例如要记录分支跳转还是不跳转的历史，用的是如下的 TNT(Taken/Not Taken) packet：
 
+![](<https://jia.je/blog/posts/software/linux-perf-pmu-intel-pt-dump.png>)
+
 TNT packet 的定义在 [Intel® 64 and IA-32 Architectures Software Developer Manuals](<https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html>) 中给出：
+
+![](<https://jia.je/blog/posts/software/linux-perf-pmu-intel-tnt.png>)
 
 由于 Intel PT 的数据量很大，它和 SPE 类似，也是在内存中保存 trace 信息。
 
@@ -197,6 +201,8 @@ sudo perf script -D
 ```
 
 BTS 每个 entry 占用 24 字节，包括 8 字节的 Last Branch From 和 8 字节的 Last Branch To，还有 8 字节记录了分支预测正确还是错误（图源 [Intel® 64 and IA-32 Architectures Software Developer Manuals](<https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html>)）：
+
+![](<https://jia.je/blog/posts/software/linux-perf-pmu-intel-bts.png>)
 
 和 LBR 一样，BTS 只记录跳转的分支，不记录没跳转的分支。
 

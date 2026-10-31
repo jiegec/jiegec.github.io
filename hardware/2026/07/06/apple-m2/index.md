@@ -31,11 +31,15 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benc
 
 为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](<https://zhuanlan.zhihu.com/p/720136752>) 构造了测试，实验结果如下：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-if-width.png>)
+
 可以看到每 16 条指令会多一个周期，因此 Avalanche 的前端取指宽度确实是 16 条指令，与 Apple M1 Firestorm 和 Apple M4 P-Core 都相同。
 
 #### Blizzard
 
 用相同的方式测试 Blizzard，结果如下：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-if-width.png>)
 
 可以看到每 8 条指令会多一个周期，意味着 Blizzard 的前端取指宽度为 8 条指令，和 Apple M1 Icestorm 相同，不过表现在图像上不太一样。
 
@@ -51,11 +55,15 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benc
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下 Avalanche 的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-fetch-bandwidth.png>)
+
 可以看到 footprint 在 192 KB 之前时可以达到 8 IPC，之后则快速降到 2 IPC，这里的 192 KB 就对应了 Avalanche 的 L1 ICache 的容量，和官方信息一致。虽然 Fetch 可以每周期 16 条指令，也就是一条 64B 的缓存行，由于后端的限制，只能观察到 8 的 IPC。IPC 与 Apple M1 Firestorm 相同，不及 Apple M4 P-Core 的 10 IPC。
 
 #### Blizzard
 
 用相同的方式测试 Blizzard，结果如下：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-fetch-bandwidth.png>)
 
 可以看到 footprint 在 128 KB 之前时可以达到 5 IPC，之后则快速降到 2.32 IPC，这里的 128 KB 就对应了 Blizzard 的 L1 ICache 的容量，和官方信息一致。虽然 Fetch 可以每周期 8 条指令，由于后端的限制，只能观察到 5 的 IPC。相比 Apple M1 Icestorm，IPC 从 4 增加到了 5，与 Apple M4 E-Core 相同。
 
@@ -67,9 +75,13 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benc
 
 构造大量的无条件分支指令（B 指令），BTB 需要记录这些指令的目的地址，那么如果分支数量超过了 BTB 的容量，性能会出现明显下降。当把大量 B 指令紧密放置，也就是每 4 字节一条 B 指令时：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-btb-4b.png>)
+
 可见在 1024 个分支之内可以达到 1 的 CPI，超过 1024 个分支，CPI 先升后降，在 4096 个分支时 CPI 等于 2，此后 CPI 逐渐上升，到 49152 个分支 CPI 等于 3。49152 的拐点，对应的是指令 footprint 超出 L1 ICache 的情况：L1 ICache 是 192KB，按照每 4 字节一个 B 指令计算，最多可以存放 49152 条 B 指令。
 
 降低分支指令的密度，在 B 指令之间插入 NOP 指令，使得每 8 个字节有一条 B 指令，得到如下结果：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-btb-8b.png>)
 
 可以看到 CPI=1 的拐点前移到 512 个分支，同时 CPI=3 的拐点也前移到了 24576。拐点的前移，意味着 BTB 采用了组相连的结构，当 B 指令的 PC 的部分低位总是为 0 时，组相连的 Index 可能无法取到所有的 Set，导致表现出来的 BTB 容量只有部分 Set，例如此处容量减半，说明只有一半的 Set 被用到了。
 
@@ -79,11 +91,17 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benc
 
 用相同的方式测试 Blizzard，首先用 4B 的间距：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-btb-4b.png>)
+
 可以看到 1024 的拐点，1024 之前是 1 IPC，之后增加到 3 IPC。比较奇怪的是，没有看到第二个拐点，第二个拐点在 8B 的间距下显现：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-btb-8b.png>)
 
 第一个拐点前移到 512，第二个拐点出现在 16384，而 Blizzard 的 L1 ICache 容量是 128KB，8B 间距下正好可以保存 16384 个分支。
 
 用 16B 间距测试：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-btb-16b.png>)
 
 第一个拐点前移到 256，第二个拐点出现在 8192，对应 L1 ICache 容量。
 
@@ -101,11 +119,15 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benc
 
 构造一系列的 B 指令，使得 B 指令分布在不同的 page 上，使得 ITLB 成为瓶颈，在 Avalanche 上进行测试：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-itlb-size.png>)
+
 在 192 个页时从 2 Cycle 快速增加到 11 Cycle，对应了 192 项的 L1 ITLB 容量，和官方信息一致。
 
 #### Blizzard
 
 在 Blizzard 上重复实验：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-itlb-size.png>)
 
 在 192 个页时，性能从 1 Cycle 下降到 10 Cycle，意味着 L1 ITLB 容量是 192 项，和官方信息一致。
 
@@ -123,11 +145,15 @@ Apple M2 Avalanche/Blizzard 的性能测试结果见 [SPEC](<https://jia.je/benc
 
 构造不同深度的调用链，测试每次调用花费的平均时间，在 Avalanche 上得到下面的图：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-ras-size.png>)
+
 可以看到调用链深度为 50 时性能突然变差，因此 Avalanche 的 Return Stack 深度为 50。和 Apple M1 Firestorm 相同，比 Apple M4 P-Core 的 60 要小。
 
 #### Blizzard
 
 在 Blizzard 上测试：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-ras-size.png>)
 
 可以看到调用链深度为 32 时性能突然变差，因此 Blizzard 的 Return Stack 深度为 32。与 Apple M1 Icestorm 相同，比 Apple M4 E-Core 的 40 要小。
 
@@ -155,6 +181,8 @@ Blizzard 的分支预测器与 Apple M1 Icestorm 相同，采用的历史更新�
 
 为了测试物理寄存器堆的大小，一般会用两个依赖链很长的操作放在开头和结尾，中间填入若干个无关的指令，并且用这些指令来耗费物理寄存器堆。Avalanche 测试结果见下图：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-prf.png>)
+
 - 32b/64b int：测试 speculative 32/64 位整数寄存器的数量，拐点在 362
 - 32b fp：测试 speculative 32 位浮点寄存器的数量，拐点在 356
 - flags：测试 speculative NZCV 寄存器的数量，拐点在 123
@@ -164,6 +192,8 @@ Avalanche 寄存器堆容量和 Firestorm 类似，没有 M4 的双倍 32b int �
 #### Blizzard
 
 Blizzard 测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-prf.png>)
 
 - 32b/64b int：测试 speculative 32/64 位整数寄存器的数量，拐点在 86
 - 32b fp：测试 speculative 32 位浮点寄存器的数量，拐点在 80
@@ -185,11 +215,15 @@ Blizzard 测试结果如下：
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间，Avalanche 上的结果：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-l1dc.png>)
+
 可以看到 128KB 出现了拐点，对应的就是 128KB 的 L1 DCache 容量，和官方信息一致。当 footprint 比较小的时候，由于 Load Address Predictor 的介入，打破了依赖链，所以出现了 latency 小于正常 load to use 的 3 cycle latency 的情况。
 
 ##### Blizzard
 
 Blizzard 上的结果：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-l1dc.png>)
 
 可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量，和官方信息一致。L1 DCache 范围内延迟是 3 cycle。由此可见 Blizzard 没有 Load Address Predictor，不能打断依赖链。
 
@@ -205,11 +239,15 @@ Blizzard 上的结果：
 
 用类似的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈，在 Avalanche 上：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-l1dtlb.png>)
+
 从 256 个页开始性能下降，认为 Avalanche 的 L1 DTLB 有 256 项，和官方信息一致。性能出现波动，有时候能实现 1 cycle 的 CPI，主要来自于 Load Address Predictor。
 
 ##### Blizzard
 
 Blizzard:
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-l1dtlb.png>)
 
 从 192 个页开始性能下降，认为 Blizzard 的 L1 DTLB 有 192 项，和官方信息一致。
 
@@ -251,11 +289,15 @@ Blizzard:
 
 在 Avalanche 上测试：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-memory-dependency-predictor.png>)
+
 数据依赖没有明显的阈值，但从 77 开始出现了一个小的增长，且斜率不为零；地址依赖的阈值是 62。相比 M1 P-Core Firestorm 有所减小。
 
 ##### Blizzard
 
 Blizzard:
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-memory-dependency-predictor.png>)
 
 数据依赖的阈值是 10，地址依赖的阈值是 16。和 Icestorm 差不多。
 
@@ -522,9 +564,13 @@ E-Core Blizzard 访存：
 
 首先用不同数量的 fsqrt 依赖链加 NOP 指令测试 Avalanche 的 ROB 大小：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-rob.png>)
+
 可以看到当 fsqrt 数量足够多的时候，出现了统一的拐点，在 2022 条指令左右。
 
 为了测 Coalesced ROB 的大小，改成用 load/store 指令，可以测到拐点在 292 左右：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-avalanche-rob-load.png>)
 
 2022 除以 292 约等于 7，意味着每个 group 可以保存 7 条指令，一共有 289 左右个 group。相比 M1 P-Core Firestorm，Group 数量有所减少。
 
@@ -532,9 +578,13 @@ E-Core Blizzard 访存：
 
 首先用 NOP 指令测试 Blizzard 的 ROB 大小：
 
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-rob.png>)
+
 可以看到拐点是 486 条指令。
 
 为了测 Coalesced ROB 的大小，改成用 load/store 指令，可以测到拐点在 74 左右：
+
+![](<https://jia.je/blog/posts/hardware/apple-m2-blizzard-rob-load.png>)
 
 但是 486 除以 74 是 6.57，离 6 或者 7 都有一段距离，比较奇怪，不确定每个 group 可以放多少条指令。容量上比 M1 E-Core 有提升。
 

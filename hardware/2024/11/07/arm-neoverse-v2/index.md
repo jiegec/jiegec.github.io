@@ -51,6 +51,8 @@ ARM 公版核微架构既有 MOP 的概念，又有 uOP 的概念。uOP 主要�
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-fetch-bandwidth.png>)
+
 开始有一段 IPC 接近 12，此时指令由 MOP Cache 提供，由于连续的两条 NOP 可以被融合成一个 uOP，因此可以突破 8 的限制，但为什么是 12 还需要进一步研究。
 
 当指令超出 MOP Cache 容量后，指令走 ICache + Decode，此时可以达到 6 的 IPC，与 6-wide 的 Decode Width 吻合。当 footprint 超出 64 KB 时，IPC 下降，对应了 64KB 的 L1 ICache 容量。
@@ -74,6 +76,8 @@ The dispatch stage can process up to 8 MOPs per cycle and dispatch up to 16 µOP
 
 考虑到这个限制，使用 4 条 add 指令，4 条 fadd 指令为一组，不断重复。通过测试，这样的指令序列确实可以达到 8 的 IPC。当指令个数增加到超出 MOP Cache 容量时，将会观察到性能的下降：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-mop-cache.png>)
+
 拐点出现在 192 个指令组，此时达到 MOP Cache 的容量瓶颈，`192*8=1536`，正好是 MOP Cache 的容量。
 
 ### L1 ITLB
@@ -82,9 +86,13 @@ The dispatch stage can process up to 8 MOPs per cycle and dispatch up to 16 µOP
 
 构造一系列的 B 指令，使得 B 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-itlb.png>)
+
 可以看到 48 Page 出现了明显的拐点，对应的就是 48 的 L1 ITLB 容量。此后性能降低到 7 CPI，此时对应了 L2 Unified TLB 的延迟。
 
 进一步增加 Page 数量，发现在大约 1000 个页的时候，时间从 7 cycle 逐渐上升：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-itlb-l2.png>)
 
 考虑到 L2 Unified TLB 一共有 2048 个 Entry，猜测它限制了 ITLB 能使用的 L2 TLB 的容量只有 2048 的一半，也就是 1024 项。超出 1024 项以后，需要 Page Table Walker 进行地址翻译。
 
@@ -95,6 +103,8 @@ The dispatch stage can process up to 8 MOPs per cycle and dispatch up to 16 µOP
 ### Return Stack
 
 Return Stack 记录了最近的函数调用链，call 时压栈，return 时弹栈，从而实现 return 指令的目的地址的预测。构造不同深度的调用链，发现 Neoverse V2 的 Return Stack 深度为 32：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-return-stack.png>)
 
 ## 后端
 
@@ -176,6 +186,8 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 
 初始化时，`x1` 和 `x2` 指向同一个地址，重复如上的指令模式，观察到多少条 `ldr` 指令时会出现性能下降：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-memory-dependency-predictor.png>)
+
 有意思的是，地址依赖的阈值是 40，而数据依赖没有阈值。
 
 ### Move Elimination
@@ -206,6 +218,8 @@ The Neoverse V2 core allows data to be forwarded from store instructions to a lo
 #### 容量
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-l1dc.png>)
 
 可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量。之后延迟先上升后下降，与 ARM 采用的 Correlated Miss Caching(CMC) 预取器记住了 pointer chasing 的历史有关，详细可以阅读 [Arm Neoverse N2: Arm’s 2nd generation high performance infrastructure CPUs and system IPs](<https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf>)。
 
@@ -251,6 +265,8 @@ Stride=64B 时出现性能下降，说明此时出现了 Bank Conflict，进一�
 官方信息：Caches entries at the 4KB, 16KB, 64KB, 2MB or 512MB granularity, Fully associative, **48** entries. A miss in the L1 data TLB and a hit in the L2 TLB has a 6-cycle penalty compared to a hit in the L1 data TLB.
 
 用 pointer chasing 的方法测试 L1 DTLB 容量，指针分布在不同的 page 上，使得 DTLB 成为瓶颈：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v2-l1dtlb.png>)
 
 可以看到 48 Page 出现了明显的拐点，对应的就是 48 的 L1 DTLB 容量。超出容量后，需要额外的 5 cycle 的 latency 访问 L2 Unified TLB。
 

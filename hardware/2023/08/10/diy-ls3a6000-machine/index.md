@@ -254,6 +254,8 @@ extra/xorg-server 21.1.8-3 (xorg) [installed]
 
 访存延迟与工作集大小的关系（使用 [jiegec/cpu-micro-benchmarks](<https://github.com/jiegec/cpu-micro-benchmarks>) 测试）：
 
+![](<https://jia.je/blog/posts/hardware/ls3a6000-memory-latency.png>)
+
 主要分三段：
 
 1. \<64KB: 命中 L1D，Latency 是 1.2 ns，3 周期。64KB 与 L1D 容量 64 KB 一致。

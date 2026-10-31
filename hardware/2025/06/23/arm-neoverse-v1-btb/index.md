@@ -34,6 +34,8 @@ ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发�
 
 首先是 stride=4B uncond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-4b-uncond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到接近 64 条分支，CPI=1，对应了 96-entry 的 nano BTB，但是没有体现出完整的 96 的容量
@@ -48,6 +50,8 @@ ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发�
 ### stride=4B cond
 
 stride=4B cond 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-4b-cond.png>)
 
 可以看到，图像上出现了如下比较显著的台阶：
 
@@ -64,6 +68,8 @@ nano BTB 只表现出 48 的容量，刚好是 96 的一半；同时没有观察
 
 stride=8B uncond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-8b-uncond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到 96 条分支，CPI=0.5，对应了 96-entry 的 nano BTB，体现了 2 predicted branches per cycle
@@ -79,6 +85,8 @@ stride=8B uncond 的情况：
 
 stride=8B cond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-8b-cond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到 48 条分支，CPI=1，对应了 96-entry 的 nano BTB，没有 2 predicted branches per cycle，容量也只有 96 的一半
@@ -92,6 +100,8 @@ stride=8B cond 的情况：
 
 stride=16B uncond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-16b-uncond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到 96 条分支，CPI=0.5，对应了 96-entry 的 nano BTB，体现了 2 predicted branches per cycle
@@ -104,6 +114,8 @@ stride=16B uncond 的情况：
 ### stride=16B cond
 
 stride=16B cond 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-16b-cond.png>)
 
 可以看到，图像上出现了如下比较显著的台阶：
 
@@ -120,6 +132,8 @@ stride=16B cond 的情况：
 
 stride=32B uncond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-32b-uncond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到 96 条分支，CPI=0.5，对应了 96-entry 的 nano BTB，体现了 2 predicted branches per cycle
@@ -134,6 +148,8 @@ stride=32B uncond 的情况：
 
 stride=32B cond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-32b-cond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到 48 条分支，CPI=1，对应了 96-entry 的 nano BTB，没有 2 predicted branches per cycle，容量也只有 96 的一半
@@ -145,6 +161,8 @@ stride=32B cond 的情况：
 
 stride=64B uncond 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-64b-uncond.png>)
+
 可以看到，图像上出现了如下比较显著的台阶：
 
 - 第一个台阶到 96 条分支，CPI=0.5，对应了 96-entry 的 nano BTB，体现了 2 predicted branches per cycle
@@ -154,6 +172,8 @@ stride=64B uncond 的情况：
 ### stride=64B cond
 
 stride=64B cond 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v1-btb-64b-cond.png>)
 
 可以看到，图像上出现了如下比较显著的台阶：
 

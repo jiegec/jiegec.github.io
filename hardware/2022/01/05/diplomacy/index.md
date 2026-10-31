@@ -234,6 +234,8 @@ endmodule
 
 Diplomacy 提供了把图导出为 GraphML 格式的功能，只需要访问 `LazyModule` 类型的 `graphML` 字段即可。上面的连接关系会被可视化为下图：
 
+![](<https://jia.je/blog/posts/hardware/diplomacy-multi-adder.svg>)
+
 ### 参数协商
 
 上面的例子里，没有需要协商的参数，Bundle 也是固定的。接下来，尝试用 Diplomacy 实现参数协商：实现一个 Concat 模块，它会把入边上的所有 UInt 拼接起来，输出到所有的出边。那么要协商的就是每条边上的 UInt 的宽度，Concat 模块会计算入边的 UInt 宽度之和，传递到出边上。
@@ -407,6 +409,8 @@ endmodule
 ```
 
 经过可视化的连接图如下：
+
+![](<https://jia.je/blog/posts/hardware/diplomacy-concat.svg>)
 
 ### 复杂例子
 
@@ -640,6 +644,8 @@ endmodule
 ```
 
 连接关系如下：
+
+![](<https://jia.je/blog/posts/hardware/diplomacy-network.svg>)
 
 结果符合预期。
 

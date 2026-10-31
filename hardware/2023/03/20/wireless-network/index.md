@@ -12,7 +12,11 @@
 
 802.11 MAC 层的帧格式，如 802.11-1997 Figure 12：
 
+![](<https://jia.je/blog/posts/hardware/wireless-network-80211-mac.png>)
+
 前两个字节 Frame Control 的定义如 802.11-1997 Figure 13：
+
+![](<https://jia.je/blog/posts/hardware/wireless-network-80211-frame-control.png>)
 
 根据 Type 和 Subtype 字段决定了帧的类型，如管理（Management）帧，控制（Control）帧和数据（Data）帧。
 
@@ -33,6 +37,8 @@
 首先看 [802.11b](<https://ieeexplore.ieee.org/document/972833>)，802.11b 是对 802.11 的补充，主要定义了第 18 章 `High Rate, direct sequence spread spectrum PHY specification`，缩写 HR-DSSS。
 
 HR-DSSS 工作在 2.4 GHz 频段上，常用的是 13 个 channel，中心频率从 2412 MHz 到 2472 MHz 不等，呈等差数列，公差是 5 MHz。HR-DSSS 会占用 22MHz 的频谱，从中心频率减 11 MHz 到中心频率加 11 MHz，所以相邻 channel 会有干扰，见下图（取自 [Wikipedia](<https://en.wikipedia.org/wiki/IEEE_802.11>)）
+
+![](<https://jia.je/blog/posts/hardware/wireless-network-80211-channels.png>)
 
 这就是为什么通常会把 2.4GHz 无线路由器的 channel 固定为 1、6 或 11。
 
@@ -67,6 +73,8 @@ HR-DSSS 工作在 2.4 GHz 频段上，常用的是 13 个 channel，中心频率
 - PBCC: 802.11b 5.5/11 Mbps, 802.11g 22/33 Mbps
 
 OFDM 的核心思想就是采用多个载波信号，这些载波信号的频率呈等差数列，同时保证各载波相互正交，这样就提高了数据传输速率。为了保证正交，相邻载波信号的频率的差要满足 \\(\\Delta{f} = k / T\_U\\)，其中 k 是正整数，\\(T\_U\\) 是每个 symbol 的时间（引用 [wikipedia](<https://zh.wikipedia.org/zh-cn/正交頻分复用#正交>)）。下面是 802.11 标准中的 OFDM PHY 的组成：
+
+![](<https://jia.je/blog/posts/hardware/ofdm-circuit.png>)
 
 图中的缩写：
 

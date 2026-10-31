@@ -13,6 +13,8 @@
 
 为了在硬件上实现这一算法，处理器会维护一个预测表，表中每一项包含一个 2 位饱和计数器，用于预测跳转方向。查表时，系统会对条件分支地址以及近期执行的分支历史进行哈希运算，使用哈希结果作为索引读取表项，然后根据计数器的值来预测分支的跳转方向。
 
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-basic.png>)
+
 （图源：CMU ECE740 Computer Architecture: Branch Prediction）
 
 目前主流处理器普遍采用 [TAGE](<https://inria.hal.science/hal-03408381/document>) 预测器，它在上述基础查表方法的基础上进行了重要改进：
@@ -20,6 +22,8 @@
 1. 观察到不同分支的预测所需的历史长度各不相同：有些分支无需历史信息即可准确预测，有些依赖近期分支的跳转结果，而有些则需要更久远的历史信息；
 2. 分支历史越长，可能的路径组合就越多，导致预测器训练过程变慢，训练期间的预测错误率较高，因此希望尽快收敛；
 3. 为满足不同分支对历史长度的需求，TAGE 设计了多个预测表，每个表使用不同长度的分支历史。多个表同时进行预测，当多个表都提供预测结果时（仅在 tag 匹配时提供预测），选择使用最长历史长度的预测结果。
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-tage.png>)
 
 （图源：[Half&amp;Half: Demystifying Intel's Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf>)）
 
@@ -54,6 +58,8 @@
 通过构造上述程序，调整中间无条件分支的数量，并使用性能计数器统计分支预测错误率，可以找到一个临界点。当无条件分支数量超过这个阈值时，第二个条件分支的错误预测率会从 0% 上升到 50%。这个临界点对应 \\(\\mathrm{PHR}\\) 能够记录的分支历史数量，即 \\(\\lceil n / \\mathrm{shamt} \\rceil\\)。
 
 经过[测试](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/phr_size_gen.cpp>)：
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-phr-len.png>)
 
 ```text
 # 第一列：第二步插入的无条件分支数量加一
@@ -130,6 +136,8 @@ end:
 
 第二步中条件分支跳转与否，会影响分支历史中 \\(B\[i\]\\) 一个位的变化，它会经过哈希函数，影响 \\(\\mathrm{footprint}\\)，进而异或到 \\(\\mathrm{PHR}\\) 中。通过调整第三步执行的无条件分支个数，可以把 \\(B\[i\]\\) 对 \\(\\mathrm{PHR}\\) 的影响左移到不同的位置。如果 \\(B\[i\]\\) 对 \\(\\mathrm{PHR}\\) 造成了影响，就可以正确预测最后一条条件分支指令的方向。当左移次数足够多时，\\(B\[i\]\\) 对 \\(\\mathrm{PHR}\\) 的贡献会变为零，此时对最后一条条件分支指令的方向预测只有 50% 的正确率。在 Apple M1 Firestorm 上[测试](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/phr_branch_bits_location_gen.cpp>)，得到如下结果：
 
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-phrb.png>)
+
 横坐标 `Dummy branches` 指的是上面第三步插入的无条件分支的个数，纵坐标 `Branch toggle bit` 代表修改的是具体哪一个 \\(B\[i\]\\)，颜色对应分支预测的错误率，浅色部分对应最后一条分支只能正确预测 50%，深色部分对应最后一条分支总是可以正确预测。
 
 从这个图可以得到什么信息呢？首先观察 \\(B\[2\]\\) 对应的这一行，可以看到它确实参与到了 \\(\\mathrm{PHR}\\) 的计算中，但是仅仅经过 28 次移位，这个贡献就被移出了 \\(\\mathrm{PHR}\\)，为了保留在 \\(\\mathrm{PHR}\\) 内，最多移动 27 次。类似地，在移出 \\(\\mathrm{PHR}\\) 之前，\\(B\[3\]\\) 最多移动 26 次，\\(B\[4\]\\) 最多移动 25 次，\\(B\[5\]\\) 最多移动 24 次。
@@ -183,6 +191,8 @@ end:
 ```
 
 在 Apple M1 Firestorm 上[测试](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/phr_target_bits_location_gen.cpp>)，得到如下结果：
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-phrt.png>)
 
 > [!NOTE]
 >
@@ -319,6 +329,8 @@ end:
 
 [实验](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/pht_associativity_gen.cpp>)结果如下图：
 
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-assoc.png>)
+
 纵坐标就是上面的 \\(k\\)，横坐标是测试的条件分支数，颜色表示预测的错误率。当颜色从深色变浅，就说明出现了预测错误。观察：
 
 - \\(PC\[3\]\\) 的情况下，只能预测 4 个分支，而 \\(PC\[4\]\\) 或 \\(PC\[5\]\\) 可以预测 8 个分支，暗示了四路组相连，然后 \\(PC\[4\]\\) 和 \\(PC\[5\]\\) 对应到了两个 set，所以能够正确预测 8 个分支。
@@ -328,6 +340,8 @@ end:
 这就说明它是四路组相连，PC\[6\] 和 PC\[9\] 参与到了 index 函数中。
 
 下面给读者一个小练习，下面是在 Qualcomm Oryon 上测得的结果，可以看到噪声比较大，你能推断出它是几路组相连，有哪些 PC 参与到了 index 计算吗？
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-assoc-oryon.png>)
 
 > [!NOTE]
 >
@@ -354,6 +368,10 @@ end:
 为了利用这一点，生成两个 0 到 1 的随机数 \\(k\\) 和 \\(l\\)，分别把它们注入到 PC、PHRB 或者 PHRT 中，去预测一个条件分支，其跳转与否取决于 \\(k\\) 的值（论文中有个小 typo）。如果 \\(k\\) 和 \\(l\\) 在 tag 函数中有异或关系，那么预测器总会预测错误。
 
 实验结果大致如下，横纵坐标表示注入哪一个位，颜色代表预测错误率，深色意味着预测错误，也就是找到了一组异或关系：
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-assoc-tag-pc-phr.png>)
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-assoc-tag-phr-phr.png>)
 
 其中有一些异或关系，因为对应的位在 index 中出现的缘故，导致没有显现出来。根据已知的异或关系外推，可以得到如下的 tag 计算公式：
 
@@ -429,6 +447,8 @@ PHRB 的注入就比较复杂了，例如要注入 \\(B\[2\]=k\\)，我们需要
 6. 如果 \\(k\\) 和 \\(l\\) 注入的位至少出现一个在 tag 函数中，那么一个分支会在同一个 set 内占用两项，导致最多只能正确预测其中两个分支。
 
 注入 \\(PC\[9\]\\) 和 \\(PHRT\[i\]\\) 的[实验](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/pht_index_bits_xor.cpp>)结果如下：
+
+![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-index.png>)
 
 结合上面的讨论，可以知道：
 

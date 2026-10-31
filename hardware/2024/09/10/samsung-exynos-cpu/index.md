@@ -34,6 +34,8 @@ SHP，也就是那个最大的 Perceptron 预测器，包含了 8 个表，每�
 
 这就是 Exynos M1 和 M2 的分支预测器设计。上面的专利[High performance zero bubble conditional branch prediction using micro branch target buffer](<https://patents.google.com/patent/US20170068539A1/en>)还给出了前端的流水线各级的功能：
 
+![](<https://jia.je/blog/posts/hardware/samsung-exynos-cpu-frontend-1.png>)
+
 这个图中没有绘制 uBTB 内部的结构，uBTB 负责给出初始的预测，到 B1 阶段，从 B1 开始，会经过两条流水线，上面的流水线是 mBTB + SHP 负责更精确的预测，下面的流水线是查询 ITLB + 读取 ICache。上面说 2-bubble 的 mBTB，实际上就是从 B1 得到 Fetch Window，B2 读取 mBTB 和 SHP 的权重，等到 B3 完成之后才可以计算出结果，判断是 taken 还是 not taken，如果预测的结果和 uBTB 预测不一致，就需要刷流水，从 B1 重新开始：B1 B2 B3 B1 B2 B3，三个周期一个 taken branch。
 
 图中也可以看到 vBTB 在 B4，所以如果一个 cacheline 有超过 8 个 branch，那么在预测这些溢出到 vBTB 中的分支时，需要额外的两个周期：B1 B2 B3 B4 B3，五个周期一个 taken branch。
@@ -45,6 +47,8 @@ Exynos M4 继续翻倍了 L2 BTB 容量，减少了 L2 BTB refill 到 mBTB 的�
 Exynos M5 增加了 Empty Line Optimization 优化：检测没有分支的缓存行，如果确认缓存行没有分支，那就不用预测里面的分支了，可以节省功耗。
 
 为了进一步优化 taken branch 的吞吐，在 mBTB 中记录分支的目的地址时，不仅记录在分支本身所在的 mBTB entry 中，还要记录在这条分支的前序分支的 mBTB entry 中：例如 A 跳转到 B，B 跳转到 C，经典的实现是用 A 的地址找到 A 的 BTB entry，entry 中记录了 A 目的地址是 B，接着用 B 的地址找到 B 的 BTB entry，entry 中记录了 B 的目的地址是 C；而 Exynos M5 的设计是，C 的目的地址，不仅要记录在 B 的 BTB entry 中，还要记录在 A 的 BTB entry 中。不过这里要求 B 的跳转是 always-taken 或者 often-taken，因为并没有对第二条分支做预测，而是预测它一定会跳。通过这样的方法，可以在 2-bubble 的预测器的实现下，实现 1 taken branch/cycle 的吞吐，等效于一个 0-bubble 的预测器。下面是论文中对 mBTB 从 2-bubble 到 1-bubble 最终到 0-bubble 的变化的对比图：
+
+![](<https://jia.je/blog/posts/hardware/samsung-exynos-cpu-mbtb.png>)
 
 最左边的 SHP 2-bubble 就是最初的实现，它需要在 B3 得到分支是 taken 还是 not taken 的信息，如果和之前预测的不一样，那就需要 flush 掉流水线，B1 重新从正确的地址开始，然后重复这个过程，由于每次都需要到 B3 才能得到正确的地址，所以三个周期一个 taken branch。
 
@@ -69,6 +73,8 @@ Exynos M6 的办法是，针对这些目的地址特别多的间接跳转指令�
 ## uOP Cache
 
 Exynos M1 到 M4 没有 uOP Cache，所有指令都需要经过取指和译码，得到 uOP。从 Exynos M5 开始引入了 uOP Cache，会缓存译码后的 uOP。Exynos M5 的 uOP Cache 最多可以保存 384 个 uOP，每个 entry 可以保存 6 个 uOP，一个周期提供一个 entry。一个 uOP Cache Entry 中的 uOP 来自连续的指令，以分支指令作为结尾。下面是论文给出的一个例子：
+
+![](<https://jia.je/blog/posts/hardware/samsung-exynos-cpu-uop.png>)
 
 这段指令的入口在第一个缓存行的最后，从 I0 开始，执行 I0 I1 I2 I3，I3 是一条分支指令，因此 uOP 的 entry 到此结束，记录了 I0-I3 译码后的 uOP，这里 I2 指令被译码成了两条 uOP，于是这个 entry 就是 U0 U1 U2A U2B U3 这五个 uOP。I3 跳转到了 I4，I4 紧接着又是一条分支指令 I5，所以 uOP 的 entry 到这里结束，记录 I4 和 I5 译码后的 uOP：U4 和 U5。后面依此类推。
 

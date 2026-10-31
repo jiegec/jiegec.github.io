@@ -8,7 +8,11 @@
 
 TCP 测速：
 
+![](<https://jia.je/blog/posts/hardware/router-tcp.jpg>)
+
 UDP 测速：
+
+![](<https://jia.je/blog/posts/hardware/router-udp.jpg>)
 
 测试环境是 macOS 虚拟机外打虚拟机内，走网桥把虚拟机和一个 USB 网卡接起来，然后从另一个 USB 网卡打到路由器。
 

@@ -40,6 +40,8 @@ Neoverse V3 (AWS Graviton 5) 的性能测试结果见 [SPEC](<https://jia.je/ben
 
 测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量 nop 和最后的分支指令组成，观察不同 footprint 下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-fetch-bandwidth.png>)
+
 起始 IPC 为 9。Neoverse V3 删除了 MOP Cache，不像 Neoverse V2 那样可以把两条 NOP 合并为一条 MOP 来提高 IPC。虽然是 10-wide Decode，IPC 只能到 9，应该是遇到了其他瓶颈。
 
 超出 64KB L1 ICache 后，IPC 降到 4，说明 L2 Cache 可以提供每周期 16 字节的取指带宽。
@@ -52,9 +54,13 @@ L1 ICache 和 Neoverse V2 相同，只是去掉了 MOP Cache，增加了 Decode 
 
 构造一组 B 指令，分布在不同的 page 上，让 ITLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-itlb-size.png>)
+
 48 Page 处出现拐点，对应 48 项的 L1 ITLB 容量。之后性能降到 7 CPI，对应 L2 Unified TLB 的延迟。
 
 进一步增加 Page 数量，大约 1000 个页的时候，耗时从 7 cycle 逐渐上升：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-itlb-size-l2.png>)
 
 L2 Unified TLB 一共 2048 个 Entry，猜测 ITLB 能使用的 L2 TLB 容量只有一半，也就是 1024 项。超出后需要 Page Table Walker 做地址翻译。测试时要注意避免 Huge Page 的影响。
 
@@ -70,11 +76,15 @@ Neoverse V3 只有一个 Decode 路径，从 ICache 过来，不再有 Neoverse 
 
 Return Stack 记录最近的函数调用链，call 时压栈，return 时弹栈，用于预测 return 指令的目的地址。构造不同深度的调用链，发现 Neoverse V3 的 Return Stack 深度为 32：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-ras-size.png>)
+
 大小和 Neoverse V2 相同。
 
 ### BTB
 
 构造大量 B 指令，BTB 需要记录它们的目的地址。分支数量超过 BTB 容量时，性能就会下降。将 B 指令紧密放置（每 4 字节一条）：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-btb-size-uncond-4b.png>)
 
 1024 条分支之前 CPI 约 0.5，说明 Neoverse V3 继承了 Neoverse V2 的 two taken 能力。之后到 8192 条分支之前 CPI 约 1，到 16384 条分支时 CPI 为 2，到 32768 条分支时 CPI 为 6。
 
@@ -95,6 +105,8 @@ Return Stack 记录最近的函数调用链，call 时压栈，return 时弹栈�
 
 利用我们的[逆向方法](<https://arxiv.org/abs/2411.13900>)，观察分支地址对 PHR 的贡献：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-phr-branch-bits-location.png>)
+
 - B\[2-3\]: shift 263 次
 - B\[4-5\]: shift 262 次
 - B\[6-7,12-13\]: shift 261 次
@@ -102,6 +114,8 @@ Return Stack 记录最近的函数调用链，call 时压栈，return 时弹栈�
 - B\[10-11,16-17\]: shift 259 次
 
 分支目的地址的贡献：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-phr-target-bits-location.png>)
 
 - T\[7-8\]: shift 263 次
 - T\[5,9-10\]: shift 262 次
@@ -142,6 +156,8 @@ Dispatch 宽度和 Decode 对齐，不过限制不少，实际很难跑满。
 ### 物理寄存器堆
 
 测试物理寄存器堆大小，用两个依赖链很长的操作放在开头和结尾，中间填入若干无关指令来耗费物理寄存器堆：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-register-file-size.png>)
 
 - 32b int：speculative 32 位整数寄存器，拐点约 355
 - 64b int：speculative 64 位整数寄存器，拐点约 192，只有 32b 的一半。猜测实际物理寄存器堆有 400 左右个 64 位寄存器，但可以分成两半各自当 32 位寄存器用
@@ -223,6 +239,8 @@ Load 没有跨越缓存行时，load to use 延迟 4 cycle；跨过 64B 缓存�
 
 初始化时 `x1` 和 `x2` 指向同一个地址，重复上述模式，观察性能下降时 `ldr` 指令的数量：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-memory-dependency-predictor-size.png>)
+
 地址依赖的阈值是 56，数据依赖没有阈值。相比 Neoverse V2 的 40 和 Neoverse N2 的 32 有所增加。
 
 ### Reorder Buffer
@@ -230,6 +248,8 @@ Load 没有跨越缓存行时，load to use 延迟 4 cycle；跨过 64B 缓存�
 把两个串行的 fsqrt 序列放在循环的头和尾，中间用 NOP 填充。如果 ROB 足够大，执行开头串行 fsqrt 序列时可以同时执行结尾的，性能最优。ROB 不够大时则会出现性能下降。
 
 测试发现大约 768 条 NOP 时出现性能下降。Neoverse V3 实现了 Instruction Fusion，两条 NOP 算做一条 uOP 和一条 MOP，所以 768 条 NOP 对应 384 MOP 的 ROB 大小。极限下 384 MOP 可以存 768 uOP，但实际很难达到，容易受限于其他结构。相比 Neoverse V2 的 320 MOP 有所增加。
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-rob-size.png>)
 
 ### L1 DCache
 
@@ -240,6 +260,8 @@ Load 没有跨越缓存行时，load to use 延迟 4 cycle；跨过 64B 缓存�
 #### 容量
 
 构造不同大小 footprint 的 pointer chasing 链，测试每条 load 指令的耗时：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-l1dc-size.png>)
 
 64KB 处出现拐点，对应 L1 DCache 容量。之后延迟先上升后下降，与 ARM 采用的 Correlated Miss Caching (CMC) 预取器记住了 pointer chasing 的历史有关，详见 [Arm Neoverse N2: Arm's 2nd generation high performance infrastructure CPUs and system IPs](<https://hc33.hotchips.org/assets/program/conference/day1/20210818_Hotchips_NeoverseN2.pdf>)。
 
@@ -285,6 +307,8 @@ Stride=64B 时出现 Bank Conflict，Stride=128B 时所有 Load 命中同一个 
 官方信息：Caches entries at the 4KB, 16KB, 64KB, 2MB or 512MB granularity, Fully associative, **96** entries.
 
 用 pointer chasing 测试 L1 DTLB 容量，指针分布在不同的 page 上，让 DTLB 成为瓶颈：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-v3-l1dtlb-size.png>)
 
 96 Page 处出现拐点，对应 96 项的 L1 DTLB 容量。超出后需要额外 6 cycle 访问 L2 Unified TLB。容量相比 Neoverse V2 翻番。测试时注意避免 Huge Page 的影响。
 

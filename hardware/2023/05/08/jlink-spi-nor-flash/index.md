@@ -8,6 +8,8 @@
 
 JLink 提供了 20 pin 的引脚，如果要连接 SPI，那么引脚定义如下：
 
+![](<https://c.a.segger.com/fileadmin/images/products/J-Link/Software/pinout-spi-20-pin.gif.webp>)
+
 图源 [JFlash SPI 文档](<https://www.segger.com/products/debug-probes/j-link/tools/j-flash-spi/>)。
 
 连接的时候，至少需要连接以下的引脚：

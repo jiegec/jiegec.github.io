@@ -24,6 +24,8 @@
 
 网络拓扑：
 
+![](<https://jia.je/blog/posts/software/rcore-soft-router-topo.png>)
+
 可以，这很玄学。
 
 后续在想在真机上实验，但是还缺一个网卡驱动，不然就可以用神奇的办法来做这个实验了。

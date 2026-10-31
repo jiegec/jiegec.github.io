@@ -68,6 +68,8 @@ PCIe Bifurcation 的目的是让 PCIe 有更好的灵活性。从 CPU 出来的�
 
 在服务器平台上，Intel CPU 的 Bifurcation 变成运行时可配置的，例如在 [Xeon E5 v4 Datasheet Volume 2](<https://cdrdv2-public.intel.com/333810/xeon-e5-v4-datasheet-vol-2.pdf>) 中，可以找到寄存器 `pcie_iou_bif_ctrl` 寄存器的定义：
 
+![](<https://jia.je/blog/posts/hardware/pcie-bifurcation.png>)
+
 这个寄存器在 PCIe 配置空间中，可以通过 `setpci` 命令来读取或写入：
 
 ```shell

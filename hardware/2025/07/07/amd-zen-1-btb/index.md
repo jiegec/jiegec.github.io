@@ -67,6 +67,8 @@ Zen 1 的第三级 BTB 可以保存 4096 个 entry，但不确定这个 entry �
 
 首先是 stride=4B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-1-btb-4b.png>)
+
 可以看到，图像上出现了三个比较显著的台阶：
 
 - 所有分支模式下，第一个台阶都是到 4 条分支，CPI=1.25，比 1 周期略高，猜测是因为循环体比较小，循环结束的操作的开销没有平摊造成的；4 对应了 4-entry 的 L0 BTB
@@ -81,11 +83,15 @@ Zen 1 的第三级 BTB 可以保存 4096 个 entry，但不确定这个 entry �
 
 接下来观察 stride=8B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-1-btb-8b.png>)
+
 现象和 stride=4B 基本相同，各级 BTB 显现出来的大小没有变化。
 
 ### stride=16B
 
 继续观察 stride=16B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/amd-zen-1-btb-16b.png>)
 
 相比 stride=4B/8B，L0 BTB 的行为没有变化；L1 BTB 的容量减半到了 128，意味着 L1 BTB 采用了组相连，此时有一半的 set 不能被用上。此外，比较特别的是，从 stride=16B 开始，CPI=5 的平台出现了波动，CPI 从 5 变到 4 再变到了 5，猜测此时 L1 BTB 也有一定的比例会介入。L2 BTB 在 mix (uncond + cond) 模式下，拐点从 3072 前移到 2560。
 
@@ -93,17 +99,23 @@ Zen 1 的第三级 BTB 可以保存 4096 个 entry，但不确定这个 entry �
 
 继续观察 stride=32B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-1-btb-32b.png>)
+
 相比 stride=16B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 64，符合组相连的预期；L2 BTB 在 mix (uncond + cond) 模式下不再能体现出 3072 的容量，而是 2048：此时在一个 64B cacheline 中只有两条分支，第一条分支是 uncond，第二条分支是 cond，不满足 entry 共享的条件（必须 cond + uncond，不能是 uncond + cond），此时 uncond 和 cond 分别保存在两个 entry 中，每个 entry 只保存一条分支，因此 L2 BTB 只能体现出 2048 的容量。而 mix (cond + uncond) 模式依然满足 entry 共享的条件，所以依然体现出 4096 的容量。
 
 ### stride=64B
 
 继续观察 stride=64B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-1-btb-64b.png>)
+
 相比 stride=32B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 32，符合组相连的预期；L2 BTB 在 mix (cond + uncond) 模式下只能体现出 2048 的容量，此时每个 64B cacheline 都只有一条分支，不满足两条分支共享一个 entry 的条件。
 
 ### stride=128B
 
 继续观察 stride=128B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/amd-zen-1-btb-128b.png>)
 
 相比 stride=64B，L0 BTB 的行为没有变化；L1 BTB 的容量进一步减到了 16，符合组相连的预期；L2 BTB 的容量减半到了 1024，意味着 L2 BTB 也是组相连结构。
 

@@ -180,6 +180,10 @@ for i in $(seq 0 31); do sudo turbostat -c $i -n 1 2 --interval 1 2>&1 | grep MS
 
 在 AMD 平台上，CPPC 的这些性能值既可以通过 ACPI 获取，又可以通过 MSR 来读写（来源：[Processor Programming Reference (PPR) for AMD Family 1Ah Model 24h, Revision B0 Processors](<https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/57254-PUB_3.00.zip>)）：
 
+![](<https://jia.je/blog/posts/software/linux-core-scheduling-cppc-1.png>)
+
+![](<https://jia.je/blog/posts/software/linux-core-scheduling-cppc-2.png>)
+
 在更早的 AMD 处理器中，没有这些 MSR，而是通过 MMIO 来控制，这些信息记录在 ACPI CPPC 当中。
 
 通过比对 `/sys/devices/system/cpu/cpu*/acpi_cppc/highest_perf` 和 `/sys/devices/system/cpu/cpu*/cpufreq/amd_pstate_prefcore_ranking`，我们会发现它们是一样的，说明 amd-pstate 驱动做的事情和 itmt 类似，根据 ACPI 的 Highest Perf 信息（或者从 MSR 0xC001\_02B0 读出 Highest Perf），设置 Preferred Core Ranking 以及调度器的优先级。阅读代码，可以看到它确实是这么做的：

@@ -8,6 +8,8 @@
 
 文本绘制，首先就要从字体文件中读取字形，提取出 Bitmap 来，然后把 Bitmap 绘制到该去的地方。为了提取这些信息，首先用 FreeType 库，它可以解析字体文件，然后计算出给定大小的给定字符的 Bitmap。但是，这个 Bitmap 它只记录字体非空白的部分（准确的说，是 Bounding Box），如下图的 width \* height 部分：
 
+![](<https://jia.je/blog/posts/software/terminal-emulator-text-rendering-font.png>)
+
 （图源：[Managing Glyphs - FreeType Tutorial II](<https://freetype.org/freetype2/docs/tutorial/step2.html>)）
 
 其中 x 轴，应该是同一行的字体对齐的，这样才会看到有高有低的字符出现在同一行，而不是全部上对齐或者下对齐。得到的 Bitmap 是行优先的，也就是说：

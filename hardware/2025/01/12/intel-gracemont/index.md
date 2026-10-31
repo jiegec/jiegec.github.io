@@ -51,6 +51,8 @@ Gracemont 的 Clustered Decode 架构比较特别，目前没有找到方法去�
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 4 字节 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-fetch-bandwidth.png>)
+
 可以看到 footprint 在 64 KB 之前时可以达到 5 IPC，之后则降到 3.25 IPC，这里的 64 KB 就对应了 L1 ICache 的容量。
 
 ### L1 ITLB
@@ -61,15 +63,23 @@ Gracemont 的 Clustered Decode 架构比较特别，目前没有找到方法去�
 
 构造一系列的 jmp 指令，使得 jmp 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-itlb-size.png>)
+
 可以看到 64 个 Page 出现了明显的拐点，对应的就是 64 的 L1 ITLB 容量。过了拐点后，每次 jmp 的时间延长到了 16 个周期左右，包括了 L2 TLB 到 L1 ITLB 的 refill 时间。
 
 ### Return Stack
 
 用之前设计的 Return Stack 测试代码来测试 Gracemont，它的 call/ret 是成对的，也就是 ret 的返回地址不变，称这个版本为 A。此时发现不同调用深度下，都能做到 2 cycle 每 call/ret 对，没有观察到性能的下降，说明此时 Return Stack 并没有介入，应该是由 BTB 提供了预测。下面是 A 版本代码在 Gracemont 上的测试结果：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-rs-size-1.png>)
+
 为了解决这个问题，修改代码，在函数里构造两个 call 去调用同一个函数，这样 ret 的返回地址就会变化了，称这个版本为 B。这时候跑出来的结果比较奇怪，周期数快速上升：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-rs-size-2.png>)
+
 同样的 B 版本代码在 AMD Zen3 和 Apple Firestorm 的处理器上，可以观察到在符合预期的 Return Stack 大小处出现性能拐点，和 A 版本代码得到的结论一致。而 B 版本代码在 Golden Cove 上，会观察到在 6 的附近有一个性能下降如下图，但之前用 [A 版本代码测得的拐点为 20](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>):
+
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-rs-size-golden-cove.png>)
 
 这个区别背后的原因还需要进一步的分析。下面是两个版本的汇编代码的对比：
 
@@ -227,15 +237,23 @@ ret
 
 测试时，让这对 Store-Load 采用相同/不同的地址进行访存，具体地，首先是 100 次相同地址（有依赖），然后 20 次不同地址（无依赖），最后 10 次相同地址（有依赖），每次执行的周期数如下：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-mdp-1.png>)
+
 可见当预测器被训练为 Store-Load 有依赖之后，经过 3 次 Store-Load 无依赖（横坐标 100 到 102）的训练以后，从第 4 次（横坐标 103）开始成功预测了无依赖的情况，使得 Load 可以提前执行，表现为周期数的明显减少。而当 Store-Load 再次出现依赖（横坐标 120）时，因为错误预测，出现了周期数的明显增加，并且下一次执行 Store-Load（横坐标 121）就能正确预测出有依赖。这与论文中针对 Skylake 的逆向结果类似：从初始状态开始（通过大量的有依赖来重置状态），连续无依赖 3 次以后，才会被预测为无依赖，且只要有一次有依赖，就会被预测为有依赖。对应的内部实现是，硬件对这个 Load 维护一个 2-bit 的饱和计数器，有依赖时清零，无依赖时加一，当累加到最大值 3 时，预测为无依赖，否则就是有依赖。Gracemont 和 Skylake 以及 Golden Cove 的逻辑类似，不过计数器的位数更少，更容易预测出无依赖。
 
 上面的测试只证明了有 2-bit 的计数器，且无依赖时加一，累加到 3 时才预测为无依赖，但并没有证明它在有依赖时清零，也可能是通过减一，或其他不会减到零的情况。下面修改一下访存模式来证明，即累加到 3 后，先来一次有依赖，再来多次无依赖，就可以观察到下面的结果：
+
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-mdp-2.png>)
 
 可见，一次有依赖过后，又需要 3 次无依赖，才能预测为无依赖。这证明了前面的表述，即 2-bit 饱和计数器，无依赖时加一，有依赖时置零，当计数器等于 3 时，预测为无依赖。
 
 接下来测试这些计数器是怎么维护的。方法是，设置两个 Store-Load 对，其中第一对总是有依赖，第二对总是没有依赖，调整两个 Load 指令的地址，看看什么时候会出现性能下降。出现性能下降就意味着这两个 Load 指令被映射到了同一个 2-bit 饱和计数器上，那么根据上面的规律，它们总是会被预测为有依赖。测试结果如下：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-mdp-3.png>)
+
 可见当两个 Load 地址在低 16 位相同时，会被映射到同一个计数器上。不过这并不代表它就有 65536 个计数器，下面来测试一下实际有多少。思路是，构造多对 Store-Load，让它们的 Load 地址的低 16 位不同，然后都让它们有依赖，观察到多少对 Store-Load 时出现性能下降。通过 [Store-to-Load Forwarding and Memory Disambiguation in x86 Processors](<https://blog.stuffedcow.net/2014/01/x86-memory-disambiguation/>) 的 Fast Data 测试方法，可得它的容量是 26：
+
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-mdp-4.png>)
 
 猜测它是一个 26 路全相联的设计，每个表项有 16-bit 的 tag（取自 Load PC 低 16 位）和 2-bit 饱和计数器。未命中时预测无依赖，如果实际有依赖则插入表项，计数器置零。命中时根据计数器值预测：无依赖加一，有依赖置零，到 3 时预测无依赖。另一种可能是计数器到 3 时表项被删除，效果相同。究竟是哪种还有待后续研究，不过从利用率的角度来说，删除的可能性更大。这种设计和 ARM Neoverse N2 比较类似，和 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) 又不太一样，三者对比如下：
 
@@ -267,6 +285,8 @@ ret
 
 用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过把 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈。奇怪的是，虽然官方信息写的是 32-entry 的 L1 DTLB，但是实测它有 48-entry：
 
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-dtlb-size.png>)
+
 这个观察和 [Meteor Lake’s E-Cores: Crestmont Makes Incremental Progress](<https://chipsandcheese.com/p/meteor-lakes-e-cores-crestmont-makes-incremental-progress>) 是一致的，怀疑是 Intel 写错了数据。
 
 ### L2 TLB
@@ -278,6 +298,8 @@ ret
 - 4 page walkers
 
 使用类似 L1 DTLB 的方式去测试 L2 TLB，在 2048 附近观察到了拐点：
+
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-l2-dtlb-size.png>)
 
 这个结果和官方数据是吻合的。
 
@@ -297,5 +319,7 @@ ret
 - 8 wide retirement
 
 为了测试 ROB 的大小，设计了一个循环，循环开始和结束是长延迟的 long latency load。中间是若干条 NOP 指令，当 NOP 指令比较少时，循环的时候取决于 load 指令的时间；当 NOP 指令数量过多，填满了 ROB 以后，就会导致 ROB 无法保存循环末尾的 load 指令，性能出现下降。测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/intel-gracemont-rob-size.png>)
 
 当 NOP 数量达到 256 时，性能开始急剧下滑，说明 Golden Cove 的 ROB 大小是 256。

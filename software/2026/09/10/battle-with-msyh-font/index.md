@@ -36,7 +36,11 @@
 
 我做了一个测试的 PPT，三行字，第一行是微软雅黑 Light 字体，第二行是 Microsoft YaHei Light 字体，第三是 Microsoft YaHei UI 字体。能明显看出第一行字体有问题，和第三行一样，而第二行字体是正确的：
 
+![](<https://jia.je/blog/posts/software/battle-with-msyh-font-test.png>)
+
 后两行正确匹配了字体，所以渲染没问题。而同样的文件，放到 Windows PowerPoint 里打开，可以看到正确的显示结果：
+
+![](<https://jia.je/blog/posts/software/battle-with-msyh-font-test-windows.png>)
 
 前两个字体是同一个，和第三个不同，这是预期结果。
 

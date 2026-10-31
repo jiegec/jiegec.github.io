@@ -6,6 +6,8 @@
 
 进到 PulseView 以后，把 SPI 的四路信号接上，然后抓了一段信号，解析：
 
+![](<https://jia.je/blog/posts/hardware/pulseview.png>)
+
 可以看到它正确地解析出来了 Fast Read 命令。由于 DSView 它 fork 自一个比较老的版本，所以它并不能正确解析出来。
 
 P.S. Linux 下它界面显示比 macOS 下好看一些，估计是没有适配好。

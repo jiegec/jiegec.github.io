@@ -38,6 +38,8 @@ ARM Neoverse N1 是 2019 年发布的比较早的一代 ARM 服务器的处理�
 
 首先是 stride=4B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-4b.png>)
+
 可以看到，图像上出现了三个比较显著的台阶：
 
 - 第一个台阶到 16 条分支，CPI=1，对应了 16-entry 的 Nano BTB
@@ -49,6 +51,8 @@ ARM Neoverse N1 是 2019 年发布的比较早的一代 ARM 服务器的处理�
 ### stride=8B
 
 接下来观察 stride=8B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-8b.png>)
 
 可以看到，图像上出现了三个比较显著的台阶：
 
@@ -63,6 +67,8 @@ ARM Neoverse N1 是 2019 年发布的比较早的一代 ARM 服务器的处理�
 ### stride=16B
 
 继续观察 stride=16B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-16b.png>)
 
 可以看到，图像上出现了四个比较显著的台阶：
 
@@ -79,6 +85,8 @@ ARM Neoverse N1 是 2019 年发布的比较早的一代 ARM 服务器的处理�
 
 继续观察 stride=32B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-32b.png>)
+
 可以看到，图像上出现了三个比较显著的台阶：
 
 - 第一个台阶到 16 条分支，CPI=1，对应了 16-entry 的 Nano BTB，和之前一样
@@ -90,6 +98,8 @@ ARM Neoverse N1 是 2019 年发布的比较早的一代 ARM 服务器的处理�
 ### stride=64B
 
 继续观察 stride=64B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-64b.png>)
 
 可以看到，图像上出现了三个比较显著的台阶：
 
@@ -106,6 +116,8 @@ Nano BTB 和 Micro BTB 容量没有变小，意味着它们大概率是全相连
 ### stride=128B
 
 继续观察 stride=128B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-128b.png>)
 
 可以看到，图像上出现了三个比较显著的台阶：
 
@@ -548,15 +560,27 @@ int main() {
 
 stride=4B：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-4b-model.png>)
+
 stride=8B：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-8b-model.png>)
 
 stride=16B：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-16b-model.png>)
+
 stride=32B：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-32b-model.png>)
 
 stride=64B：
 
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-64b-model.png>)
+
 stride=128B：
+
+![](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb-128b-model.png>)
 
 可以看到模型和实际的表现是非常一致的。
 

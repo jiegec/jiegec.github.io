@@ -25,6 +25,8 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power9-fetch-bandwidth.png>)
+
 测试环境是 SMT4 Core，所以只有 32KB 的容量。超出 L1 ICache 容量后，IPC 从 6 降低到了 4.7。相比 POWER8，容量不变，超出 ICache 容量后的 IPC 提高了。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
@@ -39,6 +41,8 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 在此基础上，构造一个循环，循环的第一条指令放在第一个页的最后四个字节，其余指令放第二个页上，那么每次循环的取指时间，就是一个周期（读取第一个页内的指令）加上第二个页内指令需要 Fetch 的周期数，多的这一个周期就足以把 Fetch 宽度从后端限制中区分开，实验结果如下：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power9-if-width.png>)
+
 图中蓝线（cross-page）表示的就是上面所述的第一条指令放一个页，其余指令放第二个页的情况，横坐标是第二个页内的指令数，那么一次循环的指令数等于横坐标 +1。纵坐标是运行很多次循环的总 cycle 数除以循环次数，也就是平均每次循环耗费的周期数。可以看到每 8 条指令会多一个周期，因此 IBM POWER9 的前端取指宽度确实是 8 条指令即 32 字节。
 
 为了确认这个瓶颈是由取指造成的，又构造了一组实验，把循环的所有指令都放到一个页中，这个时候 Fetch 不再成为瓶颈（图中 aligned），两个曲线的对比可以明确地得出上述结论。
@@ -51,6 +55,8 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 为了测试 L1 ITLB 的容量，构造 b 序列，每个 b 在一个单独的页（64KB 的页大小）中，观察 b 的性能：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power9-itlb-size.png>)
+
 可以看到明显的 256 pages 的拐点，对应了 256 entry 的 L1 ITLB。CPI 从 3 升高到了 28。相比 POWER8 的 64-entry L1 ITLB 容量有所提升。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp>)。
@@ -62,6 +68,8 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 ### Return Address Stack
 
 构造不同深度的调用链，测试每次调用花费的时间，得到如下测试结果：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power9-ras-size.png>)
 
 可以看到 64 的拐点，对应的就是 RAS 的大小。
 
@@ -83,6 +91,8 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 把两个独立的 long latency pointer chasing load 放在循环的头和尾，中间用 NOP 填充，当 NOP 填满了 ROB，第二个 pointer chasing load 无法提前执行，导致性能下降。测试结果如下：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power9-rob-size.png>)
+
 拐点在 256 附近。相比 POWER8 的 `28*6=168` 有所提升
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/rob_size_gen.cpp>)。
@@ -98,6 +108,8 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 ### L1 DTLB
 
 用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 64KB page 上，使得 DTLB 成为瓶颈：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power9-dtlb-size.png>)
 
 可以看到 256 Page 出现了明显的拐点，对应的就是 256 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 4 cycle。L1 DTLB 容量相比 POWER8 的 48(ST)/96(SMT) 有所提升，和 POWER8 的 256-entry L2 DTLB 容量相同。
 
@@ -117,9 +129,13 @@ IBM POWER9 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 首先是连续访问若干个 128B cacheline，观察哪些被预取了进来：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power9-prefetcher-cacheline-1.png>)
+
 预取的行为相比 POWER8 更加激进：有更多的缓存行被预取到了更近的 L1（或者是 L2？）。
 
 如果是访问了几个分立的缓存行，有时会表现出 Next 3 Line 的行为，但都是到 L3：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power9-prefetcher-cacheline-2.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp>)。
 

@@ -75,6 +75,8 @@
 
 4 核 8 线程 LA664
 
+![](<https://jia.je/blog/posts/hardware/loongarch-cpu-3a6000.png>)
+
 来源：[龙芯中科 2023 年半年度业绩说明会](<https://roadshow.sseinfo.com/roadshowIndex.do?id=14977>)
 
 根据 [http://basic.10jqka.com.cn/688047/interactive.html](<http://basic.10jqka.com.cn/688047/interactive.html>):
@@ -107,9 +109,13 @@
 
 ## 3C6000
 
+![](<https://jia.je/blog/posts/hardware/3c6000.png>)
+
 来源：[龙芯中科 2023 年第三季度业绩说明会](<https://roadshow.sseinfo.com/roadshowIndex.do?id=16536>)
 
 ## 2K3000
+
+![](<https://jia.je/blog/posts/hardware/loongarch-cpu-2k3000.png>)
 
 来源：[龙芯中科 2023 年第三季度业绩说明会](<https://roadshow.sseinfo.com/roadshowIndex.do?id=16536>)
 

@@ -24,6 +24,8 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-fetch-bandwidth.png>)
+
 超出 L1 ICache 容量后，IPC 从 6 降低到了 2.4。其中 6 IPC 来自于，IBM POWER8 在 ST 模式下每周期可以发射 8 条指令，但其中分支指令最多两条，非分支指令最多六条，所以执行 NOP 指令的 IPC 只能达到 6。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
@@ -33,6 +35,8 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 官方信息：**64-entry**, fully associative
 
 为了测试 L1 ITLB 的容量，构造 b 序列，每个 b 在一个单独的页（64KB 的页大小）中，观察 b 的性能：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power8-itlb-size.png>)
 
 可以看到明显的 64 pages 的拐点，对应了 64 entry 的 L1 ITLB。
 
@@ -50,9 +54,15 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 构造不同深度的调用链，测试每次调用花费的时间，得到如下测试结果：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-ras-size.png>)
+
 可以看到 32 的拐点，对应的就是 ST 模式下 RAS 的大小。在同一个物理核上的其他三个逻辑核分别运行 stress，就测得 SMT4 模式下的 RAS 大小 16：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-ras-size-smt4.png>)
+
 类似地，在其余七个逻辑核上分别运行 stress 负载，得到 SMT8 模式下的 RAS 大小为 8：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power8-ras-size-smt8.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/ras_size_gen.cpp>)。
 
@@ -75,6 +85,8 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 官方信息：28-entry，ST 模式下每个 entry 对应一个 Group；SMT 模式下每个 entry 对应两个来自同一个线程的 Group；所以最多容纳 `28*8=224` 条指令；Commit 的粒度是 Group，ST 模式下每周期 Commit 一个 Group，SMT 模式下每周期 Commit 两个 Group
 
 把两个独立的 long latency pointer chasing load 放在循环的头和尾，中间用 NOP 填充，当 NOP 填满了 ROB，第二个 pointer chasing load 无法提前执行，导致性能下降。测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power8-rob-size.png>)
 
 拐点大致在 168 附近，因为每 6 条 NOP 指令对应一个 Group，所以只能容纳 `28*6=168` 条指令。
 
@@ -119,6 +131,8 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-l1dc-size.png>)
+
 可以看到 64KB 出现了明显的拐点，对应的就是 64KB 的 L1 DCache 容量。第二个拐点在 512KB，对应的是 L2 Cache 的容量。第三个拐点是 3MB，对应的是 L1 DTLB 的容量：`48*64KB=3MB`。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
@@ -133,6 +147,8 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 64KB page 上，使得 DTLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-dtlb-size.png>)
+
 可以看到 48 Page 出现了明显的拐点，对应的就是 48 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 3 cycle。最终出现一个 18.8 cycle 的平台。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
@@ -143,7 +159,11 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 继续扩大 DTLB 测试规模，可以看到在 256 处出现了新的拐点，其中 256 的地方出现周期数的骤降，是触发了 Linux 的大页合并功能：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-dtlb-size-l2.png>)
+
 关掉 THP(Transparent Huge Page) 后，周期数的骤降消失，256 的拐点之后周期数增加而不是减少：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power8-dtlb-size-l2-no-thp.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
@@ -152,6 +172,8 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 官方信息：**2048-entry**, 4-way set associative, 4 concurrent page table walk
 
 继续扩大 DTLB 测试规模，在 2048 处出现了拐点，注意要关闭 THP，否则拐点会消失，因为实际上没有用到 2048 个页：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power8-dtlb-size-l3.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
 
@@ -163,8 +185,12 @@ IBM POWER8 的性能测试结果见 [SPEC](<https://jia.je/benchmark/index.md>)�
 
 首先是连续访问若干个 128B cacheline，观察哪些被预取了进来：
 
+![](<https://jia.je/blog/posts/hardware/ibm-power8-prefetcher-cacheline-1.png>)
+
 可以看到后面有 12 个 cacheline 都被预取了，但是预取到了不同的 cache 层次，猜测距离越近的 4 个 cacheline 预取到 L1，更远的 2 个到 L2，其余的 6 个到 L3。
 
 如果是访问了几个分立的缓存行，行为变成了 Next 3 Line：
+
+![](<https://jia.je/blog/posts/hardware/ibm-power8-prefetcher-cacheline-2.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp>)。

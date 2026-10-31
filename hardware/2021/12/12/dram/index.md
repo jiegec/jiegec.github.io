@@ -96,6 +96,8 @@ DRAM 有很多参数，以服务器上的内存 [MTA36ASF2G72PZ-2G3A3](<https://
 
 用 Micron 提供的 [Verilog Model](<https://media-www.micron.com/-/media/client/global/documents/products/sim-model/dram/ddr4/ddr4_verilog_models.zip?rev=caf27a5eaf6b4a9f81eb894a874a4492>) 进行仿真，可以看到如下的波形图：
 
+![](<https://jia.je/blog/posts/hardware/ddr4-waveform.png>)
+
 首先看第一个命令，ACT\_n=0, ADDR=0x009C, CAS\_n\_A15=0, CKE=1-\>1, CS\_n=0, RAS\_n\_A16=0, WE\_n\_A14=1，查阅标准可知这是 ACT(Bank Activate) 命令。接着第二个命令，ACT\_n=1, ADDR=0x0400, CAS\_n\_A15=0, CKE=1-\>1, CS\_n=0, RAS\_n\_A16=1, WE\_n\_A14=1, A10=1, 这是 RDA(Read with Auto Precharge) 命令。若干个周期后，读取的数据从 DQ 上输出，一共 8 个字节的数据。
 
 ## 刷新
@@ -148,6 +150,8 @@ HBM 相比前面的 DDR SDRAM，它堆叠了多个 DRAM，提供多个 channel �
 Xilinx 的 Virtex Ultrascale Plus HBM FPGA 提供了 `1800 (MT/s) * 128 (bits/transfer) * 8 (Channels) = 230.4 GB/s` 的带宽，如果用了两片 HBM 就是 460.8 GB/s。暴露给 FPGA 逻辑的是 16 个 256 位的 AXI3 端口，AXI 频率 450 MHz，内存频率 900 MHz。可以看到，每个 AXI3 就对应了一个 HBM 的 pseudo channel。每个 pseudo channel 是 64 位，但是 AXI 端口是 256 位：在速率不变的情况下，从 450MHz 到 900MHz，再加上 DDR，相当于频率翻了四倍，所以位宽要从 64 位翻四倍到 256 位。
 
 当然了，HBM 的高带宽的代价就是引脚数量很多。根据 [HBM3 JESD238A](<https://www.jedec.org/system/files/docs/JESD238A.pdf>)，每个 Channel 要 120 个 pin，一共 16 个 channel（HBM2 是 8 channel，每个 channel 128 位；HBM3 是 16 channel，每个 channel 64 位），然后还有其他的 52 个 pin，这些加起来就 1972 个 pin 了。所以一般在 Silicon Interposer 上连接，而不是传统的在 PCB 上走线（图源 [A 1.2V 20nm 307GB/s HBM DRAM with At-Speed Wafer-Level I/O Test Scheme and Adaptive Refresh Considering Temperature Distribution](<https://picture.iczhiku.com/resource/ieee/WYifSuFTZuHLFcMV.pdf>)）：
+
+![](<https://jia.je/blog/posts/hardware/dram-hbm-stack.png>)
 
 所以在 HBM3 标准里，用 Microbump 来描述 HBM 的 pin。
 

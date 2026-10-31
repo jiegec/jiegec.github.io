@@ -23,8 +23,8 @@ cd src
 ./emacs
 ```
 
-And then, M-x webkit-browse-url RET:
+And then, M-x webkit-browse-url RET: ![xwidget-webkit](<https://jia.je/blog/posts/programming/xwidget-webkit.png>)
 
-Also, test the modules feature using [syohex/emacs-qrencode](<https://github.com/syohex/emacs-qrencode>):
+Also, test the modules feature using [syohex/emacs-qrencode](<https://github.com/syohex/emacs-qrencode>): ![qrencode](<https://jia.je/blog/posts/programming/qrencode.png>)
 
 I'm using ssh and X11 Forward to show Emacs in Mac OS X! Cool!

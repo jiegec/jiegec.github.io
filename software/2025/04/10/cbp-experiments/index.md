@@ -59,6 +59,8 @@ TB 级别的规模，无论是保存这些数据，还是生成这些数据，�
 
 [SimPoint](<https://cseweb.ucsd.edu/~calder/papers/ASPLOS-02-SimPoint.pdf>) 是解决这个问题的一个很重要的方法：它观察到了一个很重要的现象，就是这些 benchmark 其实大多数时候是在重复做相同的事情，只不过涉及到的数据不同。这也很好理解，因为很多程序里面都是循环，而循环是很有规律的，我们可以预期程序的行为在时间尺度上也会有一定的周期性。下面是 SimPoint 论文中的一个图，它记录了 gzip-graphic benchmark 的 IPC（每周期指令数，图中的实线）和 L1 数据缓存缺失率（图中的虚线）随着执行过程的变化：
 
+![](<https://jia.je/blog/posts/software/cbp-experiments-simpoint.png>)
+
 可以看到比较明显的周期性，而涉及到周期性，就会想到利用周期的性质：如果在一个周期上评估它的 IPC 或者分支预测器的准确率，然后外推到其他的周期，是不是大大缩小了执行时间？SimPoint 利用这个思想，设计了如下的步骤：
 
 1. 首先把整个执行过程按照执行的指令数切分成很多个 slice
@@ -72,6 +74,8 @@ TB 级别的规模，无论是保存这些数据，还是生成这些数据，�
 进一步为了提升聚类的性能，SimPoint 还进行了一次降维操作，把很长的 Basic Block Vector 线性映射到一个比较小的 15 维的向量上。
 
 SimPoint 论文中展示了聚类的效果，还是很可观的：
+
+![](<https://jia.je/blog/posts/software/cbp-experiments-simpoint-2.png>)
 
 完成聚类以后，SimPoint 的输出就是若干个 phase，每一个类对应一个 phase，每个 phase 包括：
 
@@ -211,9 +215,15 @@ LTO 去掉了 9% 的分支指令，对整体性能的影响还是蛮大的，MPK
 
 500.perlbench\_r diffmail:
 
+![](<https://jia.je/blog/posts/software/cbp-experiments-simpoint-perlbench-diffmail.png>)
+
 520.omnetpp\_r:
 
+![](<https://jia.je/blog/posts/software/cbp-experiments-simpoint-omnetpp.png>)
+
 557.xz\_r input:
+
+![](<https://jia.je/blog/posts/software/cbp-experiments-simpoint-xz-input.png>)
 
 以 1e8 条指令的粒度切分 SimPoint，把 241 GB 的 trace 缩减到 415 MB 的规模。
 

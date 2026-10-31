@@ -36,9 +36,13 @@
 
 论文 [SonicBOOM: The 3rd Generation Berkeley Out-of-Order Machine](<https://carrv.github.io/2020/papers/CARRV2020_paper_15_Zhao.pdf>) 提到了一个有意思的优化：Short Forward Branch。它面对的场景是一些小的 if 语句，在 if 的条件满足时，执行少量的指令。正常来说，这样的代码会被编译成一个 Forward 的分支，被跳过的就是 if 条件满足时要执行的代码对应的指令。如果分支比较好预测，那现有的分支预测器就可以得到很好的性能，但如果分支不好预测，例如它会依赖数据的值，并且具有一定的随机性，这时候性能就会下降。为了解决这个问题，可以用条件执行来代替分支：把分支指令替换为比较指令，然后根据比较的结果来条件执行本来可能会被跳过的指令。下面是论文中给的例子，说的比较的清晰：
 
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-3-sfb.png>)
+
 比较有意思的是，这个优化是完全由硬件来做的，而不是编译器。当然了，如果编译器要做的前提是硬件支持这类标量的条件执行指令，虽然 Zicond 扩展确实提供了类似的功能，很多 RISC-V 实现还没有实现 Zicond。硬件上做的话，就不需要扩展指令集，直接在前端进行识别，当发现这种 Short Forward Branch 时，把分支指令本身改成一条 set-flag 指令，然后把分支到跳转目的地这一段的指令改为条件执行。这样就不需要进行分支预测了，无论原来的分支是否跳转，后续的这些指令都会进入流水线，看起来做了更多的事情，但很多时候反而比错误的分支预测还要快。
 
 这个优化思路在 Intel 的专利 [Converting conditional short forward branches to computationally equivalent predicated instructions](<https://patents.google.com/patent/US9367314B2/en>) 也有阐述，不知道这个优化有没有实际加到 Intel 的处理器当中。专利的图 6 很好地用 X86 的指令阐述了这个优化：
+
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-3-intel.png>)
 
 Intel 在 [ISCA 2020 的论文 Auto-Predication of Critical Branches](<https://ieeexplore.ieee.org/document/9138936>) 中提供了一些硬件的实现思路，讨论了怎样去检测这样的化分支指令为条件执行指令的情况，如何在硬件中实现高效的条件执行，怎么避免负优化（例如去掉分支指令以后，分支预测器眼里就丢失了分支的历史；转化为条件执行以后，本来可能没有依赖的指令也变得强制有依赖了），建议有兴趣的读者阅读。
 
@@ -153,6 +157,8 @@ BTB 的目的是在分支预测阶段，提供哪些指令是分支指令，以�
 
 香山[南湖微架构](<https://raw.githubusercontent.com/OpenXiangShan/XiangShan-doc/main/slides/20220825-RVSC-香山处理器前端取指架构演进.pdf>)也采用了类似的[B-BTB 设计](<https://docs.xiangshan.cc/zh-cn/latest/frontend/bp/>)，下面是香山微架构文档的截图：
 
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-3-ftb.png>)
+
 如果程序里有很多经常或者总是跳转的分支，那么上面这种 B-BTB 设计就有一些浪费，因为找不到很多条件分支 + 分支的组合，即使找到了，如果条件分支总是跳转，那么第二条分支就浪费了。为了解决这个问题，AMD 在 [Software Optimization Guide for the AMD Zen4 Microarchitecture](<https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/57647.zip>) 中提到一种解决方案：
 
 > Each BTB entry can hold up to two branches, and two pair cases are supported: • A conditional branch followed by another branch with both branches having their last byte in the same 64 byte aligned cacheline. • A direct branch (excluding CALLs) followed by a branch ending within the 64 byte aligned cacheline containing the target of the first branch. Predicting with BTB pairs allows two fetches to be predicted in one prediction cycle.
@@ -164,6 +170,8 @@ BTB 的目的是在分支预测阶段，提供哪些指令是分支指令，以�
 ## Instruction Prefetcher
 
 随着程序的指令 footprint 增大，除了增大 L1 ICache 容量，也需要实现合理的 Instruction Prefetcher，把指令预取到 L1 ICache 当中。对于 Decoupled Frontend，目前比较常见的方法是使用 [Fetch Directed Intruction Prefetching(FDIP)](<https://ieeexplore.ieee.org/document/809439>)，利用 Decoupled Frontend 里分支预测可以在取指之前跑得更远的特性，使用分支预测的地址来进行预取。具体地，Decoupled Frontend 会把分支预测得到的地址写入 Fetch Target Queue(FTQ)，这些地址由 ICache 来消费。与此同时，FTQ 中的地址也会用于指令预取，结构如论文中的图 1：
+
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-3-fdip.png>)
 
 对于 Coupled Frontend，预测和取指紧密相连，FDIP 的方法就不好用了，需要寻找其他的方法。
 

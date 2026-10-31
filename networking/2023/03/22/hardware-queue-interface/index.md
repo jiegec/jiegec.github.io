@@ -579,6 +579,8 @@ netdev_tx_t ixgbe_xmit_frame_ring(struct sk_buff *skb,
 
 在了解 AXI DMA 的工作原理的基础上，Intel 82599 的队列其实也不复杂，只不过直接采取了以 Descriptor 数组作为循环队列的方式，并且这里归属于硬件的 Descriptor 空间其实是 \[Head, Tail) 左闭右开区间的形式（AXI DMA 是链表的头和尾，都属于硬件），这样就可以用 Head == Tail 来表示空队列，当然了，队列也永远会差一项才能满（除非额外记录队列中合法元素个数）。最后贴一张 Intel 82599 Datasheet 中的图片来帮助理解：
 
+![](<https://jia.je/blog/posts/networking/hardware-queue-interface-82599.png>)
+
 ## ConnectX-4
 
 接下来看看 ConnectX-4 是如何设计它的各个队列的。首先，它有 Work Queue，用于发送数据（Send Queue）和准备接收数据的缓冲区（Receive Queue），然后硬件处理 Work Queue 中的 Entry 后，就会把结果写入到 Completion Queue，并且通过 Event Queue 通知 CPU。

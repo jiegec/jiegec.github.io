@@ -63,6 +63,8 @@ Zen 3 的第二级 BTB 可以保存 6656 个 entry，但不确定这个 entry �
 
 首先是 stride=4B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-3-btb-4b.png>)
+
 可以看到，图像上出现了三个比较显著的拐点：
 
 - 第一个拐点是 4 条分支，CPI=1，对应 L1 BTB，没有达到完整容量，可能是因为分支太过密集
@@ -88,6 +90,8 @@ Zen 3 在 stride=4B 的情况下 L1 BTB 表现比较一般，应该是牺牲了�
 
 接下来观察 stride=8B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-3-btb-8b.png>)
+
 - 第一个台阶在所有分支模式下都是 1024 个分支，CPI=1，对应 1024-entry 的 L1 BTB
 - 第二个台阶不太明显，但是在 4096 附近在所有分支模式下都是一个拐点，CPI=4，对应 L2 BTB；在 mix (uncond + cond) 模式下，超过 4096 分支后 CPI 缓慢上升，到 6144 条分支 CPI=4.25，到 6656 条分支 CPI=4.85，之后 CPI 快速上升；在 mix (cond + uncond) 模式下，到 5888 条分支 CPI=5。
 
@@ -99,6 +103,8 @@ L2 BTB 的容量不太确定，超过 4096 后需要一个 entry 保存两条分
 
 继续观察 stride=16B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-3-btb-16b.png>)
+
 相比 stride=8B，L1 BTB 的行为没有变化。4096 对应的 CPI 有所下降，从 BpL2BTBCorrect 性能计数器可以发现是 L1 BTB 起了一定的作用。在 mix (cond + uncond) 模式下，直到 5632 条分支还维持了 CPI=3.25，之后 CPI 缓慢上升，到 6656 条分支时 CPI=3.75，到 6912 条分支时 CPI=4。
 
 CPI=3.25 可能是来自于 1 和 4 的加权平均：25% 的时候是 1 周期，75% 的时候是 4 周期，平均下来就是 `1*0.25+4*0.75=3.25`。这意味着 L1 BTB 还要保持 25% 的命中率。观察 BpL2BTBCorrect 性能计数器，发现它的取值等于 75% 的分支执行次数，意味着 L1 BTB 确实提供了 25% 的预测，L2 BTB 提供了剩下 75% 的预测。这一点是挺有意思的，意味着 L1 BTB 可能采用了一些对这种循环访问模式友好的替换策略：朴素的 LRU（或类 LRU）替换策略会导致 L1 BTB 出现 100% 缺失。
@@ -106,6 +112,8 @@ CPI=3.25 可能是来自于 1 和 4 的加权平均：25% 的时候是 1 周期�
 ### stride=32B
 
 继续观察 stride=32B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/amd-zen-3-btb-32b.png>)
 
 相比 stride=16B，L1 BTB 的行为没有变化，但是出现了一些性能波动。所有分支模式下，L2 BTB 的拐点都出现在 5120，但性能波动比较大，mix (cond + uncond) 模式下的 CPI 达到了 4.6。通过 BpDeReDirect 性能计数器的变化，可以确认这个拐点确实是来自于 L2 BTB 的缺失。
 
@@ -125,11 +133,15 @@ CPI=3.25 可能是来自于 1 和 4 的加权平均：25% 的时候是 1 周期�
 
 继续观察 stride=64B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-3-btb-64b.png>)
+
 相比 stride=32B，L1 BTB 的容量减半，达到了 512。之后出现了比较明显的性能波动，但四种分支模式下，拐点依然都是出现在 5120 条分支的位置。通过 BpDeReDirect 性能计数器的变化，可以确认这个拐点确实是来自于 L2 BTB 的缺失。由于 uncond 模式下，BTB sharing 不会工作，意味着 L2 BTB 至少有 5120 个 entry。
 
 ### stride=128B
 
 继续观察 stride=128B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/amd-zen-3-btb-128b.png>)
 
 相比 stride=64B，L1 BTB 的容量进一步减小，达到了 256；L2 BTB 的性能依然波动剧烈，但四种分支模式下，拐点依然都是出现在 5120 条分支的位置。
 

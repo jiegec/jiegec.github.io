@@ -53,6 +53,8 @@ Zen 2 的第三级 BTB 可以保存 7168 个 entry，但不确定这个 entry �
 
 首先是 stride=4B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-2-btb-4b.png>)
+
 可以看到，图像上出现了三个比较显著的台阶：
 
 - 所有分支模式下，第一个台阶都是到 8 条分支，CPI=1，8 对应了 8-entry 的 L0 BTB
@@ -69,11 +71,15 @@ Zen 2 的 L2 BTB 依然是带有压缩的，只有在 mix (cond + uncond) 模式
 
 接下来观察 stride=8B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-2-btb-8b.png>)
+
 现象和 stride=4B 基本相同，L1 BTB 从 256 到 512 部分的变化斜率有所不同，其余部分一致。
 
 ### stride=16B
 
 继续观察 stride=16B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/amd-zen-2-btb-16b.png>)
 
 相比 stride=4B/8B，L0 BTB 和 L2 BTB 的行为没有变化；除了 cond 模式以外，L1 BTB 的容量减半到了 128，意味着 L1 BTB 采用了组相连，此时有一半的 set 不能被用上。此外，比较特别的是，从 stride=16B 开始，CPI=5 的平台出现了波动，uncond 模式下 CPI 从 5 变到 4 再变到了 5，猜测此时 L1 BTB 也有一定的比例会介入。
 
@@ -81,17 +87,23 @@ Zen 2 的 L2 BTB 依然是带有压缩的，只有在 mix (cond + uncond) 模式
 
 继续观察 stride=32B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-2-btb-32b.png>)
+
 相比 stride=16B，L0 BTB 的行为没有变化；除了 cond 模式以外，L1 BTB 的容量进一步减到了 64，符合组相连的预期；L2 BTB 在 mix (uncond + cond) 模式下不再能体现出 5120 的容量，而是 4096：此时在一个 64B cacheline 中只有两条分支，第一条分支是 uncond，第二条分支是 cond，不满足 entry 共享的条件（必须 cond + uncond，不能是 uncond + cond），此时 uncond 和 cond 分别保存在两个 entry 中，每个 entry 只保存一条分支，因此 L2 BTB 只能体现出 4096 的容量。而 mix (cond + uncond) 模式依然满足 entry 共享的条件，所以依然体现出 7168 的容量。特别地，在 mix (cond + uncond) 模式下出现了非常剧烈的 CPI 抖动，可能出现了一些预期之外的性能问题。
 
 ### stride=64B
 
 继续观察 stride=64B 的情况：
 
+![](<https://jia.je/blog/posts/hardware/amd-zen-2-btb-64b.png>)
+
 相比 stride=32B，L0 BTB 的行为没有变化；除了 cond 模式以外，L1 BTB 的容量进一步减到了 32，符合组相连的预期，但 cond 模式下依然保持了 512 的容量；L2 BTB 在 mix (cond + uncond) 模式下只能体现出 4096 的容量，此时每个 64B cacheline 都只有一条分支，不满足两条分支共享一个 entry 的条件。
 
 ### stride=128B
 
 继续观察 stride=128B 的情况：
+
+![](<https://jia.je/blog/posts/hardware/amd-zen-2-btb-128b.png>)
 
 相比 stride=64B，L0 BTB 的行为没有变化；除了 cond 模式以外，L1 BTB 的容量进一步减到了 16，符合组相连的预期，而 cond 模式下 L1 BTB 容量也减少到了 256；L2 BTB 的容量减半到了 2048，意味着 L2 BTB 也是组相连结构。
 

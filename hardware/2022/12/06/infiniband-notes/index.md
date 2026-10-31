@@ -8,11 +8,17 @@ InfiniBand 的网络分为两层，第一层是由 End Node 和 Switch 组成的
 
 在 IB 网络中，End Node 一般是插在结点上的 IB 卡（Host Channel Adapter，HCA）或者是存储结点上的 Target Channel Adapter。End Node 之间通过 Switch 连接成一个 Subnet，由 Subnet Manager 给每个 Node 和 Switch 分配 Local ID，同一个 Subnet 中通过 LID（Local ID）来路由。但是 LID 位数有限，为了进一步扩展，可以用 Router 连接多个 Subnet，此时要通过 GID（Global ID）来路由。
 
+![](<https://jia.je/blog/posts/hardware/iba.png>)
+
+![](<https://jia.je/blog/posts/hardware/ib-am.png>)
+
 ## Queue Pair
 
 回顾一下，以太网网卡在传输的时候，涉及到两类队列，分别用于发送和接收，由操作系统来负责维护。当要发送的时候，操作系统向发送队列上插入一项，并提供要发送的数据的指针，然后让网卡自己进行 DMA 并发送；同时，操作系统也会分配一些缓冲区，填入接收队列，当网卡接收到新的数据的时候，就会进行 DMA 把数据填入缓冲区，然后通过中断让操作系统去进行处理。
 
 在 IB 中，也有类似的概念，就是 Queue Pair（QP），其实就是 Send Queue 和 Receive Queue 成对出现。另外还有 Completion Queue，当请求完成的时候，会在 CQ 上得到结果。
+
+![](<https://jia.je/blog/posts/hardware/ib-qp.png>)
 
 ## Transport Functions
 
@@ -43,6 +49,8 @@ IB 支持四种 Transport Service，当 QP 在创建的时候，就需要从以�
 2. Raw Ethertype Datagram
 
 几种 Transport Service 的对比：
+
+![](<https://jia.je/blog/posts/hardware/ib-comparison.png>)
 
 在编程的时候，需要知道对端的 LID（Local ID）、QPN（Queue Pair Number）和 PSN（Packet Sequence Number），才能进行通信。如果要进行 RDMA，还需要知道 `R_Key` 和内存地址。这些信息一般是通过 TCP 来传输的。
 

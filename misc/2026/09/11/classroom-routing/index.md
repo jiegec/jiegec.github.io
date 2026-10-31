@@ -141,7 +141,11 @@ HDMI 分配器用的是绿联的 [AP502-55493 4K60Hz 一进二出 HDMI 分配器
 
 第一个坑：某个教室录出来的音频虽然标称双声道，但实际上只有左声道有声音，右声道几乎静音。
 
+![右声道无声](<https://jia.je/blog/posts/misc/classroom-routing-no-right.png>)
+
 第二个坑：另一个教室录出来的音频同样是双声道，但右声道是左声道的反相，两个声道一旦叠加就会互相抵消。
+
+![左右声道反相](<https://jia.je/blog/posts/misc/classroom-routing-invert.png>)
 
 上面两张图都是用 [stereo\_check.py](<https://jia.je/blog/posts/misc/stereo_check.py>) 绘制的。
 

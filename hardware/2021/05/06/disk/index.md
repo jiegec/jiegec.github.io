@@ -10,6 +10,8 @@
 
 ATA 同时也是接口，图片如下。ATA 前身是 IDE，现在 ATA 叫做 PATA。
 
+![PATA Pin](<https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/ATA_Plug.svg/600px-ATA_Plug.svg.png>)
+
 ## AHCI
 
 [AHCI](<https://en.wikipedia.org/wiki/Advanced_Host_Controller_Interface>) 可以简单理解为 PCIe \<-\> SATA 的转换器。AHCI 暴露为一个 PCIe 设备：
@@ -26,7 +28,11 @@ $ lspci -vv
 
 [SATA](<https://en.wikipedia.org/wiki/Serial_ATA>) 一般说的是接口。它一般分为两个部分，数据和电源。数据部分只有 7 个 pin，三个 GND 和两对差分线（A+A- B+B-），图片如下：
 
+![SATA Data](<https://upload.wikimedia.org/wikipedia/commons/e/ef/SATA_Data_Cable.jpg>)
+
 电源部分有 15 个 pin，有 GND 3.3V 5V 和 12V，图片如下：
+
+![SATA Power](<https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/SATA_power_cable.jpg/400px-SATA_power_cable.jpg>)
 
 常见的 SATA 盘有 2.5 英寸（small form factor, SFF）和 3.5 英寸（large form factor，LFF）两种规格。
 
@@ -38,6 +44,8 @@ $ lspci -vv
 - M key: 59-66 notched, PCIe x4, SATA
 
 都有部分引脚的位置是空的：
+
+![M.2](<https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/M2_Edge_Connector_Keying.svg/620px-M2_Edge_Connector_Keying.svg.png>)
 
 在[这里](<https://pinoutguide.com/HD/M.2_NGFF_connector_pinout.shtml>)可以看到两种 key 的 pinout。
 
@@ -52,6 +60,8 @@ $ lspci -vv
 - PCIe -- PCIe Device(M.2) -- Disk(AHCI)：硬盘实现了 AHCI 的接口，通过 PCIe 连接到 CPU
 - PCIe -- PCIe Device(M.2) -- Disk(NVMe)：硬盘实现了 NVMe 的接口，通过 PCIe 连接到 CPU
 
+![](<https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/SATA_Express_interface.svg/620px-SATA_Express_interface.svg.png>)
+
 ## SATA express
 
 [SATA express](<https://en.wikipedia.org/wiki/SATA_Express>) 在 SATA 3.2 引入，它用的很少，被 U.2 取代。提供了 PCIe x2 或者 SATA x2。
@@ -59,6 +69,8 @@ $ lspci -vv
 ## U.2
 
 [U.2](<https://en.wikipedia.org/wiki/U.2>) 也叫 [SFF-8639](<https://members.snia.org/document/dl/26489>)。它和 [SATA express](<https://en.wikipedia.org/wiki/SATA_Express>) 接口一样，但提供了 PCIe x4 或者 SATA x2。详见 [pinout](<https://pinoutguide.com/HD/U.2_SATA_connector_pinout.shtml>)。
+
+![U.2](<https://www.delock.com/infothek/U.2-NVMe/images/teaser.jpg>)
 
 ## 速度比较
 
@@ -86,6 +98,8 @@ SAS 涉及的物理接口比较多，下面举一个具体的例子：DELL SCv20
 文档：https://dl.dell.com/topicspdf/storage-sc2000\_owners-manual\_en-us.pdf
 
 它的背面：
+
+![](<https://jia.je/blog/posts/hardware/scv2000.png>)
 
 它有四个前端接口 Mini-SAS High Density (HD)，即 SFF-8644；两个后端接口 Mini-SAS，即 SFF-8088。
 
@@ -118,6 +132,8 @@ SAS 标准：
 
 Mini Multilane 4X Unshielded Connector Shell and Plug
 
+![](<https://jia.je/blog/posts/hardware/sff8087.png>)
+
 介绍：https://cs-electronics.com/sff-8087/
 
 Mini SAS 4i 连接器就是 36 pin 的 SFF-8087，支持四路 SAS。i 表示用于 internal 连接。对应的 external 接口是 SFF-8088。
@@ -143,6 +159,8 @@ Mini SAS 4i 连接器就是 36 pin 的 SFF-8087，支持四路 SAS。i 表示用
 
 Mini Multilane 4X Shielded Connector Shell and Plug
 
+![](<https://jia.je/blog/posts/hardware/sff8088.png>)
+
 标准下载地址：https://members.snia.org/document/dl/25824
 
 Mini SAS 4x 连接器就是 26 pin 的 SFF-8088，支持四路 SAS。用于 external 连接。对应的 internal 接口是 SFF-8087。
@@ -150,6 +168,8 @@ Mini SAS 4x 连接器就是 26 pin 的 SFF-8088，支持四路 SAS。用于 exte
 ### SFF-8482/SFF-8678/SFF-8680/SFF-8681
 
 SFF-8482: Serial Attachment 2X Unshielded Connector (EIA-966)
+
+![](<https://jia.je/blog/posts/hardware/sff8482.png>)
 
 介绍：https://cs-electronics.com/sff-8482/
 
@@ -166,6 +186,8 @@ SFF-8482: Serial Attachment 2X Unshielded Connector (EIA-966)
 ### SFF-8614/8644
 
 SFF-8614: Mini Multilane 4/8X Shielded Cage/Connector (HDsh)
+
+![](<https://jia.je/blog/posts/hardware/sff8614.png>)
 
 标准下载地址：https://members.snia.org/document/dl/25939
 
@@ -187,6 +209,8 @@ Multifunction 6X Unshielded Connector
 
 又称 U.2
 
+![](<https://jia.je/blog/posts/hardware/sff8639.png>)
+
 标准下载地址：https://members.snia.org/document/dl/26489
 
 用途：
@@ -202,6 +226,8 @@ Multifunction 6X Unshielded Connector
 MiniLink 4/8X I/O Cable Assemblies
 
 又称 OCuLink 1.0
+
+![](<https://jia.je/blog/posts/hardware/sff8611.png>)
 
 标准下载地址：https://members.snia.org/document/dl/27937
 

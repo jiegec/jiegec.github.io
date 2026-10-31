@@ -126,6 +126,8 @@ positives.
 
 类似的优化在商用处理器上也可以看到，正常的 load to use latency 是 4 周期，load to load 则可以 3 周期。例如苹果的专利 [Reducing latency for pointer chasing loads](<https://patents.google.com/patent/US9710268B2>) 提到了它的 LSU 流水线设计以及前传的做法：
 
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-2-apple-lsu.png>)
+
 和香山南湖类似，它的 Load Pipeline 也是四级流水线（对应图中 Stage 3-6），功能也类似。不过它的 3 周期 load to load 前传的实现方法则不同。
 
 这个专利的前传是从第三级前传到读寄存器的阶段，这样也可以实现 3 周期的 load to load latency。这样的好处是，AGU 阶段保留，这对于 AGU 阶段比较复杂的 ARM 架构是比较好的，因为 ARM 架构下 AGU 阶段可能涉及到加法和移位，而 RISCV 只有立即数加法。不过这样也要求 Load 不命中 Store Queue，而是从 L1 DCache 获得，因为 Store to Load Forwarding 的合并操作是在第四级流水线，为了能在第三级流水线前传，只能预测它不命中 Store Queue，数据完全从 L1 DCache 中取得。
@@ -286,11 +288,15 @@ Prefetch 是一个常见的优化手段，根据访存模式，提前把数据�
 
 有没有什么办法改进呢？能否只读一个 Way 的 Tag 和数据？这就需要引入 Way Prediction，这在论文 [Way-Predicting Set-Associative Cache for High Performance and Low Energy Consumption](<https://ieeexplore.ieee.org/document/799456>) 中提出，它的思路是，引入一个预测器，预测这次访问会命中哪个 Way，然后第一个周期只读这一个 Way 的 Tag 和数据，如果 Tag 命中了，数据也有了，这样功耗和性能都是比较好的。不过如果预测错了，第二个周期就需要把其他几个 Way 的 Tag 和数据读出来，再比较一次：
 
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-2-way-prediction.png>)
+
 （图源 [Way-Predicting Set-Associative Cache for High Performance and Low Energy Consumption](<https://ieeexplore.ieee.org/document/799456>)）
 
 通过这样的方法，可以大大降低缓存读取的功耗。这样的设计在商用处理器中也有使用，见 [Take A Way: Exploring the Security Implications of AMD’s Cache Way Predictors](<https://dl.acm.org/doi/10.1145/3320269.3384746>)。
 
 [Zen5 的文档](<https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/58455.zip>)里提到了它怎么在 L1 DCache 上做 Way Prediction：
+
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-2-amd-way-prediction.png>)
 
 （图源 [Take A Way: Exploring the Security Implications of AMD’s Cache Way Predictors](<https://dl.acm.org/doi/10.1145/3320269.3384746>)）
 
@@ -453,6 +459,10 @@ Intel 的处理器通过 MSR 1A4H 可以配置各个预取器：
 一种 Spatial Prefetcher 实现是 [Spatial Memory Streaming (SMS)](<https://ieeexplore.ieee.org/document/1635957/>)。它的做法是，把内存分成很多个相同大小的 Region（通常一个 Region 是多个连续 Cacheline），在访问缓存时，维护当前 Region 的信息，记录这次访存指令的 PC 以及访存的地址相对 Region 的偏移，然后开始跟踪这个 Region 内哪些数据被读取了，直到这个 Region 的数据被换出 Cache，就结束记录，把信息保存下来。以上面的 0、256 和 320 为例子，访问 0 时创建一个 Region，然后把 256 和 320 这两个偏移记下来。当同一条访存指令访问到了和之前一样的偏移时，根据之前保存的信息，把 Region 里曾经读过的地址预取一遍，按上面的例子，也就是 256 和 320。这里的核心是只匹配偏移而不是完整的地址，忽略了地址的高位，最后预取的时候，也是拿新的导致缓存缺失的地址去加偏移，自然而然实现了平移。从 AMD 的专利 [DATA CACHE REGION PREFETCHER](<https://patentimages.storage.googleapis.com/a8/85/e2/35618e755d6ad3/US20180052779A1.pdf>) 来看，AMD 的 L1 Region Prefetcher 应该采用的是 SMS 的思想，缓存缺失时，创建一个 Region，记录这个 Region 中哪些数据被访问了。
 
 具体来说，Spatial Memory Streaming 维护了一个 Active Generation Table（缩写 AGT）来记录上面所述的 Region 内哪些数据被读取的信息，当这个 Region 里的数据被换出 Cache，对应的信息就会被保存到 Pattern History Table（缩写 PHT）当中，后续会根据 PHT 来预测预取的地址。其中 Active Generation Table 又包括了 Accumulation Table 和 Filter Table，这样做是为了减少不必要的分配，只有一个 Region 出现至少两次访问才会被分配到 Accmuluation Table 当中。具体步骤：
+
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-2-agt.png>)
+
+![](<https://jia.je/blog/posts/hardware/brief-into-ooo-2-pht.png>)
 
 （图源 [Spatial Memory Streaming](<https://ieeexplore.ieee.org/document/1635957/>)）
 

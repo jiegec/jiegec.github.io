@@ -10,6 +10,8 @@ P.S. 如果你对数据收集有所顾虑，可以屏蔽对应的 analytics 脚�
 
 首先来看这三个月内的整体访问情况与趋势：
 
+![](<https://jia.je/blog/posts/software/blog-analytics-three-months-overall.png>)
+
 访问量比我的预期要高一些。虽然这些年写了不少内容，但并没有刻意宣传，主要依赖搜索引擎推荐和读者的订阅与转发。从时间趋势上可以看出两个明显特点：
 
 1. 工作日访问量显著高于周末，通常为周末的两到三倍；
@@ -17,17 +19,25 @@ P.S. 如果你对数据收集有所顾虑，可以屏蔽对应的 analytics 脚�
 
 由此推测，学生读者占比较高。结合国庆假期访问量的下降来看，国内读者仍是主力。下面是各国家与地区的访问分布：
 
+![](<https://jia.je/blog/posts/software/blog-analytics-three-months-location.png>)
+
 值得一提的是，也有不少海外读者访问，看来近年来有意识地撰写英文内容确实产生了效果。
 
 以 UTC+8 时区为基准，从访问时间分布中可以看出大家的作息习惯：
+
+![](<https://jia.je/blog/posts/software/blog-analytics-three-months-time.png>)
 
 尽管大家可能习惯熬夜，但深夜阅读博客的并不多，多数访问集中在工作时间。
 
 接下来是基于 User Agent 的统计。首先是浏览器分布：
 
+![](<https://jia.je/blog/posts/software/blog-analytics-three-months-browser.png>)
+
 不出所料，Chrome 及基于 Chromium 内核的浏览器占据主流，Firefox 和 Safari 占比不高。我本人目前也在使用 Firefox，希望它能持续发展，避免 Chrome 一家独大。
 
 操作系统分布如下：
+
+![](<https://jia.je/blog/posts/software/blog-analytics-three-months-os.png>)
 
 Windows 占比最高，macOS 次之。考虑到博客内容主要涉及计算机技术，这也大致反映了相关从业人员的偏好。
 
@@ -40,6 +50,8 @@ Windows 占比最高，macOS 次之。考虑到博客内容主要涉及计算机
 - [MIFARE Classic 上配置 NDEF](<https://jia.je/blog/posts/hardware/mifare-classic-ndef/index.md>): 464 次
 
 这个排名有些出乎我的意料。这几篇文章在撰写时并未特别考虑入门读者的理解难度或内容的丰富性。或许是因为它们涉及的领域资料较少，因此在相关关键词搜索中容易被找到。这一点在 Google Search Console 中也得到了印证：
+
+![](<https://jia.je/blog/posts/software/blog-analytics-three-months-search.png>)
 
 相比之下，一些精心准备的文章阅读量并不高，可能是因为所在领域已有较多优质内容，新文章难以脱颖而出。这也说明文章质量与阅读量之间并非简单的正比关系。
 

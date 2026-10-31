@@ -14,6 +14,8 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 
 为了测试实际的 Fetch 宽度，参考 [如何测量真正的取指带宽（I-fetch width） - JamesAslan](<https://zhuanlan.zhihu.com/p/720136752>) 构造了测试，实验结果如下：
 
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-if-width.png>)
+
 可见取指带宽是每周期四条指令，并且很多时候并不能打满。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/if_width_gen.cpp>)。
@@ -21,6 +23,8 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 ### L1 ICache
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
+
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-fetch-bandwidth.png>)
 
 可以看到 footprint 在 32 KB 之前时可以达到 4 IPC，这对应了 32KB 的 L1 ICache。
 
@@ -30,7 +34,11 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 
 构造大量的无条件分支指令（B 指令），BTB 需要记录这些指令的目的地址，那么如果分支数量超过了 BTB 的容量，性能会出现明显下降。当把大量 B 指令紧密放置，也就是每 4 字节一条 B 指令时：
 
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-btb-4b.png>)
+
 可见 Skylark 的 BTB 对分支紧密放置的情况支持不是很好，在 1024 个分支之内的 CPI 达到了 3.5，这一点在较早的处理器上比较常见，比如 [Neoverse N1 的 BTB](<https://jia.je/blog/posts/hardware/arm-neoverse-n1-btb/index.md>)，不过稍微新一些的处理器，随着设计的改进，类似的情况比较少见了。之后到 8192 个分支，CPI 达到了 5。接着降低分支指令的密度，在 B 指令之间插入 NOP 指令，使得每 8 个字节有一条 B 指令，得到如下结果：
+
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-btb-8b.png>)
 
 这个图像就比较正常了，CPI=2 持续到了 512 个分支，对应上面 1024 个分支的拐点前移，之后 CPI=5 的拐点在 4096，对应了上面 8192 的拐点。考虑到它的 L1 ICache 是 32 KB，正好对应 8192 的拐点，可以认为 Skylark 的 BTB 是：
 
@@ -43,6 +51,8 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 
 构造一系列的 B 指令，使得 B 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-itlb-size.png>)
+
 在 48 个页时，CPI 从 2 提升到了 8，意味着 L1 ITLB 容量是 48。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/itlb_size_lib.cpp>)。
@@ -50,6 +60,8 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 ### Return Stack
 
 构造不同深度的调用链，测试每次调用花费的平均时间，得到下面的图：
+
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-ras-size.png>)
 
 可以看到调用链深度超过 16 时性能突然变差，因此 Skylark 的 Return Stack 深度为 16。
 
@@ -63,6 +75,8 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：
 
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-l1dc.png>)
+
 可以看到 32KB 出现了拐点，对应的就是 32KB 的 L1 DCache 容量，和官方信息一致，访存延迟从 5 cycle 增加到 13 cycle。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
@@ -70,6 +84,8 @@ Ampere eMAG 采用的是 Ampere Skylark 微架构，虽然是 2018 年的处理�
 #### L1 DTLB 容量
 
 用类似的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈：
+
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-l1dtlb.png>)
 
 从 48 个页开始性能下降，认为 Skylark 的 L1 DTLB 有 48 项，访存延迟从 5 cycle 增加到 11 cycle。
 
@@ -208,11 +224,15 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 
 用 NOP 指令测试 Skylark 的 ROB 大小：
 
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-rob.png>)
+
 可以看到拐点是 60 条指令。
 
 ### L2 Cache
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间，这次把容量扩充到 L2 Cache 的范围：
+
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-l2dc.png>)
 
 可以看到 192KB 出现了拐点，对应 13 Cycle。`lscpu -C` 报告的实际容量为 256KB，意味着对单个核心的数据占用的 L2 Cache 容量有限制。
 
@@ -221,6 +241,8 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 ### L2 TLB
 
 沿用 L1 DTLB 的测试，继续扩大测试的范围，找到新的拐点：
+
+![](<https://jia.je/blog/posts/hardware/ampere-skylark-l2dtlb.png>)
 
 意味着 L2 TLB 容量是 512。
 

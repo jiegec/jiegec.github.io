@@ -48,6 +48,8 @@ assert(dev != MAP_FAILED);
 
 接着就需要先把输入输出做起来，需要移植一个 bootloader。相比之下，OpenSBI 明显比 bbl 更适合于这个用途，于是拿着 OpenSBI 就拿来改了。考虑到 fesvr 采用的是 htif 进行输入输出，于是从 bbl 里抄了相关代码过来，得到了正确的输出：
 
+![](<https://jia.je/blog/posts/os/axi-uart-interrupt-opensbi-uart.jpg>)
+
 ### rCore，启动！
 
 接下来，就想着怎么把 rCore 丢进去跑。把 payload 替换掉，丢进去，gg 了。一直出现一个玄学的问题，只要我修改页表，就出现 instruction access fault。也一直没有找到真实的原因，最后把 PMP 保护关了就好了。。怀疑是 Rocket Chip 实现有误。

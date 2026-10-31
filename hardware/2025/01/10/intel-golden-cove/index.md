@@ -103,6 +103,8 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 构造一系列的 jmp 指令，使得 jmp 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-itlb.png>)
+
 可以看到 256 个 Page 出现了明显的拐点，对应的就是 256 的 L1 ITLB 容量。注意要避免 ICache 和 BTB 的容量成为瓶颈，把 jmp 指令分布在不同的 Cache Line 和 BTB entry 上。
 
 超过 256 个 Page 以后，如图有周期数突然下降后缓慢上升的情况（例如横坐标 288-\>289、320-\>321、352-\>353、384-\>385 等，以 32 为周期），背后的原理需要进一步分析，猜测和 Linux 的 Huge Page 机制相关。
@@ -126,6 +128,8 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 4 字节 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-fetch-bandwidth.png>)
+
 可以看到 footprint 在 32 KB 之前时可以达到 6 IPC，之后则降到 4 IPC，这里的 32 KB 就对应了 L1 ICache 的容量。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/fetch_bandwidth_gen.cpp>)。
@@ -133,6 +137,8 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 ### Return Stack
 
 构造不同深度的调用链，测试每次调用花费的平均时间，得到下面的图：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-rs.png>)
 
 可以看到调用链深度为 20 时性能突然变差，因此 Return Stack 深度为 20。
 
@@ -282,15 +288,21 @@ ret
 
 测试时，让这对 Store-Load 采用相同/不同的地址进行访存，具体地，首先是 100 次相同地址（有依赖），然后 20 次不同地址（无依赖），最后 10 次相同地址（有依赖），每次执行的周期数如下：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-mdp-1.png>)
+
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_lib.cpp>)。
 
 可见当预测器被训练为 Store-Load 有依赖之后，经过 15 次 Store-Load 无依赖（横坐标 100 到 114）的训练以后，从第 16 次（横坐标 115）开始成功预测了无依赖的情况，使得 Load 可以提前执行，表现为周期数的明显减少。而当 Store-Load 再次出现依赖（横坐标 120）时，因为错误预测，出现了周期数的明显增加，并且下一次执行 Store-Load（横坐标 121）就能正确预测出有依赖。这与论文中的逆向结果一致：从初始状态开始（通过大量的有依赖来重置状态），连续无依赖 15 次以后，才会被预测为无依赖，且只要有一次有依赖，就会被预测为有依赖。对应的内部实现是，硬件对这个 Load 维护一个 4-bit 的饱和计数器，有依赖时清零，无依赖时加一，当累加到最大值 15 时，预测为无依赖，否则就是有依赖。
 
 上面的测试只证明了有 4-bit 的计数器，且无依赖时加一，累加到 15 时才预测为无依赖，但并没有证明它在有依赖时清零，也可能是减一，或其他不会减到零的情况。下面修改一下访存模式来证明，即累加到 15 后，先来一次有依赖，再来多次无依赖，就可以观察到下面的结果：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-mdp-2.png>)
+
 可见，一次有依赖过后，又需要 15 次无依赖，才能预测为无依赖。这证明了前面的表述，即 4-bit 饱和计数器，无依赖时加一，有依赖时置零，当计数器等于 15 时，预测为无依赖。根据 [SSBleed: Non-speculative Side-channel Attacks via Speculative Store Bypass on Armv9 CPUs](<https://ieeexplore.ieee.org/document/11408465/>)，ARM Neoverse N2 的设计类似但有所不同，它虽然也是 4-bit 饱和计数器，但用法不同。如果没有命中表项，它会预测为无依赖。在第一次检测到有依赖时，会插入新表项，把计数器初始化为 1，此后无依赖时加一，有依赖时减一，当计数器等于 15 时，表项会从预测器中删去，从而预测为无依赖（为了和 Intel 对齐以便于理解，这里对论文的表述做了改动，功能不变）。从表现上来看，它是一次有依赖后，需要 14 次无依赖，才能预测出无依赖，同时中途有依赖和无依赖可以互相抵消。
 
 接下来，尝试逆向分析硬件维护了多少个这样的 4-bit 饱和计数器，以及 Load 是如何被映射的。方法是，设置两个 Store-Load 对，其中第一对总是有依赖，第二对总是没有依赖，调整两个 Load 指令的地址，看看什么时候会出现性能下降。出现性能下降就意味着这两个 Load 指令被映射到了同一个 4-bit 饱和计数器上，那么根据上面的规律，它们总是会被预测为有依赖。测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-mdp-3.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_hash_lib.cpp>)。
 
@@ -301,6 +313,8 @@ ret
 接下来，参考论文中的方法，生成几次错误预测，看看需要多少次由错误预测导致的回滚（即预测为无依赖，但实际上有依赖，导致了回滚；另一方面，如果预测为有依赖，实际上没有，并不会导致回滚）后，全局预测器才会介入，强制预测所有 Load 和先前的 Store 有依赖关系。用 10 个 Store-Load 对，先通过大量的无依赖训练，让这些 Load 都被局部预测为无依赖，再连续 10 次有依赖地按顺序执行这 10 个 Load，这样这些 Load 都会被局部预测器预测为无依赖，但实际上有依赖，就会频繁触发回滚。通过 `MACHINE_CLEARS.COUNT` 性能计数器，可以看到这 10 个 Load 触发了 4 次回滚，之后就没有再触发回滚，意味着当全局预测器观察到 4 次回滚后，就会覆盖局部预测器，强制预测为有依赖。在 Ice Lake、Cascade Lake 和 Broadwell 微架构中，行为也是一样的。
 
 最后，测试一下什么情况下可以从全局预测器覆盖预测，回到由局部预测器提供预测。思路是，首先用上面的方法，让全局预测器介入，然后再让局部预测器正确预测若干次无依赖，看看什么时候能恢复到由局部预测器提供预测。具体地，通过大量的无依赖训练，让 10 个局部预测器都预测为无依赖，然后用前四个局部预测器触发 4 次错误预测的回滚，接着用第 5 个局部预测器反复正确预测出无依赖，最后让第 5 个局部预测器预测错误，如果此时触发回滚，意味着已经由局部预测器提供预测（预测无依赖，实际有依赖，导致回滚）。期间的无依赖访问次数和 `MACHINE_CLEARS.COUNT` 性能计数器的关系如下：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-mdp-4.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_dependency_predictor_reverse_global_lib.cpp>)。
 
@@ -317,6 +331,8 @@ ret
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-l1dc.png>)
+
 可以看到 48KB 出现了明显的拐点，对应的就是 48KB 的 L1 DCache 容量。第二个拐点在 384KB，对应的是 L1 DTLB 的容量。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/memory_latency.cpp>)。
@@ -332,6 +348,8 @@ ret
 
 用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-dtlb.png>)
+
 可以看到 96 Page 出现了明显的拐点，对应的就是 96 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 5 cycle；超出 L1 DTLB 容量后，Load to use latency 是 12 cycle，说明 L1 DTLB miss 带来了 7 cycle 的损失。
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/dtlb_size.cpp>)。
@@ -344,6 +362,8 @@ ret
 - 4 page table walkers
 
 沿用之前测试 L1 DTLB 的方法，把规模扩大到 L2 Unified TLB 的范围，就可以测出来 L2 Unified TLB 的容量，下面是 Golden Cove 上的测试结果：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-l2tlb.png>)
 
 第一个拐点是 96 个 Page，对应 L1 DTLB，此时 CPI 从 5 提升到 12；第二个拐点是 768，对应 L1 DCache，此时 CPI 从 12 提升到 23；第三个拐点是 1600 左右，而没有到 2048，猜测有 QoS 限制了数据对 L2 TLB 的占用。
 
@@ -358,6 +378,8 @@ ret
 - 15 cycle latency
 
 构造不同大小 footprint 的 pointer chasing 链，测试不同 footprint 下每条 load 指令耗费的时间：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-l2c.png>)
 
 - 第一个拐点在 48KB，对应 L1 DCache 的容量，CPI 从 5 提升到 16
 - 第二个拐点在 384KB，对应 L1 DTLB 的容量，CPI 从 16 提升到 23
@@ -385,9 +407,13 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 
 在 Golden Cove 上按 64B 的跳步进行访存，测量每次访存的延迟，得到如下结果：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-64b-stride.png>)
+
 可以观察到在 48KB 之内是 5 cycle latency，在 L2 Cache 范围内是 5-8 cycle latency。
 
 如果通过 `wrmsr -p 0 0x1a4 0x8` 把 `DCU_IP_PREFETCHER_DISABLE` 设为 1，即关闭 L1 data cache IP prefetcher，再在 0 号核心上重新跑上面的测试，得到如下结果：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-64b-stride-disable-prefetcher.png>)
 
 就可以看到 L2 Cache 的范围内的性能退化到了 16 Cycle，和随机 pointer chasing 一样。关闭其他的 prefetcher 则没有这个现象，说明正是 L1 data cache IP prefetcher 实现了针对 L1 的 Stride Prefetcher。
 
@@ -397,9 +423,15 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 
 首先是只访问一个 cache line 的时候，可以看到，除了已经访问过的 cache line，其他 cache line 都出现了缓存缺失，说明此时预取器没有在工作：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-1.png>)
+
 接下来，按照固定的 stride 访问各个缓存行，发现当访问了五个 cache line 时，预取器会比较稳定地预取第六个 cache line：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-5.png>)
+
 继续增加访问次数，可以看到预取器总是会预取将要访问的下一个 cache line：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-13.png>)
 
 如果通过 `wrmsr -p 0 0x1a4 0x8` 把 `DCU_IP_PREFETCHER_DISABLE` 设为 1，即关闭 L1 data cache IP prefetcher，就会观察到上述 Stride 预取的行为消失，不会预取将要访问的下一个 cache line。
 
@@ -407,13 +439,19 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 
 把相同的代码放到 Gracemont 上运行，会看到它的预取器会预取将要访问的未来两个 cache line：
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-gracemont-comparison.png>)
+
 可见不同微架构的预取器的策略是不同的。
 
 #### 是否跨页
 
 进一步测试，发现 Golden Cove 的预取可以跨越页的边界（见下图，四次 Access 在第一个页，Prefetch 在第二个页），并且是采用虚拟地址来进行预取（排除了两个页的物理地址是连续的情况），也就是说可以预取到新的虚拟页当中。
 
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-cross-page.png>)
+
 类似的跨页预取行为在 Gracemont 上也可以观察到：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-prefetcher-gracemont-cross-page.png>)
 
 [测试过程详见测试代码](<https://github.com/jiegec/cpu-micro-benchmarks/blob/master/src/prefetcher_cacheline.cpp>)。
 
@@ -425,6 +463,8 @@ Intel Golden Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来�
 - 8 wide retirement
 
 为了测试 ROB 的大小，设计了一个循环，循环开始和结束是长延迟的 long latency load。中间是若干条 NOP 指令，当 NOP 指令比较少时，循环的时候取决于 load 指令的时间；当 NOP 指令数量过多，填满了 ROB 以后，就会导致 ROB 无法保存循环末尾的 load 指令，性能出现下降。测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/intel-golden-cove-rob.png>)
 
 当 NOP 数量达到 512 时，性能开始急剧下滑，说明 Golden Cove 的 ROB 大小是 512。
 

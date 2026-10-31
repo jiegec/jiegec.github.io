@@ -34,11 +34,15 @@ Intel Redwood Cove 的性能测试结果见 [SPEC](<https://jia.je/benchmark/ind
 
 为了测试 L1 ICache 容量，构造一个具有巨大指令 footprint 的循环，由大量的 4 字节 nop 和最后的分支指令组成。观察在不同 footprint 大小下的 IPC：
 
+![](<https://jia.je/blog/posts/hardware/intel-redwood-cove-fetch-bandwidth.png>)
+
 可以看到 footprint 在 64 KB 之前时可以达到 6 IPC，之后则降到 3.2 IPC，这里的 64 KB 就对应了 L1 ICache 的容量。容量相比 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) 翻倍，终于和 ARM 看齐。
 
 ### L1 ITLB
 
 构造一系列的 jmp 指令，使得 jmp 指令分布在不同的 page 上，使得 ITLB 成为瓶颈：
+
+![](<https://jia.je/blog/posts/hardware/intel-redwood-cove-itlb-size.png>)
 
 可以看到 256 个 Page 出现了明显的拐点，对应的就是 256 的 L1 ITLB 容量。注意要避免 ICache 和 BTB 的容量成为瓶颈，把 jmp 指令分布在不同的 Cache Line 和 BTB entry 上。
 
@@ -105,6 +109,8 @@ L1 DCache 大小和 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-gold
 ### L1 DTLB
 
 用类似测 L1 DCache 的方法测试 L1 DTLB 容量，只不过这次 pointer chasing 链的指针分布在不同的 page 上，使得 DTLB 成为瓶颈：
+
+![](<https://jia.je/blog/posts/hardware/intel-redwood-cove-dtlb-size.png>)
 
 可以看到 96 Page 出现了明显的拐点，对应的就是 96 的 L1 DTLB 容量。没有超出 L1 DTLB 容量前，Load to use latency 是 5 cycle；超出 L1 DTLB 容量后，Load to use latency 是 12 cycle，说明 L1 DTLB miss 带来了 7 cycle 的损失。
 
@@ -184,6 +190,8 @@ Intel Redwood Cove 的处理器通过 MSR 1A4H 可以配置各个预取器（来
 ### ReOrder Buffer
 
 为了测试 ROB 的大小，设计了一个循环，循环开始和结束是长延迟的 long latency load。中间是若干条 NOP 指令，当 NOP 指令比较少时，循环的时候取决于 load 指令的时间；当 NOP 指令数量过多，填满了 ROB 以后，就会导致 ROB 无法保存循环末尾的 load 指令，性能出现下降。测试结果如下：
+
+![](<https://jia.je/blog/posts/hardware/intel-redwood-cove-rob-size.png>)
 
 当 NOP 数量达到 512 时，性能开始急剧下滑，说明 Redwood Cove 的 ROB 大小是 512。这和 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) 是一样的。
 
