@@ -542,6 +542,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="../../software/2022/07/01/rsyslog-remote/" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rsyslog 收集远程日志
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="../../hardware/2022/06/19/wishbone/" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -799,17 +810,6 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         升级 Linksys E8450 的 OpenWRT 系统到 UBI
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="../../software/2021/12/29/xrdp-nvidia/" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        XRDP 和 NVIDIA 显卡兼容性问题
       </span>
     </span>
   </a>
@@ -1918,6 +1918,204 @@
         <a id="__skip" tabindex="-1"></a>
         <h1 id="博客">博客<a class="headerlink" href="#博客" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2022-07-01 00:00:00+00:00">2022年7月1日</time></li>
+        
+          <li class="md-meta__item">
+            分类于
+            
+              <a href="../../category/software/" class="md-meta__link">software</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              需要 3 分钟阅读时间
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="rsyslog-收集远程日志"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/">rsyslog 收集远程日志</a></h2>
+<h3 id="背景"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#背景">背景</a></h3>
+<p>最近在运维的时候发现网络设备（如交换机）有一个远程发送日志的功能，即可以通过 syslog udp 协议发送日志到指定的服务器。为此，可以在服务器上运行 rsyslog 并收集日志。</p>
+<h3 id="rsyslog-配置"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#rsyslog-配置">rsyslog 配置</a></h3>
+<p>默认的 rsyslog 配置是收集系统本地的配置，因此我们需要编写一个 rsyslog 配置，用于收集远程的日志。</p>
+<p>首先复制 <code>/etc/rsyslog.conf</code> 到 <code>/etc/rsyslog-remote.conf</code>，然后修改：</p>
+<ol>
+<li>注释掉 <code>imuxsock</code> 和 <code>imklog</code> 相关的 module 加载</li>
+<li>去掉 <code>imudp</code> 和 <code>imtcp</code> 相关的注释，这样就会监听在相应的端口上</li>
+<li>修改 <code>$WorkDirectory</code>，例如 <code>$WorkDirectory /var/spool/rsyslog-remote</code>，防止与已有的 rsyslog 冲突</li>
+<li>注释 <code>$IncludeConfig</code>，防止引入了不必要的配置</li>
+<li>注释所有已有的 <code>RULES</code> 下面的配置</li>
+<li>添加如下配置：</li>
+</ol>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-0-1"></a>$template FromIp,"/var/log/rsyslog-remote/%FROMHOST-IP%.log"
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-0-2"></a>*.* ?FromIp
+</span></code></pre></div>
+<p>这样，就会按照来源的 IP 地址进行分类，然后都写入到 <code>/var/log/rsyslog-remote/x.x.x.x.log</code> 文件里。最后的 <code>/etc/rsyslog-remote.conf</code> 内容如下：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-1"></a>module(load="imudp")
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-2"></a>input(type="imudp" port="514" address="1.2.3.4")
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-4"></a>module(load="imtcp")
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-5"></a>input(type="imtcp" port="514" address="1.2.3.4")
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-7"></a>$FileOwner root
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-8"></a>$FileGroup adm
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-9"></a>$FileCreateMode 0640
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-10"></a>$DirCreateMode 0755
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-11"></a>$Umask 0022
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-12"></a>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-13"></a>$WorkDirectory /var/spool/rsyslog-remote
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-14"></a>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-15"></a>$template FromIp,"/var/log/rsyslog-remote/%FROMHOST-IP%.log"
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-1-16"></a>*.* ?FromIp
+</span></code></pre></div>
+<p>此外，还需要手动创建 <code>/var/spool/rsyslog-remote</code> 和 <code>/var/log/rsyslog-remote</code> 目录。</p>
+<h3 id="systemd-service"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#systemd-service">systemd service</a></h3>
+<p>最后，写一个 systemd service <code>/etc/systemd/system/rsyslog-remote.service</code> 让它自动启动：</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-1"></a><span class="k">[Unit]</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-2"></a><span class="n">ConditionPathExists</span><span class="o">=</span><span class="err">/etc/rsyslog-remote.conf</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-3"></a><span class="n">Description</span><span class="o">=</span><span class="err">Remote Syslog Service</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-5"></a><span class="k">[Service]</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-6"></a><span class="n">Type</span><span class="o">=</span><span class="err">simple</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-7"></a><span class="n">PIDFile</span><span class="o">=</span><span class="err">/var/run/rsyslogd-remote.pid</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-8"></a><span class="n">ExecStart</span><span class="o">=</span><span class="err">/usr/sbin/rsyslogd -n -f /etc/rsyslog-remote.conf -i /var/run/rsyslogd-remote.pid</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-9"></a><span class="n">ExecReload</span><span class="o">=</span><span class="err">/bin/kill -HUP $MAINPID</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-10"></a>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-11"></a><span class="k">[Install]</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-2-12"></a><span class="n">WantedBy</span><span class="o">=</span><span class="err">multi-user.target</span>
+</span></code></pre></div>
+<p>立即启动并设置开机启动：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-3-1"></a>systemctl<span class="w"> </span>daemon-reload
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-3-2"></a>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>rsyslog-remote
+</span></code></pre></div>
+<p>这样就实现了远程日志的收集。</p>
+<h3 id="logrotate-设置"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#logrotate-设置">logrotate 设置</a></h3>
+<p>为了防止日志太多，还需要配置 logrotate。</p>
+<p>复制 <code>/etc/logrotate.d/rsyslog</code> 到 <code>/etc/logrotate.d/rsyslog-remote</code>，然后修改开头为 <code>/var/log/rsyslog-remote/*.log</code> 即可，路径和上面对应：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-1"></a>/var/log/rsyslog-remote/*.log
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-2"></a>{
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-3"></a>        rotate 4
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-4"></a>        weekly
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-5"></a>        missingok
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-6"></a>        notifempty
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-7"></a>        compress
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-8"></a>        delaycompress
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-9"></a>        sharedscripts
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-10"></a>        postrotate
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-11"></a>                /usr/lib/rsyslog/rsyslog-remote-rotate
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-12"></a>        endscript
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-4-13"></a>}
+</span></code></pre></div>
+<p>注意脚本 <code>/usr/lib/rsyslog/rsyslog-rotate</code> 也需要复制一份到 <code>/usr/lib/rsyslog/rsyslog-remote-rotate</code>，然后修改一下 systemd service 名字：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-5-1"></a><span class="ch">#!/bin/sh</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-5-3"></a><span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-d<span class="w"> </span>/run/systemd/system<span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-5-4"></a><span class="w">    </span>systemctl<span class="w"> </span><span class="nb">kill</span><span class="w"> </span>-s<span class="w"> </span>HUP<span class="w"> </span>rsyslog-remote.service
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-5-5"></a><span class="k">fi</span>
+</span></code></pre></div>
+<h3 id="一键脚本"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#一键脚本">一键脚本</a></h3>
+<p>完成以上所有事情的一键脚本：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-1"></a><span class="c1"># assuming bash</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-2"></a><span class="c1"># please change ip address below</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-3"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>/etc/rsyslog-remote.conf<span class="w"> </span><span class="s">&lt;&lt; 'EOL'</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-4"></a><span class="s">module(load="imudp")</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-5"></a><span class="s">input(type="imudp" port="514" address="1.2.3.4")</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-7"></a><span class="s">module(load="imtcp")</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-8"></a><span class="s">input(type="imtcp" port="514" address="1.2.3.4")</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-9"></a>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-10"></a><span class="s">$FileOwner root</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-11"></a><span class="s">$FileGroup adm</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-12"></a><span class="s">$FileCreateMode 0640</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-13"></a><span class="s">$DirCreateMode 0755</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-14"></a><span class="s">$Umask 0022</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-15"></a>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-16"></a><span class="s">$WorkDirectory /var/spool/rsyslog-remote</span>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-17"></a>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-18"></a><span class="s">$template FromIp,"/var/log/rsyslog-remote/%FROMHOST-IP%.log"</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-19"></a><span class="s">*.* ?FromIp</span>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-20"></a><span class="s">EOL</span>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-21"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>/var/spool/rsyslog-remote
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-22"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>/var/log/rsyslog-remote
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-23"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>/etc/systemd/system/rsyslog-remote.service<span class="w"> </span><span class="s">&lt;&lt; 'EOL'</span>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-24"></a><span class="s">[Unit]</span>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-25"></a><span class="s">ConditionPathExists=/etc/rsyslog-remote.conf</span>
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-26"></a><span class="s">Description=Remote Syslog Service</span>
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-27"></a>
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-28"></a><span class="s">[Service]</span>
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-29"></a><span class="s">Type=simple</span>
+</span><span id="__span-6-30"><a id="__codelineno-6-30" name="__codelineno-6-30" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-30"></a><span class="s">PIDFile=/var/run/rsyslogd-remote.pid</span>
+</span><span id="__span-6-31"><a id="__codelineno-6-31" name="__codelineno-6-31" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-31"></a><span class="s">ExecStart=/usr/sbin/rsyslogd -n -f /etc/rsyslog-remote.conf -i /var/run/rsyslogd-remote.pid</span>
+</span><span id="__span-6-32"><a id="__codelineno-6-32" name="__codelineno-6-32" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-32"></a><span class="s">ExecReload=/bin/kill -HUP $MAINPID</span>
+</span><span id="__span-6-33"><a id="__codelineno-6-33" name="__codelineno-6-33" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-33"></a>
+</span><span id="__span-6-34"><a id="__codelineno-6-34" name="__codelineno-6-34" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-34"></a><span class="s">[Install]</span>
+</span><span id="__span-6-35"><a id="__codelineno-6-35" name="__codelineno-6-35" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-35"></a><span class="s">WantedBy=multi-user.target</span>
+</span><span id="__span-6-36"><a id="__codelineno-6-36" name="__codelineno-6-36" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-36"></a><span class="s">EOL</span>
+</span><span id="__span-6-37"><a id="__codelineno-6-37" name="__codelineno-6-37" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-37"></a>systemctl<span class="w"> </span>daemon-reload
+</span><span id="__span-6-38"><a id="__codelineno-6-38" name="__codelineno-6-38" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-38"></a>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>rsyslog-remote
+</span><span id="__span-6-39"><a id="__codelineno-6-39" name="__codelineno-6-39" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-39"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>/etc/logrotate.d/rsyslog-remote<span class="w"> </span><span class="s">&lt;&lt; 'EOL'</span>
+</span><span id="__span-6-40"><a id="__codelineno-6-40" name="__codelineno-6-40" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-40"></a><span class="s">/var/log/rsyslog-remote/*.log</span>
+</span><span id="__span-6-41"><a id="__codelineno-6-41" name="__codelineno-6-41" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-41"></a><span class="s">{</span>
+</span><span id="__span-6-42"><a id="__codelineno-6-42" name="__codelineno-6-42" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-42"></a><span class="s">        rotate 4</span>
+</span><span id="__span-6-43"><a id="__codelineno-6-43" name="__codelineno-6-43" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-43"></a><span class="s">        weekly</span>
+</span><span id="__span-6-44"><a id="__codelineno-6-44" name="__codelineno-6-44" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-44"></a><span class="s">        missingok</span>
+</span><span id="__span-6-45"><a id="__codelineno-6-45" name="__codelineno-6-45" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-45"></a><span class="s">        notifempty</span>
+</span><span id="__span-6-46"><a id="__codelineno-6-46" name="__codelineno-6-46" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-46"></a><span class="s">        compress</span>
+</span><span id="__span-6-47"><a id="__codelineno-6-47" name="__codelineno-6-47" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-47"></a><span class="s">        delaycompress</span>
+</span><span id="__span-6-48"><a id="__codelineno-6-48" name="__codelineno-6-48" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-48"></a><span class="s">        sharedscripts</span>
+</span><span id="__span-6-49"><a id="__codelineno-6-49" name="__codelineno-6-49" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-49"></a><span class="s">        postrotate</span>
+</span><span id="__span-6-50"><a id="__codelineno-6-50" name="__codelineno-6-50" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-50"></a><span class="s">                /usr/lib/rsyslog/rsyslog-remote-rotate</span>
+</span><span id="__span-6-51"><a id="__codelineno-6-51" name="__codelineno-6-51" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-51"></a><span class="s">        endscript</span>
+</span><span id="__span-6-52"><a id="__codelineno-6-52" name="__codelineno-6-52" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-52"></a><span class="s">}</span>
+</span><span id="__span-6-53"><a id="__codelineno-6-53" name="__codelineno-6-53" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-53"></a><span class="s">EOL</span>
+</span><span id="__span-6-54"><a id="__codelineno-6-54" name="__codelineno-6-54" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-54"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>/usr/lib/rsyslog/rsyslog-remote-rotate<span class="w"> </span><span class="s">&lt;&lt; 'EOL'</span>
+</span><span id="__span-6-55"><a id="__codelineno-6-55" name="__codelineno-6-55" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-55"></a><span class="s">#!/bin/sh</span>
+</span><span id="__span-6-56"><a id="__codelineno-6-56" name="__codelineno-6-56" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-56"></a>
+</span><span id="__span-6-57"><a id="__codelineno-6-57" name="__codelineno-6-57" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-57"></a><span class="s">if [ -d /run/systemd/system ]; then</span>
+</span><span id="__span-6-58"><a id="__codelineno-6-58" name="__codelineno-6-58" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-58"></a><span class="s">    systemctl kill -s HUP rsyslog-remote.service</span>
+</span><span id="__span-6-59"><a id="__codelineno-6-59" name="__codelineno-6-59" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-59"></a><span class="s">fi</span>
+</span><span id="__span-6-60"><a id="__codelineno-6-60" name="__codelineno-6-60" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-60"></a><span class="s">EOL</span>
+</span><span id="__span-6-61"><a id="__codelineno-6-61" name="__codelineno-6-61" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-6-61"></a>chmod<span class="w"> </span>+x<span class="w"> </span>/usr/lib/rsyslog/rsyslog-remote-rotate
+</span></code></pre></div>
+<h3 id="syslog-客户端配置"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#syslog-客户端配置">syslog 客户端配置</a></h3>
+<p>配好服务端以后，很多服务都支持远程 syslog 功能：</p>
+<ul>
+<li>iBMC: 维护诊断-&gt;告警上报-&gt;Syslog 报文通知</li>
+<li>Supermicro BMC: Configuration-&gt;Syslog</li>
+<li>交换机：见 <a href="../../blog/posts/devops/switch-config/">常用交换机命令</a></li>
+<li>
+<p>ESXi: 见 <a href="https://knowledge.broadcom.com/external/article/318939/configuring-syslog-on-esxi.html">Configuring syslog on ESXi</a>：</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-7-1"></a>esxcli<span class="w"> </span>system<span class="w"> </span>syslog<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>--loghost<span class="o">=</span>udp://1.2.3.4
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-7-2"></a>esxcli<span class="w"> </span>system<span class="w"> </span>syslog<span class="w"> </span>reload
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-7-3"></a>esxcli<span class="w"> </span>network<span class="w"> </span>firewall<span class="w"> </span>ruleset<span class="w"> </span><span class="nb">set</span><span class="w"> </span>--ruleset-id<span class="o">=</span>syslog<span class="w"> </span>--enabled<span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="../../software/2022/07/01/rsyslog-remote/#__codelineno-7-4"></a>esxcli<span class="w"> </span>network<span class="w"> </span>firewall<span class="w"> </span>refresh
+</span></code></pre></div>
+</li>
+</ul>
+<h3 id="参考文档"><a class="toclink" href="../../software/2022/07/01/rsyslog-remote/#参考文档">参考文档</a></h3>
+<ul>
+<li><a href="https://www.makeuseof.com/set-up-linux-remote-logging-using-rsyslog/">How to Set Up Remote Logging on Linux Using rsyslog</a></li>
+<li><a href="https://www.thegeekdiary.com/configuring-remote-logging-using-rsyslog-in-centos-rhel/">Configuring Remote Logging using rsyslog in CentOS/RHEL</a></li>
+<li><a href="https://www.tecmint.com/install-rsyslog-centralized-logging-in-centos-ubuntu/">How to Setup Central Logging Server with Rsyslog in Linux</a></li>
+<li><a href="https://www.tecmint.com/setup-rsyslog-client-to-send-logs-to-rsyslog-server-in-centos-7/">How to Setup Rsyslog Client to Send Logs to Rsyslog Server in CentOS 7</a></li>
+</ul>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -5527,51 +5725,6 @@ contains the 2 currently supported drivers for graphics and networking.
 <li>这时候进入了 recovery 固件，下载 <a href="https://downloads.openwrt.org/snapshots/targets/mediatek/mt7622/openwrt-mediatek-mt7622-linksys_e8450-ubi-squashfs-sysupgrade.itb">ubi 固件</a>，继续在网页里刷入</li>
 <li>这时候固件就更新完成了。ssh root@192.168.1.1，然后进去安装 luci 等软件，恢复配置即可。</li>
 </ol>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2021-12-29 00:00:00+00:00">2021年12月29日</time></li>
-        
-          <li class="md-meta__item">
-            分类于
-            
-              <a href="../../category/software/" class="md-meta__link">software</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              需要 1 分钟阅读时间
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="xrdp-和-nvidia-显卡兼容性问题"><a class="toclink" href="../../software/2021/12/29/xrdp-nvidia/">XRDP 和 NVIDIA 显卡兼容性问题</a></h2>
-<h3 id="背景"><a class="toclink" href="../../software/2021/12/29/xrdp-nvidia/#背景">背景</a></h3>
-<p>最近在尝试配置 XRDP，发现它在有 NVIDIA 的机器上启动远程桌面后会黑屏，查看错误信息可以看到：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="../../software/2021/12/29/xrdp-nvidia/#__codelineno-0-1"></a>xf86OpenConsole: Cannot open virtual console 1 (Permission denied)
-</span></code></pre></div>
-<p>2024 年注：一些比较新的发行版上携带的 xrdp 已经没有这个问题，此外不要忘记安装 xorgxrdp。</p>
-<h3 id="解决方法"><a class="toclink" href="../../software/2021/12/29/xrdp-nvidia/#解决方法">解决方法</a></h3>
-<p>XRDP 作者在 <a href="https://github.com/neutrinolabs/xrdp/issues/2010#issuecomment-942561105">issue #2010</a> 中提到了解决方法：</p>
-<p>修改 /etc/xrdp/sesman.ini，在 <code>[Xorg]</code> 部分里加上下面的配置：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="../../software/2021/12/29/xrdp-nvidia/#__codelineno-1-1"></a>param=-configdir
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="../../software/2021/12/29/xrdp-nvidia/#__codelineno-1-2"></a>param=/
-</span></code></pre></div>
-<p>实际上就是不让 Xorg 加载 nvidia xorg 驱动，这样就绕过了问题。</p>
     
     
   </div>
