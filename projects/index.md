@@ -121,8 +121,25 @@
 | 2025.06 | Termony 鸿蒙电脑上的 Termux | [Termony](<#termony>) |
 | 2025.06 | ohos-updatebin-unpacker 对 OpenHarmonyOS 的 update.bin 进行解包 | [ohos-updatebin-unpacker](<#ohos-updatebin-unpacker>) |
 | 2025.09 | simple-frame-rs 解析 SFrame(Simple Frame) 格式的 Rust 库 | [simple-frame-rs](<#simple-frame-rs>) |
+| 2025.10 | bvsolver 求解 GF(2) 上的 bit vector 方程 | [bvsolver](<#bvsolver>) |
 | 2025.12 | devdocs-mcp-server 查询 DevDocs 上各种文档的 MCP 服务器 | [devdocs-mcp-server](<#devdocs-mcp-server>) |
 | 2025.12 | waveform-mcp 读取和查询波形文件的 MCP 服务器 | [waveform-mcp](<#waveform-mcp>) |
+| 2025.12 | llm-api-router 简单的 LLM API 路由服务 | [llm-api-router](<#llm-api-router>) |
+| 2025.12 | feishu-chat-agent 通过飞书与 Qwen Code 对话 | [feishu-chat-agent](<#feishu-chat-agent>) |
+| 2026.01 | probabilistic-filter Rust 概率过滤器库 | [probabilistic-filter](<#probabilistic-filter>) |
+| 2026.01 | coding-plan-usage 查询各家 Coding Plan 用量 | [coding-plan-usage](<#coding-plan-usage>) |
+| 2026.03 | dram-bench 测试 DRAM 模拟器的带宽 | [dram-bench](<#dram-bench>) |
+| 2026.03 | jiegeclaw 个人 AI 助手 | [jiegeclaw](<#jiegeclaw>) |
+| 2026.04 | jiegec-skill 模仿 jiegec 风格的 LLM Skill | [jiegec-skill](<#jiegec-skill>) |
+| 2026.05 | zensical-wavedrom-plugin 渲染 WaveDrom 时序图 | [zensical-wavedrom-plugin](<#zensical-wavedrom-plugin>) |
+| 2026.05 | LoongBleed 龙芯 LA464/LA664 的硬件漏洞 | [LoongBleed](<#loongbleed>) |
+| 2026.05 | spec2026 构建和运行 SPEC CPU 2026 | [spec2026](<#spec2026>) |
+| 2026.09 | ugreen-95348-patcher 修复 UGREEN 采集卡偏色问题 | [ugreen-95348-patcher](<#ugreen-95348-patcher>) |
+| 2026.09 | video-subtitles-agent 视频字幕生成 Agent | [video-subtitles-agent](<#video-subtitles-agent>) |
+| 2026.10 | livedeck 交互式 Web 幻灯片 | [livedeck](<#livedeck>) |
+| 2026.10 | pi-files-api 让 pi 通过 Files API 传图 | [pi-files-api](<#pi-files-api>) |
+| 2026.10 | opencode-files-api 让 OpenCode 通过 Files API 传图 | [opencode-files-api](<#opencode-files-api>) |
+| 2026.11 | web-tools 部署纯前端的在线小工具 | [web-tools](<#web-tools>) |
 
 ## 计算机系课程及相关作业
 
@@ -1048,11 +1065,79 @@ TODO
 
 TODO
 
+### bvsolver
+
+TODO
+
 ### devdocs-mcp-server
 
 TODO
 
 ### waveform-mcp
+
+TODO
+
+### llm-api-router
+
+TODO
+
+### feishu-chat-agent
+
+TODO
+
+### probabilistic-filter
+
+TODO
+
+### coding-plan-usage
+
+TODO
+
+### dram-bench
+
+TODO
+
+### jiegeclaw
+
+TODO
+
+### jiegec-skill
+
+TODO
+
+### zensical-wavedrom-plugin
+
+TODO
+
+### LoongBleed
+
+TODO
+
+### spec2026
+
+TODO
+
+### ugreen-95348-patcher
+
+TODO
+
+### video-subtitles-agent
+
+TODO
+
+### livedeck
+
+TODO
+
+### pi-files-api
+
+TODO
+
+### opencode-files-api
+
+TODO
+
+### web-tools
 
 TODO
 
