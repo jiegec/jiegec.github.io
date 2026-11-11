@@ -2016,7 +2016,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 17 分钟阅读时间
+                              需要 18 分钟阅读时间
                             
                           </span>
                         </div>
@@ -2972,6 +2972,7 @@
 <th style="text-align: right;"><code>0xfc8f</code></th>
 <th>saturation <code>0xfc92</code></th>
 <th>hue <code>0xfc93</code></th>
+<th>公式</th>
 </tr>
 </thead>
 <tbody>
@@ -2979,24 +2980,31 @@
 <td style="text-align: right;"><code>0x00</code></td>
 <td>on</td>
 <td>on</td>
+<td><code>clip(rotate(ΔR, ΔB) * fc92/128)</code></td>
 </tr>
 <tr>
 <td style="text-align: right;"><code>0x01</code></td>
 <td>bypass</td>
 <td>on</td>
+<td><code>clip(rotate(ΔR, ΔB))</code></td>
 </tr>
 <tr>
 <td style="text-align: right;"><code>0x10</code></td>
 <td>on</td>
 <td>bypass</td>
+<td><code>clip((ΔR, ΔB) * fc92/128)</code></td>
 </tr>
 <tr>
 <td style="text-align: right;"><code>0x11</code></td>
 <td>bypass</td>
 <td>bypass</td>
+<td><code>(ΔR, ΔB)</code></td>
 </tr>
 </tbody>
 </table>
+<p>其中 <code>rotate(ΔR, ΔB)</code> 表示把 <code>(ΔR, ΔB)</code> 旋转 <code>θ = fc93 * 360/256°</code>：</p>
+<p><code>rotate(ΔR, ΔB) = (ΔR * cosθ - ΔB * sinθ, ΔR * sinθ + ΔB * cosθ)</code></p>
+<p><code>clip</code> 把 <code>ΔR</code> 限制到 <code>[-200.8, 200.8]</code>、<code>ΔB</code> 限制到 <code>[-236.6, 236.6]</code>。</p>
 <h4 id="0xfc900xfc93"><code>0xfc90</code>–<code>0xfc93</code><a class="headerlink" href="#0xfc900xfc93" title="Permanent link">&para;</a></h4>
 <table>
 <thead>
@@ -3066,6 +3074,45 @@
 </tbody>
 </table>
 <h3 id="交互式计算器">交互式计算器<a class="headerlink" href="#交互式计算器" title="Permanent link">&para;</a></h3>
+<p>RGB 输入下 luma/chroma 的完整处理流程是：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a># 输入 R, G, B ∈ [0, 255]
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>e0 = fc8e &amp; 0x01
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>e4 = (fc8e &gt;&gt; 4) &amp; 1
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>f0 = fc8f &amp; 0x01
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>f4 = (fc8f &gt;&gt; 4) &amp; 1
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a># Rec.709 luma
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>Y  = 0.2126*R + 0.7152*G + 0.0722*B
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>ΔR = R - Y
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>ΔB = B - Y
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a># 0xfc90 按 signed int8 解释
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>o = fc90 if fc90 &lt; 0x80 else fc90 - 0x100
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>Y' = Y
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>if e0 == 0:
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    Y' = clip(Y' + o, 0, 255)
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>if e4 == 0:
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>    Y' = clip(Y' * fc91/128, 0, 255)
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a># saturation 与 hue 都是线性变换，先后顺序可交换
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>if f0 == 0:
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>    ΔR = ΔR * fc92/128
+</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a>    ΔB = ΔB * fc92/128
+</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a>
+</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a>θ = fc93 * 360/256        # 单位：度
+</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a>if f4 == 0:
+</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a>    ΔR, ΔB = ΔR*cosθ - ΔB*sinθ, ΔR*sinθ + ΔB*cosθ
+</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a>
+</span><span id="__span-5-30"><a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a>ΔR = clip(ΔR, -200.8, 200.8)
+</span><span id="__span-5-31"><a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a>ΔB = clip(ΔB, -236.6, 236.6)
+</span><span id="__span-5-32"><a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a>
+</span><span id="__span-5-33"><a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a># 0.10094 = KB/KG，0.29725 = KR/KG
+</span><span id="__span-5-34"><a id="__codelineno-5-34" name="__codelineno-5-34" href="#__codelineno-5-34"></a>R' = round(clip(Y' + ΔR, 0, 255))
+</span><span id="__span-5-35"><a id="__codelineno-5-35" name="__codelineno-5-35" href="#__codelineno-5-35"></a>G' = round(clip(Y' - 0.10094*ΔB - 0.29725*ΔR, 0, 255))
+</span><span id="__span-5-36"><a id="__codelineno-5-36" name="__codelineno-5-36" href="#__codelineno-5-36"></a>B' = round(clip(Y' + ΔB, 0, 255))
+</span></code></pre></div>
+<p>其中 <code>clip(x, lo, hi) = min(max(x, lo), hi)</code>，<code>round</code> 为四舍五入。</p>
 <p>下面这个计算器可以实时看到 MS2130S 内部每个像素经过哪些计算、最终变成什么：</p>
 <iframe id="ms2130s-color-calc" src="/ms2130s-color-processing.html" title="MS2130S luma / chroma processing 可视化" loading="lazy" style="width:100%;height:960px;border:0;border-radius:10px"></iframe>
 
@@ -3169,16 +3216,16 @@
 <li>rgb 255,0,0 -&gt; rgb 254,0,4</li>
 </ul>
 <p>这个 .cube 文件把 RGB 从 (0,0,0) 到 (1,1,1) 的空间切分成 33x33x33 的 Grid，把每个格点做一个映射，所以它的主要内容就是这 33x33x33=35937 各点映射后的 RGB。然后实际的颜色不一定在格点上，就会做一个插值：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TITLE "MS2130S capture fix"
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>LUT_3D_SIZE 33
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>DOMAIN_MIN 0.0 0.0 0.0
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>DOMAIN_MAX 1.0 1.0 1.0
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>0.000000 0.000000 0.000000      # 输入 (0,0,0)        -&gt; 输出
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>0.000000 0.000000 0.000000      # 输入 (1/32,0,0)
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>0.001452 0.000000 0.000000      # 输入 (2/32,0,0)
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>...
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>1.000000 1.000000 1.000000      # 输入 (1,1,1)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TITLE "MS2130S capture fix"
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>LUT_3D_SIZE 33
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>DOMAIN_MIN 0.0 0.0 0.0
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>DOMAIN_MAX 1.0 1.0 1.0
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>0.000000 0.000000 0.000000      # 输入 (0,0,0)        -&gt; 输出
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>0.000000 0.000000 0.000000      # 输入 (1/32,0,0)
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>0.001452 0.000000 0.000000      # 输入 (2/32,0,0)
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>...
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>1.000000 1.000000 1.000000      # 输入 (1,1,1)
 </span></code></pre></div>
 <h2 id="附录windows">附录：Windows<a class="headerlink" href="#附录windows" title="Permanent link">&para;</a></h2>
 <p>在另一台 Windows 机器上，现象不太一样，单纯就是把 limited 当成了 full 来解释，导致的偏色，所以这里的问题就是怎么让采集卡和 Windows 机器的显卡输出能在 limited 还是 full 的问题上达成一致。具体现象：</p>
@@ -3211,181 +3258,181 @@
 <p>具体的修改见 <a href="https://github.com/jiegec/ugreen-95348-patcher/commit/120ce8480347ddd2a166c115d288356561bf4ff8">commit EDID variant: RGB 4:4:4 only, 4K30 preferred, drop QY</a>。</p>
 <h2 id="附录">附录<a class="headerlink" href="#附录" title="Permanent link">&para;</a></h2>
 <p>以下是这个采集卡原始固件的 EDID：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>00ffffffffffff0054f248538d0135012b230103803c2278022895a7554ea3260f5054010000d1c081c0010001000100010001000100023a801871382d40582c4500c48e2100001e9c45007251d01e206e28550055502100001e000000fd0018501e641e000a202020202020000000fc0055475245454e2d39353334380a01c002032d724c1f222120133e3d3c5f64676223090707830100006d030c001000003c200060010203e50e616066656a5e00a0a0a0295030202500b0133200000019640080a3a02b50b0103510b01332000000352f00a0a0a0295030202500b001320000000000000000000000000000000000000000000000000000000000000058
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>00ffffffffffff0054f248538d0135012b230103803c2278022895a7554ea3260f5054010000d1c081c0010001000100010001000100023a801871382d40582c4500c48e2100001e9c45007251d01e206e28550055502100001e000000fd0018501e641e000a202020202020000000fc0055475245454e2d39353334380a01c002032d724c1f222120133e3d3c5f64676223090707830100006d030c001000003c200060010203e50e616066656a5e00a0a0a0295030202500b0133200000019640080a3a02b50b0103510b01332000000352f00a0a0a0295030202500b001320000000000000000000000000000000000000000000000000000000000000058
 </span></code></pre></div>
 <p>用 <a href="https://people.freedesktop.org/~imirkin/edid-decode/">edid-decode</a> 出来的结果：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>edid-decode (hex):
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>00 ff ff ff ff ff ff 00 54 f2 48 53 8d 01 35 01
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>2b 23 01 03 80 3c 22 78 02 28 95 a7 55 4e a3 26
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>0f 50 54 01 00 00 d1 c0 81 c0 01 00 01 00 01 00
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>01 00 01 00 01 00 02 3a 80 18 71 38 2d 40 58 2c
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>45 00 c4 8e 21 00 00 1e 9c 45 00 72 51 d0 1e 20
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>6e 28 55 00 55 50 21 00 00 1e 00 00 00 fd 00 18
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>50 1e 64 1e 00 0a 20 20 20 20 20 20 00 00 00 fc
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>00 55 47 52 45 45 4e 2d 39 35 33 34 38 0a 01 c0
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>02 03 2d 72 4c 1f 22 21 20 13 3e 3d 3c 5f 64 67
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>62 23 09 07 07 83 01 00 00 6d 03 0c 00 10 00 00
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>3c 20 00 60 01 02 03 e5 0e 61 60 66 65 6a 5e 00
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>a0 a0 a0 29 50 30 20 25 00 b0 13 32 00 00 00 19
-</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>64 00 80 a3 a0 2b 50 b0 10 35 10 b0 13 32 00 00
-</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>00 35 2f 00 a0 a0 a0 29 50 30 20 25 00 b0 01 32
-</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 58
-</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>
-</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>----------------
-</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>
-</span><span id="__span-7-23"><a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>Block 0, Base EDID:
-</span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>  EDID Structure Version &amp; Revision: 1.3
-</span><span id="__span-7-25"><a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>  Vendor &amp; Product Identification:
-</span><span id="__span-7-26"><a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>    Manufacturer: UGR
-</span><span id="__span-7-27"><a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>    Model: 21320
-</span><span id="__span-7-28"><a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>    Serial Number: 20251021
-</span><span id="__span-7-29"><a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>    Made in: week 43 of 2025
-</span><span id="__span-7-30"><a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>  Basic Display Parameters &amp; Features:
-</span><span id="__span-7-31"><a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>    Digital display
-</span><span id="__span-7-32"><a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a>    Maximum image size: 60 cm x 34 cm
-</span><span id="__span-7-33"><a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a>    Gamma: 2.20
-</span><span id="__span-7-34"><a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>    Monochrome or grayscale display
-</span><span id="__span-7-35"><a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a>    First detailed timing is the preferred timing
-</span><span id="__span-7-36"><a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a>  Color Characteristics:
-</span><span id="__span-7-37"><a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a>    Red  : 0.6523, 0.3339
-</span><span id="__span-7-38"><a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a>    Green: 0.3066, 0.6367
-</span><span id="__span-7-39"><a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a>    Blue : 0.1503, 0.0595
-</span><span id="__span-7-40"><a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a>    White: 0.3134, 0.3291
-</span><span id="__span-7-41"><a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a>  Established Timings I &amp; II:
-</span><span id="__span-7-42"><a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a>    DMT 0x09:   800x600    60.316541 Hz   4:3     37.879 kHz     40.000000 MHz
-</span><span id="__span-7-43"><a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a>  Standard Timings:
-</span><span id="__span-7-44"><a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a>    DMT 0x52:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz
-</span><span id="__span-7-45"><a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a>    DMT 0x55:  1280x720    60.000000 Hz  16:9     45.000 kHz     74.250000 MHz
-</span><span id="__span-7-46"><a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a>  Detailed Timing Descriptors:
-</span><span id="__span-7-47"><a id="__codelineno-7-47" name="__codelineno-7-47" href="#__codelineno-7-47"></a>    DTD 1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (708 mm x 398 mm)
-</span><span id="__span-7-48"><a id="__codelineno-7-48" name="__codelineno-7-48" href="#__codelineno-7-48"></a>                 Hfront   88 Hsync  44 Hback  148 Hpol P
-</span><span id="__span-7-49"><a id="__codelineno-7-49" name="__codelineno-7-49" href="#__codelineno-7-49"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
-</span><span id="__span-7-50"><a id="__codelineno-7-50" name="__codelineno-7-50" href="#__codelineno-7-50"></a>    DTD 2:  1280x720   144.000000 Hz  16:9    108.000 kHz    178.200000 MHz (597 mm x 336 mm)
-</span><span id="__span-7-51"><a id="__codelineno-7-51" name="__codelineno-7-51" href="#__codelineno-7-51"></a>                 Hfront  110 Hsync  40 Hback  220 Hpol P
-</span><span id="__span-7-52"><a id="__codelineno-7-52" name="__codelineno-7-52" href="#__codelineno-7-52"></a>                 Vfront    5 Vsync   5 Vback   20 Vpol P
-</span><span id="__span-7-53"><a id="__codelineno-7-53" name="__codelineno-7-53" href="#__codelineno-7-53"></a>    Display Range Limits:
-</span><span id="__span-7-54"><a id="__codelineno-7-54" name="__codelineno-7-54" href="#__codelineno-7-54"></a>      Monitor ranges (GTF): 24-80 Hz V, 30-100 kHz H, max dotclock 300 MHz
-</span><span id="__span-7-55"><a id="__codelineno-7-55" name="__codelineno-7-55" href="#__codelineno-7-55"></a>    Display Product Name: 'UGREEN-95348'
-</span><span id="__span-7-56"><a id="__codelineno-7-56" name="__codelineno-7-56" href="#__codelineno-7-56"></a>  Extension blocks: 1
-</span><span id="__span-7-57"><a id="__codelineno-7-57" name="__codelineno-7-57" href="#__codelineno-7-57"></a>Checksum: 0xc0
-</span><span id="__span-7-58"><a id="__codelineno-7-58" name="__codelineno-7-58" href="#__codelineno-7-58"></a>
-</span><span id="__span-7-59"><a id="__codelineno-7-59" name="__codelineno-7-59" href="#__codelineno-7-59"></a>----------------
-</span><span id="__span-7-60"><a id="__codelineno-7-60" name="__codelineno-7-60" href="#__codelineno-7-60"></a>
-</span><span id="__span-7-61"><a id="__codelineno-7-61" name="__codelineno-7-61" href="#__codelineno-7-61"></a>Block 1, CTA-861 Extension Block:
-</span><span id="__span-7-62"><a id="__codelineno-7-62" name="__codelineno-7-62" href="#__codelineno-7-62"></a>  Revision: 3
-</span><span id="__span-7-63"><a id="__codelineno-7-63" name="__codelineno-7-63" href="#__codelineno-7-63"></a>  Basic audio support
-</span><span id="__span-7-64"><a id="__codelineno-7-64" name="__codelineno-7-64" href="#__codelineno-7-64"></a>  Supports YCbCr 4:4:4
-</span><span id="__span-7-65"><a id="__codelineno-7-65" name="__codelineno-7-65" href="#__codelineno-7-65"></a>  Supports YCbCr 4:2:2
-</span><span id="__span-7-66"><a id="__codelineno-7-66" name="__codelineno-7-66" href="#__codelineno-7-66"></a>  Native detailed modes: 2
-</span><span id="__span-7-67"><a id="__codelineno-7-67" name="__codelineno-7-67" href="#__codelineno-7-67"></a>  Video Data Block:
-</span><span id="__span-7-68"><a id="__codelineno-7-68" name="__codelineno-7-68" href="#__codelineno-7-68"></a>    VIC  31:  1920x1080   50.000000 Hz  16:9     56.250 kHz    148.500000 MHz
-</span><span id="__span-7-69"><a id="__codelineno-7-69" name="__codelineno-7-69" href="#__codelineno-7-69"></a>    VIC  34:  1920x1080   30.000000 Hz  16:9     33.750 kHz     74.250000 MHz
-</span><span id="__span-7-70"><a id="__codelineno-7-70" name="__codelineno-7-70" href="#__codelineno-7-70"></a>    VIC  33:  1920x1080   25.000000 Hz  16:9     28.125 kHz     74.250000 MHz
-</span><span id="__span-7-71"><a id="__codelineno-7-71" name="__codelineno-7-71" href="#__codelineno-7-71"></a>    VIC  32:  1920x1080   24.000000 Hz  16:9     27.000 kHz     74.250000 MHz
-</span><span id="__span-7-72"><a id="__codelineno-7-72" name="__codelineno-7-72" href="#__codelineno-7-72"></a>    VIC  19:  1280x720    50.000000 Hz  16:9     37.500 kHz     74.250000 MHz
-</span><span id="__span-7-73"><a id="__codelineno-7-73" name="__codelineno-7-73" href="#__codelineno-7-73"></a>    VIC  62:  1280x720    30.000000 Hz  16:9     22.500 kHz     74.250000 MHz
-</span><span id="__span-7-74"><a id="__codelineno-7-74" name="__codelineno-7-74" href="#__codelineno-7-74"></a>    VIC  61:  1280x720    25.000000 Hz  16:9     18.750 kHz     74.250000 MHz
-</span><span id="__span-7-75"><a id="__codelineno-7-75" name="__codelineno-7-75" href="#__codelineno-7-75"></a>    VIC  60:  1280x720    24.000000 Hz  16:9     18.000 kHz     59.400000 MHz
-</span><span id="__span-7-76"><a id="__codelineno-7-76" name="__codelineno-7-76" href="#__codelineno-7-76"></a>    VIC  95:  3840x2160   30.000000 Hz  16:9     67.500 kHz    297.000000 MHz
-</span><span id="__span-7-77"><a id="__codelineno-7-77" name="__codelineno-7-77" href="#__codelineno-7-77"></a>    VIC 100:  4096x2160   30.000000 Hz 256:135   67.500 kHz    297.000000 MHz
-</span><span id="__span-7-78"><a id="__codelineno-7-78" name="__codelineno-7-78" href="#__codelineno-7-78"></a>    VIC 103:  3840x2160   24.000000 Hz  64:27    54.000 kHz    297.000000 MHz
-</span><span id="__span-7-79"><a id="__codelineno-7-79" name="__codelineno-7-79" href="#__codelineno-7-79"></a>    VIC  98:  4096x2160   24.000000 Hz 256:135   54.000 kHz    297.000000 MHz
-</span><span id="__span-7-80"><a id="__codelineno-7-80" name="__codelineno-7-80" href="#__codelineno-7-80"></a>  Audio Data Block:
-</span><span id="__span-7-81"><a id="__codelineno-7-81" name="__codelineno-7-81" href="#__codelineno-7-81"></a>    Linear PCM:
-</span><span id="__span-7-82"><a id="__codelineno-7-82" name="__codelineno-7-82" href="#__codelineno-7-82"></a>      Max channels: 2
-</span><span id="__span-7-83"><a id="__codelineno-7-83" name="__codelineno-7-83" href="#__codelineno-7-83"></a>      Supported sample rates (kHz): 48 44.1 32
-</span><span id="__span-7-84"><a id="__codelineno-7-84" name="__codelineno-7-84" href="#__codelineno-7-84"></a>      Supported sample sizes (bits): 24 20 16
-</span><span id="__span-7-85"><a id="__codelineno-7-85" name="__codelineno-7-85" href="#__codelineno-7-85"></a>  Speaker Allocation Data Block:
-</span><span id="__span-7-86"><a id="__codelineno-7-86" name="__codelineno-7-86" href="#__codelineno-7-86"></a>    FL/FR - Front Left/Right
-</span><span id="__span-7-87"><a id="__codelineno-7-87" name="__codelineno-7-87" href="#__codelineno-7-87"></a>  Vendor-Specific Data Block (HDMI), OUI 00-0C-03:
-</span><span id="__span-7-88"><a id="__codelineno-7-88" name="__codelineno-7-88" href="#__codelineno-7-88"></a>    Source physical address: 1.0.0.0
-</span><span id="__span-7-89"><a id="__codelineno-7-89" name="__codelineno-7-89" href="#__codelineno-7-89"></a>    Maximum TMDS clock: 300 MHz
-</span><span id="__span-7-90"><a id="__codelineno-7-90" name="__codelineno-7-90" href="#__codelineno-7-90"></a>    Extended HDMI video details:
-</span><span id="__span-7-91"><a id="__codelineno-7-91" name="__codelineno-7-91" href="#__codelineno-7-91"></a>      HDMI VICs:
-</span><span id="__span-7-92"><a id="__codelineno-7-92" name="__codelineno-7-92" href="#__codelineno-7-92"></a>        HDMI VIC 1:  3840x2160   30.000000 Hz  16:9     67.500 kHz    297.000000 MHz
-</span><span id="__span-7-93"><a id="__codelineno-7-93" name="__codelineno-7-93" href="#__codelineno-7-93"></a>        HDMI VIC 2:  3840x2160   25.000000 Hz  16:9     56.250 kHz    297.000000 MHz
-</span><span id="__span-7-94"><a id="__codelineno-7-94" name="__codelineno-7-94" href="#__codelineno-7-94"></a>        HDMI VIC 3:  3840x2160   24.000000 Hz  16:9     54.000 kHz    297.000000 MHz
-</span><span id="__span-7-95"><a id="__codelineno-7-95" name="__codelineno-7-95" href="#__codelineno-7-95"></a>  YCbCr 4:2:0 Video Data Block:
-</span><span id="__span-7-96"><a id="__codelineno-7-96" name="__codelineno-7-96" href="#__codelineno-7-96"></a>    VIC  97:  3840x2160   60.000000 Hz  16:9    135.000 kHz    594.000000 MHz
-</span><span id="__span-7-97"><a id="__codelineno-7-97" name="__codelineno-7-97" href="#__codelineno-7-97"></a>    VIC  96:  3840x2160   50.000000 Hz  16:9    112.500 kHz    594.000000 MHz
-</span><span id="__span-7-98"><a id="__codelineno-7-98" name="__codelineno-7-98" href="#__codelineno-7-98"></a>    VIC 102:  4096x2160   60.000000 Hz 256:135  135.000 kHz    594.000000 MHz
-</span><span id="__span-7-99"><a id="__codelineno-7-99" name="__codelineno-7-99" href="#__codelineno-7-99"></a>    VIC 101:  4096x2160   50.000000 Hz 256:135  112.500 kHz    594.000000 MHz
-</span><span id="__span-7-100"><a id="__codelineno-7-100" name="__codelineno-7-100" href="#__codelineno-7-100"></a>  Detailed Timing Descriptors:
-</span><span id="__span-7-101"><a id="__codelineno-7-101" name="__codelineno-7-101" href="#__codelineno-7-101"></a>    DTD 3:  2560x1440   60.000199 Hz  16:9     88.860 kHz    241.700000 MHz (analog composite, sync-on-green, 944 mm x 531 mm)
-</span><span id="__span-7-102"><a id="__codelineno-7-102" name="__codelineno-7-102" href="#__codelineno-7-102"></a>                 Hfront   48 Hsync  32 Hback   80 Hpol N
-</span><span id="__span-7-103"><a id="__codelineno-7-103" name="__codelineno-7-103" href="#__codelineno-7-103"></a>                 Vfront    2 Vsync   5 Vback   34 Vpol N
-</span><span id="__span-7-104"><a id="__codelineno-7-104" name="__codelineno-7-104" href="#__codelineno-7-104"></a>    DTD 4:  2560x1440   49.997581 Hz  16:9     74.146 kHz    256.250000 MHz (analog composite, sync-on-green, 944 mm x 531 mm)
-</span><span id="__span-7-105"><a id="__codelineno-7-105" name="__codelineno-7-105" href="#__codelineno-7-105"></a>                 Hfront  176 Hsync 272 Hback  448 Hpol N
-</span><span id="__span-7-106"><a id="__codelineno-7-106" name="__codelineno-7-106" href="#__codelineno-7-106"></a>                 Vfront    3 Vsync   5 Vback   35 Vpol N
-</span><span id="__span-7-107"><a id="__codelineno-7-107" name="__codelineno-7-107" href="#__codelineno-7-107"></a>    DTD 5:  2560x1440   30.000099 Hz  16:9     44.430 kHz    120.850000 MHz (analog composite, sync-on-green, 944 mm x 513 mm)
-</span><span id="__span-7-108"><a id="__codelineno-7-108" name="__codelineno-7-108" href="#__codelineno-7-108"></a>                 Hfront   48 Hsync  32 Hback   80 Hpol N
-</span><span id="__span-7-109"><a id="__codelineno-7-109" name="__codelineno-7-109" href="#__codelineno-7-109"></a>                 Vfront    2 Vsync   5 Vback   34 Vpol N
-</span><span id="__span-7-110"><a id="__codelineno-7-110" name="__codelineno-7-110" href="#__codelineno-7-110"></a>Checksum: 0x58
-</span><span id="__span-7-111"><a id="__codelineno-7-111" name="__codelineno-7-111" href="#__codelineno-7-111"></a>
-</span><span id="__span-7-112"><a id="__codelineno-7-112" name="__codelineno-7-112" href="#__codelineno-7-112"></a>----------------
-</span><span id="__span-7-113"><a id="__codelineno-7-113" name="__codelineno-7-113" href="#__codelineno-7-113"></a>
-</span><span id="__span-7-114"><a id="__codelineno-7-114" name="__codelineno-7-114" href="#__codelineno-7-114"></a>Preferred Video Timing if only Block 0 is parsed:
-</span><span id="__span-7-115"><a id="__codelineno-7-115" name="__codelineno-7-115" href="#__codelineno-7-115"></a>  DTD   1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (708 mm x 398 mm)
-</span><span id="__span-7-116"><a id="__codelineno-7-116" name="__codelineno-7-116" href="#__codelineno-7-116"></a>                 Hfront   88 Hsync  44 Hback  148 Hpol P
-</span><span id="__span-7-117"><a id="__codelineno-7-117" name="__codelineno-7-117" href="#__codelineno-7-117"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
-</span><span id="__span-7-118"><a id="__codelineno-7-118" name="__codelineno-7-118" href="#__codelineno-7-118"></a>
-</span><span id="__span-7-119"><a id="__codelineno-7-119" name="__codelineno-7-119" href="#__codelineno-7-119"></a>----------------
-</span><span id="__span-7-120"><a id="__codelineno-7-120" name="__codelineno-7-120" href="#__codelineno-7-120"></a>
-</span><span id="__span-7-121"><a id="__codelineno-7-121" name="__codelineno-7-121" href="#__codelineno-7-121"></a>Preferred Video Timings if Block 0 and CTA-861 Blocks are parsed:
-</span><span id="__span-7-122"><a id="__codelineno-7-122" name="__codelineno-7-122" href="#__codelineno-7-122"></a>  DTD   1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (708 mm x 398 mm)
-</span><span id="__span-7-123"><a id="__codelineno-7-123" name="__codelineno-7-123" href="#__codelineno-7-123"></a>                 Hfront   88 Hsync  44 Hback  148 Hpol P
-</span><span id="__span-7-124"><a id="__codelineno-7-124" name="__codelineno-7-124" href="#__codelineno-7-124"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
-</span><span id="__span-7-125"><a id="__codelineno-7-125" name="__codelineno-7-125" href="#__codelineno-7-125"></a>  VIC  31:  1920x1080   50.000000 Hz  16:9     56.250 kHz    148.500000 MHz
-</span><span id="__span-7-126"><a id="__codelineno-7-126" name="__codelineno-7-126" href="#__codelineno-7-126"></a>                 Hfront  528 Hsync  44 Hback  148 Hpol P
-</span><span id="__span-7-127"><a id="__codelineno-7-127" name="__codelineno-7-127" href="#__codelineno-7-127"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
-</span><span id="__span-7-128"><a id="__codelineno-7-128" name="__codelineno-7-128" href="#__codelineno-7-128"></a>
-</span><span id="__span-7-129"><a id="__codelineno-7-129" name="__codelineno-7-129" href="#__codelineno-7-129"></a>----------------
-</span><span id="__span-7-130"><a id="__codelineno-7-130" name="__codelineno-7-130" href="#__codelineno-7-130"></a>
-</span><span id="__span-7-131"><a id="__codelineno-7-131" name="__codelineno-7-131" href="#__codelineno-7-131"></a>Native Video Resolution if only Block 0 is parsed:
-</span><span id="__span-7-132"><a id="__codelineno-7-132" name="__codelineno-7-132" href="#__codelineno-7-132"></a>  1920x1080
-</span><span id="__span-7-133"><a id="__codelineno-7-133" name="__codelineno-7-133" href="#__codelineno-7-133"></a>
-</span><span id="__span-7-134"><a id="__codelineno-7-134" name="__codelineno-7-134" href="#__codelineno-7-134"></a>----------------
-</span><span id="__span-7-135"><a id="__codelineno-7-135" name="__codelineno-7-135" href="#__codelineno-7-135"></a>
-</span><span id="__span-7-136"><a id="__codelineno-7-136" name="__codelineno-7-136" href="#__codelineno-7-136"></a>Native Video Resolutions if Block 0 and CTA-861 Blocks are parsed:
-</span><span id="__span-7-137"><a id="__codelineno-7-137" name="__codelineno-7-137" href="#__codelineno-7-137"></a>  1280x720
-</span><span id="__span-7-138"><a id="__codelineno-7-138" name="__codelineno-7-138" href="#__codelineno-7-138"></a>  1920x1080
-</span><span id="__span-7-139"><a id="__codelineno-7-139" name="__codelineno-7-139" href="#__codelineno-7-139"></a>
-</span><span id="__span-7-140"><a id="__codelineno-7-140" name="__codelineno-7-140" href="#__codelineno-7-140"></a>----------------
-</span><span id="__span-7-141"><a id="__codelineno-7-141" name="__codelineno-7-141" href="#__codelineno-7-141"></a>
-</span><span id="__span-7-142"><a id="__codelineno-7-142" name="__codelineno-7-142" href="#__codelineno-7-142"></a>edid-decode SHA: 84ddf9155376 2021-10-03 10:37:45
-</span><span id="__span-7-143"><a id="__codelineno-7-143" name="__codelineno-7-143" href="#__codelineno-7-143"></a>
-</span><span id="__span-7-144"><a id="__codelineno-7-144" name="__codelineno-7-144" href="#__codelineno-7-144"></a>Warnings:
-</span><span id="__span-7-145"><a id="__codelineno-7-145" name="__codelineno-7-145" href="#__codelineno-7-145"></a>
-</span><span id="__span-7-146"><a id="__codelineno-7-146" name="__codelineno-7-146" href="#__codelineno-7-146"></a>Block 1, CTA-861 Extension Block:
-</span><span id="__span-7-147"><a id="__codelineno-7-147" name="__codelineno-7-147" href="#__codelineno-7-147"></a>  IT Video Formats are overscanned by default, but normally this should be underscanned.
-</span><span id="__span-7-148"><a id="__codelineno-7-148" name="__codelineno-7-148" href="#__codelineno-7-148"></a>
-</span><span id="__span-7-149"><a id="__codelineno-7-149" name="__codelineno-7-149" href="#__codelineno-7-149"></a>Failures:
-</span><span id="__span-7-150"><a id="__codelineno-7-150" name="__codelineno-7-150" href="#__codelineno-7-150"></a>
-</span><span id="__span-7-151"><a id="__codelineno-7-151" name="__codelineno-7-151" href="#__codelineno-7-151"></a>Block 0, Base EDID:
-</span><span id="__span-7-152"><a id="__codelineno-7-152" name="__codelineno-7-152" href="#__codelineno-7-152"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
-</span><span id="__span-7-153"><a id="__codelineno-7-153" name="__codelineno-7-153" href="#__codelineno-7-153"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
-</span><span id="__span-7-154"><a id="__codelineno-7-154" name="__codelineno-7-154" href="#__codelineno-7-154"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
-</span><span id="__span-7-155"><a id="__codelineno-7-155" name="__codelineno-7-155" href="#__codelineno-7-155"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
-</span><span id="__span-7-156"><a id="__codelineno-7-156" name="__codelineno-7-156" href="#__codelineno-7-156"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
-</span><span id="__span-7-157"><a id="__codelineno-7-157" name="__codelineno-7-157" href="#__codelineno-7-157"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
-</span><span id="__span-7-158"><a id="__codelineno-7-158" name="__codelineno-7-158" href="#__codelineno-7-158"></a>  Detailed Timing Descriptor #1: Mismatch of image size 708x398 mm vs display size 600x340 mm.
-</span><span id="__span-7-159"><a id="__codelineno-7-159" name="__codelineno-7-159" href="#__codelineno-7-159"></a>Block 1, CTA-861 Extension Block:
-</span><span id="__span-7-160"><a id="__codelineno-7-160" name="__codelineno-7-160" href="#__codelineno-7-160"></a>  Detailed Timing Descriptor #3: Mismatch of image size 944x531 mm vs display size 600x340 mm.
-</span><span id="__span-7-161"><a id="__codelineno-7-161" name="__codelineno-7-161" href="#__codelineno-7-161"></a>  Detailed Timing Descriptor #4: Mismatch of image size 944x531 mm vs display size 600x340 mm.
-</span><span id="__span-7-162"><a id="__codelineno-7-162" name="__codelineno-7-162" href="#__codelineno-7-162"></a>  Detailed Timing Descriptor #5: Mismatch of image size 944x513 mm vs display size 600x340 mm.
-</span><span id="__span-7-163"><a id="__codelineno-7-163" name="__codelineno-7-163" href="#__codelineno-7-163"></a>  Required 640x480p60 timings are missing in the established timings and the SVD list (VIC 1).
-</span><span id="__span-7-164"><a id="__codelineno-7-164" name="__codelineno-7-164" href="#__codelineno-7-164"></a>  HDMI VIC Codes must have their CTA-861 VIC equivalents in the VSB.
-</span><span id="__span-7-165"><a id="__codelineno-7-165" name="__codelineno-7-165" href="#__codelineno-7-165"></a>  Missing VCDB, needed for Set Selectable RGB Quantization to avoid interop issues.
-</span><span id="__span-7-166"><a id="__codelineno-7-166" name="__codelineno-7-166" href="#__codelineno-7-166"></a>EDID:
-</span><span id="__span-7-167"><a id="__codelineno-7-167" name="__codelineno-7-167" href="#__codelineno-7-167"></a>  Base EDID: Some timings are out of range of the Monitor Ranges:
-</span><span id="__span-7-168"><a id="__codelineno-7-168" name="__codelineno-7-168" href="#__codelineno-7-168"></a>    Vertical Freq: 24.000 - 144.000 Hz (Monitor: 24.000 - 80.000 Hz)
-</span><span id="__span-7-169"><a id="__codelineno-7-169" name="__codelineno-7-169" href="#__codelineno-7-169"></a>    Horizontal Freq: 18.000 - 108.000 kHz (Monitor: 30.000 - 100.000 kHz)
-</span><span id="__span-7-170"><a id="__codelineno-7-170" name="__codelineno-7-170" href="#__codelineno-7-170"></a>  CTA-861: Native progressive timings are a mix of several resolutions.
-</span><span id="__span-7-171"><a id="__codelineno-7-171" name="__codelineno-7-171" href="#__codelineno-7-171"></a>
-</span><span id="__span-7-172"><a id="__codelineno-7-172" name="__codelineno-7-172" href="#__codelineno-7-172"></a>EDID conformity: FAIL
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>edid-decode (hex):
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>00 ff ff ff ff ff ff 00 54 f2 48 53 8d 01 35 01
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>2b 23 01 03 80 3c 22 78 02 28 95 a7 55 4e a3 26
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>0f 50 54 01 00 00 d1 c0 81 c0 01 00 01 00 01 00
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>01 00 01 00 01 00 02 3a 80 18 71 38 2d 40 58 2c
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>45 00 c4 8e 21 00 00 1e 9c 45 00 72 51 d0 1e 20
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>6e 28 55 00 55 50 21 00 00 1e 00 00 00 fd 00 18
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>50 1e 64 1e 00 0a 20 20 20 20 20 20 00 00 00 fc
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>00 55 47 52 45 45 4e 2d 39 35 33 34 38 0a 01 c0
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>02 03 2d 72 4c 1f 22 21 20 13 3e 3d 3c 5f 64 67
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>62 23 09 07 07 83 01 00 00 6d 03 0c 00 10 00 00
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>3c 20 00 60 01 02 03 e5 0e 61 60 66 65 6a 5e 00
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>a0 a0 a0 29 50 30 20 25 00 b0 13 32 00 00 00 19
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>64 00 80 a3 a0 2b 50 b0 10 35 10 b0 13 32 00 00
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>00 35 2f 00 a0 a0 a0 29 50 30 20 25 00 b0 01 32
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 58
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>----------------
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>Block 0, Base EDID:
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>  EDID Structure Version &amp; Revision: 1.3
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>  Vendor &amp; Product Identification:
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>    Manufacturer: UGR
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>    Model: 21320
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>    Serial Number: 20251021
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a>    Made in: week 43 of 2025
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>  Basic Display Parameters &amp; Features:
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a>    Digital display
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a>    Maximum image size: 60 cm x 34 cm
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a>    Gamma: 2.20
+</span><span id="__span-8-34"><a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a>    Monochrome or grayscale display
+</span><span id="__span-8-35"><a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a>    First detailed timing is the preferred timing
+</span><span id="__span-8-36"><a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a>  Color Characteristics:
+</span><span id="__span-8-37"><a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a>    Red  : 0.6523, 0.3339
+</span><span id="__span-8-38"><a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a>    Green: 0.3066, 0.6367
+</span><span id="__span-8-39"><a id="__codelineno-8-39" name="__codelineno-8-39" href="#__codelineno-8-39"></a>    Blue : 0.1503, 0.0595
+</span><span id="__span-8-40"><a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a>    White: 0.3134, 0.3291
+</span><span id="__span-8-41"><a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a>  Established Timings I &amp; II:
+</span><span id="__span-8-42"><a id="__codelineno-8-42" name="__codelineno-8-42" href="#__codelineno-8-42"></a>    DMT 0x09:   800x600    60.316541 Hz   4:3     37.879 kHz     40.000000 MHz
+</span><span id="__span-8-43"><a id="__codelineno-8-43" name="__codelineno-8-43" href="#__codelineno-8-43"></a>  Standard Timings:
+</span><span id="__span-8-44"><a id="__codelineno-8-44" name="__codelineno-8-44" href="#__codelineno-8-44"></a>    DMT 0x52:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz
+</span><span id="__span-8-45"><a id="__codelineno-8-45" name="__codelineno-8-45" href="#__codelineno-8-45"></a>    DMT 0x55:  1280x720    60.000000 Hz  16:9     45.000 kHz     74.250000 MHz
+</span><span id="__span-8-46"><a id="__codelineno-8-46" name="__codelineno-8-46" href="#__codelineno-8-46"></a>  Detailed Timing Descriptors:
+</span><span id="__span-8-47"><a id="__codelineno-8-47" name="__codelineno-8-47" href="#__codelineno-8-47"></a>    DTD 1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (708 mm x 398 mm)
+</span><span id="__span-8-48"><a id="__codelineno-8-48" name="__codelineno-8-48" href="#__codelineno-8-48"></a>                 Hfront   88 Hsync  44 Hback  148 Hpol P
+</span><span id="__span-8-49"><a id="__codelineno-8-49" name="__codelineno-8-49" href="#__codelineno-8-49"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
+</span><span id="__span-8-50"><a id="__codelineno-8-50" name="__codelineno-8-50" href="#__codelineno-8-50"></a>    DTD 2:  1280x720   144.000000 Hz  16:9    108.000 kHz    178.200000 MHz (597 mm x 336 mm)
+</span><span id="__span-8-51"><a id="__codelineno-8-51" name="__codelineno-8-51" href="#__codelineno-8-51"></a>                 Hfront  110 Hsync  40 Hback  220 Hpol P
+</span><span id="__span-8-52"><a id="__codelineno-8-52" name="__codelineno-8-52" href="#__codelineno-8-52"></a>                 Vfront    5 Vsync   5 Vback   20 Vpol P
+</span><span id="__span-8-53"><a id="__codelineno-8-53" name="__codelineno-8-53" href="#__codelineno-8-53"></a>    Display Range Limits:
+</span><span id="__span-8-54"><a id="__codelineno-8-54" name="__codelineno-8-54" href="#__codelineno-8-54"></a>      Monitor ranges (GTF): 24-80 Hz V, 30-100 kHz H, max dotclock 300 MHz
+</span><span id="__span-8-55"><a id="__codelineno-8-55" name="__codelineno-8-55" href="#__codelineno-8-55"></a>    Display Product Name: 'UGREEN-95348'
+</span><span id="__span-8-56"><a id="__codelineno-8-56" name="__codelineno-8-56" href="#__codelineno-8-56"></a>  Extension blocks: 1
+</span><span id="__span-8-57"><a id="__codelineno-8-57" name="__codelineno-8-57" href="#__codelineno-8-57"></a>Checksum: 0xc0
+</span><span id="__span-8-58"><a id="__codelineno-8-58" name="__codelineno-8-58" href="#__codelineno-8-58"></a>
+</span><span id="__span-8-59"><a id="__codelineno-8-59" name="__codelineno-8-59" href="#__codelineno-8-59"></a>----------------
+</span><span id="__span-8-60"><a id="__codelineno-8-60" name="__codelineno-8-60" href="#__codelineno-8-60"></a>
+</span><span id="__span-8-61"><a id="__codelineno-8-61" name="__codelineno-8-61" href="#__codelineno-8-61"></a>Block 1, CTA-861 Extension Block:
+</span><span id="__span-8-62"><a id="__codelineno-8-62" name="__codelineno-8-62" href="#__codelineno-8-62"></a>  Revision: 3
+</span><span id="__span-8-63"><a id="__codelineno-8-63" name="__codelineno-8-63" href="#__codelineno-8-63"></a>  Basic audio support
+</span><span id="__span-8-64"><a id="__codelineno-8-64" name="__codelineno-8-64" href="#__codelineno-8-64"></a>  Supports YCbCr 4:4:4
+</span><span id="__span-8-65"><a id="__codelineno-8-65" name="__codelineno-8-65" href="#__codelineno-8-65"></a>  Supports YCbCr 4:2:2
+</span><span id="__span-8-66"><a id="__codelineno-8-66" name="__codelineno-8-66" href="#__codelineno-8-66"></a>  Native detailed modes: 2
+</span><span id="__span-8-67"><a id="__codelineno-8-67" name="__codelineno-8-67" href="#__codelineno-8-67"></a>  Video Data Block:
+</span><span id="__span-8-68"><a id="__codelineno-8-68" name="__codelineno-8-68" href="#__codelineno-8-68"></a>    VIC  31:  1920x1080   50.000000 Hz  16:9     56.250 kHz    148.500000 MHz
+</span><span id="__span-8-69"><a id="__codelineno-8-69" name="__codelineno-8-69" href="#__codelineno-8-69"></a>    VIC  34:  1920x1080   30.000000 Hz  16:9     33.750 kHz     74.250000 MHz
+</span><span id="__span-8-70"><a id="__codelineno-8-70" name="__codelineno-8-70" href="#__codelineno-8-70"></a>    VIC  33:  1920x1080   25.000000 Hz  16:9     28.125 kHz     74.250000 MHz
+</span><span id="__span-8-71"><a id="__codelineno-8-71" name="__codelineno-8-71" href="#__codelineno-8-71"></a>    VIC  32:  1920x1080   24.000000 Hz  16:9     27.000 kHz     74.250000 MHz
+</span><span id="__span-8-72"><a id="__codelineno-8-72" name="__codelineno-8-72" href="#__codelineno-8-72"></a>    VIC  19:  1280x720    50.000000 Hz  16:9     37.500 kHz     74.250000 MHz
+</span><span id="__span-8-73"><a id="__codelineno-8-73" name="__codelineno-8-73" href="#__codelineno-8-73"></a>    VIC  62:  1280x720    30.000000 Hz  16:9     22.500 kHz     74.250000 MHz
+</span><span id="__span-8-74"><a id="__codelineno-8-74" name="__codelineno-8-74" href="#__codelineno-8-74"></a>    VIC  61:  1280x720    25.000000 Hz  16:9     18.750 kHz     74.250000 MHz
+</span><span id="__span-8-75"><a id="__codelineno-8-75" name="__codelineno-8-75" href="#__codelineno-8-75"></a>    VIC  60:  1280x720    24.000000 Hz  16:9     18.000 kHz     59.400000 MHz
+</span><span id="__span-8-76"><a id="__codelineno-8-76" name="__codelineno-8-76" href="#__codelineno-8-76"></a>    VIC  95:  3840x2160   30.000000 Hz  16:9     67.500 kHz    297.000000 MHz
+</span><span id="__span-8-77"><a id="__codelineno-8-77" name="__codelineno-8-77" href="#__codelineno-8-77"></a>    VIC 100:  4096x2160   30.000000 Hz 256:135   67.500 kHz    297.000000 MHz
+</span><span id="__span-8-78"><a id="__codelineno-8-78" name="__codelineno-8-78" href="#__codelineno-8-78"></a>    VIC 103:  3840x2160   24.000000 Hz  64:27    54.000 kHz    297.000000 MHz
+</span><span id="__span-8-79"><a id="__codelineno-8-79" name="__codelineno-8-79" href="#__codelineno-8-79"></a>    VIC  98:  4096x2160   24.000000 Hz 256:135   54.000 kHz    297.000000 MHz
+</span><span id="__span-8-80"><a id="__codelineno-8-80" name="__codelineno-8-80" href="#__codelineno-8-80"></a>  Audio Data Block:
+</span><span id="__span-8-81"><a id="__codelineno-8-81" name="__codelineno-8-81" href="#__codelineno-8-81"></a>    Linear PCM:
+</span><span id="__span-8-82"><a id="__codelineno-8-82" name="__codelineno-8-82" href="#__codelineno-8-82"></a>      Max channels: 2
+</span><span id="__span-8-83"><a id="__codelineno-8-83" name="__codelineno-8-83" href="#__codelineno-8-83"></a>      Supported sample rates (kHz): 48 44.1 32
+</span><span id="__span-8-84"><a id="__codelineno-8-84" name="__codelineno-8-84" href="#__codelineno-8-84"></a>      Supported sample sizes (bits): 24 20 16
+</span><span id="__span-8-85"><a id="__codelineno-8-85" name="__codelineno-8-85" href="#__codelineno-8-85"></a>  Speaker Allocation Data Block:
+</span><span id="__span-8-86"><a id="__codelineno-8-86" name="__codelineno-8-86" href="#__codelineno-8-86"></a>    FL/FR - Front Left/Right
+</span><span id="__span-8-87"><a id="__codelineno-8-87" name="__codelineno-8-87" href="#__codelineno-8-87"></a>  Vendor-Specific Data Block (HDMI), OUI 00-0C-03:
+</span><span id="__span-8-88"><a id="__codelineno-8-88" name="__codelineno-8-88" href="#__codelineno-8-88"></a>    Source physical address: 1.0.0.0
+</span><span id="__span-8-89"><a id="__codelineno-8-89" name="__codelineno-8-89" href="#__codelineno-8-89"></a>    Maximum TMDS clock: 300 MHz
+</span><span id="__span-8-90"><a id="__codelineno-8-90" name="__codelineno-8-90" href="#__codelineno-8-90"></a>    Extended HDMI video details:
+</span><span id="__span-8-91"><a id="__codelineno-8-91" name="__codelineno-8-91" href="#__codelineno-8-91"></a>      HDMI VICs:
+</span><span id="__span-8-92"><a id="__codelineno-8-92" name="__codelineno-8-92" href="#__codelineno-8-92"></a>        HDMI VIC 1:  3840x2160   30.000000 Hz  16:9     67.500 kHz    297.000000 MHz
+</span><span id="__span-8-93"><a id="__codelineno-8-93" name="__codelineno-8-93" href="#__codelineno-8-93"></a>        HDMI VIC 2:  3840x2160   25.000000 Hz  16:9     56.250 kHz    297.000000 MHz
+</span><span id="__span-8-94"><a id="__codelineno-8-94" name="__codelineno-8-94" href="#__codelineno-8-94"></a>        HDMI VIC 3:  3840x2160   24.000000 Hz  16:9     54.000 kHz    297.000000 MHz
+</span><span id="__span-8-95"><a id="__codelineno-8-95" name="__codelineno-8-95" href="#__codelineno-8-95"></a>  YCbCr 4:2:0 Video Data Block:
+</span><span id="__span-8-96"><a id="__codelineno-8-96" name="__codelineno-8-96" href="#__codelineno-8-96"></a>    VIC  97:  3840x2160   60.000000 Hz  16:9    135.000 kHz    594.000000 MHz
+</span><span id="__span-8-97"><a id="__codelineno-8-97" name="__codelineno-8-97" href="#__codelineno-8-97"></a>    VIC  96:  3840x2160   50.000000 Hz  16:9    112.500 kHz    594.000000 MHz
+</span><span id="__span-8-98"><a id="__codelineno-8-98" name="__codelineno-8-98" href="#__codelineno-8-98"></a>    VIC 102:  4096x2160   60.000000 Hz 256:135  135.000 kHz    594.000000 MHz
+</span><span id="__span-8-99"><a id="__codelineno-8-99" name="__codelineno-8-99" href="#__codelineno-8-99"></a>    VIC 101:  4096x2160   50.000000 Hz 256:135  112.500 kHz    594.000000 MHz
+</span><span id="__span-8-100"><a id="__codelineno-8-100" name="__codelineno-8-100" href="#__codelineno-8-100"></a>  Detailed Timing Descriptors:
+</span><span id="__span-8-101"><a id="__codelineno-8-101" name="__codelineno-8-101" href="#__codelineno-8-101"></a>    DTD 3:  2560x1440   60.000199 Hz  16:9     88.860 kHz    241.700000 MHz (analog composite, sync-on-green, 944 mm x 531 mm)
+</span><span id="__span-8-102"><a id="__codelineno-8-102" name="__codelineno-8-102" href="#__codelineno-8-102"></a>                 Hfront   48 Hsync  32 Hback   80 Hpol N
+</span><span id="__span-8-103"><a id="__codelineno-8-103" name="__codelineno-8-103" href="#__codelineno-8-103"></a>                 Vfront    2 Vsync   5 Vback   34 Vpol N
+</span><span id="__span-8-104"><a id="__codelineno-8-104" name="__codelineno-8-104" href="#__codelineno-8-104"></a>    DTD 4:  2560x1440   49.997581 Hz  16:9     74.146 kHz    256.250000 MHz (analog composite, sync-on-green, 944 mm x 531 mm)
+</span><span id="__span-8-105"><a id="__codelineno-8-105" name="__codelineno-8-105" href="#__codelineno-8-105"></a>                 Hfront  176 Hsync 272 Hback  448 Hpol N
+</span><span id="__span-8-106"><a id="__codelineno-8-106" name="__codelineno-8-106" href="#__codelineno-8-106"></a>                 Vfront    3 Vsync   5 Vback   35 Vpol N
+</span><span id="__span-8-107"><a id="__codelineno-8-107" name="__codelineno-8-107" href="#__codelineno-8-107"></a>    DTD 5:  2560x1440   30.000099 Hz  16:9     44.430 kHz    120.850000 MHz (analog composite, sync-on-green, 944 mm x 513 mm)
+</span><span id="__span-8-108"><a id="__codelineno-8-108" name="__codelineno-8-108" href="#__codelineno-8-108"></a>                 Hfront   48 Hsync  32 Hback   80 Hpol N
+</span><span id="__span-8-109"><a id="__codelineno-8-109" name="__codelineno-8-109" href="#__codelineno-8-109"></a>                 Vfront    2 Vsync   5 Vback   34 Vpol N
+</span><span id="__span-8-110"><a id="__codelineno-8-110" name="__codelineno-8-110" href="#__codelineno-8-110"></a>Checksum: 0x58
+</span><span id="__span-8-111"><a id="__codelineno-8-111" name="__codelineno-8-111" href="#__codelineno-8-111"></a>
+</span><span id="__span-8-112"><a id="__codelineno-8-112" name="__codelineno-8-112" href="#__codelineno-8-112"></a>----------------
+</span><span id="__span-8-113"><a id="__codelineno-8-113" name="__codelineno-8-113" href="#__codelineno-8-113"></a>
+</span><span id="__span-8-114"><a id="__codelineno-8-114" name="__codelineno-8-114" href="#__codelineno-8-114"></a>Preferred Video Timing if only Block 0 is parsed:
+</span><span id="__span-8-115"><a id="__codelineno-8-115" name="__codelineno-8-115" href="#__codelineno-8-115"></a>  DTD   1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (708 mm x 398 mm)
+</span><span id="__span-8-116"><a id="__codelineno-8-116" name="__codelineno-8-116" href="#__codelineno-8-116"></a>                 Hfront   88 Hsync  44 Hback  148 Hpol P
+</span><span id="__span-8-117"><a id="__codelineno-8-117" name="__codelineno-8-117" href="#__codelineno-8-117"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
+</span><span id="__span-8-118"><a id="__codelineno-8-118" name="__codelineno-8-118" href="#__codelineno-8-118"></a>
+</span><span id="__span-8-119"><a id="__codelineno-8-119" name="__codelineno-8-119" href="#__codelineno-8-119"></a>----------------
+</span><span id="__span-8-120"><a id="__codelineno-8-120" name="__codelineno-8-120" href="#__codelineno-8-120"></a>
+</span><span id="__span-8-121"><a id="__codelineno-8-121" name="__codelineno-8-121" href="#__codelineno-8-121"></a>Preferred Video Timings if Block 0 and CTA-861 Blocks are parsed:
+</span><span id="__span-8-122"><a id="__codelineno-8-122" name="__codelineno-8-122" href="#__codelineno-8-122"></a>  DTD   1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (708 mm x 398 mm)
+</span><span id="__span-8-123"><a id="__codelineno-8-123" name="__codelineno-8-123" href="#__codelineno-8-123"></a>                 Hfront   88 Hsync  44 Hback  148 Hpol P
+</span><span id="__span-8-124"><a id="__codelineno-8-124" name="__codelineno-8-124" href="#__codelineno-8-124"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
+</span><span id="__span-8-125"><a id="__codelineno-8-125" name="__codelineno-8-125" href="#__codelineno-8-125"></a>  VIC  31:  1920x1080   50.000000 Hz  16:9     56.250 kHz    148.500000 MHz
+</span><span id="__span-8-126"><a id="__codelineno-8-126" name="__codelineno-8-126" href="#__codelineno-8-126"></a>                 Hfront  528 Hsync  44 Hback  148 Hpol P
+</span><span id="__span-8-127"><a id="__codelineno-8-127" name="__codelineno-8-127" href="#__codelineno-8-127"></a>                 Vfront    4 Vsync   5 Vback   36 Vpol P
+</span><span id="__span-8-128"><a id="__codelineno-8-128" name="__codelineno-8-128" href="#__codelineno-8-128"></a>
+</span><span id="__span-8-129"><a id="__codelineno-8-129" name="__codelineno-8-129" href="#__codelineno-8-129"></a>----------------
+</span><span id="__span-8-130"><a id="__codelineno-8-130" name="__codelineno-8-130" href="#__codelineno-8-130"></a>
+</span><span id="__span-8-131"><a id="__codelineno-8-131" name="__codelineno-8-131" href="#__codelineno-8-131"></a>Native Video Resolution if only Block 0 is parsed:
+</span><span id="__span-8-132"><a id="__codelineno-8-132" name="__codelineno-8-132" href="#__codelineno-8-132"></a>  1920x1080
+</span><span id="__span-8-133"><a id="__codelineno-8-133" name="__codelineno-8-133" href="#__codelineno-8-133"></a>
+</span><span id="__span-8-134"><a id="__codelineno-8-134" name="__codelineno-8-134" href="#__codelineno-8-134"></a>----------------
+</span><span id="__span-8-135"><a id="__codelineno-8-135" name="__codelineno-8-135" href="#__codelineno-8-135"></a>
+</span><span id="__span-8-136"><a id="__codelineno-8-136" name="__codelineno-8-136" href="#__codelineno-8-136"></a>Native Video Resolutions if Block 0 and CTA-861 Blocks are parsed:
+</span><span id="__span-8-137"><a id="__codelineno-8-137" name="__codelineno-8-137" href="#__codelineno-8-137"></a>  1280x720
+</span><span id="__span-8-138"><a id="__codelineno-8-138" name="__codelineno-8-138" href="#__codelineno-8-138"></a>  1920x1080
+</span><span id="__span-8-139"><a id="__codelineno-8-139" name="__codelineno-8-139" href="#__codelineno-8-139"></a>
+</span><span id="__span-8-140"><a id="__codelineno-8-140" name="__codelineno-8-140" href="#__codelineno-8-140"></a>----------------
+</span><span id="__span-8-141"><a id="__codelineno-8-141" name="__codelineno-8-141" href="#__codelineno-8-141"></a>
+</span><span id="__span-8-142"><a id="__codelineno-8-142" name="__codelineno-8-142" href="#__codelineno-8-142"></a>edid-decode SHA: 84ddf9155376 2021-10-03 10:37:45
+</span><span id="__span-8-143"><a id="__codelineno-8-143" name="__codelineno-8-143" href="#__codelineno-8-143"></a>
+</span><span id="__span-8-144"><a id="__codelineno-8-144" name="__codelineno-8-144" href="#__codelineno-8-144"></a>Warnings:
+</span><span id="__span-8-145"><a id="__codelineno-8-145" name="__codelineno-8-145" href="#__codelineno-8-145"></a>
+</span><span id="__span-8-146"><a id="__codelineno-8-146" name="__codelineno-8-146" href="#__codelineno-8-146"></a>Block 1, CTA-861 Extension Block:
+</span><span id="__span-8-147"><a id="__codelineno-8-147" name="__codelineno-8-147" href="#__codelineno-8-147"></a>  IT Video Formats are overscanned by default, but normally this should be underscanned.
+</span><span id="__span-8-148"><a id="__codelineno-8-148" name="__codelineno-8-148" href="#__codelineno-8-148"></a>
+</span><span id="__span-8-149"><a id="__codelineno-8-149" name="__codelineno-8-149" href="#__codelineno-8-149"></a>Failures:
+</span><span id="__span-8-150"><a id="__codelineno-8-150" name="__codelineno-8-150" href="#__codelineno-8-150"></a>
+</span><span id="__span-8-151"><a id="__codelineno-8-151" name="__codelineno-8-151" href="#__codelineno-8-151"></a>Block 0, Base EDID:
+</span><span id="__span-8-152"><a id="__codelineno-8-152" name="__codelineno-8-152" href="#__codelineno-8-152"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
+</span><span id="__span-8-153"><a id="__codelineno-8-153" name="__codelineno-8-153" href="#__codelineno-8-153"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
+</span><span id="__span-8-154"><a id="__codelineno-8-154" name="__codelineno-8-154" href="#__codelineno-8-154"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
+</span><span id="__span-8-155"><a id="__codelineno-8-155" name="__codelineno-8-155" href="#__codelineno-8-155"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
+</span><span id="__span-8-156"><a id="__codelineno-8-156" name="__codelineno-8-156" href="#__codelineno-8-156"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
+</span><span id="__span-8-157"><a id="__codelineno-8-157" name="__codelineno-8-157" href="#__codelineno-8-157"></a>  Standard Timings: Use 0x0101 as the invalid Standard Timings code, not 0x0100.
+</span><span id="__span-8-158"><a id="__codelineno-8-158" name="__codelineno-8-158" href="#__codelineno-8-158"></a>  Detailed Timing Descriptor #1: Mismatch of image size 708x398 mm vs display size 600x340 mm.
+</span><span id="__span-8-159"><a id="__codelineno-8-159" name="__codelineno-8-159" href="#__codelineno-8-159"></a>Block 1, CTA-861 Extension Block:
+</span><span id="__span-8-160"><a id="__codelineno-8-160" name="__codelineno-8-160" href="#__codelineno-8-160"></a>  Detailed Timing Descriptor #3: Mismatch of image size 944x531 mm vs display size 600x340 mm.
+</span><span id="__span-8-161"><a id="__codelineno-8-161" name="__codelineno-8-161" href="#__codelineno-8-161"></a>  Detailed Timing Descriptor #4: Mismatch of image size 944x531 mm vs display size 600x340 mm.
+</span><span id="__span-8-162"><a id="__codelineno-8-162" name="__codelineno-8-162" href="#__codelineno-8-162"></a>  Detailed Timing Descriptor #5: Mismatch of image size 944x513 mm vs display size 600x340 mm.
+</span><span id="__span-8-163"><a id="__codelineno-8-163" name="__codelineno-8-163" href="#__codelineno-8-163"></a>  Required 640x480p60 timings are missing in the established timings and the SVD list (VIC 1).
+</span><span id="__span-8-164"><a id="__codelineno-8-164" name="__codelineno-8-164" href="#__codelineno-8-164"></a>  HDMI VIC Codes must have their CTA-861 VIC equivalents in the VSB.
+</span><span id="__span-8-165"><a id="__codelineno-8-165" name="__codelineno-8-165" href="#__codelineno-8-165"></a>  Missing VCDB, needed for Set Selectable RGB Quantization to avoid interop issues.
+</span><span id="__span-8-166"><a id="__codelineno-8-166" name="__codelineno-8-166" href="#__codelineno-8-166"></a>EDID:
+</span><span id="__span-8-167"><a id="__codelineno-8-167" name="__codelineno-8-167" href="#__codelineno-8-167"></a>  Base EDID: Some timings are out of range of the Monitor Ranges:
+</span><span id="__span-8-168"><a id="__codelineno-8-168" name="__codelineno-8-168" href="#__codelineno-8-168"></a>    Vertical Freq: 24.000 - 144.000 Hz (Monitor: 24.000 - 80.000 Hz)
+</span><span id="__span-8-169"><a id="__codelineno-8-169" name="__codelineno-8-169" href="#__codelineno-8-169"></a>    Horizontal Freq: 18.000 - 108.000 kHz (Monitor: 30.000 - 100.000 kHz)
+</span><span id="__span-8-170"><a id="__codelineno-8-170" name="__codelineno-8-170" href="#__codelineno-8-170"></a>  CTA-861: Native progressive timings are a mix of several resolutions.
+</span><span id="__span-8-171"><a id="__codelineno-8-171" name="__codelineno-8-171" href="#__codelineno-8-171"></a>
+</span><span id="__span-8-172"><a id="__codelineno-8-172" name="__codelineno-8-172" href="#__codelineno-8-172"></a>EDID conformity: FAIL
 </span></code></pre></div>
 <p>也就是说，它的 4K 60Hz 从输入侧已经是 YCbCr 4:2:0 了，也就是每 2x2 的四个像素里，有四个 Y，一个 Cb 和一个 Cr。这样平均下来，8-bit 深度下每个像素的空间是 <span class="arithmatex">\((4*8+8+8)/4 = 12\)</span> bit。如果是 4:2:2 的话，每 2x2 的四个像素里，有四个 Y，两个 Cb 和两个 Cr，平均下来，8-bit 深度下每个像素的空间是 <span class="arithmatex">\((4*8+2*8+2*8)/4 = 16\)</span> bit。如果直接保存 RGB 4:4:4，8-bit 深度下就是 <span class="arithmatex">\(3*8=24\)</span> bit。</p>
 <p>8-bit 深度下，不同的格式对比如下：</p>

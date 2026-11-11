@@ -370,12 +370,18 @@ P.S. 实测发现，把 `0xfc8e` 改为 `0x11` 只对 `3840x2160 (16:9) - 30, 60
 | 0 | 1 = bypass `0xfc92` saturation 级 |
 | 4 | 1 = bypass `0xfc93` hue 级 |
 
-| `0xfc8f` | saturation `0xfc92` | hue `0xfc93` |
-| ---: | --- | --- |
-| `0x00` | on | on |
-| `0x01` | bypass | on |
-| `0x10` | on | bypass |
-| `0x11` | bypass | bypass |
+| `0xfc8f` | saturation `0xfc92` | hue `0xfc93` | 公式 |
+| ---: | --- | --- | --- |
+| `0x00` | on | on | `clip(rotate(ΔR, ΔB) * fc92/128)` |
+| `0x01` | bypass | on | `clip(rotate(ΔR, ΔB))` |
+| `0x10` | on | bypass | `clip((ΔR, ΔB) * fc92/128)` |
+| `0x11` | bypass | bypass | `(ΔR, ΔB)` |
+
+其中 `rotate(ΔR, ΔB)` 表示把 `(ΔR, ΔB)` 旋转 `θ = fc93 * 360/256°`：
+
+`rotate(ΔR, ΔB) = (ΔR * cosθ - ΔB * sinθ, ΔR * sinθ + ΔB * cosθ)`
+
+`clip` 把 `ΔR` 限制到 `[-200.8, 200.8]`、`ΔB` 限制到 `[-236.6, 236.6]`。
 
 #### `0xfc90`–`0xfc93`
 
@@ -400,6 +406,49 @@ P.S. 实测发现，把 `0xfc8e` 改为 `0x11` 只对 `3840x2160 (16:9) - 30, 60
 | `0x13` | YCbCr 4:2:0 |
 
 ### 交互式计算器
+
+RGB 输入下 luma/chroma 的完整处理流程是：
+
+```text
+# 输入 R, G, B ∈ [0, 255]
+e0 = fc8e & 0x01
+e4 = (fc8e >> 4) & 1
+f0 = fc8f & 0x01
+f4 = (fc8f >> 4) & 1
+
+# Rec.709 luma
+Y  = 0.2126*R + 0.7152*G + 0.0722*B
+ΔR = R - Y
+ΔB = B - Y
+
+# 0xfc90 按 signed int8 解释
+o = fc90 if fc90 < 0x80 else fc90 - 0x100
+
+Y' = Y
+if e0 == 0:
+    Y' = clip(Y' + o, 0, 255)
+if e4 == 0:
+    Y' = clip(Y' * fc91/128, 0, 255)
+
+# saturation 与 hue 都是线性变换，先后顺序可交换
+if f0 == 0:
+    ΔR = ΔR * fc92/128
+    ΔB = ΔB * fc92/128
+
+θ = fc93 * 360/256        # 单位：度
+if f4 == 0:
+    ΔR, ΔB = ΔR*cosθ - ΔB*sinθ, ΔR*sinθ + ΔB*cosθ
+
+ΔR = clip(ΔR, -200.8, 200.8)
+ΔB = clip(ΔB, -236.6, 236.6)
+
+# 0.10094 = KB/KG，0.29725 = KR/KG
+R' = round(clip(Y' + ΔR, 0, 255))
+G' = round(clip(Y' - 0.10094*ΔB - 0.29725*ΔR, 0, 255))
+B' = round(clip(Y' + ΔB, 0, 255))
+```
+
+其中 `clip(x, lo, hi) = min(max(x, lo), hi)`，`round` 为四舍五入。
 
 下面这个计算器可以实时看到 MS2130S 内部每个像素经过哪些计算、最终变成什么：
 
