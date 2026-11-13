@@ -1754,7 +1754,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                           <span class="md-ellipsis">
                             
-                              需要 2 分钟阅读时间
+                              需要 4 分钟阅读时间
                             
                           </span>
                         </div>
@@ -1880,7 +1880,80 @@
 <li>0,0,255 -&gt; 15,15,238</li>
 <li>255,255,255 -&gt; 234,234,234</li>
 </ul>
-<p>在显卡软件里，可以看到这组偏差对应的是 YCbCr，用的是 Limited range。经过验算，这就是把 Limited range 的 YCbCr 当 Full range 来解析，导致的问题。如果用显卡软件切换到 RGB 4:4:4 Limited range：</p>
+<p>在显卡软件里，可以看到这组偏差对应的是 YCbCr，用的是 Limited range。经过验算，这就是把 Limited range 的 YCbCr 当 Full range 来解析，导致的问题。</p>
+<details class="note">
+<summary>验算过程</summary>
+<p>这五个颜色对应的 YCbCr（BT.709 limited）和按 full range 解码的结果是：</p>
+<table>
+<thead>
+<tr>
+<th>输入 RGB</th>
+<th>YCbCr（limited）</th>
+<th>按 full 解码</th>
+<th>实测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0,0,0</td>
+<td>16,128,128</td>
+<td>16,16,16</td>
+<td>16,16,16</td>
+</tr>
+<tr>
+<td>255,0,0</td>
+<td>63,102,240</td>
+<td>239,15,15</td>
+<td>237,14,15</td>
+</tr>
+<tr>
+<td>0,255,0</td>
+<td>173,42,26</td>
+<td>12,237,13</td>
+<td>13,236,12</td>
+</tr>
+<tr>
+<td>0,0,255</td>
+<td>32,240,118</td>
+<td>16,16,240</td>
+<td>15,15,238</td>
+</tr>
+<tr>
+<td>255,255,255</td>
+<td>235,128,128</td>
+<td>235,235,235</td>
+<td>234,234,234</td>
+</tr>
+</tbody>
+</table>
+<p>按 full range 解码的公式是：</p>
+<ul>
+<li><code>R = Y + 1.5748 (Cr - 128)</code></li>
+<li><code>G = Y - 0.1873 (Cb - 128) - 0.4681 (Cr - 128)</code></li>
+<li><code>B = Y + 1.8556 (Cb - 128)</code></li>
+</ul>
+<p>以红色 255,0,0 为例，对应的 YCbCr 是 (63,102,240)，代入：</p>
+<ul>
+<li><code>R = 63 + 1.5748 × (240 - 128) = 239.4 → 239</code></li>
+<li><code>G = 63 - 0.1873 × (102 - 128) - 0.4681 × (240 - 128) = 15.44 → 15</code></li>
+<li><code>B = 63 + 1.8556 × (102 - 128) = 14.75 → 15</code></li>
+</ul>
+<p>得到 239,15,15，实测是 237,14,15，只差 1~2 个 LSB。</p>
+<p>如果按 limited range 解码，公式则是：</p>
+<ul>
+<li><code>R = 1.164 (Y - 16) + 1.793 (Cr - 128)</code></li>
+<li><code>G = 1.164 (Y - 16) - 0.213 (Cb - 128) - 0.533 (Cr - 128)</code></li>
+<li><code>B = 1.164 (Y - 16) + 2.112 (Cb - 128)</code></li>
+</ul>
+<p>代入红色：</p>
+<ul>
+<li><code>R = 1.164 × (63 - 16) + 1.793 × (240 - 128) = 255.5 → 255</code></li>
+<li><code>G = 1.164 × (63 - 16) - 0.213 × (102 - 128) - 0.533 × (240 - 128) = 0.6 → 1</code></li>
+<li><code>B = 1.164 × (63 - 16) + 2.112 × (102 - 128) = -0.2 → 0</code></li>
+</ul>
+<p>得到 255,1,0，基本就是正确的 255,0,0（1 个 LSB 的差来自 YCbCr 量化）。所以采集卡确实把 limited 的 YCbCr 当 full 来解了。</p>
+</details>
+<p>如果用显卡软件切换到 RGB 4:4:4 Limited range：</p>
 <ul>
 <li>0,0,0 -&gt; 16,16,16</li>
 <li>255,0,0 -&gt; 232,16,16</li>
@@ -1888,7 +1961,10 @@
 <li>0,0,255 -&gt; 15,16,234</li>
 <li>255,255,255 -&gt; 233,233,233</li>
 </ul>
-<p>也是类似的问题，只有把颜色切换到 RGB 4:4:4 Full range 才可以正确采集。</p>
+<p>RGB 的 limited range 则是把 0~255 线性压到 16~235：</p>
+<p><code>v_lim = 16 + 219 * v / 255</code></p>
+<p>比如 255 会变成 <code>16 + 219 × 255 / 255 = 235</code>，0 会变成 16。要还原回 full，需要 <code>v = (v_lim - 16) * 255 / 219</code>；采集卡没有做这一步，而是直接把 16~235 当成 0~255 用，所以纯色分量停在 232~234（理论值 235，差值来自采集卡内部的转换和舍入），另外两个分量是 16。</p>
+<p>这也是类似的问题，只有把颜色切换到 RGB 4:4:4 Full range 才可以正确采集。</p>
 <p>虽然可以通过手动指定 RGB 4:4:4 Full range 模式来解决颜色问题，但如果没有装对应的软件呢？又或者像鸿蒙和 macOS（macOS 其实有<a href="http://github.com/jiegec/mac-displayctl">私有 API 可以用</a>）那样没有类似的设置入口呢？</p>
 <p>于是就要看，显卡驱动都是怎么判断要选择什么模式的。</p>
 <h3 id="edid">EDID<a class="headerlink" href="#edid" title="Permanent link">&para;</a></h3>
