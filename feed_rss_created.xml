@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/xsl" href="rss.xsl"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>杰哥的{教学，运维，编程，调板子}小笔记</title><description>杰哥的{教学，运维，编程，调板子}小笔记</description><link>https://jia.je/</link><atom:link href="https://jia.je/feed_rss_created.xml" rel="self" type="application/rss+xml" /><docs>https://github.com/jiegec/blog-source</docs><language>zh</language><pubDate>Thu, 12 Nov 2026 06:40:40 +0000</pubDate><lastBuildDate>Thu, 12 Nov 2026 06:40:40 +0000</lastBuildDate><ttl>1440</ttl><generator>Zensical RSS</generator><item><title>升级 Ceph 集群到 20 Tentacle 版本</title><category>ceph</category><category>devops</category><category>rook</category><description>&lt;h1 id=&quot;升级-ceph-集群到-20-tentacle-版本&quot;&gt;升级 Ceph 集群到 20 Tentacle 版本&lt;/h1&gt;
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/xsl" href="rss.xsl"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>杰哥的{教学，运维，编程，调板子}小笔记</title><description>杰哥的{教学，运维，编程，调板子}小笔记</description><link>https://jia.je/</link><atom:link href="https://jia.je/feed_rss_created.xml" rel="self" type="application/rss+xml" /><docs>https://github.com/jiegec/blog-source</docs><language>zh</language><pubDate>Fri, 13 Nov 2026 04:58:57 +0000</pubDate><lastBuildDate>Fri, 13 Nov 2026 04:58:57 +0000</lastBuildDate><ttl>1440</ttl><generator>Zensical RSS</generator><item><title>升级 Ceph 集群到 20 Tentacle 版本</title><category>ceph</category><category>devops</category><category>rook</category><description>&lt;h1 id=&quot;升级-ceph-集群到-20-tentacle-版本&quot;&gt;升级 Ceph 集群到 20 Tentacle 版本&lt;/h1&gt;
 &lt;h2 id=&quot;背景&quot;&gt;背景&lt;/h2&gt;
 &lt;p&gt;之前一直用 Cephadm 维护了一个 Ceph 集群，作为一个 K8s 集群的存储，通过 Rook External Ceph Cluster 来维护。Ceph 出了一个比较严重的 &lt;a href=&quot;https://docs.ceph.com/en/latest/security/CVE-2025-30156/&quot;&gt;CVE-2025-30156&lt;/a&gt;，需要把已有的 key 都 rotate 一遍，这里把这个过程记录一下。&lt;/p&gt;
 &lt;!-- more --&gt;
@@ -734,6 +734,7 @@
 &lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 &lt;p&gt;猜想压缩的版本，实际的分辨率更高，经过压缩后可以通过 USB 5Gbps 正常传输；不压缩的版本，由于带宽限制，内部不是真正按照 4K@30Hz 处理的，导致画质有损耗。&lt;/p&gt;
 &lt;h2 id=&quot;颜色问题&quot;&gt;颜色问题&lt;/h2&gt;
+&lt;h3 id=&quot;现象&quot;&gt;现象&lt;/h3&gt;
 &lt;p&gt;除了清晰度问题，采集卡采到的鸿蒙电脑画面颜色不对。在鸿蒙电脑上打开 &lt;a href=&quot;http://www.lagom.nl/lcd-test/zhs_white.php&quot;&gt;Lagom 白饱和测试图&lt;/a&gt; 或 &lt;a href=&quot;https://jia.je/display-color-test.html&quot;&gt;显示器色彩测试&lt;/a&gt;，采集到的 RGB 与预期对不上，大致关系如下：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;原来 15,15,15 -&amp;gt; 显示 6,6,6&lt;/li&gt;
@@ -746,6 +747,7 @@
 &lt;/ul&gt;
 &lt;p&gt;用 ffmpeg 观察后发现，原来 200,200,200 的像素，到采集卡实际给出的是 204；由于这是 limited range（16-235）下的 204，转换到 full range 后就是 &lt;code&gt;(204 - 16) / 219 * 255 = 219&lt;/code&gt;。若把鸿蒙电脑直接接到显示器上，显示则正常。&lt;/p&gt;
 &lt;p&gt;先考虑灰色，即 RGB 三个分量都等于同一个 x 的情况。它对应的 YUV，如果不考虑 limited range、都按 full range 算，Y 分量就等于 x。经过 MS2130S 的 luma processing 后，一开始拟合出来的结果是 &lt;code&gt;1.1533x − 11.55&lt;/code&gt; 再 clamp 到 [0,255]。后来深入研究发现它其实是两个阶段：先给 Y 加上 0xfc90 寄存器的值（默认 0xF5，有符号 int8，即 −11），clip 之后再乘以 0xfc91 寄存器的值再除以 128（0xfc91 寄存器默认 0x94，即乘上 148/128 = 1.15625），再 clip 一次，即 &lt;code&gt;clip(clip(x + fc90) · fc91 / 128)&lt;/code&gt;。代入默认值约为 &lt;code&gt;1.15625x − 12.71875&lt;/code&gt;，与基于实测数据拟合的 &lt;code&gt;1.1533x − 11.55&lt;/code&gt; 非常接近。具体计算过程看本文后面的逆向。&lt;/p&gt;
+&lt;h3 id=&quot;临时解决方法&quot;&gt;临时解决方法&lt;/h3&gt;
 &lt;p&gt;深入研究后，我找到了一些通过设置 MS2130S 寄存器来改变其行为的方法（参考 &lt;a href=&quot;https://github.com/steve-m/hsdaoh/blob/master/src/libhsdaoh.c&quot;&gt;steve-m/hsdaoh&lt;/a&gt;）。在 AI 的帮助下定位到了问题：只要关闭 MS2130S 自带的 luma processing（即把寄存器 0xfc8e 从原来的 0x00 改为 0x11），颜色就会恢复正常。下面这个小工具可以在 OBS 开始录制后运行，用来 toggle luma processing，从而实时看到颜色变化：&lt;/p&gt;
 &lt;div class=&quot;language-c++ highlight&quot;&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span id=&quot;__span-2-1&quot;&gt;&lt;a id=&quot;__codelineno-2-1&quot; name=&quot;__codelineno-2-1&quot; href=&quot;#__codelineno-2-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;cm&quot;&gt;/*&lt;/span&gt;
 &lt;/span&gt;&lt;span id=&quot;__span-2-2&quot;&gt;&lt;a id=&quot;__codelineno-2-2&quot; name=&quot;__codelineno-2-2&quot; href=&quot;#__codelineno-2-2&quot;&gt;&lt;/a&gt;&lt;span class=&quot;cm&quot;&gt; * ugreen_fix_toggle - minimal hidapi-only tool for the UGREEN 95348&lt;/span&gt;
@@ -870,10 +872,10 @@
 &lt;li&gt;原来 244,244,244 -&amp;gt; 显示 243,243,243&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;虽然仍有很小的偏差，但可以认为问题已经解决。&lt;/p&gt;
-&lt;p&gt;不过每次开始采集后都要重新跑一次这个工具，还是有点麻烦。一个一劳永逸的办法是参考 &lt;a href=&quot;https://github.com/steve-m/ms2130_patcher/blob/master/ms2130_patch.c&quot;&gt;steve-m/ms2130_patcher&lt;/a&gt;，给固件打补丁，让硬件往 0xfc8e 寄存器写入 0x11 而不是 0x00。&lt;/p&gt;
+&lt;h3 id=&quot;永久解决方法&quot;&gt;永久解决方法&lt;/h3&gt;
+&lt;p&gt;不过每次开始采集后都要重新跑一次这个工具，还是有点麻烦。一劳永逸的办法是参考 &lt;a href=&quot;https://github.com/steve-m/ms2130_patcher/blob/master/ms2130_patch.c&quot;&gt;steve-m/ms2130_patcher&lt;/a&gt;，给固件打补丁，让硬件往 0xfc8e 寄存器写入 0x11 而不是 0x00。&lt;/p&gt;
 &lt;p&gt;首先用 &lt;a href=&quot;https://github.com/steve-m/ms213x_flash&quot;&gt;steve-m/ms213x_flash&lt;/a&gt; 导出绿联 95348 自带的固件，然后让 AI 进行逆向，这个固件就是一个 8051 代码，有很多成熟的工具。具体的补丁方法和上面类似，下面直接给出 AI 对固件代码以及如何修复的分析：&lt;/p&gt;
-&lt;h3 id=&quot;补丁的原理&quot;&gt;补丁的原理&lt;/h3&gt;
-&lt;h4 id=&quot;复位流程&quot;&gt;复位流程&lt;/h4&gt;
+&lt;h4 id=&quot;固件代码&quot;&gt;固件代码&lt;/h4&gt;
 &lt;p&gt;&lt;code&gt;0xfc8e&lt;/code&gt; 有两个相关的位：bit 0（掩码 &lt;code&gt;0x01&lt;/code&gt;）和 bit 4（掩码 &lt;code&gt;0x10&lt;/code&gt;）。流重初始化流程 &lt;code&gt;FUN_CODE_c220()&lt;/code&gt; 会通过位掩码辅助函数 &lt;code&gt;FUN_CODE_87c7(mask, addrH, addrL, value)&lt;/code&gt; 把这两位都清零。要写入的值通过 &lt;code&gt;R3&lt;/code&gt; 传入：非零表示置位被掩码选中的位，零表示清零。&lt;/p&gt;
 &lt;table&gt;
 &lt;thead&gt;
@@ -942,169 +944,8 @@
 &lt;p&gt;核心就是把上面我通过 hidapi 从 host 端写入寄存器的操作，换成了直接在固件里写入：固件本来是 clear，改成了 set，这样就禁用了 luma processing，持久化了这个改动。&lt;/p&gt;
 &lt;p&gt;这部分代码以及固件已经开源到 &lt;a href=&quot;http://github.com/jiegec/ugreen-95348-patcher&quot;&gt;jiegec/ugreen-95348-patcher&lt;/a&gt;，感兴趣的读者可以尝试一下，尝试之前记得备份固件，而且有变砖的风险。目前这个仓库不仅禁用了 luma processing（0xfc8e），还禁用了 chroma processing（0xfc8f）。&lt;/p&gt;
 &lt;p&gt;P.S. 实测发现，把 &lt;code&gt;0xfc8e&lt;/code&gt; 改为 &lt;code&gt;0x11&lt;/code&gt; 只对 &lt;code&gt;3840x2160 (16:9) - 30, 60 FPS - CS 709 - NV12 (420v)&lt;/code&gt; 模式生效；对 &lt;code&gt;3840x2160 (16:9) - 30 FPS - CS 709 - NV12 (420v)&lt;/code&gt; 模式则无效：前者画面清晰、颜色正确，后者画面模糊、颜色也不对。具体原因尚未深入分析。&lt;/p&gt;
-&lt;h2 id=&quot;采集卡对颜色做了哪些变化&quot;&gt;采集卡对颜色做了哪些变化&lt;/h2&gt;
-&lt;p&gt;上面只关了 luma processing，主要是对亮度也就是 Y 分量做了处理。实际上，硬件还有 chroma processing。&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;0xfc8e&lt;/code&gt; 控制 luma processing，&lt;code&gt;0xfc8f&lt;/code&gt; 控制 chroma processing。把两者各自的开关组合起来，同一个输入颜色会有四种结果：&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;输入&lt;/th&gt;
-&lt;th&gt;都开&lt;br&gt;&lt;code&gt;fc8e=00&lt;/code&gt; &lt;code&gt;fc8f=00&lt;/code&gt;&lt;/th&gt;
-&lt;th&gt;只 chroma&lt;br&gt;&lt;code&gt;fc8e=11&lt;/code&gt; &lt;code&gt;fc8f=00&lt;/code&gt;&lt;/th&gt;
-&lt;th&gt;都关&lt;br&gt;&lt;code&gt;fc8e=11&lt;/code&gt; &lt;code&gt;fc8f=11&lt;/code&gt;&lt;/th&gt;
-&lt;th&gt;只 luma&lt;br&gt;&lt;code&gt;fc8e=00&lt;/code&gt; &lt;code&gt;fc8f=11&lt;/code&gt;&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;15,15,15&lt;/td&gt;
-&lt;td&gt;6,6,6&lt;/td&gt;
-&lt;td&gt;15,15,15&lt;/td&gt;
-&lt;td&gt;15,15,15&lt;/td&gt;
-&lt;td&gt;6,6,6&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;64,64,64&lt;/td&gt;
-&lt;td&gt;62,62,62&lt;/td&gt;
-&lt;td&gt;63,63,63&lt;/td&gt;
-&lt;td&gt;63,63,63&lt;/td&gt;
-&lt;td&gt;62,62,62&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;128,128,128&lt;/td&gt;
-&lt;td&gt;136,136,136&lt;/td&gt;
-&lt;td&gt;127,127,127&lt;/td&gt;
-&lt;td&gt;127,127,127&lt;/td&gt;
-&lt;td&gt;136,136,136&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;160,160,160&lt;/td&gt;
-&lt;td&gt;173,173,173&lt;/td&gt;
-&lt;td&gt;160,160,160&lt;/td&gt;
-&lt;td&gt;160,160,160&lt;/td&gt;
-&lt;td&gt;173,173,173&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;192,192,192&lt;/td&gt;
-&lt;td&gt;210,210,210&lt;/td&gt;
-&lt;td&gt;191,191,191&lt;/td&gt;
-&lt;td&gt;191,191,191&lt;/td&gt;
-&lt;td&gt;210,210,210&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;200,200,200&lt;/td&gt;
-&lt;td&gt;219,219,219&lt;/td&gt;
-&lt;td&gt;199,199,199&lt;/td&gt;
-&lt;td&gt;199,199,199&lt;/td&gt;
-&lt;td&gt;219,219,219&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;224,224,224&lt;/td&gt;
-&lt;td&gt;247,247,247&lt;/td&gt;
-&lt;td&gt;224,224,224&lt;/td&gt;
-&lt;td&gt;224,224,224&lt;/td&gt;
-&lt;td&gt;247,247,247&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;244,244,244&lt;/td&gt;
-&lt;td&gt;255,255,255&lt;/td&gt;
-&lt;td&gt;243,243,243&lt;/td&gt;
-&lt;td&gt;243,243,243&lt;/td&gt;
-&lt;td&gt;255,255,255&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;255,255,255&lt;/td&gt;
-&lt;td&gt;255,255,255&lt;/td&gt;
-&lt;td&gt;254,254,254&lt;/td&gt;
-&lt;td&gt;254,254,254&lt;/td&gt;
-&lt;td&gt;255,255,255&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;64,0,0&lt;/td&gt;
-&lt;td&gt;72,0,0&lt;/td&gt;
-&lt;td&gt;81,0,0&lt;/td&gt;
-&lt;td&gt;61,0,0&lt;/td&gt;
-&lt;td&gt;52,0,0&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;128,0,0&lt;/td&gt;
-&lt;td&gt;156,0,0&lt;/td&gt;
-&lt;td&gt;163,0,0&lt;/td&gt;
-&lt;td&gt;125,0,0&lt;/td&gt;
-&lt;td&gt;118,0,0&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;192,0,0&lt;/td&gt;
-&lt;td&gt;235,0,0&lt;/td&gt;
-&lt;td&gt;239,0,0&lt;/td&gt;
-&lt;td&gt;188,0,0&lt;/td&gt;
-&lt;td&gt;185,0,0&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;255,0,0&lt;/td&gt;
-&lt;td&gt;250,0,0&lt;/td&gt;
-&lt;td&gt;253,2,0&lt;/td&gt;
-&lt;td&gt;254,0,0&lt;/td&gt;
-&lt;td&gt;252,0,0&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,64,0&lt;/td&gt;
-&lt;td&gt;0,67,0&lt;/td&gt;
-&lt;td&gt;0,72,0&lt;/td&gt;
-&lt;td&gt;0,64,0&lt;/td&gt;
-&lt;td&gt;0,59,0&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,128,0&lt;/td&gt;
-&lt;td&gt;0,146,0&lt;/td&gt;
-&lt;td&gt;0,143,0&lt;/td&gt;
-&lt;td&gt;0,128,0&lt;/td&gt;
-&lt;td&gt;1,131,1&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,192,0&lt;/td&gt;
-&lt;td&gt;1,224,0&lt;/td&gt;
-&lt;td&gt;0,215,0&lt;/td&gt;
-&lt;td&gt;0,193,0&lt;/td&gt;
-&lt;td&gt;8,202,7&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,255,0&lt;/td&gt;
-&lt;td&gt;0,255,0&lt;/td&gt;
-&lt;td&gt;0,255,0&lt;/td&gt;
-&lt;td&gt;0,255,0&lt;/td&gt;
-&lt;td&gt;15,255,15&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,0,64&lt;/td&gt;
-&lt;td&gt;0,0,82&lt;/td&gt;
-&lt;td&gt;0,0,86&lt;/td&gt;
-&lt;td&gt;0,0,63&lt;/td&gt;
-&lt;td&gt;0,0,59&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,0,128&lt;/td&gt;
-&lt;td&gt;0,0,165&lt;/td&gt;
-&lt;td&gt;0,0,174&lt;/td&gt;
-&lt;td&gt;0,0,128&lt;/td&gt;
-&lt;td&gt;0,0,118&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,0,192&lt;/td&gt;
-&lt;td&gt;0,0,238&lt;/td&gt;
-&lt;td&gt;0,0,247&lt;/td&gt;
-&lt;td&gt;0,0,190&lt;/td&gt;
-&lt;td&gt;0,0,181&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;0,0,255&lt;/td&gt;
-&lt;td&gt;0,0,245&lt;/td&gt;
-&lt;td&gt;0,3,251&lt;/td&gt;
-&lt;td&gt;0,0,254&lt;/td&gt;
-&lt;td&gt;0,0,247&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
+&lt;h2 id=&quot;采集卡的行为&quot;&gt;采集卡的行为&lt;/h2&gt;
+&lt;h3 id=&quot;颜色处理过程&quot;&gt;颜色处理过程&lt;/h3&gt;
 &lt;p&gt;通过逆向，找到了采集卡对颜色处理的过程：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;把 RGB 转成 Y/ΔR/ΔB&lt;/li&gt;
@@ -1114,6 +955,47 @@
 &lt;li&gt;chroma hue（取决于 0xfc8f[4]）：对 ΔR 和 ΔB 进行旋转，旋转的角度等于 0xfc93 寄存器的值除以 256 乘以 360 度&lt;/li&gt;
 &lt;li&gt;Y/ΔR/ΔB 再转换到最终的颜色输出&lt;/li&gt;
 &lt;/ol&gt;
+&lt;p&gt;把 &lt;code&gt;0xfc8e&lt;/code&gt; 的 bit0/bit4 记作 &lt;code&gt;e0&lt;/code&gt;/&lt;code&gt;e4&lt;/code&gt;，&lt;code&gt;0xfc8f&lt;/code&gt; 的 bit0/bit4 记作 &lt;code&gt;f0&lt;/code&gt;/&lt;code&gt;f4&lt;/code&gt;（1 表示 bypass），则 RGB 输入下 luma/chroma 的完整处理流程是：&lt;/p&gt;
+&lt;div class=&quot;language-text highlight&quot;&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span id=&quot;__span-5-1&quot;&gt;&lt;a id=&quot;__codelineno-5-1&quot; name=&quot;__codelineno-5-1&quot; href=&quot;#__codelineno-5-1&quot;&gt;&lt;/a&gt;# 输入 R, G, B ∈ [0, 255]
+&lt;/span&gt;&lt;span id=&quot;__span-5-2&quot;&gt;&lt;a id=&quot;__codelineno-5-2&quot; name=&quot;__codelineno-5-2&quot; href=&quot;#__codelineno-5-2&quot;&gt;&lt;/a&gt;e0 = fc8e &amp;amp; 0x01
+&lt;/span&gt;&lt;span id=&quot;__span-5-3&quot;&gt;&lt;a id=&quot;__codelineno-5-3&quot; name=&quot;__codelineno-5-3&quot; href=&quot;#__codelineno-5-3&quot;&gt;&lt;/a&gt;e4 = (fc8e &amp;gt;&amp;gt; 4) &amp;amp; 1
+&lt;/span&gt;&lt;span id=&quot;__span-5-4&quot;&gt;&lt;a id=&quot;__codelineno-5-4&quot; name=&quot;__codelineno-5-4&quot; href=&quot;#__codelineno-5-4&quot;&gt;&lt;/a&gt;f0 = fc8f &amp;amp; 0x01
+&lt;/span&gt;&lt;span id=&quot;__span-5-5&quot;&gt;&lt;a id=&quot;__codelineno-5-5&quot; name=&quot;__codelineno-5-5&quot; href=&quot;#__codelineno-5-5&quot;&gt;&lt;/a&gt;f4 = (fc8f &amp;gt;&amp;gt; 4) &amp;amp; 1
+&lt;/span&gt;&lt;span id=&quot;__span-5-6&quot;&gt;&lt;a id=&quot;__codelineno-5-6&quot; name=&quot;__codelineno-5-6&quot; href=&quot;#__codelineno-5-6&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-7&quot;&gt;&lt;a id=&quot;__codelineno-5-7&quot; name=&quot;__codelineno-5-7&quot; href=&quot;#__codelineno-5-7&quot;&gt;&lt;/a&gt;# Rec.709 luma
+&lt;/span&gt;&lt;span id=&quot;__span-5-8&quot;&gt;&lt;a id=&quot;__codelineno-5-8&quot; name=&quot;__codelineno-5-8&quot; href=&quot;#__codelineno-5-8&quot;&gt;&lt;/a&gt;Y  = 0.2126*R + 0.7152*G + 0.0722*B
+&lt;/span&gt;&lt;span id=&quot;__span-5-9&quot;&gt;&lt;a id=&quot;__codelineno-5-9&quot; name=&quot;__codelineno-5-9&quot; href=&quot;#__codelineno-5-9&quot;&gt;&lt;/a&gt;ΔR = R - Y
+&lt;/span&gt;&lt;span id=&quot;__span-5-10&quot;&gt;&lt;a id=&quot;__codelineno-5-10&quot; name=&quot;__codelineno-5-10&quot; href=&quot;#__codelineno-5-10&quot;&gt;&lt;/a&gt;ΔB = B - Y
+&lt;/span&gt;&lt;span id=&quot;__span-5-11&quot;&gt;&lt;a id=&quot;__codelineno-5-11&quot; name=&quot;__codelineno-5-11&quot; href=&quot;#__codelineno-5-11&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-12&quot;&gt;&lt;a id=&quot;__codelineno-5-12&quot; name=&quot;__codelineno-5-12&quot; href=&quot;#__codelineno-5-12&quot;&gt;&lt;/a&gt;# 0xfc90 按 signed int8 解释（fc90 为 0–255 的寄存器原值）
+&lt;/span&gt;&lt;span id=&quot;__span-5-13&quot;&gt;&lt;a id=&quot;__codelineno-5-13&quot; name=&quot;__codelineno-5-13&quot; href=&quot;#__codelineno-5-13&quot;&gt;&lt;/a&gt;o = fc90 if fc90 &amp;lt; 0x80 else fc90 - 0x100
+&lt;/span&gt;&lt;span id=&quot;__span-5-14&quot;&gt;&lt;a id=&quot;__codelineno-5-14&quot; name=&quot;__codelineno-5-14&quot; href=&quot;#__codelineno-5-14&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-15&quot;&gt;&lt;a id=&quot;__codelineno-5-15&quot; name=&quot;__codelineno-5-15&quot; href=&quot;#__codelineno-5-15&quot;&gt;&lt;/a&gt;Y&apos; = Y
+&lt;/span&gt;&lt;span id=&quot;__span-5-16&quot;&gt;&lt;a id=&quot;__codelineno-5-16&quot; name=&quot;__codelineno-5-16&quot; href=&quot;#__codelineno-5-16&quot;&gt;&lt;/a&gt;if e0 == 0:
+&lt;/span&gt;&lt;span id=&quot;__span-5-17&quot;&gt;&lt;a id=&quot;__codelineno-5-17&quot; name=&quot;__codelineno-5-17&quot; href=&quot;#__codelineno-5-17&quot;&gt;&lt;/a&gt;    Y&apos; = clip(Y&apos; + o, 0, 255)
+&lt;/span&gt;&lt;span id=&quot;__span-5-18&quot;&gt;&lt;a id=&quot;__codelineno-5-18&quot; name=&quot;__codelineno-5-18&quot; href=&quot;#__codelineno-5-18&quot;&gt;&lt;/a&gt;if e4 == 0:
+&lt;/span&gt;&lt;span id=&quot;__span-5-19&quot;&gt;&lt;a id=&quot;__codelineno-5-19&quot; name=&quot;__codelineno-5-19&quot; href=&quot;#__codelineno-5-19&quot;&gt;&lt;/a&gt;    Y&apos; = clip(Y&apos; * fc91/128, 0, 255)
+&lt;/span&gt;&lt;span id=&quot;__span-5-20&quot;&gt;&lt;a id=&quot;__codelineno-5-20&quot; name=&quot;__codelineno-5-20&quot; href=&quot;#__codelineno-5-20&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-21&quot;&gt;&lt;a id=&quot;__codelineno-5-21&quot; name=&quot;__codelineno-5-21&quot; href=&quot;#__codelineno-5-21&quot;&gt;&lt;/a&gt;# saturation 与 hue 都是线性变换，先后顺序可交换
+&lt;/span&gt;&lt;span id=&quot;__span-5-22&quot;&gt;&lt;a id=&quot;__codelineno-5-22&quot; name=&quot;__codelineno-5-22&quot; href=&quot;#__codelineno-5-22&quot;&gt;&lt;/a&gt;if f0 == 0:
+&lt;/span&gt;&lt;span id=&quot;__span-5-23&quot;&gt;&lt;a id=&quot;__codelineno-5-23&quot; name=&quot;__codelineno-5-23&quot; href=&quot;#__codelineno-5-23&quot;&gt;&lt;/a&gt;    ΔR = ΔR * fc92/128
+&lt;/span&gt;&lt;span id=&quot;__span-5-24&quot;&gt;&lt;a id=&quot;__codelineno-5-24&quot; name=&quot;__codelineno-5-24&quot; href=&quot;#__codelineno-5-24&quot;&gt;&lt;/a&gt;    ΔB = ΔB * fc92/128
+&lt;/span&gt;&lt;span id=&quot;__span-5-25&quot;&gt;&lt;a id=&quot;__codelineno-5-25&quot; name=&quot;__codelineno-5-25&quot; href=&quot;#__codelineno-5-25&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-26&quot;&gt;&lt;a id=&quot;__codelineno-5-26&quot; name=&quot;__codelineno-5-26&quot; href=&quot;#__codelineno-5-26&quot;&gt;&lt;/a&gt;θ = fc93 * 360/256        # 单位：度
+&lt;/span&gt;&lt;span id=&quot;__span-5-27&quot;&gt;&lt;a id=&quot;__codelineno-5-27&quot; name=&quot;__codelineno-5-27&quot; href=&quot;#__codelineno-5-27&quot;&gt;&lt;/a&gt;if f4 == 0:
+&lt;/span&gt;&lt;span id=&quot;__span-5-28&quot;&gt;&lt;a id=&quot;__codelineno-5-28&quot; name=&quot;__codelineno-5-28&quot; href=&quot;#__codelineno-5-28&quot;&gt;&lt;/a&gt;    ΔR, ΔB = ΔR*cosθ - ΔB*sinθ, ΔR*sinθ + ΔB*cosθ
+&lt;/span&gt;&lt;span id=&quot;__span-5-29&quot;&gt;&lt;a id=&quot;__codelineno-5-29&quot; name=&quot;__codelineno-5-29&quot; href=&quot;#__codelineno-5-29&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-30&quot;&gt;&lt;a id=&quot;__codelineno-5-30&quot; name=&quot;__codelineno-5-30&quot; href=&quot;#__codelineno-5-30&quot;&gt;&lt;/a&gt;ΔR = clip(ΔR, -200.8, 200.8)
+&lt;/span&gt;&lt;span id=&quot;__span-5-31&quot;&gt;&lt;a id=&quot;__codelineno-5-31&quot; name=&quot;__codelineno-5-31&quot; href=&quot;#__codelineno-5-31&quot;&gt;&lt;/a&gt;ΔB = clip(ΔB, -236.6, 236.6)
+&lt;/span&gt;&lt;span id=&quot;__span-5-32&quot;&gt;&lt;a id=&quot;__codelineno-5-32&quot; name=&quot;__codelineno-5-32&quot; href=&quot;#__codelineno-5-32&quot;&gt;&lt;/a&gt;
+&lt;/span&gt;&lt;span id=&quot;__span-5-33&quot;&gt;&lt;a id=&quot;__codelineno-5-33&quot; name=&quot;__codelineno-5-33&quot; href=&quot;#__codelineno-5-33&quot;&gt;&lt;/a&gt;# 0.10094 = KB/KG，0.29725 = KR/KG
+&lt;/span&gt;&lt;span id=&quot;__span-5-34&quot;&gt;&lt;a id=&quot;__codelineno-5-34&quot; name=&quot;__codelineno-5-34&quot; href=&quot;#__codelineno-5-34&quot;&gt;&lt;/a&gt;R&apos; = round(clip(Y&apos; + ΔR, 0, 255))
+&lt;/span&gt;&lt;span id=&quot;__span-5-35&quot;&gt;&lt;a id=&quot;__codelineno-5-35&quot; name=&quot;__codelineno-5-35&quot; href=&quot;#__codelineno-5-35&quot;&gt;&lt;/a&gt;G&apos; = round(clip(Y&apos; - 0.10094*ΔB - 0.29725*ΔR, 0, 255))
+&lt;/span&gt;&lt;span id=&quot;__span-5-36&quot;&gt;&lt;a id=&quot;__codelineno-5-36&quot; name=&quot;__codelineno-5-36&quot; href=&quot;#__codelineno-5-36&quot;&gt;&lt;/a&gt;B&apos; = round(clip(Y&apos; + ΔB, 0, 255))
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;其中 &lt;code&gt;clip(x, lo, hi) = min(max(x, lo), hi)&lt;/code&gt;，&lt;code&gt;round&lt;/code&gt; 为四舍五入；&lt;code&gt;ΔR&lt;/code&gt;/&lt;code&gt;ΔB&lt;/code&gt; 的 clip 在 saturation/hue 之后，所以旋转可能把原本合法的分量转出范围。&lt;/p&gt;
+&lt;h3 id=&quot;交互式计算器&quot;&gt;交互式计算器&lt;/h3&gt;
+&lt;p&gt;为了更好地演示这个颜色处理流程，访问&lt;a href=&quot;../../../../../ms2130s-color-processing.html&quot;&gt;交互式计算器&lt;/a&gt;以看到 MS2130S 内部每个像素经过哪些计算、最终变成什么。&lt;/p&gt;
 &lt;h3 id=&quot;已确认的-ms2130s-寄存器位&quot;&gt;已确认的 MS2130S 寄存器位&lt;/h3&gt;
 &lt;p&gt;下面列出经过逆向工程，确定的 MS2130S 芯片的一些寄存器的功能。&lt;/p&gt;
 &lt;h4 id=&quot;0x3c020x3c03---hdmi-时序的-h-total&quot;&gt;&lt;code&gt;0x3c02/0x3c03&lt;/code&gt; - HDMI 时序的 H total&lt;/h4&gt;
@@ -1295,45 +1177,6 @@
 &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;p&gt;把 &lt;code&gt;0xfc8e&lt;/code&gt; 的 bit0/bit4 记作 &lt;code&gt;e0&lt;/code&gt;/&lt;code&gt;e4&lt;/code&gt;，&lt;code&gt;0xfc8f&lt;/code&gt; 的 bit0/bit4 记作 &lt;code&gt;f0&lt;/code&gt;/&lt;code&gt;f4&lt;/code&gt;（1 表示 bypass），则 RGB 输入下 luma/chroma 的完整处理流程是：&lt;/p&gt;
-&lt;div class=&quot;language-text highlight&quot;&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span id=&quot;__span-5-1&quot;&gt;&lt;a id=&quot;__codelineno-5-1&quot; name=&quot;__codelineno-5-1&quot; href=&quot;#__codelineno-5-1&quot;&gt;&lt;/a&gt;# 输入 R, G, B ∈ [0, 255]
-&lt;/span&gt;&lt;span id=&quot;__span-5-2&quot;&gt;&lt;a id=&quot;__codelineno-5-2&quot; name=&quot;__codelineno-5-2&quot; href=&quot;#__codelineno-5-2&quot;&gt;&lt;/a&gt;e0 = fc8e &amp;amp; 0x01
-&lt;/span&gt;&lt;span id=&quot;__span-5-3&quot;&gt;&lt;a id=&quot;__codelineno-5-3&quot; name=&quot;__codelineno-5-3&quot; href=&quot;#__codelineno-5-3&quot;&gt;&lt;/a&gt;e4 = (fc8e &amp;gt;&amp;gt; 4) &amp;amp; 1
-&lt;/span&gt;&lt;span id=&quot;__span-5-4&quot;&gt;&lt;a id=&quot;__codelineno-5-4&quot; name=&quot;__codelineno-5-4&quot; href=&quot;#__codelineno-5-4&quot;&gt;&lt;/a&gt;f0 = fc8f &amp;amp; 0x01
-&lt;/span&gt;&lt;span id=&quot;__span-5-5&quot;&gt;&lt;a id=&quot;__codelineno-5-5&quot; name=&quot;__codelineno-5-5&quot; href=&quot;#__codelineno-5-5&quot;&gt;&lt;/a&gt;f4 = (fc8f &amp;gt;&amp;gt; 4) &amp;amp; 1
-&lt;/span&gt;&lt;span id=&quot;__span-5-6&quot;&gt;&lt;a id=&quot;__codelineno-5-6&quot; name=&quot;__codelineno-5-6&quot; href=&quot;#__codelineno-5-6&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-7&quot;&gt;&lt;a id=&quot;__codelineno-5-7&quot; name=&quot;__codelineno-5-7&quot; href=&quot;#__codelineno-5-7&quot;&gt;&lt;/a&gt;# Rec.709 luma
-&lt;/span&gt;&lt;span id=&quot;__span-5-8&quot;&gt;&lt;a id=&quot;__codelineno-5-8&quot; name=&quot;__codelineno-5-8&quot; href=&quot;#__codelineno-5-8&quot;&gt;&lt;/a&gt;Y  = 0.2126*R + 0.7152*G + 0.0722*B
-&lt;/span&gt;&lt;span id=&quot;__span-5-9&quot;&gt;&lt;a id=&quot;__codelineno-5-9&quot; name=&quot;__codelineno-5-9&quot; href=&quot;#__codelineno-5-9&quot;&gt;&lt;/a&gt;ΔR = R - Y
-&lt;/span&gt;&lt;span id=&quot;__span-5-10&quot;&gt;&lt;a id=&quot;__codelineno-5-10&quot; name=&quot;__codelineno-5-10&quot; href=&quot;#__codelineno-5-10&quot;&gt;&lt;/a&gt;ΔB = B - Y
-&lt;/span&gt;&lt;span id=&quot;__span-5-11&quot;&gt;&lt;a id=&quot;__codelineno-5-11&quot; name=&quot;__codelineno-5-11&quot; href=&quot;#__codelineno-5-11&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-12&quot;&gt;&lt;a id=&quot;__codelineno-5-12&quot; name=&quot;__codelineno-5-12&quot; href=&quot;#__codelineno-5-12&quot;&gt;&lt;/a&gt;# 0xfc90 按 signed int8 解释（fc90 为 0–255 的寄存器原值）
-&lt;/span&gt;&lt;span id=&quot;__span-5-13&quot;&gt;&lt;a id=&quot;__codelineno-5-13&quot; name=&quot;__codelineno-5-13&quot; href=&quot;#__codelineno-5-13&quot;&gt;&lt;/a&gt;o = fc90 if fc90 &amp;lt; 0x80 else fc90 - 0x100
-&lt;/span&gt;&lt;span id=&quot;__span-5-14&quot;&gt;&lt;a id=&quot;__codelineno-5-14&quot; name=&quot;__codelineno-5-14&quot; href=&quot;#__codelineno-5-14&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-15&quot;&gt;&lt;a id=&quot;__codelineno-5-15&quot; name=&quot;__codelineno-5-15&quot; href=&quot;#__codelineno-5-15&quot;&gt;&lt;/a&gt;Y&apos; = Y
-&lt;/span&gt;&lt;span id=&quot;__span-5-16&quot;&gt;&lt;a id=&quot;__codelineno-5-16&quot; name=&quot;__codelineno-5-16&quot; href=&quot;#__codelineno-5-16&quot;&gt;&lt;/a&gt;if e0 == 0:
-&lt;/span&gt;&lt;span id=&quot;__span-5-17&quot;&gt;&lt;a id=&quot;__codelineno-5-17&quot; name=&quot;__codelineno-5-17&quot; href=&quot;#__codelineno-5-17&quot;&gt;&lt;/a&gt;    Y&apos; = clip(Y&apos; + o, 0, 255)
-&lt;/span&gt;&lt;span id=&quot;__span-5-18&quot;&gt;&lt;a id=&quot;__codelineno-5-18&quot; name=&quot;__codelineno-5-18&quot; href=&quot;#__codelineno-5-18&quot;&gt;&lt;/a&gt;if e4 == 0:
-&lt;/span&gt;&lt;span id=&quot;__span-5-19&quot;&gt;&lt;a id=&quot;__codelineno-5-19&quot; name=&quot;__codelineno-5-19&quot; href=&quot;#__codelineno-5-19&quot;&gt;&lt;/a&gt;    Y&apos; = clip(Y&apos; * fc91/128, 0, 255)
-&lt;/span&gt;&lt;span id=&quot;__span-5-20&quot;&gt;&lt;a id=&quot;__codelineno-5-20&quot; name=&quot;__codelineno-5-20&quot; href=&quot;#__codelineno-5-20&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-21&quot;&gt;&lt;a id=&quot;__codelineno-5-21&quot; name=&quot;__codelineno-5-21&quot; href=&quot;#__codelineno-5-21&quot;&gt;&lt;/a&gt;# saturation 与 hue 都是线性变换，先后顺序可交换
-&lt;/span&gt;&lt;span id=&quot;__span-5-22&quot;&gt;&lt;a id=&quot;__codelineno-5-22&quot; name=&quot;__codelineno-5-22&quot; href=&quot;#__codelineno-5-22&quot;&gt;&lt;/a&gt;if f0 == 0:
-&lt;/span&gt;&lt;span id=&quot;__span-5-23&quot;&gt;&lt;a id=&quot;__codelineno-5-23&quot; name=&quot;__codelineno-5-23&quot; href=&quot;#__codelineno-5-23&quot;&gt;&lt;/a&gt;    ΔR = ΔR * fc92/128
-&lt;/span&gt;&lt;span id=&quot;__span-5-24&quot;&gt;&lt;a id=&quot;__codelineno-5-24&quot; name=&quot;__codelineno-5-24&quot; href=&quot;#__codelineno-5-24&quot;&gt;&lt;/a&gt;    ΔB = ΔB * fc92/128
-&lt;/span&gt;&lt;span id=&quot;__span-5-25&quot;&gt;&lt;a id=&quot;__codelineno-5-25&quot; name=&quot;__codelineno-5-25&quot; href=&quot;#__codelineno-5-25&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-26&quot;&gt;&lt;a id=&quot;__codelineno-5-26&quot; name=&quot;__codelineno-5-26&quot; href=&quot;#__codelineno-5-26&quot;&gt;&lt;/a&gt;θ = fc93 * 360/256        # 单位：度
-&lt;/span&gt;&lt;span id=&quot;__span-5-27&quot;&gt;&lt;a id=&quot;__codelineno-5-27&quot; name=&quot;__codelineno-5-27&quot; href=&quot;#__codelineno-5-27&quot;&gt;&lt;/a&gt;if f4 == 0:
-&lt;/span&gt;&lt;span id=&quot;__span-5-28&quot;&gt;&lt;a id=&quot;__codelineno-5-28&quot; name=&quot;__codelineno-5-28&quot; href=&quot;#__codelineno-5-28&quot;&gt;&lt;/a&gt;    ΔR, ΔB = ΔR*cosθ - ΔB*sinθ, ΔR*sinθ + ΔB*cosθ
-&lt;/span&gt;&lt;span id=&quot;__span-5-29&quot;&gt;&lt;a id=&quot;__codelineno-5-29&quot; name=&quot;__codelineno-5-29&quot; href=&quot;#__codelineno-5-29&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-30&quot;&gt;&lt;a id=&quot;__codelineno-5-30&quot; name=&quot;__codelineno-5-30&quot; href=&quot;#__codelineno-5-30&quot;&gt;&lt;/a&gt;ΔR = clip(ΔR, -200.8, 200.8)
-&lt;/span&gt;&lt;span id=&quot;__span-5-31&quot;&gt;&lt;a id=&quot;__codelineno-5-31&quot; name=&quot;__codelineno-5-31&quot; href=&quot;#__codelineno-5-31&quot;&gt;&lt;/a&gt;ΔB = clip(ΔB, -236.6, 236.6)
-&lt;/span&gt;&lt;span id=&quot;__span-5-32&quot;&gt;&lt;a id=&quot;__codelineno-5-32&quot; name=&quot;__codelineno-5-32&quot; href=&quot;#__codelineno-5-32&quot;&gt;&lt;/a&gt;
-&lt;/span&gt;&lt;span id=&quot;__span-5-33&quot;&gt;&lt;a id=&quot;__codelineno-5-33&quot; name=&quot;__codelineno-5-33&quot; href=&quot;#__codelineno-5-33&quot;&gt;&lt;/a&gt;# 0.10094 = KB/KG，0.29725 = KR/KG
-&lt;/span&gt;&lt;span id=&quot;__span-5-34&quot;&gt;&lt;a id=&quot;__codelineno-5-34&quot; name=&quot;__codelineno-5-34&quot; href=&quot;#__codelineno-5-34&quot;&gt;&lt;/a&gt;R&apos; = round(clip(Y&apos; + ΔR, 0, 255))
-&lt;/span&gt;&lt;span id=&quot;__span-5-35&quot;&gt;&lt;a id=&quot;__codelineno-5-35&quot; name=&quot;__codelineno-5-35&quot; href=&quot;#__codelineno-5-35&quot;&gt;&lt;/a&gt;G&apos; = round(clip(Y&apos; - 0.10094*ΔB - 0.29725*ΔR, 0, 255))
-&lt;/span&gt;&lt;span id=&quot;__span-5-36&quot;&gt;&lt;a id=&quot;__codelineno-5-36&quot; name=&quot;__codelineno-5-36&quot; href=&quot;#__codelineno-5-36&quot;&gt;&lt;/a&gt;B&apos; = round(clip(Y&apos; + ΔB, 0, 255))
-&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;其中 &lt;code&gt;clip(x, lo, hi) = min(max(x, lo), hi)&lt;/code&gt;，&lt;code&gt;round&lt;/code&gt; 为四舍五入；&lt;code&gt;ΔR&lt;/code&gt;/&lt;code&gt;ΔB&lt;/code&gt; 的 clip 在 saturation/hue 之后，所以旋转可能把原本合法的分量转出范围。&lt;/p&gt;
 &lt;h4 id=&quot;0xf130--视频管线实际使用的输入色彩格式选择&quot;&gt;&lt;code&gt;0xf130&lt;/code&gt; — 视频管线实际使用的输入色彩格式选择&lt;/h4&gt;
 &lt;table&gt;
 &lt;thead&gt;
@@ -1349,40 +1192,6 @@
 &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h3 id=&quot;交互式计算器&quot;&gt;交互式计算器&lt;/h3&gt;
-&lt;p&gt;下面这个计算器可以实时看到 MS2130S 内部每个像素经过哪些计算、最终变成什么：&lt;/p&gt;
-&lt;iframe id=&quot;ms2130s-color-calc&quot; src=&quot;/ms2130s-color-processing.html&quot; title=&quot;MS2130S luma / chroma processing 可视化&quot; loading=&quot;lazy&quot; style=&quot;width:100%;height:960px;border:0;border-radius:10px&quot;&gt;&lt;/iframe&gt;
-
-&lt;script&gt;
-  (function () {
-    function fit() {
-      var f = document.getElementById(&apos;ms2130s-color-calc&apos;);
-      if (!f) return;
-      try {
-        var d = f.contentDocument;
-        if (d &amp;&amp; d.body) {
-          var h = Math.ceil(d.body.getBoundingClientRect().height);
-          if (h &gt; 100) f.style.height = (h + 4) + &apos;px&apos;;
-        }
-      } catch (e) { }
-    }
-    window.addEventListener(&apos;message&apos;, function (e) {
-      if (e.data &amp;&amp; e.data.type === &apos;ms2130s-color-calc-height&apos;) {
-        var f = document.getElementById(&apos;ms2130s-color-calc&apos;);
-        if (f) f.style.height = (e.data.height + 4) + &apos;px&apos;;
-      }
-    });
-    window.addEventListener(&apos;resize&apos;, function () { setTimeout(fit, 50); });
-    var f = document.getElementById(&apos;ms2130s-color-calc&apos;);
-    if (f) {
-      f.addEventListener(&apos;load&apos;, fit);
-      fit();
-      setTimeout(fit, 300);
-      setTimeout(fit, 1200);
-    }
-  })();
-&lt;/script&gt;
-
 &lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
 &lt;p&gt;其实 MS2130S 这款芯片在网络上已经有很多现成的研究，从寄存器用法、hidapi 访问到固件补丁，都能找到前人的成果。这次能比较顺利地定位并解决问题，很大程度上是站在这些探索的肩膀上，在此对这些作者表示感谢。&lt;/p&gt;
 &lt;p&gt;相关项目链接整理如下：&lt;/p&gt;
