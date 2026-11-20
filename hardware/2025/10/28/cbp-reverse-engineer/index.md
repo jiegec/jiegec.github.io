@@ -25,7 +25,7 @@
 
 ![](<https://jia.je/blog/posts/hardware/cbp-reverse-engineer-tage.png>)
 
-（图源：[Half&amp;Half: Demystifying Intel's Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf>)）
+（图源：[Half&Half: Demystifying Intel's Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf>)）
 
 因此，要逆向工程处理器的条件分支预测器，需要完成以下工作：
 
@@ -494,4 +494,4 @@ PHRB 的注入就比较复杂了，例如要注入 \\(B\[2\]=k\\)，我们需要
 ## 引用文献
 
 - [Dissecting Conditional Branch Predictors of Apple Firestorm and Qualcomm Oryon for Software Optimization and Architectural Analysis](<https://arxiv.org/abs/2411.13900>)
-- [Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf>)
+- [Half&Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~tullsen/halfandhalf.pdf>)

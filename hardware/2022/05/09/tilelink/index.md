@@ -191,7 +191,7 @@ when (filter.io.response.fire()) {
 - If ready is LOW, the receiver must not process the beat and the sender must not consider the beat processed.
 - If valid is LOW, the receiver must not expect the control or data signals to be a syntactically correct TileLink beat.
 
-第一个说的就是 valid &amp; ready 的时候才认为是一个 beat 处理了，第二个就是如果 valid=LOW，那么信号可能是随机的、不合法的。
+第一个说的就是 valid & ready 的时候才认为是一个 beat 处理了，第二个就是如果 valid=LOW，那么信号可能是随机的、不合法的。
 
 - valid must never depend on ready. If a sender wishes to send a beat, it must assert valid independently of whether the receiver signals that it is ready.
 - As a consequence, there must be no combinational path from ready to valid or any of the control and data signals.

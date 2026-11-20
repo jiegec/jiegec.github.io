@@ -95,7 +95,7 @@ target:
 
 ## Clustered Decode
 
-推荐阅读：[解码簇二三事（一）：为什么？&amp;加料！](<https://zhuanlan.zhihu.com/p/720301269>)
+推荐阅读：[解码簇二三事（一）：为什么？&加料！](<https://zhuanlan.zhihu.com/p/720301269>)
 
 Intel 的 E 核从 Tremont 微架构开始实现了 Clustered Decode，从 Goldmont Plus 微架构传统的 3-wide decode，变成了两条 3-wide decode 的流水线，加起来实现 6-wide decode 的效果。但是这两个流水线怎么协同工作呢？
 

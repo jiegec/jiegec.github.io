@@ -22,7 +22,7 @@ Rust 项目一般是用 Cargo 管理，但是它的缺点是每个项目都要�
 cargo2nix 的 README 提到了它的卖点：
 
 - Development Shell - knowing all the dependencies means easy creation of complete shells. Run nix develop or direnv allow in this repo and see!
-- Caching - CI &amp; CD pipelines move faster when purity guarantees allow skipping more work!
+- Caching - CI & CD pipelines move faster when purity guarantees allow skipping more work!
 - Reproducibility - Pure builds. Access to all of nixpkgs for repeatable environment setup across multiple distributions and platforms
 
 ### 安装

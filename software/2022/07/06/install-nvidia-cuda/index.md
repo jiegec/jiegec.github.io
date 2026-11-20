@@ -6,7 +6,7 @@
 
 ## 配置 NVIDIA APT 源
 
-Ubuntu 源有自带的 NVIDIA 驱动版本，但这里我们要使用 NVIDIA 的 APT 源。首先，我们要访问 [https://developer.nvidia.com/cuda-downloads?target\_os=Linux&amp;target\_arch=x86\_64&amp;Distribution=Ubuntu&amp;target\_version=20.04&amp;target\_type=deb\_network](<https://developer.nvidia.com/cuda-downloads?target_os=Linux&amp;target_arch=x86_64&amp;Distribution=Ubuntu&amp;target_version=20.04&amp;target_type=deb_network>)，在网页中选择我们的系统，例如：
+Ubuntu 源有自带的 NVIDIA 驱动版本，但这里我们要使用 NVIDIA 的 APT 源。首先，我们要访问 [https://developer.nvidia.com/cuda-downloads?target\_os=Linux&target\_arch=x86\_64&Distribution=Ubuntu&target\_version=20.04&target\_type=deb\_network](<https://developer.nvidia.com/cuda-downloads?target_os=Linux&amp;target_arch=x86_64&amp;Distribution=Ubuntu&amp;target_version=20.04&amp;target_type=deb_network>)，在网页中选择我们的系统，例如：
 
 1. Operating System: Linux
 2. Architecture: x86\_64

@@ -259,7 +259,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
 
 - [Arm Unveils 2024 CPU Core Designs, Cortex X925, A725 and A520: Arm v9.2 Redefined For 3nm](<https://www.anandtech.com/show/21399/arm-unveils-2024-cpu-core-designs-cortex-x925-a725-and-a520-arm-v9-2-redefined-for-3nm-/2>) [Archive](<https://web.archive.org/web/20250626065356/https://www.anandtech.com/show/21399/arm-unveils-2024-cpu-core-designs-cortex-x925-a725-and-a520-arm-v9-2-redefined-for-3nm-/2>)
 
-  - Decode &amp; Dispatch: 10-wide
+  - Decode & Dispatch: 10-wide
   - SIMD/FP execution: 6x 128b
   - Integer ALU pipelines: 1- and 2-cycle operations
   - Integer multiply execution: 4x versus Cortex-X4
@@ -536,7 +536,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - **15 issue pipelines**: 2x Branch, 2x Integer Single-Cycle, 2x Integer Single/Multi-Cycle, 4x FP/ASIMD, 2x Load/Store, 1x Load, 2x Store data
   - The dispatch stage can process up to 8 MOPs per cycle and dispatch up to 16 µOPs per cycle
   - Up to 4 µOPs by the S or B pipelines, 4 by M, 2 by M0, 2 by V0, 2 by V1, 6 by L
-- [Arm Announces Mobile Armv9 CPU Microarchitectures: Cortex-X2, Cortex-A710 &amp; Cortex-A510](<https://www.anandtech.com/show/16693/arm-announces-mobile-armv9-cpu-microarchitectures-cortexx2-cortexa710-cortexa510/2>)
+- [Arm Announces Mobile Armv9 CPU Microarchitectures: Cortex-X2, Cortex-A710 & Cortex-A510](<https://www.anandtech.com/show/16693/arm-announces-mobile-armv9-cpu-microarchitectures-cortexx2-cortexa710-cortexa510/2>)
 
 ### Neoverse N2
 
@@ -638,7 +638,7 @@ ARM 公版核微架构的演进频繁，型号又比较多，相关信息散落�
   - 2x 256-bit SVE datapaths
   - 4x 128-bit Neon/FP datapaths
   - 3x load / store addr
-  - 3x load data &amp; 2x store data pipeline
+  - 3x load data & 2x store data pipeline
   - 8-wide Instruction fetch
   - 5-8 wide decode / rename
   - pipeline: P1 P2 F1 F2 DE1 RR RD I0 I1 I2 ...

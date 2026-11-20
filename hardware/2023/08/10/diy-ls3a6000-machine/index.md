@@ -285,7 +285,7 @@ extra/xorg-server 21.1.8-3 (xorg) [installed]
 
 对比：
 
-| Inst latency &amp; throughput | 3A6000 @ 2.5 GHz | 3C5000 @ 2.2 GHz | Kunpeng 920 @ 2.6 GHz |
+| Inst latency & throughput | 3A6000 @ 2.5 GHz | 3C5000 @ 2.2 GHz | Kunpeng 920 @ 2.6 GHz |
 | --- | --- | --- | --- |
 | 64b int add | 4 per cyc, 1 cyc lat | 4 per cyc, 1 cyc lat | 3 per cyc, 1 cyc lat |
 | 64b int mul | 2 per cyc, 4 cyc lat | 2 per cyc, 4 cyc lat | 1 per cyc, 4 cyc lat |

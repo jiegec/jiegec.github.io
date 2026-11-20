@@ -151,7 +151,7 @@ positives.
 以[香山昆明湖](<https://talks-pubs.xiangshan.cc/slides/20230824-RVSC-香山昆明湖架构访存单元的设计和演进.pdf>)微架构为例，它的 Load Pipeline 仍然是四级，但每一级的职责和南湖相比有了不小的变化：
 
 1. load\_s0：从保留站发射，计算虚拟地址，并行地查询 DTLB、读取 Tag Array，同时用路预测器（Way Predictor）预测这次访问会命中哪个 Way
-2. load\_s1：只读预测出的那一路 Data Array，同时用物理地址做 Tag 比较（Compare &amp; Match），并做 Conflict Check
+2. load\_s1：只读预测出的那一路 Data Array，同时用物理地址做 Tag 比较（Compare & Match），并做 Conflict Check
 3. load\_s2：判断路预测是否正确；预测失败就产生 Replay Carry，通过 Fast Replay 重新执行这条 load
 4. load\_s3：把 DCache 读出的数据和 Store to Load Forwarding 的数据合并，返回数据
 

@@ -8,5 +8,5 @@
 6. 转换 Escape Code 到 HTML https://github.com/theZiz/aha
 7. iOS 13.1 beta 发布
 8. 苹果特别活动定于 9.11 日
-9. exFAT 规范发布 http://www.phoronix.com/scan.php?page=news\_item&amp;px=Microsoft-exFAT-Specification
+9. exFAT 规范发布 http://www.phoronix.com/scan.php?page=news\_item&px=Microsoft-exFAT-Specification
 10. 可视化的 5 阶段流水线 RISC-V 模拟器 https://github.com/mortbopet/Ripes

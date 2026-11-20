@@ -40,7 +40,7 @@ ECDSA 是一个基于椭圆曲线的签名算法，使用时需要确定一个�
 
 下面进行验算：
 
-\\\[\\begin{align} &amp; u\_1 \\times G + u\_2 \\times Q\_A \\\\\\ &amp;= zs^{-1} \\times G + rs^{-1} \\times Q\_A \\\\\\ &amp;= zs^{-1} \\times G + rs^{-1}d\_A \\times G \\\\\\ &amp;= (zs^{-1} + rs^{-1}d\_A) \\times G \\\\\\ &amp;= (z+rd\_A)s^{-1} \\times G \\\\\\ &amp;= (z+rd\_A)k(z+rd\_A)^{-1} \\times G \\\\\\ &amp;= k \\times G \\end{align}\\\]
+\\\[\\begin{align} & u\_1 \\times G + u\_2 \\times Q\_A \\\\\\ &= zs^{-1} \\times G + rs^{-1} \\times Q\_A \\\\\\ &= zs^{-1} \\times G + rs^{-1}d\_A \\times G \\\\\\ &= (zs^{-1} + rs^{-1}d\_A) \\times G \\\\\\ &= (z+rd\_A)s^{-1} \\times G \\\\\\ &= (z+rd\_A)k(z+rd\_A)^{-1} \\times G \\\\\\ &= k \\times G \\end{align}\\\]
 
 等式左边的 X 坐标等于等式右边的 X 坐标，等价于 \\(r \\equiv x\_2 \\pmod n\\)，验算没问题。
 
@@ -48,7 +48,7 @@ ECDSA 是一个基于椭圆曲线的签名算法，使用时需要确定一个�
 
 ECDSA 支持公钥恢复算法，已知 \\(r, s, m\\)，恢复 \\(Q\_A\\)。首先进行推导：
 
-\\\[\\begin{align} Q\_A &amp;= d\_A \\times G \\\\\\ s &amp;= k^{-1}(z + rd\_A) \\bmod n \\\\\\ sk &amp;= z + rd\_A \\bmod n \\\\\\ sk \\times G &amp;= (z + rd\_A) \\times G \\\\\\ rd\_A \\times G &amp;= (sk - z) \\times G \\\\\\ Q\_A &amp;= d\_A \\times G = r^{-1}(sk-z) \\times G \\\\\\ Q\_A &amp;= r^{-1}(s(k \\times G) - z \\times G) \\end{align}\\\]
+\\\[\\begin{align} Q\_A &= d\_A \\times G \\\\\\ s &= k^{-1}(z + rd\_A) \\bmod n \\\\\\ sk &= z + rd\_A \\bmod n \\\\\\ sk \\times G &= (z + rd\_A) \\times G \\\\\\ rd\_A \\times G &= (sk - z) \\times G \\\\\\ Q\_A &= d\_A \\times G = r^{-1}(sk-z) \\times G \\\\\\ Q\_A &= r^{-1}(s(k \\times G) - z \\times G) \\end{align}\\\]
 
 上式中 \\(r, s\\) 已知，\\(z\\) 可以从 \\(m\\) 通过哈希计算得出，\\(k \\times G\\) 的 X 坐标 \\(x\_1\\) 满足 \\(r = x\_1 \\bmod n\\)，因此恢复过程就是：
 

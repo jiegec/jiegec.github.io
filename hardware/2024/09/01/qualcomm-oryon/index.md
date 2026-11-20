@@ -364,7 +364,7 @@ Linear Address UTag/Way-Predictor 是 AMD 的叫法，但使用相同的测试�
 官方信息：
 
 - 4KB and 64KB translation granules
-- 1 cycle access for L1 ITLB &amp; L1 DTLB
+- 1 cycle access for L1 ITLB & L1 DTLB
 - Unified L2 TLB, **8-way** \>8K entry
 
 #### L2 TLB

@@ -655,7 +655,7 @@ ceph -W cephadm
 - [Ceph CephFS Quota](<https://docs.ceph.com/en/latest/cephfs/quota/>)
 - [Ceph Basic Block Device Commands](<https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/>)
 - [Ceph Upgrade](<https://docs.ceph.com/en/quincy/cephadm/upgrade/>)
-- [Ceph CephFS &amp; RGW Exports Over NFS](<https://docs.ceph.com/en/latest/mgr/nfs/>)
+- [Ceph CephFS & RGW Exports Over NFS](<https://docs.ceph.com/en/latest/mgr/nfs/>)
 - [CRUSH Maps](<https://docs.ceph.com/en/quincy/rados/operations/crush-map/>)
 - [CRUSH Map Edits](<https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/>)
 - [ceph 架构和概念](<https://llussy.github.io/2019/08/17/ceph-architecture/>)

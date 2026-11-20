@@ -126,7 +126,7 @@ MIFARE Classic 上采用的方法是，在特定的 Sector（比如 Sector 0）�
 
 | 0-1 | 2-3 | 4-5 | 6-7 | 8-9 | 10-11 | 12-13 | 14-15 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Info &amp; CRC | AID | AID | AID | AID | AID | AID | AID |
+| Info & CRC | AID | AID | AID | AID | AID | AID | AID |
 | AID | AID | AID | AID | AID | AID | AID | AID |
 
 第一个字节是 CRC 8，它的定义可以在[这里的 CRC-8/MIFARE-MAD](<http://reveng.sourceforge.net/crc-catalogue/1-15.htm>) 里找到：初始值 0xC7，多项式是 0x1D。参与 CRC 计算的是按顺序从第二个字节开始的 31 个字节。

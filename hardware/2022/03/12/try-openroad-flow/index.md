@@ -74,7 +74,7 @@ endmodule
    1. Global placement without placed IOs, timing-driven, and routability-driven
    2. IO placement (non-random)
    3. Global placement with placed IOs, timing-driven, and routability-driven
-   4. Resizing &amp; Buffering
+   4. Resizing & Buffering
    5. Detail placement
 4. CTS(Clock Tree Synthesis)
 

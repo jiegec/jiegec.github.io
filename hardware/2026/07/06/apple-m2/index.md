@@ -1,4 +1,4 @@
-# Apple M2 (Avalanche &amp; Blizzard) 微架构评测
+# Apple M2 (Avalanche & Blizzard) 微架构评测
 
 ## 背景
 

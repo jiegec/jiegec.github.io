@@ -158,7 +158,7 @@ Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD�
 
 ### Conditional Branch Predictor
 
-参考 [Half&amp;Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~dstefan/pubs/yavarzadeh:2023:half.pdf>) 论文的方法，可以测出 Golden Cove 的分支预测器采用的历史更新方式为：
+参考 [Half&Half: Demystifying Intel’s Directional Branch Predictors for Fast, Secure Partitioned Execution](<https://cseweb.ucsd.edu/~dstefan/pubs/yavarzadeh:2023:half.pdf>) 论文的方法，可以测出 Golden Cove 的分支预测器采用的历史更新方式为：
 
 1. 使用 388 位的 Path History Register，每次执行 taken branch 时更新
 2. 更新方式为：`PHRnew = (PHRold << 2) xor footprint`

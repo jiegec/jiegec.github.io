@@ -53,7 +53,7 @@
 
 ## DynamoRIO
 
-- [i\#2297: AARCH64: Implement mbr &amp; cbr instrumentation](<https://github.com/DynamoRIO/dynamorio/pull/7005>)
+- [i\#2297: AARCH64: Implement mbr & cbr instrumentation](<https://github.com/DynamoRIO/dynamorio/pull/7005>)
 
 ## emacs
 
@@ -228,7 +228,7 @@
 - [target/loongarch: fix ASXE flag conflict](<https://patchew.org/QEMU/20230930112837.1871691-1-c@jia.je/>)
 - [linux-user/elfload: Enable LSX/LASX in HWCAP for LoongArch](<https://patchew.org/QEMU/20231001085315.1692667-1-c@jia.je/>)
 - [hw/loongarch: Fix ACPI processor id off-by-one error](<https://patchew.org/QEMU/20230820105658.99123-2-c@jia.je/>)
-- [Add la32 &amp; va32 support for loongarch64-softmmu](<https://patchew.org/QEMU/20230809083258.1787464-1-c@jia.je/>)
+- [Add la32 & va32 support for loongarch64-softmmu](<https://patchew.org/QEMU/20230809083258.1787464-1-c@jia.je/>)
 - [target/loongarch: Split fcc register to fcc0-7 in gdbstub](<https://patchew.org/QEMU/20230808054315.3391465-1-c@jia.je/>)
 - [target/loongarch: Fix CSR.DMW0-3.VSEG check](<https://github.com/qemu/qemu/commit/505aa8d8f29b79fcef77563bb4124208badbd8d4>)
 

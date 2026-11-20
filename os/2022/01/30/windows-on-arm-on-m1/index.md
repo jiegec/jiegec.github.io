@@ -45,7 +45,7 @@ VMware Fusion 发布了新版本 [22H2](<https://blogs.vmware.com/teamfusion/202
 - Windows 11 on Intel and Apple Silicon with 2D GFX and Networking
 - VMtools installation for Windows 11 GOS on M1
 - Improved Linux support on M1
-- 3D Graphics HW Acceleration and OpenGL 4.3 in Linux VMs\* (Requires Linux 5.19+ &amp; Mesa 22.1.3+)
+- 3D Graphics HW Acceleration and OpenGL 4.3 in Linux VMs\* (Requires Linux 5.19+ & Mesa 22.1.3+)
 - Virtual TPM Device
 - Fast Encryption
 - Universal Binary

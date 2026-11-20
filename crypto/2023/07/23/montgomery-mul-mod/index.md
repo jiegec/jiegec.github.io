@@ -57,17 +57,17 @@ Montgomery 模乘是一种提高模乘的性能的方法。具体地，Montgomer
 
 首先计算过程中出现了 \\(t = (T+mN) / R\\)，为了保证 \\(t\\) 是整数，需要证明 \\(T+mN\\) 可以整除 \\(R\\)，也就是要求 \\(T + mN \\equiv 0 \\pmod R\\)：
 
-\\\[\\begin{align} T + mN &amp;\\equiv T + (((T \\bmod R)N') \\bmod R)N \\pmod R \\\\ &amp;\\equiv T + TN'N \\pmod R \\\\ &amp;\\equiv T + T(-1) \\pmod R \\\\ &amp;\\equiv 0 \\pmod R \\end{align}\\\]
+\\\[\\begin{align} T + mN &\\equiv T + (((T \\bmod R)N') \\bmod R)N \\pmod R \\\\ &\\equiv T + TN'N \\pmod R \\\\ &\\equiv T + T(-1) \\pmod R \\\\ &\\equiv 0 \\pmod R \\end{align}\\\]
 
 说明 \\(t\\) 是整数。其次，需要证明 \\(a \* b \* R^{-1} \\equiv t \\pmod N\\)：
 
-\\\[\\begin{align} t &amp;= (T + mN) / R \\\\ &amp;\\equiv (T + mN) R^{-1} \\pmod N \\\\ &amp;\\equiv TR^{-1} + mNR^{-1} \\pmod N \\\\ &amp;\\equiv TR^{-1} + 0 \\pmod N \\\\ &amp;\\equiv a \* b \* R^{-1} \\pmod N \\end{align}\\\]
+\\\[\\begin{align} t &= (T + mN) / R \\\\ &\\equiv (T + mN) R^{-1} \\pmod N \\\\ &\\equiv TR^{-1} + mNR^{-1} \\pmod N \\\\ &\\equiv TR^{-1} + 0 \\pmod N \\\\ &\\equiv a \* b \* R^{-1} \\pmod N \\end{align}\\\]
 
 说明 \\(t\\) 和答案 \\(a \* b \* R^{-1}\\) 在模 \\(N\\) 意义下相等。
 
 根据 \\(m\\) 的定义，\\(m\\) 的范围是 \\(\[0, R-1\]\\)，同时 \\(a, b \\in \[0, N-1\]\\)，且已知 \\(N \< R\\)，计算 \\(t\\) 的范围：
 
-\\\[\\begin{align} t &amp;= (T+mN) / R \\\\ &amp;= (ab + mN) / R \\\\ &amp;\\le ((N-1)(N-1) + (R-1)N) / R \\\\ &amp;\< (RN + RN) / R \\\\ &amp;= N + N \\\\ &amp;= 2N \\end{align}\\\]
+\\\[\\begin{align} t &= (T+mN) / R \\\\ &= (ab + mN) / R \\\\ &\\le ((N-1)(N-1) + (R-1)N) / R \\\\ &\< (RN + RN) / R \\\\ &= N + N \\\\ &= 2N \\end{align}\\\]
 
 因此 \\(t \\in \[0, 2N-1\]\\)。前面已经证明，\\(t\\) 和答案 \\(a \* b \* R^{-1}\\) 在模 \\(N\\) 意义下相等。在 \\(\[0, 2N-1\]\\) 范围内，模 \\(N\\) 意义下相等只有两种可能：相等或者差一个 \\(N\\)。所以 REDC 算法的最后一步就是：如果 \\(t \\ge N\\)，只可能 \\(t\\) 和答案差一个 \\(N\\)，所以答案 \\(a \* b \* R^{-1} \\bmod N = t - N\\)；否则 \\(t \< N\\)，此时答案 \\(a \* b \* R^{-1} \\bmod N = t\\)。
 
@@ -319,17 +319,17 @@ OpenSSL 也在函数 [bn\_mul\_mont](<https://github.com/openssl/openssl/blob/9c
 
 既然条件分支是为了和 \\(N\\) 比较，那如果去掉这个限制，也就是说让结果在 \\(\[0, 2N-1\]\\) 的范围而不是 \\(\[0, N-1\]\\)，看看能否继续把结果传给下一次的 Montgomery 模乘。首先要求 \\(R \> 2N\\)，因为输入参数的范围是模 \\(2N\\)，而不是模 \\(N\\)；其次，重新考虑 \\(t = (T+mN) / R\\) 的放缩：
 
-\\\[\\begin{align} t &amp;= (T+mN) / R \\\\ &amp;= (ab + mN) / R \\\\ &amp;\\le ((2N-1)(2N-1) + (R-1)N) / R \\end{align}\\\]
+\\\[\\begin{align} t &= (T+mN) / R \\\\ &= (ab + mN) / R \\\\ &\\le ((2N-1)(2N-1) + (R-1)N) / R \\end{align}\\\]
 
 此时为了让 \\(t \< 2N\\) 成立，需要额外添加条件 \\(R \> 4N\\)，此时：
 
-\\\[\\begin{align} t &amp;= (T+mN) / R \\\\ &amp;= (ab + mN) / R \\\\ &amp;\\le ((2N-1)(2N-1) + (R-1)N) / R \\\\ &amp;\< ((\\frac{1}{2}R)(2N) + RN) / R \\\\ &amp;= N + N \\\\ &amp;= 2N \\end{align}\\\]
+\\\[\\begin{align} t &= (T+mN) / R \\\\ &= (ab + mN) / R \\\\ &\\le ((2N-1)(2N-1) + (R-1)N) / R \\\\ &\< ((\\frac{1}{2}R)(2N) + RN) / R \\\\ &= N + N \\\\ &= 2N \\end{align}\\\]
 
 也就是说，如果规定 \\(R \> 4N\\)，那么最后一步可以不和 \\(N\\) 比较，把结果保留在 \\(\[0, 2N-1\]\\) 的范围，继续进行后续的 Montgomery 模乘。但是这样有一个问题，就是在 RSA 场景下，通常 \\(N\\) 的位数就是二的幂次，例如 \\(N\\) 是一个 2048 位的大整数，为了满足 \\(R \> 4N\\)，不得不多存一个整数，相应地 Montgomery 模乘计算中的循环次数也要增加。
 
 另一种思路是，既然和 \\(N\\) 比较比较费时间，而且需要条件分支，那就改成和 \\(R\\) 比较，让结果保持在 \\(\[0, R-1\]\\) 的区间内，而不是原来的 \\(\[0, N-1\]\\) 区间。此时重新考虑 \\(t = (T+mN) / R\\) 的放缩：
 
-\\\[\\begin{align} t &amp;= (T+mN) / R \\\\ &amp;= (ab + mN) / R \\\\ &amp;\\le ((R-1)(R-1) + (R-1)N) / R \\\\ &amp;\< (R^2 + RN) / R \\\\ &amp;= R + N \\end{align}\\\]
+\\\[\\begin{align} t &= (T+mN) / R \\\\ &= (ab + mN) / R \\\\ &\\le ((R-1)(R-1) + (R-1)N) / R \\\\ &\< (R^2 + RN) / R \\\\ &= R + N \\end{align}\\\]
 
 也就是说，结果会在 \\(\[0, R+N-1\]\\) 的范围内，此时最后一步变成和 \\(R\\) 比较大小，如果比 \\(R\\) 大，就减去 \\(N\\)。和 \\(R\\) 比较大小很简单，直接看最高位是否为 \\(0\\) 即可。这种方法并没有消除条件分支，但是把条件分支的开销降到了单次整数比较。如果要保证常数时间的话，可以在结果小于 \\(R\\) 时，减去零。
 

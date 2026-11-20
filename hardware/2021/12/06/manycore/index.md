@@ -4,7 +4,7 @@
 
 - [Intel® Many Integrated Core Architecture (Intel® MIC Architecture) - Advanced](<https://openlab-mu-internal.web.cern.ch/02_Press_Corner/Spotlights/Spotlights_items/Copies_of_Spotlights_items/2011/ManyIntegratedCore(MIC)ArchitectureAdvanced.pdf>)
 - [Intel® Xeon Phi coprocessor (codename Knights Corner)](<https://ieeexplore.ieee.org/abstract/document/7476487>)
-- [https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080](<https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080>)
+- [https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7453080](<https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=7453080>)
 - [Knights Landing (KNL): 2nd Generation Intel® Xeon Phi™ Processor](<https://www.alcf.anl.gov/files/HC27.25.710-Knights-Landing-Sodani-Intel.pdf>)
 - [Fujitsu A64FX](<https://en.wikipedia.org/wiki/Fujitsu_A64FX>)
 - [Fujitsu Presents Post-K CPU Specifications](<https://www.fujitsu.com/global/about/resources/news/press-releases/2018/0822-02.html>)

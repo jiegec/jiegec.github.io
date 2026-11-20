@@ -60,7 +60,7 @@ Zen 5 除了 2-taken 以外，还实现了 2-fetch，也就是每个周期可以
 - [AMD Zen 5 Architecture Reveal: A Ryzen 9000 And Ryzen AI 300 Deep Dive](<https://hothardware.com/reviews/amd-ryzen-ai-zen-5-architecture-overview>)
 - [AMD deep-dives Zen 5 architecture — Ryzen 9000 and AI 300 benchmarks, RDNA 3.5 GPU, XDNA 2, and more](<https://www.tomshardware.com/pc-components/cpus/amd-deep-dives-zen-5-ryzen-9000-and-strix-point-cpu-rdna-35-gpu-and-xdna-2-architectures/4>)
 - [Optimizations Enabled by a Decoupled Front-End Architecture](<https://cseweb.ucsd.edu/~calder/papers/UCSD-CS00-645.pdf>)
-- [The Cortex-A77 µarch: Added ALUs &amp; Better Load/Stores](<https://www.anandtech.com/show/14384/arm-announces-cortexa77-cpu-ip/3>)
+- [The Cortex-A77 µarch: Added ALUs & Better Load/Stores](<https://www.anandtech.com/show/14384/arm-announces-cortexa77-cpu-ip/3>)
 - [Multiple-Block Ahead Branch Predictors](<https://dl.acm.org/doi/pdf/10.1145/237090.237169>)
 - [Popping the Hood on Golden Cove](<https://chipsandcheese.com/2021/12/02/popping-the-hood-on-golden-cove/>)
 - [AMD Zen 4 Ryzen 9 7950X and Ryzen 5 7600X Review: Retaking The High-End](<https://www.anandtech.com/show/17585/amd-zen-4-ryzen-9-7950x-and-ryzen-5-7600x-review-retaking-the-high-end/8>)

@@ -167,7 +167,7 @@ H100 SXM5 升级到了 HBM3，内存容量依然是 80GB，但是时钟频率提
 
 ## 参考文档
 
-- Memory systems: Cache, DRAM &amp; Disk
+- Memory systems: Cache, DRAM & Disk
 - [译文：DDR4 SDRAM - Understanding the Basics（上）](<https://zhuanlan.zhihu.com/p/262052220>)
 - [译文：DDR4 SDRAM - Understanding the Basics（下）](<https://zhuanlan.zhihu.com/p/263080272>)
 - [JEDEC STANDARD DDR5 SDRAM JESD79-5](<https://github.com/RAMGuide/TheRamGuide-WIP-/raw/main/DDR5 Spec JESD79-5.pdf>)

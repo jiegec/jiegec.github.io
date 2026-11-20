@@ -5,13 +5,13 @@
 1. Rust concurrent work-stealing queue 可能可以放到调度器里用 https://github.com/kinghajj/deque
 2. 支持信用卡/时间等格式信息的输入控件 https://github.com/nosir/cleave.js
 3. Rust 的简单 http server https://github.com/svenstaro/miniserve
-4. Coroutines &amp; Modules Added For C++20 http://www.phoronix.com/scan.php?page=news\_item&amp;px=Coroutines-Modules-CPP20
+4. Coroutines & Modules Added For C++20 http://www.phoronix.com/scan.php?page=news\_item&px=Coroutines-Modules-CPP20
 5. Implementing TCP in Rust (part 1) https://www.youtube.com/watch?v=bzja9fQWzdA
 6. 一个类似 Vuetify 的框架 https://buefy.org/
 7. systemd tmpfiles.d 用于管理特定的临时文件夹 https://www.freedesktop.org/software/systemd/man/tmpfiles.d.html
 8. 获取 ASN 信息的 API https://bgpview.docs.apiary.io/\#reference/0/asn-prefixes/view-asn-prefixes
 9. Rust getter/setter generation https://github.com/Hoverbear/getset
-10. Golang 1.12 发布：TLS 1.3 http://www.phoronix.com/scan.php?page=news\_item&amp;px=Golang-1.12-Released
+10. Golang 1.12 发布：TLS 1.3 http://www.phoronix.com/scan.php?page=news\_item&px=Golang-1.12-Released
 11. 一个笑话 https://redd.it/aux77g
 12. Rust 的 STM https://github.com/mtak-/swym
 13. 自动同步视频和字幕 https://github.com/smacke/subsync

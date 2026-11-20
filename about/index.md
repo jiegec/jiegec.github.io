@@ -8,7 +8,7 @@
 - GitHub：[@jiegec](<https://github.com/jiegec>)
 - B 站：[https://space.bilibili.com/11372427](<https://space.bilibili.com/11372427>)
 - 知乎：[https://www.zhihu.com/people/jiege-chen](<https://www.zhihu.com/people/jiege-chen>)
-- Google Scholar：[https://scholar.google.com/citations?user=ayzH8MsAAAAJ&amp;hl=en](<https://scholar.google.com/citations?user=ayzH8MsAAAAJ&amp;hl=en>)
+- Google Scholar：[https://scholar.google.com/citations?user=ayzH8MsAAAAJ&hl=en](<https://scholar.google.com/citations?user=ayzH8MsAAAAJ&amp;hl=en>)
 - ORCID: [https://orcid.org/0000-0001-9408-5030](<https://orcid.org/0000-0001-9408-5030>)
 - dblp: [https://dblp.org/pid/180/9365-1.html](<https://dblp.org/pid/180/9365-1.html>)
 

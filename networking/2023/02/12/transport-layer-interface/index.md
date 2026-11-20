@@ -44,7 +44,7 @@ TPI(Transport Provider Interface) 约定了内核和 libnsl 之间的接口。�
 
 问：What is Transport Layer Interface?
 
-答：The Transport Layer Interface (TLI) is an application programming interface (API) that provides a standard interface for communication between an application program and the transport layer protocols of a network. It was originally developed by AT&amp;T for the Unix operating system and is now used in many other operating systems.
+答：The Transport Layer Interface (TLI) is an application programming interface (API) that provides a standard interface for communication between an application program and the transport layer protocols of a network. It was originally developed by AT&T for the Unix operating system and is now used in many other operating systems.
 
 The TLI provides a set of functions that allow applications to communicate with the transport layer protocols, such as TCP and UDP, in a network-independent manner. Applications can use TLI to establish connections, send and receive data, and manage network resources.
 
@@ -56,7 +56,7 @@ However, TLI is an older interface and has largely been replaced by newer interf
 
 答：The Transport Layer Interface (TLI) and Transport Provider Interface (TPI) are both application programming interfaces (APIs) that provide a standard way for applications to communicate with the transport layer protocols of a network. However, they are different interfaces that serve different purposes.
 
-TLI is an API that was developed by AT&amp;T for the Unix operating system to provide a network-independent interface for applications to communicate with transport layer protocols such as TCP and UDP. It provides a set of functions that allow applications to establish connections, send and receive data, and manage network resources.
+TLI is an API that was developed by AT&T for the Unix operating system to provide a network-independent interface for applications to communicate with transport layer protocols such as TCP and UDP. It provides a set of functions that allow applications to establish connections, send and receive data, and manage network resources.
 
 On the other hand, TPI is an API that was developed by the X/Open consortium to provide a standard interface for communication between the transport layer protocols and network drivers or hardware. It provides a set of functions that allow transport providers to interact with network drivers or hardware and handle network-specific issues such as congestion control, flow control, and error handling.
 

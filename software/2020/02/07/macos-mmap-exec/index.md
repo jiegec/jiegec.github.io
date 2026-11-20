@@ -40,7 +40,7 @@ Library load (/path/to/temp/file) rejected: library load denied by system policy
 
 ### 一丝曙光
 
-这时候，@wangrunji0408 提供了一个方案：在 System Preferences -\> Security &amp; Privacy -\> Privacy -\> Developer Tools 中添加编译该 executable 的程序（如 iTerm、CLion）可以解决这个问题。那么问题应该比较明确了，就是 malware scan 的问题，如果信任了这个 App 为 Developer Tools，它产生的 executable 也是可信的，应该不是恶意软件。但在 tmux 环境下，它哪个 App 也不属于，没法继承，况且把这个权限开放出去也有潜在的安全问题。并且让每个开发者都要这么操作一遍很不方便。
+这时候，@wangrunji0408 提供了一个方案：在 System Preferences -\> Security & Privacy -\> Privacy -\> Developer Tools 中添加编译该 executable 的程序（如 iTerm、CLion）可以解决这个问题。那么问题应该比较明确了，就是 malware scan 的问题，如果信任了这个 App 为 Developer Tools，它产生的 executable 也是可信的，应该不是恶意软件。但在 tmux 环境下，它哪个 App 也不属于，没法继承，况且把这个权限开放出去也有潜在的安全问题。并且让每个开发者都要这么操作一遍很不方便。
 
 ### 回到 Console
 

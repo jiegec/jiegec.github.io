@@ -76,7 +76,7 @@ class SkidBufferCommon[T <: Data](
 
 为了确认上面这些类型的 Skid Buffer 都可以正常工作，按照 ZipCPU Skid Buffer 的文章，也照着写了几个 property：
 
-1: 在 valid &amp;&amp; \~ready 的时候，valid 需要继续保持为高，并且 payload 不变：
+1: 在 valid && \~ready 的时候，valid 需要继续保持为高，并且 payload 不变：
 
 ```scala
 // When valid goes high, data is stable and valid stays high before ready
@@ -103,7 +103,7 @@ when(pastValid && past(outerReset) && ~outerReset) {
 }
 ```
 
-3: 添加 cover property，要求 `io.s` 和 `io.m` 可以连续若干个周期 valid &amp;&amp; ready，保证吞吐率：
+3: 添加 cover property，要求 `io.s` 和 `io.m` 可以连续若干个周期 valid && ready，保证吞吐率：
 
 ```scala
 cover(

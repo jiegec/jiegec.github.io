@@ -11,5 +11,5 @@
 7. 在线的 markdown 转 pdf https://md2pdf.netlify.com/
 8. 一本关于 C64 的书 http://10print.org/
 9. 转自 dram "haskutil tql，自动更新 import，自动 {-\# LANGUAGE \#-} ，自动填 hole" https://github.com/EduardSergeev/vscode-haskutil
-10. ZFS on Linux 加入 TRIM 支持 http://www.phoronix.com/scan.php?page=news\_item&amp;px=ZFS-On-Linux-TRIM-Lands
+10. ZFS on Linux 加入 TRIM 支持 http://www.phoronix.com/scan.php?page=news\_item&px=ZFS-On-Linux-TRIM-Lands
 11. 又一个体现 JS 玄学之处的网站 https://getify.github.io/coercions-grid/

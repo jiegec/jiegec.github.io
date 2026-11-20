@@ -68,7 +68,7 @@ D2H Data 的字段：
 - ChunkValid: Only in 68B Flit
 - Bogus
 - Poison: data is corrupted
-- BEP: Only in 256B Flit &amp; PBR Flit
+- BEP: Only in 256B Flit & PBR Flit
 - DPID: Only in PBR Flit
 
 D2H Request 的字段：

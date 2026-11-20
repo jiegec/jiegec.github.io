@@ -349,7 +349,7 @@ leader 会定期发送心跳给其他节点，当节点发现当前的 leader �
 
 实际在 Lab 2B 实现的时候，会发现有很多细节上的问题：怎么判断 Log 的前 n 项是一致的呢？直接把整个 Log 传输一遍不现实。Raft 的做法是 Leader 保存 Follower 的 prevLogIndex 和 prevLogTerm，根据 prevLogIndex 和 prevLogTerm 查询自己的历史。如果能匹配上，就继续发送新的 Log 给 Follower。如果匹配不上，就继续往回找，一直找到匹配的 Index 和 Term 为止。这个过程会涉及到一些边界情况，例如一直退到开头等等，需要小心地处理。
 
-### Persistence &amp; Snapshot
+### Persistence & Snapshot
 
 到目前为止，讨论的 Raft 的实现还没有考虑异常退出，虽然在异常退出的时候，可以重头传一遍 Log 再启动，但是这样需要比较久的时间，因此需要做持久化（Persistence）。具体地，需要保存一些状态到硬盘上，那么之后重启的时候，可以从硬盘保存的数据进行恢复。Raft 论文中讨论了需要持久化的一些状态，剩下的则是不需要持久化的。这样做是为了提高性能：持久化把硬盘引入到了处理请求之中，可能会使得硬盘读写变成瓶颈。
 

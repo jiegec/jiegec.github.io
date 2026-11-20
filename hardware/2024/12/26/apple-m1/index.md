@@ -1,4 +1,4 @@
-# Apple M1 (Firestorm &amp; Icestorm) 微架构评测
+# Apple M1 (Firestorm & Icestorm) 微架构评测
 
 ## 背景
 

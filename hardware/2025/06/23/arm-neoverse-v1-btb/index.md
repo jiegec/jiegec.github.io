@@ -13,7 +13,7 @@ ARM Neoverse V1 是 ARM Neoverse N1 的下一代服务器 CPU，在 2020 年发�
   - 64KB L1 ICache, 2x32B bandwidth
   - 8K-entry main BTB
   - 96-entry nano BTB, 0 cycle bubble
-  - 2 stage prediction pipeline: P1 &amp; P2，大概率 nano BTB 在 P1，main BTB 在 P2
+  - 2 stage prediction pipeline: P1 & P2，大概率 nano BTB 在 P1，main BTB 在 P2
 - [Arm Neoverse V2 platform: Leadership Performance and Power Efficiency for Next-Generation Cloud Computing, ML and HPC Workloads](<https://hc2023.hotchips.org/assets/program/conference/day1/CPU1/HC2023.Arm.MagnusBruce.v04.FINAL.pdf>)
 
   - 2 predicted branches per cycle，每周期最多预测两条分支

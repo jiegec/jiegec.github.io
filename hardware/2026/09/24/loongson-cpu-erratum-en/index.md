@@ -146,4 +146,4 @@ In fact, similar errata are very common in CPUs from all vendors. Interested rea
 
 ## Acknowledgements
 
-This work was initiated and led by Wang Miao; I was responsible for reproduction and writing up the report. After we informed them that `amcas` also had the problem, [Rong "Mantle" Bao](<https://github.com/CSharperMantle>) discovered a similar CPU problem, which was fixed together. Thanks to Loongson's Chip R&amp;D Department and Developer Community Operations Department, among others, for their efficient and professional work throughout the reporting and fixing process!
+This work was initiated and led by Wang Miao; I was responsible for reproduction and writing up the report. After we informed them that `amcas` also had the problem, [Rong "Mantle" Bao](<https://github.com/CSharperMantle>) discovered a similar CPU problem, which was fixed together. Thanks to Loongson's Chip R&D Department and Developer Community Operations Department, among others, for their efficient and professional work throughout the reporting and fixing process!
