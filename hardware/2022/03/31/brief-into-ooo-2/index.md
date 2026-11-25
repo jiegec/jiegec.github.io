@@ -248,16 +248,17 @@ Load 的起始地址等于 Store 的起始地址或者正好在中间。
 | uArch | 1 ld + 1 st | 1 ld + 2 st | 1 ld + 4 st | 1 ld + 8 st |
 | --- | --- | --- | --- | --- |
 | [AMD Zen5](<https://jia.je/blog/posts/hardware/amd-zen5/index.md>) | Yes \[1\] | No | No | No |
-| [Ampere Skylark](<https://jia.je/blog/posts/hardware/ampere-skylark/index.md>) | Yes \[1\] | No | No | No |
 | [ARM Neoverse V2](<https://jia.je/blog/posts/hardware/arm-neoverse-v2/index.md>) | Yes \[2\] | Yes \[3\] | No | No |
 | [ARM Neoverse V3](<https://jia.je/blog/posts/hardware/arm-neoverse-v3/index.md>) | Yes \[2\] | Yes \[3\] | No | No |
-| [Qualcomm Oryon](<https://jia.je/blog/posts/hardware/qualcomm-oryon/index.md>) | Yes \[4\] | Yes \[5\] | No | No |
+| [Ampere Skylark](<https://jia.je/blog/posts/hardware/ampere-skylark/index.md>) | Yes \[1\] | No | No | No |
 | [Apple M1 Firestorm](<https://jia.je/blog/posts/hardware/apple-m1/index.md>) | Yes | Yes \[6\] | Yes \[6\] | Yes \[6\] |
 | [Apple M2 Avalanche](<https://jia.je/blog/posts/hardware/apple-m2/index.md>) | Yes | Yes \[6\] | Yes \[6\] | Yes \[6\] |
 | [Apple M4 P-Core](<https://jia.je/blog/posts/hardware/apple-m4/index.md>) | Yes | Yes | Yes | Yes |
 | [Intel Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) | Yes \[7\] | No | No | No |
-| [Intel Redwood Cove](<https://jia.je/blog/posts/hardware/intel-redwood-cove/index.md>) | Yes \[7\] | No | No | No |
 | [Intel Gracemont](<https://jia.je/blog/posts/hardware/intel-gracemont/index.md>) | Yes \[8\] | No | No | No |
+| [Intel Redwood Cove](<https://jia.je/blog/posts/hardware/intel-redwood-cove/index.md>) | Yes \[7\] | No | No | No |
+| [Loongson LA464](<https://jia.je/blog/posts/hardware/loongson-la464/index.md>) | Yes \[1\] | No | No | No |
+| [Qualcomm Oryon](<https://jia.je/blog/posts/hardware/qualcomm-oryon/index.md>) | Yes \[4\] | Yes \[5\] | No | No |
 
 - \[1\]: 要求 st 完全包含 ld
 - \[2\]: 要求 ld 和 st 地址相同或差半个 st 宽度
