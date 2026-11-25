@@ -258,6 +258,7 @@ Load 的起始地址等于 Store 的起始地址或者正好在中间。
 | [Intel Gracemont](<https://jia.je/blog/posts/hardware/intel-gracemont/index.md>) | Yes \[8\] | No | No | No |
 | [Intel Redwood Cove](<https://jia.je/blog/posts/hardware/intel-redwood-cove/index.md>) | Yes \[7\] | No | No | No |
 | [Loongson LA464](<https://jia.je/blog/posts/hardware/loongson-la464/index.md>) | Yes \[1\] | No | No | No |
+| [Loongson LA664](<https://jia.je/blog/posts/hardware/loongson-la664/index.md>) | Yes \[1\] | No | No | No |
 | [Qualcomm Oryon](<https://jia.je/blog/posts/hardware/qualcomm-oryon/index.md>) | Yes \[4\] | Yes \[5\] | No | No |
 
 - \[1\]: 要求 st 完全包含 ld
