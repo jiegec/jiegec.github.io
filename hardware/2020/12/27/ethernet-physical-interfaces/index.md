@@ -6,7 +6,7 @@
 
 最近逐渐接触到了一些高速的以太网的接口，被一大堆的名字搞得有点懵，所以特意学习了一下并整理成这篇博客。
 
-更新：经 [@z4yx](<https://github.com/z4yx>) 指出，还可以看[华为的介绍文档](<https://support.huawei.com/hedex/hdx.do?docid=EDOC1100156553&amp;id=ZH-CN_TOPIC_0250303640&amp;lang=zh>)
+更新：经 [@z4yx](<https://github.com/z4yx>) 指出，还可以看[华为的介绍文档](<https://support.huawei.com/hedex/hdx.do?docid=EDOC1100156553&id=ZH-CN_TOPIC_0250303640&lang=zh>)
 
 ## 几几 BASE 杠什么是什么意思
 
@@ -153,7 +153,7 @@ IEEE 802.3 Figure 36-4 中给了一个例子，就是在发送一段数据的时
 
 那么 SFP 电口模块是怎么工作的呢？我们知道，电口采用的是 1000BASE-T 标准。实际上，它里面有一个 PHY 芯片，发送的时候，首先解码 1000BASE-X 变回原始数据，再按照 1000BASE-T 的方式编码再发出去；接收的时候，按照 1000BASE-T 进行解码，再重新编码为 1000BASE-X 发送给 PMA 层。
 
-还有一类电口模块，与上面不同的地方在于，SFP 上走的是 SGMII，而不是 1000BASE-X。这两种模式没有太大的区别，都是两对差分线，一收一发，所以很多时候二者是同时支持，可以切换的。例如 [Cisco Compatible 10/100/1000BASE-T SFP SGMII Copper RJ-45 100m Industrial Transceiver Module (LOS)](<https://www.fs.com/products/177936.html?attribute=44906&amp;id=1109184>) 就是在 SFP 上走 SGMII 协议。
+还有一类电口模块，与上面不同的地方在于，SFP 上走的是 SGMII，而不是 1000BASE-X。这两种模式没有太大的区别，都是两对差分线，一收一发，所以很多时候二者是同时支持，可以切换的。例如 [Cisco Compatible 10/100/1000BASE-T SFP SGMII Copper RJ-45 100m Industrial Transceiver Module (LOS)](<https://www.fs.com/products/177936.html?attribute=44906&id=1109184>) 就是在 SFP 上走 SGMII 协议。
 
 推荐阅读 [Designing a Copper SFP using the VSC8221 10/100/1000BASE-T PHY](<https://ww1.microchip.com/downloads/en/Appnotes/VPPD-01080.pdf>)，它里面讲了如何将 VSC8221 芯片用于电口模块：VSC8221 芯片一头是 1000BASEX（又称 802.3z SerDes，802.3z 就是 1000BASE-X）或者 SGMII，另一头是 1000BASE-T MDI。
 

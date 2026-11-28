@@ -12,7 +12,7 @@ vsish -e cat /hardware/cpu/cpuList/0 | grep -i -E 'family|model|stepping|microco
 - [ESXi 从 6.7 到 6.7U1 升级时出现版本问题](<https://knowledge.broadcom.com/external/article?legacyId=56145>)
 - [VMware 被收购后的下载地址](<https://knowledge.broadcom.com/external/article/366685/instructions-to-find-product-downloads-o.html>)
 
-  - [ESXi 8.0 下载](<https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware vSphere - Standard&amp;release=8.0&amp;os=&amp;servicePk=202631&amp;language=EN&amp;groupId=204419>)
+  - [ESXi 8.0 下载](<https://support.broadcom.com/group/ecx/productfiles?displayGroup=VMware vSphere - Standard&release=8.0&os=&servicePk=202631&language=EN&groupId=204419>)
 - VMware 被收购前的下载地址：
 
   - [ESXi 6.7 OEM 版本下载](<https://customerconnect.vmware.com/downloads/info/slug/datacenter_cloud_infrastructure/vmware_vsphere/6_7#custom_iso>)

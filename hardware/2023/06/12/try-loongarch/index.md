@@ -562,7 +562,7 @@ PCIe device id:
 
 ## LSX/LASX 相关进展
 
-- GCC：WIP [Add Loongson SX/ASX instruction support to LoongArch target.](<https://patchwork.ozlabs.org/project/gcc/list/?series=370124&amp;state=%2A&amp;archive=both>)
+- GCC：WIP [Add Loongson SX/ASX instruction support to LoongArch target.](<https://patchwork.ozlabs.org/project/gcc/list/?series=370124&state=%2A&archive=both>)
 - LLVM:
 
   - 18 [\[LoongArch\] Add LASX intrinsic support](<https://github.com/llvm/llvm-project/commit/691f0d00b84f6ecaf8e341ef38256e939cca6b1e>)

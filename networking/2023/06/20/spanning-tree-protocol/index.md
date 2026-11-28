@@ -117,7 +117,7 @@ STP 解决了环路的问题，使得网络管理员在设计拓扑的时候，�
 
 ![](<https://jia.je/blog/posts/networking/vpc.png>)
 
-来源：[Port Channels and vPCs](<https://www.ciscopress.com/articles/article.asp?p=3150966&amp;seqNum=2>)
+来源：[Port Channels and vPCs](<https://www.ciscopress.com/articles/article.asp?p=3150966&seqNum=2>)
 
 这样就实现了对冗余链路的利用。
 

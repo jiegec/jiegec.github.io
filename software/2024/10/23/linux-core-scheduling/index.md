@@ -132,7 +132,7 @@ $ cat /sys/devices/system/cpu/cpufreq/policy*/scaling_max_freq
 4012800
 ```
 
-但实际调度起来，各个核心乱跑，而 3.4 GHz 距离 4.0 GHz 差距不小，性能差接近 15%，可见目前 Linux 内核并没有很好地适配，目前还是需要手动绑核。高通目前还提交了 [memlat govenor](<https://patchwork.kernel.org/project/linux-arm-msm/list/?series=867688&amp;state=*>) 补丁来对 LLC/DDR 来进行 DVFS，但对这个问题应该没有改进。
+但实际调度起来，各个核心乱跑，而 3.4 GHz 距离 4.0 GHz 差距不小，性能差接近 15%，可见目前 Linux 内核并没有很好地适配，目前还是需要手动绑核。高通目前还提交了 [memlat govenor](<https://patchwork.kernel.org/project/linux-arm-msm/list/?series=867688&state=*>) 补丁来对 LLC/DDR 来进行 DVFS，但对这个问题应该没有改进。
 
 ## 分析
 

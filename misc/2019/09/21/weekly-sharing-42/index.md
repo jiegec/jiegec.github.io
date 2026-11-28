@@ -6,7 +6,7 @@
 4. xv6 今年换到了 riscv https://github.com/mit-pdos/xv6-riscv-fall19
 5. pdf 文本搜索 https://pdfgrep.org/
 6. iOS 13 正式版发布
-7. exFAT 驱动进入 Linux 5.4 [Microsoft exFAT File-System Mailed In For Linux 5.4 Along With Promoted EROFS & Greybus](<http://www.phoronix.com/scan.php?page=news_item&amp;px=Linux-5.3-Staging-Changes>)
+7. exFAT 驱动进入 Linux 5.4 [Microsoft exFAT File-System Mailed In For Linux 5.4 Along With Promoted EROFS & Greybus](<http://www.phoronix.com/scan.php?page=news_item&px=Linux-5.3-Staging-Changes>)
 8. Bash 详细教程 https://github.com/dylanaraps/pure-bash-bible
 9. Rust 编译到 iOS bitcode https://github.com/getditto/rust-bitcode
 10. JS 运行时间 in V8 https://v8.dev/blog/cost-of-javascript-2019\#json

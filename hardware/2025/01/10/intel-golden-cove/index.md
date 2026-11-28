@@ -57,7 +57,7 @@ Intel 的 uOP(Micro-OP) Cache 称为 Decode Stream Buffer (DSB): `Decode Stream 
 
 uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP，这些 uOP 对应了原来指令流中连续的几条指令。
 
-为了测试 uOP Cache 的大小，构造不同大小的循环，循环体是复制若干份的 `add %%rsi, %%rdx` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [IDQ.DSB\_UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=IDQ.DSB_UOPS>) 性能计数器统计每次循环有多少个 uOP 来自于 DSB 也就是 uOP Cache，发现其最大值为 2800 左右，距离 4K 还有一定的距离。目前还没有找到一个可以稳定跑出 4K uOP 的指令模式，不知道遇到了什么瓶颈。
+为了测试 uOP Cache 的大小，构造不同大小的循环，循环体是复制若干份的 `add %%rsi, %%rdx` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [IDQ.DSB\_UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&evnt=IDQ.DSB_UOPS>) 性能计数器统计每次循环有多少个 uOP 来自于 DSB 也就是 uOP Cache，发现其最大值为 2800 左右，距离 4K 还有一定的距离。目前还没有找到一个可以稳定跑出 4K uOP 的指令模式，不知道遇到了什么瓶颈。
 
 考虑到 taken branch 在典型的 uOP Cache 设计中会结束一个 entry，把循环体改成若干条 `jmp` 指令，并且每个 64B 缓存行只有一条 `jmp` 指令，此时每个 uOP entry 只记录一条 `jmp` 指令。观察到每次循环最多 512 个 uOP 来自 uOP Cache，那么 Golden Cove 的 uOP Cache 大概就是 512 个 entry。如果改成每 128B 缓存行只有一条 `jmp` 指令，uOP Cache 容量减少到 256 个 entry；继续增加间距，256B 间距对应 128 个 entry，512B 间距对应 64 个 entry，1024B 间距对应 32 个 entry，2048B 间距对应 16 个 entry，4096B 间距对应 8 个 entry，继续增大间距后，entry 数维持在 8 不再减少，意味着 Golden Cove 的 uOP Cache 是 8 Way 64 Set 一共 512 Entry，Index 是 PC\[11:6\]。
 
@@ -152,7 +152,7 @@ uOP Cache 的组织方式通常是组相连，每个 entry 保存了几条 uOP�
 
 Golden Cove 架构针对循环做了优化，Loop Stream Detector（简称 LSD）会检测当前指令流是否在一个循环当中，并且循环的 uop 不超出 Instruction Decode Queue(IDQ) 的容量，那么 LSD 会把 Legacy decode pipeline(MITE) 和 Decode stream buffer(DSB) 关掉，不再让 IDQ 的指令出队，而是直接在 IDQ 的内部循环提供指令，这个时候就节省了很多处理器前端的功耗。
 
-为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 `inc %rsi` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [LSD.UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS>) 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 144，说明 Golden Cove 的 Loop Stream Detector 可以识别最多 144 个 uop 的循环。此时每个循环要执行 145 条指令，最后的 `dec + jnz` 被融合成了一个 uop。
+为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 `inc %rsi` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [LSD.UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&evnt=LSD.UOPS>) 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 144，说明 Golden Cove 的 Loop Stream Detector 可以识别最多 144 个 uop 的循环。此时每个循环要执行 145 条指令，最后的 `dec + jnz` 被融合成了一个 uop。
 
 循环体中，如果用 `nop` 指令来填充，会得到 40 左右的比 144 小得多的容量，猜测是进入了低功耗模式。
 

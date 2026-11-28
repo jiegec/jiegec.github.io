@@ -56,7 +56,7 @@ Redwood Cove 的 L1 ITLB 容量和 [Golden Cove](<https://jia.je/blog/posts/hard
 
 - Improved LSD coverage: the IDQ can hold **192** μops per logical processor in single-thread mode or 96 μops per thread when SMT is active.
 
-为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 `inc %rsi` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [LSD.UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&amp;evnt=LSD.UOPS>) 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 191，说明 Redwood Cove 的 Loop Stream Detector 可以识别最多 191 个 uop 的循环。此时每个循环要执行 192 条指令，最后的 `dec + jnz` 被融合成了一个 uop。相比 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) 的 144 uops IDQ 容量有所增加。
+为了测试 Instruction Decode Queue 的大小，构造不同大小的循环，循环体是复制若干份的 `inc %rsi` 指令，最后是 `dec + jnz` 作为循环结尾，通过 [LSD.UOPS](<https://perfmon-events.intel.com/index.html?pltfrm=ahybrid.html&evnt=LSD.UOPS>) 性能计数器统计每次循环有多少个 UOP 来自于 Loop Stream Detector 机制，发现其最大值为 191，说明 Redwood Cove 的 Loop Stream Detector 可以识别最多 191 个 uop 的循环。此时每个循环要执行 192 条指令，最后的 `dec + jnz` 被融合成了一个 uop。相比 [Golden Cove](<https://jia.je/blog/posts/hardware/intel-golden-cove/index.md>) 的 144 uops IDQ 容量有所增加。
 
 循环体中，如果用 `nop` 指令来填充，会得到 39 左右的比 192 小得多的容量，猜测是进入了低功耗模式。
 

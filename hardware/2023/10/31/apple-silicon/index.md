@@ -22,11 +22,11 @@
 来源：
 
 - [iPad Pro 13‑inch (M4) - Tech Specs](<https://support.apple.com/en-us/119891>)
-- [MacBook Pro (14-inch, 2021) - Technical Specifications](<https://support.apple.com/kb/SP854?viewlocale=en_US&amp;locale=en_US>)
-- [iMac (24-inch, M1, 2021) - Technical Specifications](<https://support.apple.com/kb/SP839?viewlocale=en_US&amp;locale=en_US>)
-- [MacBook Air (M2, 2022) - Technical Specifications](<https://support.apple.com/kb/SP869?viewlocale=en_US&amp;locale=en_US>)
-- [MacBook Pro (16-inch, 2023) - Technical Specifications](<https://support.apple.com/kb/SP890?viewlocale=en_US&amp;locale=en_US>)
-- [Mac mini (2023) - Technical Specifications](<https://support.apple.com/kb/SP891?viewlocale=en_US&amp;locale=en_US>)
+- [MacBook Pro (14-inch, 2021) - Technical Specifications](<https://support.apple.com/kb/SP854?viewlocale=en_US&locale=en_US>)
+- [iMac (24-inch, M1, 2021) - Technical Specifications](<https://support.apple.com/kb/SP839?viewlocale=en_US&locale=en_US>)
+- [MacBook Air (M2, 2022) - Technical Specifications](<https://support.apple.com/kb/SP869?viewlocale=en_US&locale=en_US>)
+- [MacBook Pro (16-inch, 2023) - Technical Specifications](<https://support.apple.com/kb/SP890?viewlocale=en_US&locale=en_US>)
+- [Mac mini (2023) - Technical Specifications](<https://support.apple.com/kb/SP891?viewlocale=en_US&locale=en_US>)
 - [Mac Studio (2022) - Technical Specifications](<https://support.apple.com/kb/SP865?locale=en_US>)
 - [Mac Studio (2023) - Technical Specifications](<https://support.apple.com/kb/SP894?locale=en_US>)
 

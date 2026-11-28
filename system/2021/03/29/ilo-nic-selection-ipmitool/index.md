@@ -26,7 +26,7 @@ $ ipmitool raw 0x0c 0x02 CHANNEL KEY SET BLOCK
 $ ipmitool raw 0x0c 0x01 CHANNEL KEY DATA...
 ```
 
-知道如何读取配置后，接下来就是找到 iLO 4 配置 NIC 的地方了。一番搜索，找到了 [HPE iLO IPMI User Guide](<https://support.hpe.com/hpesc/public/docDisplay?docId=c04530505&amp;docLocale=en_US>)。在第 101 页，可以找到一个用于配置 iLO NIC 选择的设置：
+知道如何读取配置后，接下来就是找到 iLO 4 配置 NIC 的地方了。一番搜索，找到了 [HPE iLO IPMI User Guide](<https://support.hpe.com/hpesc/public/docDisplay?docId=c04530505&docLocale=en_US>)。在第 101 页，可以找到一个用于配置 iLO NIC 选择的设置：
 
 ```text
 Index: 224
